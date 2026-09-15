@@ -10791,6 +10791,9 @@ spoken announcements below them under `[speech]`:
   still transmit if the hardware supports it; this only hides the buttons, so a
   ham who also listens leaves it off. It is the companion to the broadcast bands
   on the selector ([§2.4](#24-bands-and-modes)) for a licence-free station.
+  It also swaps the strip's ham chips for the listener's — the **SPOTS** and
+  **AWARDS** give way to **SCHEDULE** and **LISTEN** — and **Start in SWL mode**
+  below makes every session open this way, as `--swl` does for one run.
 - **Simple UI** — tick **hide advanced chips** and the top strip drops the
   controls a CB operator or a short-wave listener never opens: the **☀ 3D** view,
   the **WIDE** strip, the **CTR** centre-lock, the **SKIM**mers, and the
@@ -10800,6 +10803,11 @@ spoken announcements below them under `[speech]`:
   Nothing is turned off, only hidden: clear the tick to bring the chips back.
   The radio keeps working exactly as before, so it is safe to leave on and
   switch off for a moment when you want the extras.
+- **Start in SWL mode** — tick **start with SWL mode on** and every session
+  comes up with SWL mode already on (stored as `start_swl` under `[ui]`). Off
+  unless asked for; the **SWL mode** switch above still turns it off for a
+  session, and the next start honours this setting again. `--swl` does the same
+  for a single run without touching it.
 - **Layout** — which control strip the window wears. **Auto** picks one from the
   window size and is what you want; **Desktop**, **Tablet**, **Small screen**
   and **Phone** force it, to see how the compact strips look without a phone to
@@ -15327,7 +15335,7 @@ using. Bind them under **Speech** on the Controls tab:
 | LSB / USB | Lower / upper sideband voice. |
 | CW | Morse (continuous wave). Decoded on a waterfall cursor, with type-ahead keyboard sending — see [2.14](#214-cw-decoding-and-keyboard-sending). |
 | AM | Amplitude modulation. |
-| SAM | Synchronous AM. |
+| SAM | Synchronous AM. Its **ECSS-U**/**ECSS-L** filter presets keep one sideband and reject the other — the medium-wave DX trick for ducking an adjacent channel. |
 | C-QUAM | C-QUAM, Motorola's AM stereo for the medium wave: AM carrying the sum and the stereo difference as carrier phase, with a 25 Hz pilot for the stereo lamp and the mono blend. Receive only. See [`cquam-design.md`](cquam-design.md). |
 | NFM / WFM | Narrow / wide FM. WFM decodes broadcast stereo and RDS/RBDS automatically. |
 | DIGU / DIGL | Data over USB / LSB (general digital). |
