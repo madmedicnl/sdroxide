@@ -6345,11 +6345,11 @@ fn band_mode_menu(
         // ahead of 160 m, and FM between 4 m and 2 m, made the bar read as one
         // list of one kind of thing.
         ui.add_space(6.0);
-        crate::chrome::menu_caption(ui, "Broadcast");
+        crate::chrome::menu_caption(ui, "Broadcast & utility");
         ui.horizontal_wrapped(|ui| {
             // By frequency, the way a radio face orders them — not the bar's
             // order, which threads FM between 4 m and 2 m and SW at the end.
-            for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air] {
+            for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil] {
                 band_chip(ui, b);
             }
         });
