@@ -245,6 +245,7 @@ pub fn band_color(band: sdroxide_types::Band) -> [u8; 3] {
         Band::Sw => [56, 128, 120],  // sea green
         Band::Fm => [116, 132, 108], // sage
         Band::Air => [92, 124, 150],  // dusty blue, the same quiet family
+        Band::Mil => [132, 112, 132], // dusty mauve, likewise
         // Not a band: nothing is ever binned here.
         Band::Gen => [128, 128, 128],
     }

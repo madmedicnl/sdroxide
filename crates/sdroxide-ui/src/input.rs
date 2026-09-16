@@ -1386,9 +1386,11 @@ mod tests {
         // amateur ones.
         assert_eq!(step_band(Band::Sw, false), Some(Band::Cm3));
         assert_eq!(step_band(Band::Mw, true), Some(Band::M160));
-        // 1.25 m and 33 cm are Region 2's alone, so in Region 1 the step from
-        // 2 m goes straight to 70 cm and from there to 23 cm.
-        assert_eq!(step_band(Band::M2, true), Some(Band::M70));
+        // 1.25 m is Region 2's alone, so in Region 1 the step from 2 m crosses
+        // the military UHF airband (which is everywhere) and only then reaches
+        // 70 cm; 33 cm is Region 2's alone, so 70 cm goes to 23 cm.
+        assert_eq!(step_band(Band::M2, true), Some(Band::Mil));
+        assert_eq!(step_band(Band::Mil, true), Some(Band::M70));
         assert_eq!(step_band(Band::M70, true), Some(Band::Cm23));
         assert_eq!(step_band(Band::Cm23, false), Some(Band::M70));
         // Wraps within the bands that have edges: shortwave is the last stop

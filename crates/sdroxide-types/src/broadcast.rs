@@ -533,6 +533,9 @@ pub fn metre_band(khz: f64) -> Option<&'static str> {
     if (108_100.0..=137_000.0).contains(&k) {
         return Some("AIR");
     }
+    if (225_100.0..=400_000.0).contains(&k) {
+        return Some("MIL");
+    }
     METRE_BANDS
         .iter()
         .find(|&&(_, lo, hi)| (lo..=hi).contains(&k))
@@ -653,6 +656,33 @@ pub fn airband() -> &'static [BroadcastStation] {
     })
 }
 
+/// The well-known **military** frequencies: the UHF emergency channel and the
+/// US HF Global System's calling channels, which are channels rather than
+/// transmissions and so are on no schedule. The US HF channels are USB, the
+/// UHF emergency is AM.
+pub fn military() -> &'static [BroadcastStation] {
+    static PARSED: OnceLock<Vec<BroadcastStation>> = OnceLock::new();
+    PARSED.get_or_init(|| {
+        // (kHz, name, mode)
+        const TABLE: &[(f64, &str, &str)] = &[
+            (243_000.0, "243.000 Military Emergency (GUARD)", "AM"),
+            (4_724.0, "US military HF (HFGCS)", "USB"),
+            (8_992.0, "US military HF (HFGCS)", "USB"),
+            (11_175.0, "US military HF (HFGCS)", "USB"),
+            (15_016.0, "US military HF (HFGCS)", "USB"),
+        ];
+        TABLE
+            .iter()
+            .map(|&(freq_khz, name, mode)| BroadcastStation {
+                name: name.to_string(),
+                freq_khz,
+                mode: Some(mode.to_string()),
+                ..Default::default()
+            })
+            .collect()
+    })
+}
+
 /// Append the built-in utility stations to a loaded schedule.
 ///
 /// Separate from [`merge`] on purpose: `merge` is about EiBi rows and the
@@ -661,6 +691,7 @@ pub fn airband() -> &'static [BroadcastStation] {
 pub fn with_utilities(mut schedule: Vec<BroadcastStation>) -> Vec<BroadcastStation> {
     schedule.extend(utilities().iter().cloned());
     schedule.extend(airband().iter().cloned());
+    schedule.extend(military().iter().cloned());
     schedule
 }
 
@@ -1202,9 +1233,26 @@ mod utility_tests {
     #[test]
     fn utilities_ride_along_with_a_loaded_schedule() {
         let with = with_utilities(seed().to_vec());
-        assert_eq!(with.len(), seed().len() + utilities().len() + airband().len());
+        assert_eq!(
+            with.len(),
+            seed().len() + utilities().len() + airband().len() + military().len()
+        );
         assert!(with.iter().any(|s| s.name.contains("WWV")), "added in");
         assert!(with.iter().any(|s| s.name.contains("GUARD")), "airband too");
+        assert!(with.iter().any(|s| s.name.contains("HFGCS")), "and military");
+    }
+
+    #[test]
+    fn the_military_table_names_the_known_channels() {
+        let m = military();
+        assert!(m.iter().any(|s| s.freq_khz == 243_000.0), "the military emergency");
+        assert!(m.iter().any(|s| s.name.contains("HFGCS")), "the HF system");
+        for s in m {
+            if s.freq_khz > 30_000.0 {
+                assert_eq!(metre_band(s.freq_khz), Some("MIL"), "{} reads as MIL", s.name);
+            }
+            assert!(s.on_air_at(0), "{} runs around the clock", s.name);
+        }
     }
 
     #[test]

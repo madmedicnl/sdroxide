@@ -147,10 +147,25 @@ pub enum Band {
     /// Appended for the reason [`Band::M70`] gives; [`Band::ALL`] puts it after
     /// FM and before 2 m, where the frequencies are.
     Air,
+    /// The **military UHF airband** — 225–400 MHz, amplitude modulated, the
+    /// NATO counterpart of the civil airband, carrying military air traffic
+    /// control, refuelling and tactical voice, and the military emergency
+    /// channel 243.000. The span also holds the UHF satcom downlinks that sit
+    /// inside it.
+    ///
+    /// Receive-only like every other listening service: not an amateur
+    /// allocation, no ADIF band and no transmit. Whether one may *listen* is a
+    /// matter for the operator's own country — some restrict receiving
+    /// services not meant for the public — so it is offered the same way as
+    /// the rest of the dial and left to them.
+    ///
+    /// Appended for the reason [`Band::M70`] gives; [`Band::ALL`] puts it
+    /// between 1.25 m and 70 cm, where the frequencies are.
+    Mil,
 }
 
 impl Band {
-    pub const ALL: [Band; 28] = [
+    pub const ALL: [Band; 29] = [
         Band::Lw,
         Band::Mw,
         Band::M160,
@@ -170,6 +185,7 @@ impl Band {
         Band::Air,
         Band::M2,
         Band::M125,
+        Band::Mil,
         Band::M70,
         Band::Cm33,
         Band::Cm23,
@@ -201,7 +217,7 @@ impl Band {
     ///
     /// Append-only, forever. A new band goes on the end here and wherever it
     /// belongs in [`Band::ALL`]; the two lists are deliberately different.
-    const DECLARED: [Band; 28] = [
+    const DECLARED: [Band; 29] = [
         Band::M160,
         Band::M80,
         Band::M60,
@@ -230,6 +246,7 @@ impl Band {
         Band::Sw,
         Band::Fm,
         Band::Air,
+        Band::Mil,
     ];
 
     /// This band's position in the *declaration* order, which is append-only
@@ -297,6 +314,7 @@ impl Band {
             Band::Sw => "SW",
             Band::Fm => "FM",
             Band::Air => "AIR",
+            Band::Mil => "MIL",
             Band::Gen => "GEN",
         }
     }
@@ -312,7 +330,17 @@ impl Band {
     /// so it can be *listened* to does not quietly hand out permission to key
     /// up on it (issue #396).
     pub fn is_amateur(self) -> bool {
-        !matches!(self, Band::Gen | Band::M11 | Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air)
+        !matches!(
+            self,
+            Band::Gen
+                | Band::M11
+                | Band::Lw
+                | Band::Mw
+                | Band::Sw
+                | Band::Fm
+                | Band::Air
+                | Band::Mil
+        )
     }
 
     /// Whether this is a *listening* service rather than an amateur
@@ -326,7 +354,7 @@ impl Band {
     /// them in a run of their own after the allocations rather than threading
     /// them between 160 m and 30 m or between 4 m and 2 m.
     pub fn is_listen_service(self) -> bool {
-        matches!(self, Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air)
+        matches!(self, Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air | Band::Mil)
     }
 
     /// Band edges in Hz for the station's configured region (see
@@ -507,6 +535,10 @@ impl Band {
             // not touch FM broadcast's top edge; 137.0 is the top of the voice
             // allocation.
             Band::Air => Some((108_100_000.0, 137_000_000.0)),
+            // The military UHF airband. 225.1 rather than 225.0 so it does not
+            // touch 1.25 m in the region that has it; 400.0 is the top of the
+            // NATO allocation.
+            Band::Mil => Some((225_100_000.0, 400_000_000.0)),
             Band::Gen => None,
         }
     }
@@ -553,6 +585,8 @@ impl Band {
             // 121.500 is the international aeronautical emergency (GUARD)
             // frequency, the one airband channel every listener knows.
             Band::Air => (121_500_000.0, Mode::Am),
+            // 243.000 is the military emergency (GUARD) channel.
+            Band::Mil => (243_000_000.0, Mode::Am),
             Band::M2 => (145_500_000.0, Mode::Nfm),
             // 223.500 is the 1.25 m national FM simplex calling frequency.
             Band::M125 => (223_500_000.0, Mode::Nfm),
@@ -644,7 +678,14 @@ mod tests {
                 b.is_amateur(),
                 !matches!(
                     b,
-                    Band::M11 | Band::Gen | Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air
+                    Band::M11
+                        | Band::Gen
+                        | Band::Lw
+                        | Band::Mw
+                        | Band::Sw
+                        | Band::Fm
+                        | Band::Air
+                        | Band::Mil
                 ),
                 "{b:?} is on the wrong side of is_amateur"
             );

@@ -14,9 +14,9 @@ use crate::app::swl_log::SwlEditForm;
 use crate::time::now_unix;
 
 /// The metre bands offered in the band filter. Empty = any.
-const BAND_FILTERS: [&str; 19] = [
+const BAND_FILTERS: [&str; 20] = [
     "", "LW", "MW", "120m", "90m", "75m", "60m", "49m", "41m", "31m", "25m", "22m", "19m", "16m",
-    "15m", "13m", "11m", "FM", "AIR",
+    "15m", "13m", "11m", "FM", "AIR", "MIL",
 ];
 
 /// The schedule window's state: whether it is open, and its filters.

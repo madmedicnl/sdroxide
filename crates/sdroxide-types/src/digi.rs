@@ -2255,6 +2255,10 @@ pub fn adif_band(freq_hz: f64) -> &'static str {
         m if m < 144.0 => "",
         m if m < 148.1 => "2m",
         m if m < 225.1 => "1.25m",
+        // The military UHF airband (225.1-400) and the gap above it: a receive
+        // service with no ADIF band, like the civil airband. Ends at 420, the
+        // bottom of 70 cm in the region with the widest one.
+        m if m < 420.0 => "",
         m if m < 450.1 => "70cm",
         m if m < 928.1 => "33cm",
         m if m < 1300.1 => "23cm",

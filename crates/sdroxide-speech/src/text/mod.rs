@@ -206,6 +206,7 @@ impl<'a> Speaker<'a> {
             Band::Sw => "short wave",
             Band::Fm => "F M",
             Band::Air => "air band",
+            Band::Mil => "military air band",
             Band::Gen => "general coverage",
         }
     }
