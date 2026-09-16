@@ -34,6 +34,10 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     knik0/faad2 and drop `HDC_SUPPORT` from `crates/sdroxide-drm/build.rs`. The
     pin is `madmedicnl/faad2-hdc` (stock 2.11.2 plus the patch) so that one
     faad2 archive serves both the Dream DRM and the nrsc5 HD Radio decoders.
+  - `dividebysandwich/sdroxide#466` — HD Radio (NRSC-5), offered upstream and
+    under review. `dielectric-coder` is off-air testing it and has offered both
+    a capture for the bench and an `examples/hd_capture.rs`; see "When the HD
+    Radio capture arrives" below.
 
 ### When `jl1nie/mfsk-core#373` merges
 
@@ -49,6 +53,26 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
 If #373 is **rejected or closed unmerged**, decide with the user between a
 runtime strict/loose policy upstream or keeping the fork pin — do not silently
 drop CB validation.
+
+### When the HD Radio capture arrives
+
+`dielectric-coder` (upstream PR #466) offered a short `--record-iq` capture and
+an `examples/hd_capture.rs` harness that shifts one channel to zero, decimates
+and drives `HdDemod` directly — no antenna needed once a capture exists. As of
+2026-09-16 the branch is confirmed on air against four HD stations, with stereo
+and the watchdog below in place.
+
+1. Take the harness as `crates/sdroxide-nrsc5/examples/hd_capture.rs`; it is the
+   one place the capture-to-channel-rate conversion should live.
+2. Add a test gated on `SDROXIDE_HD_SAMPLE`, skipping with a printed line when
+   unset — the pattern `sdroxide-drm`'s `a_recording_decodes` uses with
+   `SDROXIDE_DRM_SAMPLE`. Assert lock, the station name, audio on each
+   programme, and **`HdDemod::backlog_drops() == 0`**. That last one is what
+   caught the one-value-per-frame pacing bug on air; do not drop it.
+3. **Do not commit the capture.** It is copyrighted programme material and tens
+   of megabytes; keep it beside the tree and point the env var at it.
+4. If PR #466 merges upstream, the `knik0/faad2` re-point in the watch list
+   applies too.
 
 ## Regenerating the quick-start PDFs
 
