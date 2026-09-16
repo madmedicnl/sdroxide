@@ -261,6 +261,13 @@ pub enum Mode {
     /// [`Mode::Am`] and [`Mode::Sam`] already do. Appended for the same reason
     /// as [`Mode::Hell`].
     Cquam,
+    /// ACARS — the VHF aircraft datalink around 130 MHz (issue #436): an AM
+    /// carrier in the airband carrying 2400-baud MSK, character-oriented, with
+    /// odd parity and a CCITT block check. Receive only: it is an airline
+    /// service, not an amateur one.
+    ///
+    /// Appended for the same reason as [`Mode::Hell`].
+    Acars,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -281,7 +288,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 40] = [
+    pub const ALL: [Mode; 41] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -315,6 +322,7 @@ impl Mode {
         Mode::Rifp,
         Mode::Wefax,
         Mode::Navtex,
+        Mode::Acars,
         Mode::Olivia,
         Mode::Thor,
         Mode::Fsq,
@@ -322,13 +330,13 @@ impl Mode {
         Mode::Hell,
         Mode::RfPaint,
         Mode::Rade,
-    ];
+];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
     /// slotted FT8/FT4 modes, the continuous keyboard modes, Hell, SSTV, RIFP,
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier.
-    pub const DIGITAL: [Mode; 23] = [
+    pub const DIGITAL: [Mode; 24] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -347,18 +355,20 @@ impl Mode {
         Mode::Rifp,
         Mode::Wefax,
         Mode::Navtex,
+        Mode::Acars,
         Mode::RfPaint,
         Mode::Rade,
         Mode::Packet,
         Mode::PacketHf,
         Mode::Aprs,
-    ];
+];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
     pub fn is_digital(self) -> bool {
         matches!(
             self,
-            Mode::Ft8
+            Mode::Acars
+                | Mode::Ft8
                 | Mode::Ft4
                 | Mode::Ft2
                 | Mode::Js8
@@ -651,6 +661,7 @@ impl Mode {
             Mode::Wefax
                 | Mode::Adsb
                 | Mode::Navtex
+                | Mode::Acars
                 | Mode::Vdl2
                 | Mode::Isb
                 | Mode::Ais
@@ -708,6 +719,7 @@ impl Mode {
             Mode::Rtty => "RTTY",
             Mode::RttyFm => "RTTY-FM",
             Mode::Navtex => "NAVTEX",
+            Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
             Mode::SstvFm => "SSTV-FM",
             Mode::Olivia => "OLIVIA",
@@ -797,6 +809,9 @@ impl Mode {
             // either side leaves room for a receiver that is not exactly on the
             // channel, which is the usual state of a signal found by ear.
             Mode::Navtex => (1300.0, 2100.0),
+            // ACARS' MSK sits at 1200 and 2400 Hz on the AM carrier, so the
+            // passband has to keep both tones and the carrier between them.
+            Mode::Acars => (-3000.0, 3000.0),
             // WSPR lives in one 200 Hz window, 1400–1600 Hz above the dial, and
             // the decoder searches nowhere else. Narrow rather than the usual
             // digital 100–3300 on purpose: the QRSS beacons just below the
@@ -975,7 +990,13 @@ impl Mode {
             // ISB joins them for the same reason DSB does: the carrier is on
             // the dial and a rig with an I.F. output has no separate setting
             // for it.
-            Mode::Am | Mode::Sam | Mode::Cquam | Mode::Dsb | Mode::Drm | Mode::Isb => C::Am,
+            Mode::Am
+            | Mode::Sam
+            | Mode::Cquam
+            | Mode::Acars
+            | Mode::Dsb
+            | Mode::Drm
+            | Mode::Isb => C::Am,
             // WFM is FM's carrier position too; a rig with an I.F. output has
             // no such mode, so nothing here is lost by grouping them.
             // ADS-B joins them for the same reason WFM does: no radio with an
@@ -1236,6 +1257,7 @@ impl Mode {
             | Mode::Rifp
             | Mode::Wefax
             | Mode::Navtex
+            | Mode::Acars
             | Mode::PacketHf
             | Mode::Rade => &[],
         }
@@ -1766,7 +1788,7 @@ mod tests {
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker.
-        let last = Mode::Cquam as u8;
+        let last = Mode::Acars as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");
