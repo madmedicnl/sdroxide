@@ -29,6 +29,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly.
   - `jl1nie/mfsk-core#373` — the opt-in `cb-callsigns` feature; when it merges,
     the `mfsk-core` fork pin in `crates/sdroxide-digi/Cargo.toml` can go.
+  - `knik0/faad2` HDC — when someone merges the HD Radio codec variant (nrsc5's
+    `support/faad2-hdc-support.patch`), re-point `vendor/faad2` back to upstream
+    knik0/faad2 and drop `HDC_SUPPORT` from `crates/sdroxide-drm/build.rs`. The
+    pin is `madmedicnl/faad2-hdc` (stock 2.11.2 plus the patch) so that one
+    faad2 archive serves both the Dream DRM and the nrsc5 HD Radio decoders.
 
 ### When `jl1nie/mfsk-core#373` merges
 
