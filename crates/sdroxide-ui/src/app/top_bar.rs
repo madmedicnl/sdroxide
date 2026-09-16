@@ -6308,7 +6308,7 @@ fn band_mode_menu(
         // The allocations, in bar order — 160 m up through 3 cm, with 11 m
         // where the frequencies put it.
         ui.horizontal_wrapped(|ui| {
-            for b in Band::ALL.into_iter().filter(|b| !b.is_broadcast()) {
+            for b in Band::ALL.into_iter().filter(|b| !b.is_listen_service()) {
                 band_chip(ui, b);
             }
         });
@@ -6322,7 +6322,7 @@ fn band_mode_menu(
         ui.horizontal_wrapped(|ui| {
             // By frequency, the way a radio face orders them — not the bar's
             // order, which threads FM between 4 m and 2 m and SW at the end.
-            for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm] {
+            for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air] {
                 band_chip(ui, b);
             }
         });
