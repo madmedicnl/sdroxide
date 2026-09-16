@@ -268,12 +268,13 @@ fn readme() -> Vec<String> {
          Omit a band and this region does not have it; \
          narrow one to your own licence and sdroxide will refuse to transmit outside it \
          (with tx_ham_only set, which is the default).",
-        "The listening services — the broadcast bands Lw, Mw, Sw, Fm and the airband Air — are not amateur allocations, so the \
+        "The listening services — the broadcast bands Lw, Mw, Sw, Fm and the airbands \
+         Air and Mil — are not amateur allocations, so the \
          transmit lockout holds there with the default tx_ham_only, exactly as it does \
          on 11 m (M11). Sw deliberately overlies the amateur HF bands; the operator on \
          a frequency in both is read as being on the amateur band.",
-        "A band sdroxide adds in a later version — 4 m (M4) was the first, the microwave bands \
-         (Cm33 through Cm6) the latest — is not in a file written before it existed, so it is \
+        "A band sdroxide adds in a later version — 4 m (M4) was the first, the airbands \
+         Air and Mil the latest — is not in a file written before it existed, so it is \
          filled in from the built-in tables when this file names it in no region at all. Give it \
          a row in any region and this file decides it everywhere, as it does for every other \
          band.",
@@ -389,6 +390,8 @@ const BANDS_ADDED_SINCE_THE_FILE: &[Band] = &[
     Band::Mw,
     Band::Sw,
     Band::Fm,
+    Band::Air,
+    Band::Mil,
 ];
 
 impl TryFrom<PlanFile> for BandPlan {
@@ -831,6 +834,16 @@ mod tests {
         assert_eq!(older.region(Region::R1).edges(Band::Sw), Some((2_300_000.0, 26_100_000.0)));
         assert_eq!(older.region(Region::R1).containing(9_650_000.0), Band::Sw);
         assert_eq!(older.region(Region::R1).edges(Band::Fm), Some((87_500_000.0, 108_000_000.0)));
+        // And the two airbands, which were the newest when this was written.
+        assert_eq!(
+            older.region(Region::R1).edges(Band::Air),
+            Some((108_100_000.0, 137_000_000.0))
+        );
+        assert_eq!(
+            older.region(Region::R2).edges(Band::Mil),
+            Some((225_100_000.0, 400_000_000.0))
+        );
+        assert_eq!(older.region(Region::R2).containing(243_000_000.0), Band::Mil);
 
         // Named in one region: the file decides 4 m everywhere from then on, so
         // leaving it out of Region 1 means Region 1 has not got it.
