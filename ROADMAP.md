@@ -81,6 +81,16 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
   surfaces the label and text, so it needs the shim extended (C++ + FFI + a
   panel) and a real signal with a slideshow to validate. The largest remaining
   item.
+- **HD Radio (NRSC-5) for the listener.** **FM done** — the digital sidecar of
+  an FM broadcast is a `Mode`, decoded by the vendored nrsc5 receiver and heard
+  through the ordinary audio path, with an HD Radio panel showing sync, both
+  sidebands' MER, CBER, the programme and the station's own name, slogan and
+  message (issue #437). Needs a front end capturing roughly ±200 kHz around the
+  carrier — a complex rate of about 1 Msps or more. The **AM-band variant** (HD
+  on medium wave) is open: the decoder wants opening in its AM mode and feeding
+  at 46,511.71875 S/s, which the engine would choose from the dial frequency.
+  The **HD-2/HD-3 subchannel** chips and the **album art / PSD** the multiplex
+  can carry are further open work.
 
 ## Not goals
 

@@ -48,7 +48,8 @@ burying them among the digital modes; and picking the **FM** broadcast band
 comes up **WFM**. And as a receiver it is a full one: it decodes every WSPR beacon in
 HF around the clock, labels ~4,600 longwave and shortwave broadcast
 transmitters on the waterfall (each with its transmit schedule and site),
-decodes DRM shortwave radio, weather fax, and the ADS-B/VDL2 aircraft overhead
+decodes DRM shortwave radio and the **HD Radio** digital sidecars of FM
+broadcast, weather fax, and the ADS-B/VDL2 aircraft overhead
 — and the browser server lets you listen from anywhere, antenna in the garden.
 
 It keeps growing where the CB and listener use needs it. A **Profile** saves a
@@ -195,7 +196,11 @@ One binary, three ways to run it:
   datalink those same aircraft exchange ACARS over, on all seven channels around
   136.8 MHz at once, with the messages and the stations sending them — and
   receive-only **ACARS** itself, the classic airband datalink, decoded from the AM
-  carrier on the shared airline channels (131.550, 131.725 MHz and friends).
+  carrier on the shared airline channels (131.550, 131.725 MHz and friends) —
+  and receive-only **HD Radio** (NRSC-5), the digital sidecar of an FM
+  broadcast on 87.5–108 MHz, with an **HD Radio** panel showing sync, both
+  sidebands' MER, CBER, the programme and the station's own name, slogan and
+  message.
 - **Receiver** — hang AGC, draggable passband filter edges (on the spectrum and
   the waterfall), noise blanker, auto-notch, **four noise-reduction engines**
   (RNNoise, DeepFilterNet3, a libspecbleach port and the built-in spectral NR,
