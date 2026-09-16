@@ -5581,7 +5581,7 @@ A received file is written under a `received/` folder — created next to
 wherever sdroxide was started from — named `<transfer-id>_<filename>`, so two
 stations sending a file with the same name never collide.
 
-### 3.18 ACARS — airline datalink on airband
+### 3.18 ACARS (airline datalink on airband)
 
 ACARS (Aircraft Communications Addressing and Reporting System) is the text datalink airliners and ground stations use on VHF airband. Aircraft send position reports, crew requests and company messages; ground stations answer with clearance data, gate assignments and weather. Every exchange is a short burst — a second or two of MSK at 2400 baud on an AM carrier, usually with a 1800 Hz audio tone.
 
