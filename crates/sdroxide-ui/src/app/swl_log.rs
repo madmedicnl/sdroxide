@@ -301,9 +301,10 @@ impl SdroxideApp {
 
     /// The reception log list, newest first, grouped by day.
     fn swl_list(&mut self, ui: &mut egui::Ui) {
-        // A copy, so the list can be drawn while `self` stays free to record a
-        // selection or a delete.
-        let mut rows = self.swl_log.clone();
+        // Moved out for the frame and put back after, so the list can be drawn
+        // while `self` stays free to record a selection or a delete — without
+        // cloning the whole log every frame.
+        let mut rows = std::mem::take(&mut self.swl_log);
         rows.sort_by_key(|e| std::cmp::Reverse(e.heard_at_unix));
         let mut selected = self.swl_selected;
         let mut edit: Option<u64> = None;
@@ -365,15 +366,19 @@ impl SdroxideApp {
         );
         self.swl_selected = selected;
         if let Some(id) = edit
-            && let Some(e) = self.swl_log.iter().find(|e| e.id == id)
+            && let Some(e) = rows.iter().find(|e| e.id == id)
         {
             self.swl_edit = Some(SwlEditForm::from_entry(e));
         }
+        let deleted = delete.is_some();
         if let Some(id) = delete {
-            self.swl_log.retain(|e| e.id != id);
+            rows.retain(|e| e.id != id);
             if self.swl_selected == Some(id) {
                 self.swl_selected = None;
             }
+        }
+        self.swl_log = rows;
+        if deleted {
             persist_swl_log(&self.swl_log);
         }
     }

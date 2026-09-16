@@ -405,12 +405,17 @@ impl BroadcastStation {
 
     /// Whether the entry matches a free-text query over the fields a listener
     /// searches by: name, site, country, language and target.
+    ///
+    /// Allocation-free: the schedule window calls this for every station every
+    /// frame it is open, so lowercasing the fields into fresh `String`s here was
+    /// tens of thousands of allocations a second. [`contains_ascii_ci`] compares
+    /// in place instead.
     pub fn matches_query(&self, q: &str) -> bool {
-        let q = q.trim().to_ascii_lowercase();
+        let q = q.trim();
         q.is_empty()
             || [&self.name, &self.site, &self.country, &self.lang, &self.target]
                 .iter()
-                .any(|f| f.to_ascii_lowercase().contains(&q))
+                .any(|f| contains_ascii_ci(f, q))
     }
 
     /// Whether this transmission is scheduled at `unix` (seconds since epoch).
@@ -564,6 +569,22 @@ pub const METRE_BANDS: &[(&str, f64, f64)] = &[
     ("13m", 21_450.0, 21_850.0),
     ("11m", 25_670.0, 26_100.0),
 ];
+
+/// Case-insensitive substring test that allocates nothing.
+///
+/// [`str::to_ascii_lowercase`] would, and the schedule filters run over
+/// thousands of rows a frame; this walks the bytes instead.
+pub fn contains_ascii_ci(haystack: &str, needle: &str) -> bool {
+    let needle = needle.trim().as_bytes();
+    if needle.is_empty() {
+        return true;
+    }
+    let hay = haystack.as_bytes();
+    if needle.len() > hay.len() {
+        return false;
+    }
+    hay.windows(needle.len()).any(|w| w.eq_ignore_ascii_case(needle))
+}
 
 pub fn seed() -> &'static [BroadcastStation] {
     static PARSED: OnceLock<Vec<BroadcastStation>> = OnceLock::new();
@@ -1240,6 +1261,16 @@ mod utility_tests {
         assert!(with.iter().any(|s| s.name.contains("WWV")), "added in");
         assert!(with.iter().any(|s| s.name.contains("GUARD")), "airband too");
         assert!(with.iter().any(|s| s.name.contains("HFGCS")), "and military");
+    }
+
+    #[test]
+    fn the_allocation_free_search_matches_case_insensitively() {
+        assert!(contains_ascii_ci("Radio Taiwan International", "taiwan"));
+        assert!(contains_ascii_ci("Ascension", "ASCENSION"));
+        assert!(!contains_ascii_ci("BBC", "zzz"));
+        assert!(contains_ascii_ci("anything", ""), "an empty needle matches");
+        assert!(contains_ascii_ci("anything", "  "), "so does whitespace");
+        assert!(!contains_ascii_ci("ab", "abc"), "a longer needle cannot match");
     }
 
     #[test]

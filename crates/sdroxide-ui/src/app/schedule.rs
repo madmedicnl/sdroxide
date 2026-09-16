@@ -32,6 +32,11 @@ pub(in crate::app) struct ScheduleUi {
     pub use_now: bool,
     /// Show only the listener's favourite stations.
     pub favourites_only: bool,
+    /// The filtered list, and the key it was built for. Rebuilt only when the
+    /// filters, the favourites, the loaded schedule or the UTC minute change —
+    /// not sixty times a second over four and a half thousand rows.
+    cache_key: Option<(String, String, String, String, bool, usize, i64)>,
+    cache: Vec<BroadcastStation>,
 }
 
 impl Default for ScheduleUi {
@@ -45,6 +50,8 @@ impl Default for ScheduleUi {
             hhmm: 0,
             use_now: true,
             favourites_only: false,
+            cache_key: None,
+            cache: Vec::new(),
         }
     }
 }
@@ -60,11 +67,6 @@ fn schedule_time(now: i64, ui: &ScheduleUi) -> i64 {
 
 fn hhmm_text(hhmm: u16) -> String {
     format!("{:02}:{:02}", hhmm / 100, hhmm % 100)
-}
-
-fn contains_ci(haystack: &str, needle: &str) -> bool {
-    let n = needle.trim();
-    n.is_empty() || haystack.to_ascii_lowercase().contains(&n.to_ascii_lowercase())
 }
 
 fn truncate(s: &str, n: usize) -> String {
@@ -90,7 +92,22 @@ impl SdroxideApp {
 
         // The matching rows, cloned out before the closure borrows `self` to
         // edit the filters and to open the log.
-        let rows: Vec<BroadcastStation> = {
+        // On-air status changes at the minute, so the cache keys on the minute,
+        // not on the second.
+        let key = (
+            self.schedule.query.clone(),
+            self.schedule.lang.clone(),
+            self.schedule.target.clone(),
+            self.schedule.band.clone(),
+            self.schedule.favourites_only,
+            self.broadcast.len(),
+            at.div_euclid(60),
+        );
+        let rows: Vec<BroadcastStation> = if self.schedule.cache_key.as_ref() == Some(&key) {
+            // Lifted out for the frame and put back afterwards, so the closure
+            // below is free to borrow `self` mutably.
+            std::mem::take(&mut self.schedule.cache)
+        } else {
             let f = &self.schedule;
             let mut v: Vec<BroadcastStation> = self
                 .broadcast
@@ -98,8 +115,8 @@ impl SdroxideApp {
                 .filter(|s| {
                     s.on_air_at(at)
                         && s.matches_query(&f.query)
-                        && contains_ci(&s.lang, &f.lang)
-                        && contains_ci(&s.target, &f.target)
+                        && broadcast::contains_ascii_ci(&s.lang, &f.lang)
+                        && broadcast::contains_ascii_ci(&s.target, &f.target)
                         && (f.band.is_empty() || broadcast::metre_band(s.freq_khz) == Some(f.band.as_str()))
                         && (!f.favourites_only || self.broadcast_favs.iter().any(|n| n == &s.name))
                 })
@@ -256,6 +273,8 @@ impl SdroxideApp {
             crate::chrome::paint_window_border(ctx, &r.response);
         }
         self.schedule.show = open;
+        self.schedule.cache = rows;
+        self.schedule.cache_key = Some(key);
 
         if let Some((name, on)) = fav_toggle {
             self.broadcast_favs.retain(|n| n != &name);
