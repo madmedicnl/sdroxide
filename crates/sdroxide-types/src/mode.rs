@@ -269,7 +269,7 @@ pub enum Mode {
     /// Appended for the same reason as [`Mode::Hell`].
     Acars,
     /// HD Radio (NRSC-5) — the digital multiplex broadcast alongside an
-    /// analogue FM or AM carrier in North America: OFDM sidebands carrying
+    /// analogue FM carrier in North America: OFDM sidebands carrying
     /// CD-quality audio (or several programmes) plus the station's name,
     /// slogan and short text messages.
     ///
@@ -278,10 +278,10 @@ pub enum Mode {
     /// modes above — no transmit, no QSO, no transcript. The analogue carrier
     /// rides along inside the same channel, so the dial is the analogue
     /// station's frequency and the digital sidebands sit either side of it.
-    /// It works on both bands the system is used on — FM (87.5–108 MHz) and
-    /// the AM band (530–1700 kHz) — the sub-carrier being chosen from the
-    /// tuned frequency rather than from the mode. Appended for the same reason
-    /// as [`Mode::Hell`].
+    ///
+    /// The system is also used on the AM band, but this build decodes the FM
+    /// hybrid only: the channel rate is fixed at FM's 744,187.5 S/s rather than
+    /// chosen from the dial. Appended for the same reason as [`Mode::Hell`].
     HdRadio,
 }
 
