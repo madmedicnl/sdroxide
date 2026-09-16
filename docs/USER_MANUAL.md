@@ -2670,7 +2670,9 @@ of the transmission.
 the OFDM frame and get the audio stream running, and it holds a fraction of a
 second of delay after that. A station that is perfectly listenable in analog WFM
 can still be too noisy for the digital side: front-end overload and strong
-neighbours on the FM band are the usual reasons.
+neighbours on the FM band are the usual reasons. A band-notch filter is another
+— a wideband receiver with its **FM broadcast notch** engaged is deaf across
+88–108 MHz, so a bad CBER can be a front-end setting rather than the decoder.
 
 **The HD Radio window** (the **HD** button, [2.7](#27-receiver-controls)) is what
 to read while tuning one in. Across the top are two indicators for the stages of
@@ -2702,6 +2704,9 @@ Below the indicators, once the signal is locked:
 Then the station's own text: its name, its slogan, and a message it is currently
 airing. If the multiplex carries more than one programme — HD-1 and an HD-2
 subchannel, say — a row of **HD-n** chips lets you pick which to hear.
+
+The audio is **stereo** (HDC carries two channels) and plays as two; a mono
+transmission simply has equal channels, so it sounds the same.
 
 **What is not here.** Transmit: HD Radio is a broadcast system. **HD on the AM
 band** (medium wave) is not wired up yet; this build decodes the FM hybrid only.

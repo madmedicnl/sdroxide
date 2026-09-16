@@ -85,6 +85,8 @@ rest.
 | **Broadcast schedule** | — | ~4,600 EiBi transmitters labelled with UTC window and site, and a **SCHEDULE** window filtering them by time, band, language and target that tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
 | **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** |
 | **C-QUAM AM stereo** | — | decoded on MW, with a stereo lamp and a mono blend (not yet verified against a real signal) |
+| **HD Radio (NRSC-5)** | — | the FM digital sidecar as a receive mode (87.5–108 MHz): stereo HDC audio, HD-1/HD-2 programme selection, and a panel with sync, per-sideband MER, CBER, offset, PSMI and the station's own name, slogan and message |
+| **ACARS** | — | the VHF airband airline datalink decoded on the shared channels (131.550, 131.725 MHz and friends), with a message panel |
 | **MW/SW DX tools** | ham audio chain | **ECSS** on SAM, synchronous AM, a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (spots, awards) for the listener's; **Start in SWL mode** in Settings → UI, or **`--swl`** |
@@ -126,8 +128,8 @@ The full interface: the radio, receiver, display and system controls along the t
   drag-to-pan, per-digit readout, colormaps, peak-hold and auto-contrast.
 - **Modes** — SSB, CW, AM, SAM, **C-QUAM** AM stereo, NFM (CTCSS/DCS),
   WFM (stereo + **RDS/RBDS**), DSB, **ISB**, DIGU/DIGL, SPEC, **DRM**,
-  **HD Radio**, and the receive-only utility decoders **ADS-B**, **VDL2**,
-  **ACARS**, **NAVTEX**, **weather fax**.
+  **HD Radio** (FM, stereo), and the receive-only utility decoders **ADS-B**,
+  **VDL2**, **ACARS**, **NAVTEX**, **weather fax**.
 - **Digital modes** — **FT8/FT4/FT2**, **JS8**, **WSPR**, **PSK31/RTTY**,
   **Olivia/THOR/FSQ**, **Hellschreiber**, **SSTV**, **RIFP**, **RF Paint**,
   **RADE** digital voice, **packet/APRS**, **AtCHAT NET**, **Winlink** email.
