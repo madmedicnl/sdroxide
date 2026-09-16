@@ -269,7 +269,7 @@ impl SdroxideApp {
                     let mut tone = self.state.rx_tone.clone();
                     let before = tone.clone();
                     crate::chrome::checkbox(ui, &mut tone.enabled, "on");
-                    let mut band = |ui: &mut egui::Ui, name: &str, b: &mut sdroxide_types::TxEqBand| {
+                    let band = |ui: &mut egui::Ui, name: &str, b: &mut sdroxide_types::TxEqBand| {
                         ui.label(RichText::new(name).size(11.0));
                         ui.add(
                             egui::DragValue::new(&mut b.gain_db)
@@ -469,7 +469,7 @@ impl SdroxideApp {
                             });
                             if f.judged {
                                 ui.horizontal(|ui| {
-                                    let mut fig = |ui: &mut egui::Ui, name: &str, v: &mut u8| {
+                                    let fig = |ui: &mut egui::Ui, name: &str, v: &mut u8| {
                                         ui.label(name);
                                         ui.add(
                                             egui::DragValue::new(v).speed(0.1).range(1..=5u8),
