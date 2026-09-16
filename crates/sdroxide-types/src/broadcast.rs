@@ -530,6 +530,9 @@ pub fn metre_band(khz: f64) -> Option<&'static str> {
     if (87_500.0..=108_000.0).contains(&k) {
         return Some("FM");
     }
+    if (108_100.0..=137_000.0).contains(&k) {
+        return Some("AIR");
+    }
     METRE_BANDS
         .iter()
         .find(|&&(_, lo, hi)| (lo..=hi).contains(&k))
@@ -624,6 +627,32 @@ pub fn utilities() -> &'static [BroadcastStation] {
     })
 }
 
+/// The universal **airband** frequencies: the civil-aviation VHF channels
+/// every listener knows, which no schedule lists because they are channels
+/// rather than transmissions. AM, as the airband is.
+pub fn airband() -> &'static [BroadcastStation] {
+    static PARSED: OnceLock<Vec<BroadcastStation>> = OnceLock::new();
+    PARSED.get_or_init(|| {
+        // (kHz, name)
+        const TABLE: &[(f64, &str)] = &[
+            (121_500.0, "121.500 Emergency (GUARD)"),
+            (122_800.0, "122.800 Air-to-air"),
+            (123_450.0, "123.450 Air-to-air"),
+            (123_100.0, "123.100 SAR on-scene"),
+            (122_750.0, "122.750 Air-to-air (US)"),
+        ];
+        TABLE
+            .iter()
+            .map(|&(freq_khz, name)| BroadcastStation {
+                name: name.to_string(),
+                freq_khz,
+                mode: Some("AM".to_string()),
+                ..Default::default()
+            })
+            .collect()
+    })
+}
+
 /// Append the built-in utility stations to a loaded schedule.
 ///
 /// Separate from [`merge`] on purpose: `merge` is about EiBi rows and the
@@ -631,6 +660,7 @@ pub fn utilities() -> &'static [BroadcastStation] {
 /// the schedule is in hand rather than folded into the count.
 pub fn with_utilities(mut schedule: Vec<BroadcastStation>) -> Vec<BroadcastStation> {
     schedule.extend(utilities().iter().cloned());
+    schedule.extend(airband().iter().cloned());
     schedule
 }
 
@@ -1172,7 +1202,20 @@ mod utility_tests {
     #[test]
     fn utilities_ride_along_with_a_loaded_schedule() {
         let with = with_utilities(seed().to_vec());
-        assert_eq!(with.len(), seed().len() + utilities().len());
+        assert_eq!(with.len(), seed().len() + utilities().len() + airband().len());
         assert!(with.iter().any(|s| s.name.contains("WWV")), "added in");
+        assert!(with.iter().any(|s| s.name.contains("GUARD")), "airband too");
+    }
+
+    #[test]
+    fn the_airband_table_covers_the_universal_channels() {
+        let a = airband();
+        assert!(a.iter().any(|s| s.freq_khz == 121_500.0), "the emergency channel");
+        for s in a {
+            assert!((108_100.0..=137_000.0).contains(&s.freq_khz), "{} kHz", s.freq_khz);
+            assert_eq!(s.mode_str(), "AM", "{} is AM", s.name);
+            assert_eq!(metre_band(s.freq_khz), Some("AIR"), "{} reads as AIR", s.name);
+            assert!(s.on_air_at(0), "{} runs around the clock", s.name);
+        }
     }
 }
