@@ -1375,12 +1375,13 @@ mod tests {
         assert_eq!(step_band(Band::M20, true), Some(Band::M17));
         assert_eq!(step_band(Band::M20, false), Some(Band::M30));
         // 4 m sits between 6 m and 2 m, in the region that has it — which is
-        // Region 1, the default these tests run under. The broadcast services
+        // Region 1, the default these tests run under. The listening services
         // sit in frequency order too: rather than skipping over them, the step
-        // crosses FM between 4 m and 2 m.
+        // crosses FM and then the airband between 4 m and 2 m.
         assert_eq!(step_band(Band::M6, true), Some(Band::M4));
         assert_eq!(step_band(Band::M4, true), Some(Band::Fm));
-        assert_eq!(step_band(Band::Fm, true), Some(Band::M2));
+        assert_eq!(step_band(Band::Fm, true), Some(Band::Air));
+        assert_eq!(step_band(Band::Air, true), Some(Band::M2));
         // And downward the same list, from the broadcast bands into the
         // amateur ones.
         assert_eq!(step_band(Band::Sw, false), Some(Band::Cm3));

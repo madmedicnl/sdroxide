@@ -205,6 +205,7 @@ impl<'a> Speaker<'a> {
             Band::Mw => "medium wave",
             Band::Sw => "short wave",
             Band::Fm => "F M",
+            Band::Air => "air band",
             Band::Gen => "general coverage",
         }
     }

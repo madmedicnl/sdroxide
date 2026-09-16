@@ -268,7 +268,7 @@ fn readme() -> Vec<String> {
          Omit a band and this region does not have it; \
          narrow one to your own licence and sdroxide will refuse to transmit outside it \
          (with tx_ham_only set, which is the default).",
-        "The broadcast bands — Lw, Mw, Sw, Fm — are not amateur allocations, so the \
+        "The listening services — the broadcast bands Lw, Mw, Sw, Fm and the airband Air — are not amateur allocations, so the \
          transmit lockout holds there with the default tx_ham_only, exactly as it does \
          on 11 m (M11). Sw deliberately overlies the amateur HF bands; the operator on \
          a frequency in both is read as being on the amateur band.",

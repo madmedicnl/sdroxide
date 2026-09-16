@@ -133,10 +133,24 @@ pub enum Band {
     /// Appended for the reason [`Band::M70`] gives; [`Band::ALL`] puts it
     /// between 4 m and 2 m, where the frequencies are.
     Fm,
+    /// The VHF **airband** — civil aviation, 108–137 MHz. Navigation aids
+    /// (VOR/ILS) in 108–118 and voice (tower, approach, ground, VOLMET) in
+    /// 118–137, all **amplitude modulated**, which is what makes it a band for
+    /// the listener's AM receiver rather than its FM one.
+    ///
+    /// A receive service like the broadcast bands, not an amateur allocation —
+    /// [`Band::is_amateur`] says no and the transmit lockout holds with
+    /// `tx_ham_only` set, exactly as it does on 11 m and on the broadcast
+    /// bands. It is the airband companion to the VDL2 decoder, which reads the
+    /// aircraft datalink around 136.8 MHz rather than the voice.
+    ///
+    /// Appended for the reason [`Band::M70`] gives; [`Band::ALL`] puts it after
+    /// FM and before 2 m, where the frequencies are.
+    Air,
 }
 
 impl Band {
-    pub const ALL: [Band; 27] = [
+    pub const ALL: [Band; 28] = [
         Band::Lw,
         Band::Mw,
         Band::M160,
@@ -153,6 +167,7 @@ impl Band {
         Band::M6,
         Band::M4,
         Band::Fm,
+        Band::Air,
         Band::M2,
         Band::M125,
         Band::M70,
@@ -186,7 +201,7 @@ impl Band {
     ///
     /// Append-only, forever. A new band goes on the end here and wherever it
     /// belongs in [`Band::ALL`]; the two lists are deliberately different.
-    const DECLARED: [Band; 27] = [
+    const DECLARED: [Band; 28] = [
         Band::M160,
         Band::M80,
         Band::M60,
@@ -214,6 +229,7 @@ impl Band {
         Band::Mw,
         Band::Sw,
         Band::Fm,
+        Band::Air,
     ];
 
     /// This band's position in the *declaration* order, which is append-only
@@ -280,6 +296,7 @@ impl Band {
             Band::Mw => "MW",
             Band::Sw => "SW",
             Band::Fm => "FM",
+            Band::Air => "AIR",
             Band::Gen => "GEN",
         }
     }
@@ -295,19 +312,21 @@ impl Band {
     /// so it can be *listened* to does not quietly hand out permission to key
     /// up on it (issue #396).
     pub fn is_amateur(self) -> bool {
-        !matches!(self, Band::Gen | Band::M11 | Band::Lw | Band::Mw | Band::Sw | Band::Fm)
+        !matches!(self, Band::Gen | Band::M11 | Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air)
     }
 
-    /// Whether this is a *broadcast* service — the four an SWL tunes for their
-    /// programmes: [`Band::Lw`], [`Band::Mw`], [`Band::Sw`] and [`Band::Fm`].
+    /// Whether this is a *listening* service rather than an amateur
+    /// allocation: the four broadcast bands an SWL tunes for their programmes
+    /// ([`Band::Lw`], [`Band::Mw`], [`Band::Sw`], [`Band::Fm`]) and the
+    /// **airband** ([`Band::Air`]), which is a receive service too.
     ///
     /// They sit on the dial among the amateur bands they share the spectrum
     /// with, which is where the frequencies put them, but they are not
     /// allocations and not the same kind of thing: the band selector keeps
     /// them in a run of their own after the allocations rather than threading
     /// them between 160 m and 30 m or between 4 m and 2 m.
-    pub fn is_broadcast(self) -> bool {
-        matches!(self, Band::Lw | Band::Mw | Band::Sw | Band::Fm)
+    pub fn is_listen_service(self) -> bool {
+        matches!(self, Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air)
     }
 
     /// Band edges in Hz for the station's configured region (see
@@ -483,6 +502,11 @@ impl Band {
             // shared frequency; SW catches only the broadcast-only span.
             Band::Sw => Some((2_300_000.0, 26_100_000.0)),
             Band::Fm => Some((87_500_000.0, 108_000_000.0)),
+            // The civil airband: VOR/ILS then voice. The bottom is 108.1 —
+            // the first ILS/VOR channel — rather than 108.0, so the span does
+            // not touch FM broadcast's top edge; 137.0 is the top of the voice
+            // allocation.
+            Band::Air => Some((108_100_000.0, 137_000_000.0)),
             Band::Gen => None,
         }
     }
@@ -526,6 +550,9 @@ impl Band {
             // 70.200 is the 4 m SSB/CW calling frequency, in the narrow-band
             // part of a band whose bottom 100 kHz is beacons only.
             Band::M4 => (70_200_000.0, Mode::Usb),
+            // 121.500 is the international aeronautical emergency (GUARD)
+            // frequency, the one airband channel every listener knows.
+            Band::Air => (121_500_000.0, Mode::Am),
             Band::M2 => (145_500_000.0, Mode::Nfm),
             // 223.500 is the 1.25 m national FM simplex calling frequency.
             Band::M125 => (223_500_000.0, Mode::Nfm),
@@ -615,7 +642,10 @@ mod tests {
         for b in Band::ALL {
             assert_eq!(
                 b.is_amateur(),
-                !matches!(b, Band::M11 | Band::Gen | Band::Lw | Band::Mw | Band::Sw | Band::Fm),
+                !matches!(
+                    b,
+                    Band::M11 | Band::Gen | Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air
+                ),
                 "{b:?} is on the wrong side of is_amateur"
             );
         }

@@ -84,6 +84,7 @@ fn ham_label(band: Band, region: Region) -> &'static str {
         Band::Mw => "MW AM",
         Band::Sw => "SW BC",
         Band::Fm => "FM BC",
+        Band::Air => "AIR AM",
         Band::Gen => "GEN",
     }
 }
@@ -116,6 +117,8 @@ fn non_ham(region: Region) -> Vec<Seg> {
         s(21.450 * M, 21.850 * M, "13m BC", Kind::Broadcast),
         s(25.670 * M, 26.100 * M, "11m BC", Kind::Broadcast),
         s(26.965 * M, 27.405 * M, "CB", Kind::Cb),
+        // The civil airband, AM voice and navigation aids above FM broadcast.
+        s(108.1 * M, 137.0 * M, "AIR AM", Kind::Am),
     ];
     // 75 m broadcasting: 3.950–4.000 in Region 1, all of 3.900–4.000 in
     // Region 3, and none of it in Region 2, where the band is 80 m.

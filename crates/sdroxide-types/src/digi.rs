@@ -2250,6 +2250,9 @@ pub fn adif_band(freq_hz: f64) -> &'static str {
         // threshold used to give it.
         m if m < 87.5 => "",
         m if m < 108.0 => "",
+        // The airband (108.1-137) and the gap above it: a receive service with
+        // no ADIF band, like LW/MW/FM. 2 m does not start until 144.
+        m if m < 144.0 => "",
         m if m < 148.1 => "2m",
         m if m < 225.1 => "1.25m",
         m if m < 450.1 => "70cm",

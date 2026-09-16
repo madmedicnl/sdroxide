@@ -215,9 +215,10 @@ mod tests {
         let mems = vec![
             chan(1, "Zulu", 145_500_000.0),
             chan(2, "alpha", 14_070_000.0),
-            // Outside every amateur band: sorts between the other two by
-            // frequency, and last of all by band.
-            chan(3, "Mike", 121_500_000.0),
+            // In no band at all — the gap between the airband (top 137) and
+            // 2 m (bottom 144): sorts between the other two by frequency, and
+            // last of all by band.
+            chan(3, "Mike", 140_000_000.0),
         ];
         let names = |sort: MemorySort, desc: bool| -> Vec<&str> {
             sort.order(&mems, desc).into_iter().map(|i| mems[i].name.as_str()).collect()

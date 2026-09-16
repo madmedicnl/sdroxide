@@ -94,7 +94,7 @@ See **[ROADMAP.md](ROADMAP.md)** for the listener work and where it goes next.
 | **Focus** | amateur (ham) transceiver | **CB and shortwave listening**; transmit stays behind explicit switches |
 | **Amateur bands** | 160 m … 3 cm, by IARU region, with band-plan lockout | identical, untouched |
 | **11 m / citizens' band** | not present | on the bar (26.965–27.860 MHz): WSJT-CB interop, country flags, digimode channels, per-country channel plans, transmit opt-in behind a one-time warning |
-| **Broadcast bands** | general coverage only | **LW / MW / SW / FM** on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
+| **Broadcast & utility bands** | general coverage only | **LW / MW / SW / FM** and the VHF **AIR**band (108–137 MHz, AM) on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
 | **Broadcast schedule** | — | ~4,600 EiBi transmitters labelled with UTC window and site, and a **SCHEDULE** window filtering them by time, band, language and target that tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
 | **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** |
 | **C-QUAM AM stereo** | — | decoded on MW, with a stereo lamp and a mono blend (not yet verified against a real signal) |

@@ -296,6 +296,7 @@ fn band_group(band: sdroxide_types::Band) -> Option<(&'static str, bool)> {
         | Band::Mw
         | Band::Sw
         | Band::Fm
+        | Band::Air
         | Band::M6
         | Band::M4
         | Band::M2
