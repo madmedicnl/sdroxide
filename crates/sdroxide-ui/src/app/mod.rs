@@ -26,6 +26,7 @@ pub(in crate::app) mod drm;
 pub(in crate::app) mod frame;
 pub(in crate::app) mod hd;
 pub(in crate::app) mod ism;
+pub(in crate::app) mod konami;
 pub(in crate::app) mod logbook;
 pub(in crate::app) mod recording_jobs;
 pub(in crate::app) mod schedule;
@@ -1011,6 +1012,8 @@ pub struct SdroxideApp {
     /// session. Gates the announcer and the window title: a background radio
     /// keeps decoding, but it stays quiet and leaves the title alone.
     focused: bool,
+    /// Nothing to see here.
+    konami: konami::Konami,
     /// Whether this instance writes the station-wide storage keys (UI
     /// settings, logbook backup, input bindings) in `save`. Exactly one tab
     /// does, or the last tab to save would overwrite the others'.
@@ -1609,6 +1612,7 @@ impl SdroxideApp {
             #[cfg(not(target_arch = "wasm32"))]
             remote_status: None,
             focused: true,
+            konami: Default::default(),
             station_writer,
             view_key,
             shared_log: false,

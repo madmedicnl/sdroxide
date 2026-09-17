@@ -111,6 +111,7 @@ impl eframe::App for SdroxideApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let now = ctx.input(|i| i.time);
+        self.konami.tick(ctx.input(|i| i.stable_dt).min(0.25));
         // The rate every animation in the tree paces itself to. Published here,
         // before anything draws, so a change in Settings → UI reaches the
         // needle and the waterfall on the same frame it reaches the scheduler.
@@ -230,6 +231,10 @@ impl eframe::App for SdroxideApp {
             if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
                 self.help.open = !self.help.open;
             }
+            // Nothing to see here.
+            let armed = super::konami::armed(self.state.band);
+            let konami = &mut self.konami;
+            ctx.input(|i| konami.feed(&i.events, armed));
             // An open manual takes the scrolling keys before the bindings run,
             // so reading it never tunes the radio at the same time.
             self.help.grab_keys(&ctx);
@@ -1080,6 +1085,8 @@ impl eframe::App for SdroxideApp {
             wait_ms = wait_ms.min(ms.max(1));
         }
         crate::repaint::schedule_ms(&ctx, wait_ms);
+        let salt = u64::from(self.radio_id);
+        self.konami.draw(ui, salt);
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
