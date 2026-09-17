@@ -1033,6 +1033,10 @@ pub struct QsoRecord {
     /// the reason [`Self::hamqth_sent`] gives.
     #[serde(default)]
     pub wrl_sent: bool,
+    /// Uploaded to the LOG11DX 11 m logbook. Appended for the reason
+    /// [`Self::hamqth_sent`] gives.
+    #[serde(default)]
+    pub log11dx_sent: bool,
 }
 
 impl QsoRecord {

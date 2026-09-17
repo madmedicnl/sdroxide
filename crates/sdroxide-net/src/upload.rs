@@ -8,6 +8,10 @@ use sdroxide_types::{LoginTarget, NetworkConfig, QsoRecord, UploadTarget};
 
 use crate::http;
 
+/// Where the LOG11DX logbook takes a QSO when its profile page has not named a
+/// different endpoint: the same one the site's own WSJT-X bridge posts to.
+const LOG11DX_DEFAULT_URL: &str = "https://log11dx.com/api/wsjtx/upload-qso.php";
+
 /// Upload one QSO's ADIF to `target`, returning a human-readable status on
 /// success or an error string.
 pub fn upload(
@@ -22,6 +26,7 @@ pub fn upload(
         UploadTarget::ClubLog => upload_clublog(cfg, my_call, adif),
         UploadTarget::HamQth => upload_hamqth(cfg, my_call, adif),
         UploadTarget::Wrl => upload_wrl(cfg, my_call, adif),
+        UploadTarget::Log11Dx => upload_log11dx(cfg, my_call, adif),
     }
 }
 
@@ -210,6 +215,131 @@ fn upload_wrl(cfg: &NetworkConfig, my_call: &str, adif: &str) -> Result<String, 
         1 => "WRL: logged".into(),
         n => format!("WRL: {n} QSOs logged"),
     })
+}
+
+/// LOG11DX: the 11 m logbook's WSJT-X upload API.
+///
+/// The site ships a small bridge that listens for WSJT-X UDP and posts each
+/// logged QSO here; sdroxide *is* the program that logs the QSO, so it posts
+/// directly — no bridge, no UDP, no second program. The body is the bridge's,
+/// `{ "source": "wsjtx", "qso": { … } }`, with the API token as a Bearer
+/// header; the server validates the token before the body, which is why a
+/// rejection says so rather than naming a field.
+fn upload_log11dx(cfg: &NetworkConfig, my_call: &str, adif: &str) -> Result<String, String> {
+    let token = cfg.log11dx_api_token.trim();
+    if token.is_empty() {
+        return Err("LOG11DX API token not set".into());
+    }
+    let body = log11dx_body(my_call, adif)?;
+    let (status, reply) = http::post_json_status(&log11dx_url(cfg, "upload-qso.php"), token, &body)?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(&reply).unwrap_or(serde_json::Value::Null);
+    let what = parsed.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    let message = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("");
+    match what {
+        "uploaded" => Ok("LOG11DX: logged".into()),
+        // Already in the logbook: for a logger that is as good as an upload,
+        // and the site's own bridge treats it the same way.
+        "duplicate" => Ok("LOG11DX: already logged".into()),
+        "invalid_token" => {
+            Err("LOG11DX: token rejected — copy it again from your profile page".into())
+        }
+        _ if parsed.get("ok").and_then(|v| v.as_bool()) == Some(true) => {
+            Ok("LOG11DX: accepted".into())
+        }
+        _ => {
+            let detail = if message.is_empty() { reply.trim() } else { message };
+            Err(format!(
+                "LOG11DX: HTTP {status}: {}",
+                detail.chars().take(200).collect::<String>()
+            ))
+        }
+    }
+}
+
+/// One of LOG11DX's API files, derived from the configured URL.
+///
+/// The profile page gives the upload URL; the token check uses the same
+/// directory with a different file name, so it is derived rather than
+/// configured a second time.
+fn log11dx_url(cfg: &NetworkConfig, file: &str) -> String {
+    let configured = if cfg.log11dx_api_url.trim().is_empty() {
+        LOG11DX_DEFAULT_URL
+    } else {
+        cfg.log11dx_api_url.trim()
+    };
+    match configured.rsplit_once('/') {
+        Some((base, _)) => format!("{base}/{file}"),
+        None => LOG11DX_DEFAULT_URL.to_string(),
+    }
+}
+
+/// The JSON body LOG11DX takes, built from the QSO's ADIF.
+///
+/// Field names and shapes are the bridge's own: date as `YYYY-MM-DD`, time as
+/// `HH:MM:SS`, frequency as MHz in a string, ADIF NAME mapped to `operator`.
+/// Only the fields the QSO has are sent; the server requires call, date, time
+/// and mode.
+fn log11dx_body(my_call: &str, adif: &str) -> Result<String, String> {
+    let rec = sdroxide_types::adif_to_qso_log(adif)
+        .into_iter()
+        .next()
+        .ok_or_else(|| "LOG11DX: could not read the QSO from its ADIF".to_string())?;
+    let mut q = serde_json::Map::new();
+    let (y, mo, d, h, mi, s) = sdroxide_types::utc_ymd_hms(rec.start_utc);
+    let (_, _, _, h2, m2, s2) = sdroxide_types::utc_ymd_hms(rec.end_utc);
+    q.insert("call".into(), rec.call.clone().into());
+    q.insert("qso_date".into(), format!("{y:04}-{mo:02}-{d:02}").into());
+    q.insert("time_on".into(), format!("{h:02}:{mi:02}:{s:02}").into());
+    q.insert("time_off".into(), format!("{h2:02}:{m2:02}:{s2:02}").into());
+    q.insert("mode".into(), rec.mode.clone().into());
+    if rec.freq_hz > 0.0 {
+        q.insert("freq".into(), format!("{:.6}", rec.freq_hz / 1e6).into());
+    }
+    if !rec.band.trim().is_empty() {
+        q.insert("band".into(), rec.band.trim().into());
+    }
+    if let Some(r) = rec.rst_sent {
+        q.insert("rst_sent".into(), r.to_string().into());
+    }
+    if let Some(r) = rec.rst_rcvd {
+        q.insert("rst_rcvd".into(), r.to_string().into());
+    }
+    if let Some(g) = rec.grid.as_deref().filter(|g| !g.is_empty()) {
+        q.insert("grid".into(), g.into());
+    }
+    if !rec.comment.trim().is_empty() {
+        q.insert("comment".into(), rec.comment.trim().into());
+    }
+    if !rec.name.trim().is_empty() {
+        q.insert("operator".into(), rec.name.trim().into());
+    }
+    if !my_call.trim().is_empty() {
+        q.insert("station_callsign".into(), my_call.trim().into());
+    }
+    Ok(serde_json::json!({ "source": "wsjtx", "qso": serde_json::Value::Object(q) }).to_string())
+}
+
+/// Check the LOG11DX token against the status endpoint.
+fn test_log11dx(cfg: &NetworkConfig) -> Result<String, String> {
+    let token = cfg.log11dx_api_token.trim();
+    if token.is_empty() {
+        return Err("API token not set".into());
+    }
+    let (status, reply) = http::get_bearer_status(&log11dx_url(cfg, "token-status.php"), token)?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(&reply).unwrap_or(serde_json::Value::Null);
+    if parsed.get("status").and_then(|v| v.as_str()) == Some("invalid_token") {
+        return Err("token rejected — copy it again from your profile page".into());
+    }
+    if parsed.get("ok").and_then(|v| v.as_bool()) == Some(false) {
+        let message = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("token rejected");
+        return Err(message.to_string());
+    }
+    if !(200..300).contains(&status) {
+        return Err(format!("HTTP {status}"));
+    }
+    Ok("LOG11DX: token accepted".into())
 }
 
 /// Turn WRL's refusal into a sentence that says what to do about it.
@@ -490,6 +620,7 @@ pub fn test_login(
         LoginTarget::Lotw => test_lotw(cfg),
         LoginTarget::HamQth => test_hamqth(cfg),
         LoginTarget::Wrl => test_wrl(cfg),
+        LoginTarget::Log11Dx => test_log11dx(cfg),
     }
 }
 
@@ -981,5 +1112,46 @@ mod tests {
         ];
         let out = hamqth_adif(&fields).unwrap();
         assert!(out.contains("<NAME:12>Petr Hložek"), "{out}");
+    }
+
+    /// The LOG11DX body is the one its own WSJT-X bridge posts: wrapped in
+    /// `source`/`qso`, with the normalised date and time, and the ADIF NAME
+    /// mapped to `operator` as the bridge does. The server validates the token
+    /// before the body, so a field mistake here is not something a first
+    /// upload would announce.
+    #[test]
+    fn a_contact_becomes_the_json_log11dx_takes() {
+        let rec = sdroxide_types::QsoRecord {
+            call: "141RC002".into(),
+            grid: Some("JO89".into()),
+            rst_sent: Some(-8),
+            rst_rcvd: Some(3),
+            freq_hz: 27_266_484.0,
+            mode: "FT8".into(),
+            band: "11m".into(),
+            start_utc: 1_778_439_240,
+            end_utc: 1_778_439_255,
+            my_call: "26AT715".into(),
+            name: "Åke".into(),
+            ..Default::default()
+        };
+        let adif = sdroxide_types::qso_to_adif_record(&rec);
+        let v: serde_json::Value =
+            serde_json::from_str(&log11dx_body("26AT715", &adif).unwrap()).unwrap();
+        assert_eq!(v["source"], "wsjtx");
+        let q = &v["qso"];
+        assert_eq!(q["call"], "141RC002");
+        assert_eq!(q["mode"], "FT8");
+        assert_eq!(q["band"], "11m");
+        assert_eq!(q["grid"], "JO89");
+        assert_eq!(q["operator"], "Åke", "ADIF NAME is the bridge's operator");
+        assert_eq!(q["station_callsign"], "26AT715");
+        assert_eq!(q["freq"], "27.266484", "MHz in a string, as the bridge sends");
+        assert_eq!(q["qso_date"], "2026-05-10");
+        assert_eq!(q["time_on"], "18:54:00");
+        assert!(q["rst_sent"].is_string());
+        // Only what the QSO has: this ADIF carries no COMMENT, so none is sent
+        // rather than an empty one.
+        assert!(q.get("comment").is_none(), "{q}");
     }
 }

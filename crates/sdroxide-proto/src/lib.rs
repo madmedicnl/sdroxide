@@ -1316,7 +1316,15 @@ use sdroxide_types::{
 /// `ServerMsg::Hd` carrying `HdRadioStatus`, and `Command::SetHdProgram` for the
 /// HD-2 subchannels, all appended last so no surviving discriminant moved, but a
 /// v146 peer handed any of them fails to decode the message carrying it.
-pub const PROTO_VERSION: u16 = 147;
+///
+/// v148: the LOG11DX logbook and the WSJT-CB spot server. `UploadTarget` and
+/// `LoginTarget` each gain `Log11Dx`, `QsoRecord` gains `log11dx_sent`,
+/// `NetworkConfig` gains `wsjtcb` (report flag and URL) and then
+/// `log11dx_api_url`, `log11dx_api_token` and `auto_upload_log11dx`, all
+/// appended last so no surviving discriminant moved. Postcard is positional,
+/// though, so a v147 peer desynchronises on the tail of any `NetworkConfig` or
+/// `QsoRecord` — the handshake's equality test is what stops it trying.
+pub const PROTO_VERSION: u16 = 148;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

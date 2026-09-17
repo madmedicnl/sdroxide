@@ -3228,6 +3228,7 @@ impl SdroxideApp {
                     UploadTarget::HamQth => &mut io.net_edit.auto_upload_hamqth,
                     UploadTarget::ClubLog => &mut io.net_edit.auto_upload_clublog,
                     UploadTarget::Wrl => &mut io.net_edit.auto_upload_wrl,
+                    UploadTarget::Log11Dx => &mut io.net_edit.auto_upload_log11dx,
                 };
                 crate::chrome::checkbox(
                     ui,
@@ -3295,6 +3296,21 @@ impl SdroxideApp {
                                  Developer API. It is shown once when you generate it, so copy \
                                  it then. Contacts go to your default logbook — set one in WRL \
                                  if you keep more than one.",
+                            )
+                            .size(10.5)
+                            .color(crate::theme::gray(140)),
+                        );
+                    }
+                    UploadTarget::Log11Dx => {
+                        net_row(ui, "API URL", &mut io.net_edit.log11dx_api_url, 320.0);
+                        net_secret(ui, "API token", &mut io.net_edit.log11dx_api_token, 240.0);
+                        ui.label(
+                            RichText::new(
+                                "Both come from your LOG11DX profile page. Its own WSJT-X \
+                                 bridge is not needed: sdroxide logs the QSO and posts it \
+                                 straight there. The site masks the token, so copy it when you \
+                                 generate it — it is stored in net.json like the other \
+                                 credentials.",
                             )
                             .size(10.5)
                             .color(crate::theme::gray(140)),

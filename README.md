@@ -81,6 +81,7 @@ rest.
 | **Focus** | amateur (ham) transceiver | **CB and shortwave listening**; transmit stays behind explicit switches |
 | **Amateur bands** | 160 m … 3 cm, by IARU region, with band-plan lockout | identical, untouched |
 | **11 m / citizens' band** | not present | on the bar (26.965–27.860 MHz): WSJT-CB interop, country flags, digimode channels, per-country channel plans, transmit opt-in behind a one-time warning, and opt-in **spotting to the WSJT-CB spot server** |
+| **LOG11DX logbook** | — | uploads each logged QSO straight to the 11 m [LOG11DX](https://log11dx.com/) logbook — no separate bridge program, which its own WSJT-X integration otherwise needs |
 | **Broadcast & utility bands** | general coverage only | **LW / MW / SW / FM**, the VHF civil **AIR**band (108–137 MHz, AM) and the **MIL**itary UHF airband (225–400 MHz, AM) on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
 | **Broadcast schedule** | — | ~4,600 EiBi transmitters labelled with UTC window and site, and a **SCHEDULE** window filtering them by time, band, language and target that tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
 | **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** |

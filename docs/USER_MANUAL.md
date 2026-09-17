@@ -111,8 +111,8 @@ or connects to a remote sdroxide server.
   [qso.freedv.org](https://qso.freedv.org/) and see who else is on FreeDV,
   including callsign exchange in the RADE End-of-Over frame.
 - **Callsign lookup and QSL upload** — QRZ/HamQTH name/QTH/grid auto-fill, and
-  one-click (or automatic) upload to eQSL, QRZ Logbook, HamQTH, Club Log and
-  World Radio League,
+  one-click (or automatic) upload to eQSL, QRZ Logbook, HamQTH, Club Log,
+  World Radio League and the 11 m LOG11DX logbook,
   with LoTW ADIF export and confirmation download. Each service's credentials
   can be tested against it from the settings, without logging anything.
 - **Award tracking** — live DXCC / WAS / WAZ / grid tallies, worked vs confirmed.
@@ -11374,10 +11374,11 @@ stored in plaintext in `net.json`. How the features behave is
   instead of only on the **LOOKUP** button.
 - **Upload** — **Auto-upload each new QSO** is the master switch, and under it
   is **a tab per logging service**: **QRZ**, **eQSL**, **HamQTH**,
-  **Club Log** and **WRL**. Each tab holds everything about that one service — whether a new
-  QSO is pushed to it, its login, and the button that checks that login. So
-  setting up a service means opening its tab and filling in what is on it,
-  rather than picking your fields out of all four services' at once.
+  **Club Log**, **WRL** and **LOG11DX**. Each tab holds everything about that
+  one service — whether a new QSO is pushed to it, its login, and the button
+  that checks that login. So setting up a service means opening its tab and
+  filling in what is on it, rather than picking your fields out of all four
+  services' at once.
   - **QRZ** — the **QRZ log key**, your QRZ *logbook* API key. Not the
     XML-lookup login above; the two are unrelated.
   - **eQSL** — **eQSL user** and **pass**.
@@ -11399,6 +11400,14 @@ stored in plaintext in `net.json`. How the features behave is
     works. **Test WRL** says both whether the key is good and whether that
     default is set, which is the one thing you would otherwise find out a
     contact at a time.
+  - **LOG11DX** — the **API URL** and **API token** for
+    [LOG11DX](https://log11dx.com/), the 11 m logbook. Both are on your LOG11DX
+    profile page; the URL defaults to the one its own WSJT-X bridge posts to,
+    and the token is masked there, so copy it when you generate it. **The site's
+    bridge program is not needed** — sdroxide is the program that logs the QSO,
+    so it posts each one straight to the same API, with no UDP listener and no
+    second program to keep running. Only your `station_callsign` and the QSO's
+    own fields are sent. **Test LOG11DX** checks the token against the site.
 
   A service's own tickbox only takes effect while the master **Auto-upload each
   new QSO** is on; with it off the tab says so, and the per-QSO **UP** button in
@@ -11412,7 +11421,8 @@ At the bottom of the tab, **APPLY** saves everything above, and
 #### Testing the credentials
 
 Each upload service's tab carries its own **Test** button — **Test QRZ Logbook /
-Test eQSL / Test HamQTH / Test Club Log / Test World Radio League** — and there
+Test eQSL / Test HamQTH / Test Club Log / Test World Radio League / Test
+LOG11DX** — and there
 is a **Test LoTW** beside
 the confirmation login. It asks that service, there and then, whether the login
 you have typed works, and prints what came back — a green tick with the account

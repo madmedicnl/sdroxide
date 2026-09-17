@@ -354,6 +354,21 @@ pub struct NetworkConfig {
     /// The WSJT-CB spot server. Appended last, as the wire requires.
     #[serde(default)]
     pub wsjtcb: WsjtCbConfig,
+
+    // ── LOG11DX logbook ──
+    /// The LOG11DX upload endpoint. The operator's profile page names it; the
+    /// default is the one their WSJT-X bridge posts to. Appended last, as the
+    /// wire requires.
+    #[serde(default)]
+    pub log11dx_api_url: String,
+    /// The LOG11DX API token, from the same profile page. Secret — the site
+    /// masks it, so it is entered once here and never shown back.
+    #[serde(default)]
+    pub log11dx_api_token: String,
+    /// Auto-upload each new QSO to LOG11DX. Appended last, as the wire
+    /// requires.
+    #[serde(default)]
+    pub auto_upload_log11dx: bool,
 }
 
 impl Default for NetworkConfig {
@@ -386,6 +401,9 @@ impl Default for NetworkConfig {
             wrl_api_key: String::new(),
             auto_upload_wrl: false,
             wsjtcb: WsjtCbConfig::default(),
+            log11dx_api_url: "https://log11dx.com/api/wsjtx/upload-qso.php".to_string(),
+            log11dx_api_token: String::new(),
+            auto_upload_log11dx: false,
         }
     }
 }
