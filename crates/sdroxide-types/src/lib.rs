@@ -212,6 +212,9 @@ pub use rds::{
 pub use recording::{JobAction, RecordingJob, RecordingKind};
 pub use region::{Region, region, set_region};
 pub use cb::{CbPlan, cb_plan, cb_tx_allowed, set_cb_plan, set_cb_tx_allowed};
+/// The first WSJT-CB-shaped callsign in a decoded message, for the spot
+/// reporters (see [`cb_country::cb_callsign_in`]).
+pub use cb_country::cb_callsign_in;
 pub use relay::{
     DEFAULT_HOLD_MS, DEFAULT_LEAD_MS, FailSafe, MAX_CHANNEL, RelayChannel, RelayConfig,
     RelayDevice, RelayFamily, RelayLink, RelayRole, RelayStatus, SenseConfig, SenseLine,

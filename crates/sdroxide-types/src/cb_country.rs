@@ -416,6 +416,17 @@ pub(crate) fn name_prefix(code: u16) -> Option<(&'static str, &'static str)> {
     CB.iter().find(|(c, _, _)| *c == code).map(|(_, name, pfx)| (*name, *pfx))
 }
 
+/// The first WSJT-CB-shaped callsign in `text`, if there is one.
+///
+/// A CB one-call exchange arrives as free text with the callsign in the message
+/// and nowhere else, so a consumer that reads only the parsed sender — the
+/// spot reporters do — has nothing to name. Tokens are split on whitespace and
+/// the few separators a decoded line uses.
+pub fn cb_callsign_in(text: &str) -> Option<&str> {
+    text.split(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | ':'))
+        .find(|t| !t.is_empty() && is_cb_shape(t.as_bytes()))
+}
+
 /// `(primary prefix → (flag, continent))` for a CB entity.
 pub(crate) fn fallback_cell(pfx: &str) -> Option<(&'static str, &'static str)> {
     FALLBACK.iter().find(|(p, _, _)| *p == pfx).map(|(_, f, c)| (*f, *c))
@@ -459,4 +470,25 @@ fn digits_letters(b: &[u8]) -> Option<usize> {
     let digits = b.iter().take_while(|&&c| c.is_ascii_digit()).count();
     let letters = b[digits..].iter().take_while(|&&c| c.is_ascii_uppercase()).count();
     (1..=2).contains(&letters).then_some(digits)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The reporter reads a free-text CB decode to name the station it heard,
+    /// so the first CB-shaped token has to come back — and a line with none has
+    /// to say so rather than invent one.
+    #[test]
+    fn finds_the_cb_call_in_a_message() {
+        assert_eq!(cb_callsign_in("CQ 26AT101"), Some("26AT101"));
+        assert_eq!(cb_callsign_in("26AT101 1AT106 JO01"), Some("26AT101"));
+        assert_eq!(cb_callsign_in("CQ 26AT101,"), Some("26AT101"));
+        // The one-digit-prefix four-digit-suffix case is valid; two digits and
+        // four is not.
+        assert_eq!(cb_callsign_in("CQ 1AT1000"), Some("1AT1000"));
+        assert_eq!(cb_callsign_in("CQ 26AT1000"), None);
+        assert_eq!(cb_callsign_in("CQ DX"), None);
+        assert_eq!(cb_callsign_in(""), None);
+    }
 }

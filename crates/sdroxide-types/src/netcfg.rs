@@ -246,6 +246,34 @@ impl Default for WsprNetConfig {
     }
 }
 
+/// The WSJT-CB spot server.
+///
+/// The CB community's own spotting service (`xzgroup.net`), which the WSJT-CB
+/// client can post decoded spots to. Separate from PSK Reporter, which that
+/// client also supports: this one carries CB-shaped calls and the raw message
+/// text, and it is where 11 m operators watch each other.
+///
+/// Off by default. It is a third-party service, and nothing is sent until the
+/// operator asks for it — the same opt-in WSJT-CB itself ships.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WsjtCbConfig {
+    /// Post each decoded spot to the server.
+    pub report: bool,
+    /// The ingest endpoint. Only ever changed to point at a mirror or a test
+    /// server.
+    pub url: String,
+}
+
+impl Default for WsjtCbConfig {
+    fn default() -> Self {
+        WsjtCbConfig {
+            report: false,
+            url: "https://xzgroup.net/spots/api/ingest.php".to_string(),
+        }
+    }
+}
+
 /// The whole network-feature configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -322,6 +350,10 @@ pub struct NetworkConfig {
     /// wire requires.
     #[serde(default)]
     pub auto_upload_wrl: bool,
+
+    /// The WSJT-CB spot server. Appended last, as the wire requires.
+    #[serde(default)]
+    pub wsjtcb: WsjtCbConfig,
 }
 
 impl Default for NetworkConfig {
@@ -353,6 +385,7 @@ impl Default for NetworkConfig {
             auto_upload_hamqth: false,
             wrl_api_key: String::new(),
             auto_upload_wrl: false,
+            wsjtcb: WsjtCbConfig::default(),
         }
     }
 }

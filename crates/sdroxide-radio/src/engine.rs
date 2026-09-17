@@ -5999,6 +5999,47 @@ impl Engine {
         }
     }
 
+    /// Hand a slot's decodes to the WSJT-CB spot server.
+    ///
+    /// 11 m only: it is the CB community's server, and a 20 m FT8 decode has no
+    /// business in it. A CB one-call exchange arrives as free text, so a decode
+    /// with no parsed sender still names its station in the message —
+    /// [`sdroxide_types::cb_callsign_in`] finds it, which is what keeps the
+    /// reporter from silently skipping exactly the spots it exists for.
+    fn wsjtcb_report_decodes(&self, decodes: &[sdroxide_types::Decode], dial_hz: f64) {
+        if sdroxide_types::Band::containing(dial_hz) != sdroxide_types::Band::M11 {
+            return;
+        }
+        let mode =
+            self.digi.as_ref().map(|d| d.mode().label().to_string()).unwrap_or_default();
+        for d in decodes {
+            let call = d
+                .from
+                .as_deref()
+                .filter(|c| !c.is_empty())
+                .or_else(|| sdroxide_types::cb_callsign_in(&d.message));
+            let Some(call) = call else { continue };
+            if call.eq_ignore_ascii_case(self.digi_config.my_call.trim()) {
+                continue;
+            }
+            let freq = dial_hz + d.audio_hz as f64;
+            if freq <= 0.0 {
+                continue;
+            }
+            self.spots.wsjtcb_report(sdroxide_net::CbSpot {
+                dx_call: call.to_string(),
+                dx_grid: d.grid.clone(),
+                freq_hz: freq,
+                mode: mode.clone(),
+                snr_db: d.snr_db,
+                dt: d.dt,
+                df_hz: d.audio_hz.round() as i32,
+                message: d.message.clone(),
+                when_utc: d.slot_utc,
+            });
+        }
+    }
+
     /// One station heard, as a reception report.
     ///
     /// Also reached by [`DigiAction::Heard`], which is how JS8 reports — its
@@ -6271,6 +6312,7 @@ impl Engine {
             match a {
                 DigiAction::Decodes(d) => {
                     self.psk_report_decodes(&d, dial);
+                    self.wsjtcb_report_decodes(&d, dial);
                     self.wsjtx_decodes(&d);
                     let _ = self.event_tx.send(RadioEvent::Ft8Decodes(d));
                 }

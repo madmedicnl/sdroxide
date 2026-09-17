@@ -2876,6 +2876,20 @@ impl SdroxideApp {
                     });
                 }
 
+                net_heading(ui, "WSJT-CB spot server");
+                crate::chrome::checkbox(
+                    ui,
+                    &mut io.net_edit.wsjtcb.report,
+                    "Report my 11 m decodes to the WSJT-CB spot server",
+                )
+                .on_hover_text(
+                    "Send each spot decoded on the 11 m band to the CB community's spotting \
+                     service (xzgroup.net) — the same server WSJT-CB's own client can post \
+                     to. Off by default: it is a third-party service and nothing is sent \
+                     until you ask. Your callsign is the spotter; PSK Reporter is the \
+                     separate switch above.",
+                );
+
                 ui.add_space(8.0);
                 if crate::chrome::chip_accent(
                     ui,

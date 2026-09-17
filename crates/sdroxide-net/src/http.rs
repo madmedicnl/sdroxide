@@ -44,6 +44,20 @@ pub fn post_form_status(url: &str, fields: &[(&str, &str)]) -> Result<(u16, Stri
     Ok((status, body))
 }
 
+/// POST `json` as `application/json`, returning the response body.
+///
+/// No credentials: for a service where the payload itself names the station —
+/// the WSJT-CB spot server's `spotter_call` is the identity.
+pub fn post_json(url: &str, json: &str) -> Result<String, String> {
+    body_or_status(
+        agent()
+            .post(url)
+            .header("Content-Type", "application/json")
+            .send(json)
+            .map_err(|e| e.to_string())?,
+    )
+}
+
 /// POST `json` as `application/json` with a bearer token, keeping the HTTP
 /// status alongside the body.
 ///

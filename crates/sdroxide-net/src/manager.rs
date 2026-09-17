@@ -60,6 +60,9 @@ pub struct SpotManager {
     wspr_upload: Option<WsprUploadHandle>,
     /// WSPRnet download poller: who heard us.
     wspr_heard_us: Option<WsprPollHandle>,
+    /// WSJT-CB spot server uploader (decoded 11 m spots), when its opt-in is on
+    /// and the operator identity is known.
+    wsjtcb: Option<crate::wsjtcb::WsjtCbHandle>,
 
     freedv: Option<ReporterHandle>,
     /// What we last told the reporter. Replayed into a freshly rebuilt session
@@ -102,6 +105,7 @@ impl SpotManager {
             psk_upload: None,
             wspr_upload: None,
             wspr_heard_us: None,
+            wsjtcb: None,
             op_call: String::new(),
             op_grid: String::new(),
             freedv: None,
@@ -144,6 +148,9 @@ impl SpotManager {
         }
         if old.wspr != self.cfg.wspr {
             self.rebuild_wspr();
+        }
+        if old.wsjtcb != self.cfg.wsjtcb {
+            self.rebuild_wsjtcb();
         }
         // The reporter sends its settings at connect, so a change to them has
         // to restart the session. The status message is the one field that can
@@ -190,6 +197,8 @@ impl SpotManager {
         // And they are the whole of WSPRnet's identity: the callsign in the
         // query is the account.
         self.rebuild_wspr();
+        // The WSJT-CB server names the spotter by callsign and grid too.
+        self.rebuild_wsjtcb();
     }
 
     // The engine pushes these on every tick of its ~100 Hz loop, so each one
@@ -266,6 +275,16 @@ impl SpotManager {
                 continue;
             }
             h.report(wsprnet::Item::Spot(s.clone()));
+        }
+    }
+
+    /// Report a decoded 11 m spot to the WSJT-CB spot server.
+    ///
+    /// Queued and posted by the worker; a no-op when the opt-in is off or we
+    /// have no callsign to spot as.
+    pub fn wsjtcb_report(&self, spot: crate::CbSpot) {
+        if let Some(h) = &self.wsjtcb {
+            h.report(spot);
         }
     }
 
@@ -581,6 +600,31 @@ impl SpotManager {
                 self.event_tx.clone(),
             ));
         }
+    }
+
+    /// (Re)start the WSJT-CB spot reporter.
+    ///
+    /// Needs the operator's callsign: it is the `spotter_call` the server
+    /// shows, and without one there is nobody to spot as — silently, since a
+    /// station that has not filled in its callsign yet is not an error. The
+    /// grid is optional and sent when there is one.
+    fn rebuild_wsjtcb(&mut self) {
+        if !self.station {
+            return;
+        }
+        self.wsjtcb = None;
+        if !self.cfg.wsjtcb.report || self.op_call.is_empty() {
+            return;
+        }
+        let station = crate::wsjtcb::Station {
+            call: self.op_call.clone(),
+            grid: self.op_grid.clone(),
+        };
+        self.wsjtcb = Some(crate::wsjtcb::spawn(
+            self.cfg.wsjtcb.url.clone(),
+            station,
+            self.event_tx.clone(),
+        ));
     }
 
     fn rebuild_freedv(&mut self) {

@@ -21,12 +21,14 @@ mod rbn;
 mod socketio;
 mod sota;
 mod upload;
+mod wsjtcb;
 mod wsprnet;
 
 pub use event::NetEvent;
 pub use manager::SpotManager;
 pub use pskupload::MAX_REPORT_HZ as MAX_PSK_REPORT_HZ;
 pub use pskupload::Report as PskReport;
+pub use wsjtcb::{Spot as CbSpot, Station as CbStation};
 pub use wsprnet::{Item as WsprItem, Query as WsprQuery, Reporter as WsprReporter};
 
 // On-demand blocking helpers, exposed for tests / direct use.
