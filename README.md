@@ -80,7 +80,7 @@ rest.
 | --- | --- | --- |
 | **Focus** | amateur (ham) transceiver | **CB and shortwave listening**; transmit stays behind explicit switches |
 | **Amateur bands** | 160 m … 3 cm, by IARU region, with band-plan lockout | identical, untouched |
-| **11 m / citizens' band** | not present | on the bar (26.965–27.860 MHz): WSJT-CB interop, country flags, digimode channels, per-country channel plans, transmit opt-in behind a one-time warning |
+| **11 m / citizens' band** | not present | on the bar (26.965–27.860 MHz): WSJT-CB interop, country flags, digimode channels, per-country channel plans, transmit opt-in behind a one-time warning, and opt-in **spotting to the WSJT-CB spot server** |
 | **Broadcast & utility bands** | general coverage only | **LW / MW / SW / FM**, the VHF civil **AIR**band (108–137 MHz, AM) and the **MIL**itary UHF airband (225–400 MHz, AM) on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
 | **Broadcast schedule** | — | ~4,600 EiBi transmitters labelled with UTC window and site, and a **SCHEDULE** window filtering them by time, band, language and target that tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
 | **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** |
@@ -91,6 +91,7 @@ rest.
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (spots, awards) for the listener's; **Start in SWL mode** in Settings → UI, or **`--swl`** |
 | **Simple interface** | — | hides the advanced chips; the band/mode menu leads with **AM · FM · USB · LSB** |
+| **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, and modes that do not apply on the current band (AM on the FM broadcast band, WFM on 11 m) greyed out and refused engine-side |
 | **Station profiles** | — | save and re-apply a whole working setup in one click |
 | **CW straight key** | — | the PC keyboard as a straight key (hold **Space**) |
 | **Decode-list export** | — | the decode list to **CSV** and a *received-report* **ADIF** |

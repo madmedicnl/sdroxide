@@ -300,8 +300,27 @@ shift-clicking anywhere else on the panadapter does.
 
 ### 2.4 Bands and modes
 
-Click the **Band / Mode** button (which reads, for example, `20M · USB`) to open a
-popup with four rows:
+Click the **Band / Mode** button (which reads, for example, `20M · USB`) to open
+the band/mode popup. One list of every band and mode had grown past a screenful,
+so it is split into two halves, chosen by the **LISTEN** and **OPERATE** tabs at
+its top:
+
+- **LISTEN** — the broadcast and utility bands, the metre bands, and the receive
+  modes.
+- **OPERATE** — the amateur allocations, the CB plan, and the primary, analog and
+  digital modes.
+
+A pair that cannot work is not offered: **a mode that does not apply on the
+current band is greyed**, with the reason on hover. FM broadcast is WFM alone,
+both airbands are AM, and 11 m is AM, NFM, SSB, CW and the WSJT-CB digital
+exchange — so `AM` is dead on the FM broadcast band and `WFM` is dead on 11 m.
+The engine refuses the same pair if a remote client sends it directly. The
+amateur allocations and general coverage take any mode; there, a band plan's own
+segments are the only thing narrowing the choice. Selecting a *band* is never
+blocked this way — it is how you leave a service mode — and the band you pick
+adopts a mode that fits it, as the FM broadcast band has always come up WFM.
+
+The **OPERATE** tab's rows:
 
 - **BAND:** `LW MW 160M 80M 60M 40M 30M 20M 17M 15M 12M 10M 11M 6M 4M FM 2M 1.25M 70CM
   33CM 23CM 13CM 9CM 6CM SW GEN`. Each
@@ -321,10 +340,11 @@ popup with four rows:
   VHF FM broadcast 87.5–108 MHz. None is an amateur allocation, so the same
   lockout applies, and each stays an ordinary band button: the dial jumps there
   (198 kHz AM, 1 MHz AM, 6.175 MHz AM, 100 MHz WFM), band stepping walks
-  through them, and the band stack remembers what you last listened to. The
-  broadcast **FM** band is the exception: picking it always comes up **WFM**,
-  whatever mode the stack last held, because an FM broadcast channel is nothing
-  to listen to in AM. `SW`
+  through them, and the   band stack remembers what you last listened to. Picking a band always comes up
+  in a mode that fits it: the broadcast **FM** band is **WFM** whatever the stack
+  last held — an FM broadcast channel is nothing to listen to in AM — and any
+  band whose stored mode no longer applies falls back to its own default the
+  same way. `SW`
   deliberately overlies the amateur HF bands, and the amateur band always wins
   the name — a frequency in a shared span reports as the amateur band, `SW`
   owns only the broadcast-only slice ([6.1](#61-general-station-audio-and-remote-access));
@@ -11278,8 +11298,9 @@ FreeDV Reporter is a spot source too, but has its own tab —
 [6.6](#66-freedv-freedv-reporter).
 
 **Where your reports say you heard it.** Every network above that you *upload*
-to — PSK Reporter, WSPRnet, FreeDV Reporter — is told a locator, and that
-locator is your own only while the antenna is yours. A radio pointed at an
+to — PSK Reporter, WSPRnet, FreeDV Reporter, the WSJT-CB spot server — is told a
+locator, and that locator is your own only while the antenna is yours. A radio
+pointed at an
 online receiver reports from **the receiver's** square instead, and one whose
 receiver publishes no position reports nothing at all. That is the **Antenna
 is** row on Settings → Radio
@@ -11298,6 +11319,16 @@ General tab:
   else's server on a timer. Turn it on and reports of your own callsign appear in
   the WSPR panel with a `→`, and their reporters go on the map. See
   [§3.11](#311-wspr-weak-signal-propagation-reporter).
+
+**WSJT-CB spot server.** One switch, **off by default**:
+
+- **Report my 11 m decodes to the WSJT-CB spot server** — posts each spot decoded
+  on the 11 m band to the CB community's spotting service (`xzgroup.net`), the
+  same server WSJT-CB's own client can feed. Your callsign is the spotter, and
+  your grid goes with it when you have one. It is a third-party service and
+  nothing leaves the station until you tick it; PSK Reporter above is a separate
+  switch and the two are independent. Reporting is receive-side only, so it needs
+  no transmit permission, and only spots on the 11 m band are sent.
 
 ### 6.6 FreeDV: FreeDV Reporter
 
