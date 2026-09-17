@@ -29,15 +29,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly.
   - `jl1nie/mfsk-core#373` — the opt-in `cb-callsigns` feature; when it merges,
     the `mfsk-core` fork pin in `crates/sdroxide-digi/Cargo.toml` can go.
-  - `knik0/faad2` HDC — when someone merges the HD Radio codec variant (nrsc5's
-    `support/faad2-hdc-support.patch`), re-point `vendor/faad2` back to upstream
-    knik0/faad2 and drop `HDC_SUPPORT` from `crates/sdroxide-drm/build.rs`. The
-    pin is `madmedicnl/faad2-hdc` (stock 2.11.2 plus the patch) so that one
-    faad2 archive serves both the Dream DRM and the nrsc5 HD Radio decoders.
-  - `dividebysandwich/sdroxide#466` — HD Radio (NRSC-5), offered upstream and
-    under review. `dielectric-coder` is off-air testing it and has offered both
-    a capture for the bench and an `examples/hd_capture.rs`; see "When the HD
-    Radio capture arrives" below.
+
+(HD Radio landed upstream with #466 and the fork's duplicate is retired: the
+faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
+build time and `madmedicnl/faad2-hdc` is gone. See "The HD Radio capture
+harness" below.)
 
 ### When `jl1nie/mfsk-core#373` merges
 
@@ -54,25 +50,19 @@ If #373 is **rejected or closed unmerged**, decide with the user between a
 runtime strict/loose policy upstream or keeping the fork pin — do not silently
 drop CB validation.
 
-### When the HD Radio capture arrives
+### The HD Radio capture harness
 
-`dielectric-coder` (upstream PR #466) offered a short `--record-iq` capture and
-an `examples/hd_capture.rs` harness that shifts one channel to zero, decimates
-and drives `HdDemod` directly — no antenna needed once a capture exists. As of
-2026-09-16 the branch is confirmed on air against four HD stations, with stereo
-and the watchdog below in place.
+Upstream took `dielectric-coder`'s harness with #466, so it is no longer ours to
+add: `crates/sdroxide-nrsc5/examples/hd_capture.rs` holds the
+capture-to-channel-rate conversion, and upstream's own `decode_sample_capture`
+in `crates/sdroxide-nrsc5/tests/decode_sample.rs` checks the chain end to end
+against nrsc5's `support/sample.xz`, including **`HdDemod::backlog_drops() == 0`**
+— the assertion that caught the one-value-per-frame pacing bug on air. It is
+`#[ignore]`d (48 MB of fixture, real-time decode); run it with
+`cargo test -p sdroxide-nrsc5 --release -- --ignored --nocapture`.
 
-1. Take the harness as `crates/sdroxide-nrsc5/examples/hd_capture.rs`; it is the
-   one place the capture-to-channel-rate conversion should live.
-2. Add a test gated on `SDROXIDE_HD_SAMPLE`, skipping with a printed line when
-   unset — the pattern `sdroxide-drm`'s `a_recording_decodes` uses with
-   `SDROXIDE_DRM_SAMPLE`. Assert lock, the station name, audio on each
-   programme, and **`HdDemod::backlog_drops() == 0`**. That last one is what
-   caught the one-value-per-frame pacing bug on air; do not drop it.
-3. **Do not commit the capture.** It is copyrighted programme material and tens
-   of megabytes; keep it beside the tree and point the env var at it.
-4. If PR #466 merges upstream, the `knik0/faad2` re-point in the watch list
-   applies too.
+Off-air captures stay out of the tree: they are copyrighted programme material
+and tens of megabytes. Keep one beside the tree and point the example at it.
 
 ## Regenerating the quick-start PDFs
 
