@@ -242,8 +242,9 @@ fn selecting_the_mode_puts_the_message_in_the_log() {
 
     // ...and leaving the mode stops it, because a receiver parked on the
     // datalink group is not listening to anything else. Silence is what
-    // standing down looks like from out here.
-    send(Command::SetMode { rx: RxId::Main, mode: Mode::Nfm });
+    // standing down looks like from out here. Back to AM, the airband's own
+    // mode: the band/mode rule refuses FM there.
+    send(Command::SetMode { rx: RxId::Main, mode: Mode::Am });
     std::thread::sleep(Duration::from_millis(400));
     while h.event_rx.try_recv().is_ok() {}
     let quiet_until = Instant::now() + Duration::from_millis(1500);

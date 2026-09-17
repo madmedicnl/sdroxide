@@ -386,8 +386,12 @@ impl Band {
             }
             // FM broadcast: WFM, with the stereo pilot and RDS its own business.
             Band::Fm => Some(&[Mode::Wfm]),
-            // Both airbands are amplitude modulated.
-            Band::Air | Band::Mil => Some(&[Mode::Am]),
+            // The civil airband is amplitude modulated, and carries the two
+            // aircraft datalinks this build decodes: VDL Mode 2 around
+            // 136.8 MHz and ACARS on the 131 and 136 MHz channels.
+            Band::Air => Some(&[Mode::Am, Mode::Vdl2, Mode::Acars]),
+            // The military UHF airband is AM voice.
+            Band::Mil => Some(&[Mode::Am]),
             // 11 m: the CB modes, and the WSJT-CB digital exchange on top.
             Band::M11 => Some(&[
                 Mode::Am,
@@ -398,6 +402,7 @@ impl Band {
                 Mode::Ft8,
                 Mode::Ft4,
                 Mode::Ft2,
+                Mode::Js8,
             ]),
             // Every amateur allocation takes anything.
             _ => None,
