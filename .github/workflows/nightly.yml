@@ -1,0 +1,56 @@
+name: Nightly
+
+# A rolling nightly build of `main`.
+#
+# Rather than duplicate the ~900-line release workflow, this moves a `nightly`
+# tag to the branch head and dispatches `release.yml` against it. The release
+# job publishes a tag ref as a release, and it knows to mark this one a
+# **pre-release** — so `/releases/latest`, and the README's stable download
+# links, keep pointing at a real tagged release rather than at last night's
+# build.
+#
+# Scheduled workflows only run on the default branch, and run against whatever
+# is pushed there: this builds the remote `main`, not any local checkout.
+on:
+  schedule:
+    # Mon/Wed/Fri at 03:00 UTC. GitHub's scheduler is best-effort — a busy
+    # queue can delay it by minutes, and it skips a run if one is already
+    # going (see the concurrency group below).
+    - cron: '0 3 * * 1,3,5'
+  # For a build on demand, from the Actions tab or
+  # `gh workflow run nightly.yml`.
+  workflow_dispatch:
+
+permissions:
+  # Move the `nightly` tag.
+  contents: write
+  # Dispatch the Release workflow.
+  actions: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  nightly:
+    name: retag and start the build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The whole history so the tag can be moved, and the default branch
+          # explicitly so a manual run from another ref still tags `main`.
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Point the nightly tag at the branch head
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -f nightly HEAD
+          # Force, because the tag moves every night; that is what makes it
+          # "nightly" rather than a growing pile of tags.
+          git push --force origin nightly
+      - name: Start the release workflow on it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref nightly

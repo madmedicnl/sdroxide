@@ -880,8 +880,22 @@ jobs:
           `http://<host>:4950` in a browser. `sdroxide-web-*.zip` contains the
           standalone web assets for use with `--web-root`.
           EOF
+          # The `nightly` tag is moved to the branch head by the Nightly
+          # workflow and dispatched here. Publish it as a **pre-release**, so
+          # `/releases/latest` — and the README's stable download links — keep
+          # pointing at a tagged release rather than at last night's build.
+          title="sdroxide $GITHUB_REF_NAME"
+          extra=()
+          if [ "$GITHUB_REF_NAME" = "nightly" ]; then
+            title="sdroxide nightly $(date -u +%Y-%m-%d)"
+            extra+=(--prerelease)
+            {
+              printf '%s\n\n' '**Nightly build** of `main` — untested, and not a release. Take a tagged release for anything real.'
+              cat notes.md
+            } > notes.tmp && mv notes.tmp notes.md
+          fi
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --title "sdroxide $GITHUB_REF_NAME" --notes-file notes.md --generate-notes
+              --title "$title" --notes-file notes.md --generate-notes "${extra[@]}"
           fi
           gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber dist/*
