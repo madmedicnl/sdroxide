@@ -1,18 +1,16 @@
 /*
- * Stubs for the librtlsdr entry points nrsc5.c references.
+ * Stand-ins for the librtlsdr entry points nrsc5.c references.
  *
- * sdroxide feeds HD Radio through nrsc5's pipe API, never through the
- * library's own device driver, but nrsc5.c links against librtlsdr
- * unconditionally. These definitions satisfy the linker so the pipe decoder
- * builds and tests without an SDR library.
+ * sdroxide always feeds HD Radio through nrsc5's pipe API, never through the
+ * library's own device driver, but nrsc5.c calls librtlsdr unconditionally.
+ * These definitions satisfy the linker so the pipe decoder builds and tests
+ * without an SDR library. None of them runs on the pipe path, so they all
+ * report failure.
  *
- * They are deliberately *strong* rather than weak. There is no real librtlsdr
- * in the build to override them (sdroxide's own RTL-SDR support is a pure-Rust
- * transcoder, not a C library), and MinGW's linker will not pull a
- * weakly-defined member out of a static archive to satisfy a reference, which
- * left the Windows build with undefined `rtlsdr_*` symbols.
- *
- * None of these run on the pipe path, so they all report failure.
+ * They are not the real names: `include/rtl-sdr.h` renames every one to
+ * `sdrx_nrsc5_rtlsdr_*` for nrsc5 and for this file alike, so nothing here can
+ * meet another `rtlsdr_open` at link time — no weak symbols, whose rules differ
+ * between ELF and the PE/COFF a MinGW build produces.
  */
 
 #include <stdint.h>

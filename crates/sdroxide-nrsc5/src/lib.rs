@@ -3,33 +3,42 @@
 //! The crate is the decoder for the HD Radio band: it takes raw I/Q samples
 //! (via `HdReceiver::pipe_*`, at nrsc5's native sample rate — see the
 //! `NRSC5_SAMPLE_RATE_*` definitions upstream) and turns them into decoded
-//! audio and the SIS/ID3 metadata roadcasters send.
+//! audio and the SIS/ID3 metadata broadcasters send.
 //!
-//! It is a thin binding on purpose. The receive path is a worker thread owned
-//! by the C library; the caller pipes samples in from its own thread and
-//! collects `Event`s on this side through a plain channel. `HdReceiver` is
-//! therefore `Send` (move it to the sampler thread) but not `Sync`: the pipe
-//! functions and the close must not run concurrently.
+//! [`HdReceiver`] is a thin binding on purpose. Opened on a pipe, the C library
+//! runs no thread of its own: each `pipe_*` call does the decoding and fires
+//! the callbacks before it returns, and they reach this side as `Event`s
+//! through a plain channel. `HdReceiver` is therefore `Send` (move it to the
+//! thread that will feed it) but not `Sync`: the pipe functions and the close
+//! must not run concurrently. [`HdDemod`] is the receive-chain demodulator
+//! built on it, and keeps that work off the chain's thread.
 //!
-//! Audio reaches the caller as `Event::Audio` in signed 16-bit mono PCM at
-//! 44.1 kHz, exactly as nrsc5 emits it. Metadata arrives as the station / SIS
+//! Audio reaches the caller as `Event::Audio` in signed 16-bit interleaved
+//! stereo PCM at 44.1 kHz, exactly as nrsc5 emits it. Metadata arrives as the
+//! station / SIS
 //! events; the finer data services (LOT files, HERE images, ID3 tags, the SIG
 //! table) are decoded inside the library but not yet surfaced here.
 //!
 //! # Linking faad2
 //!
 //! nrsc5 decodes its HDC audio with faad2's `NeAACDec*` symbols. They come
-//! from the one combined DRM+HDC faad2 archive that `sdroxide-drm` builds;
-//! whatever links this crate must link that crate too, or the final link will
-//! fail on those symbols. Two faad2 copies in the same binary must never
-//! happen — they collide on every `NeAACDec*` symbol.
+//! from `sdroxide-faad2`, the one faad2 archive in the binary — upstream faad2
+//! with nrsc5's HDC patch applied at build time, shared with the DRM receiver.
+//! Two faad2 copies in the same binary must never happen: they collide on
+//! every `NeAACDec*` symbol.
 
 #![deny(missing_docs)]
 
 pub mod demod;
+mod worker;
 pub use demod::HdDemod;
 
+// Named so its faad2 archive is linked: nrsc5 calls `NeAACDec*` from C, which
+// Rust cannot see.
+use sdroxide_faad2 as _;
+
 use std::ffi::{c_char, c_float, c_int, c_uint, c_void};
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::mpsc::{self, Receiver};
 
 /// The analogue source the decoder expects to see.
@@ -66,12 +75,17 @@ pub enum Event {
         /// Channel bit-error ratio, 0.0 to 1.0.
         cber: f32,
     },
-    /// Decoded PCM audio, signed 16-bit mono, 44.1 kHz.
+    /// Decoded PCM audio: signed 16-bit interleaved stereo, 44.1 kHz.
     Audio {
         /// The program the audio belongs to.
         program: u8,
-        /// Signed 16-bit mono PCM, 44,100 samples per second.
+        /// Signed 16-bit PCM, left and right interleaved, 44,100 frames per
+        /// second.
         data: Vec<i16>,
+        /// `NRSC5_AUDIO_FLAGS_*`. With [`AUDIO_FLAG_UNAVAILABLE`] set the frame
+        /// is silence the decoder filled in for a packet that was missing or
+        /// failed its check, not sound from the station.
+        flags: u32,
     },
     /// An audio service is available on the wave (from SIS descriptors).
     AudioService {
@@ -82,13 +96,17 @@ pub enum Event {
         /// Audio codec mode, per SY_IDD_1017s Table 5-2.
         codec_mode: u8,
     },
-    /// The roadcaster's station name, e.g. "Q107".
+    /// The broadcaster's station name, e.g. "Q107".
     StationName(String),
     /// The station slogan, e.g. "You're Listening to Q".
     StationSlogan(String),
-    /// A short text the roadcaster is currently airing.
+    /// A short text the broadcaster is currently airing.
     StationMessage(String),
 }
+
+/// `NRSC5_AUDIO_FLAGS_UNAVAILABLE`: an [`Event::Audio`] frame that is silence
+/// standing in for audio the decoder did not have.
+pub const AUDIO_FLAG_UNAVAILABLE: u32 = 1 << 0;
 
 /// Errors opening or driving an `HdReceiver`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,14 +119,16 @@ pub enum NrsError {
 
 /// A handle to an HD Radio receive session.
 ///
-/// Opening starts the library's worker thread; audio and metadata callbacks
-/// are marshalled into a channel and drained with `poll`/`wait`. Dropping the
-/// receiver detaches the callback before the worker is joined, so no callback
+/// Opened on a pipe, the library starts no thread: every `pipe_*` call does the
+/// decoding itself and fires the audio and metadata callbacks before it
+/// returns. They are marshalled into a channel and drained with `poll` or
+/// `drain`, which never block — there is no one else to send. Dropping the
+/// receiver detaches the callback before the library is closed, so no callback
 /// can outlive it.
 pub struct HdReceiver {
     st: *mut NrsCtx,
     rx: Receiver<Event>,
-    _sink: Box<CbSink>,
+    sink: Box<CbSink>,
 }
 
 // The C handle is only touched from the (single) calling thread after the
@@ -127,11 +147,11 @@ impl HdReceiver {
             return Err(NrsError::Open);
         }
         let (tx, rx) = mpsc::channel();
-        let sink = Box::new(CbSink { tx });
+        let sink = Box::new(CbSink { tx, audio_program: AtomicI32::new(-1) });
         let opaque = &*sink as *const CbSink as *mut c_void;
         unsafe { nrsc5_set_callback(st, Some(trampoline), opaque) };
         unsafe { nrsc5_start(st) };
-        Ok(HdReceiver { st, rx, _sink: sink })
+        Ok(HdReceiver { st, rx, sink })
     }
 
     /// Pipes raw 8-bit unsigned I/Q samples (2 bytes per complex sample).
@@ -147,12 +167,15 @@ impl HdReceiver {
         Ok(())
     }
 
-    /// Pipes raw signed 16-bit I/Q samples (4 bytes per complex sample).
+    /// Pipes signed 16-bit I/Q, interleaved: two values per complex sample.
     ///
-    /// `samples.len()` is in bytes. Feed at `NRSC5_SAMPLE_RATE_CU8`.
+    /// The length nrsc5 takes is a count of `int16_t` values — the slice's own
+    /// length — and a trailing odd value is buffered by the library across
+    /// calls. Handing it twice that, as a byte count, had the library read as
+    /// far again past the end of the slice. Feed at the native FM (744,187.5 S/s)
+    /// or AM (46,511.71875 S/s) rate, like [`Self::pipe_cf32`].
     pub fn pipe_cs16(&self, samples: &[i16]) -> Result<(), NrsError> {
-        let count = samples.len() * 2;
-        let len = c_uint::try_from(count).map_err(|_| NrsError::Pipe)?;
+        let len = c_uint::try_from(samples.len()).map_err(|_| NrsError::Pipe)?;
         if unsafe { nrsc5_pipe_samples_cs16(self.st, samples.as_ptr(), len) } != 0 {
             return Err(NrsError::Pipe);
         }
@@ -171,14 +194,19 @@ impl HdReceiver {
         Ok(())
     }
 
+    /// Copy out the audio of one programme only, or of every programme with
+    /// `None` (the default).
+    ///
+    /// Each audio frame is copied as it is reported, and a multiplex decodes
+    /// every programme it carries whichever one is being listened to. On a
+    /// station with three, two of every three copies were thrown away unread.
+    pub fn set_audio_program(&self, program: Option<u8>) {
+        self.sink.audio_program.store(program.map_or(-1, i32::from), Ordering::Relaxed);
+    }
+
     /// Returns the next queued event without waiting.
     pub fn poll(&self) -> Option<Event> {
         self.rx.try_recv().ok()
-    }
-
-    /// Blocks until the next event arrives (or the receiver is closed).
-    pub fn wait(&self) -> Option<Event> {
-        self.rx.recv().ok()
     }
 
     /// A non-blocking iterator over whatever is queued right now.
@@ -213,10 +241,19 @@ impl Iterator for Drain<'_> {
 // outlives the worker because `drop` detaches the callback before joining.
 struct CbSink {
     tx: mpsc::Sender<Event>,
+    /// The programme whose audio is copied out, or -1 for all of them — see
+    /// [`HdReceiver::set_audio_program`].
+    audio_program: AtomicI32,
 }
 
 unsafe extern "C" fn trampoline(evt: *const NrsEvent, opaque: *mut c_void) {
     let sink = unsafe { &*(opaque as *const CbSink) };
+    if !evt.is_null() && unsafe { (*evt).event } == NRS_EVENT_AUDIO {
+        let wanted = sink.audio_program.load(Ordering::Relaxed);
+        if wanted >= 0 && unsafe { (*evt).u.audio.program } != wanted as c_uint {
+            return;
+        }
+    }
     if let Some(ev) = unsafe { translate(evt) } {
         let _ = sink.tx.send(ev);
     }
@@ -226,6 +263,10 @@ unsafe extern "C" fn trampoline(evt: *const NrsEvent, opaque: *mut c_void) {
 // IQ, SYNC, LOST_SYNC, MER, BER, HDC, AUDIO, ID3, SIG, LOT, SIS, STREAM,
 // PACKET, AUDIO_SERVICE, STATION_ID, STATION_NAME, STATION_SLOGAN,
 // STATION_MESSAGE, STATION_LOCATION, ...
+//
+// These numbers and the `#[repr(C)]` structs below are copied from the header
+// by hand, so `src/layout_check.c` mirrors them in C and fails the build if the
+// pinned nrsc5 no longer agrees. Change the two together.
 const NRS_EVENT_SYNC: c_uint = 2;
 const NRS_EVENT_LOST_SYNC: c_uint = 3;
 const NRS_EVENT_MER: c_uint = 4;
@@ -248,23 +289,17 @@ unsafe fn translate(evt: *const NrsEvent) -> Option<Event> {
             psmi: unsafe { e.u.sync.psmi },
         }),
         NRS_EVENT_LOST_SYNC => Some(Event::LostSync),
-        NRS_EVENT_MER => Some(Event::Mer {
-            lower: unsafe { e.u.mer.lower },
-            upper: unsafe { e.u.mer.upper },
-        }),
-        NRS_EVENT_BER => Some(Event::Ber {
-            cber: unsafe { e.u.ber.cber },
-        }),
+        NRS_EVENT_MER => {
+            Some(Event::Mer { lower: unsafe { e.u.mer.lower }, upper: unsafe { e.u.mer.upper } })
+        }
+        NRS_EVENT_BER => Some(Event::Ber { cber: unsafe { e.u.ber.cber } }),
         NRS_EVENT_AUDIO => {
             let a = unsafe { e.u.audio };
             if a.data.is_null() || a.count == 0 {
                 return None;
             }
             let data = unsafe { std::slice::from_raw_parts(a.data, a.count) }.to_vec();
-            Some(Event::Audio {
-                program: a.program as u8,
-                data,
-            })
+            Some(Event::Audio { program: a.program as u8, data, flags: a.flags })
         }
         NRS_EVENT_AUDIO_SERVICE => {
             let a = unsafe { e.u.audio_service };
@@ -389,8 +424,7 @@ struct NrsName {
 }
 
 #[allow(clippy::type_complexity)]
-type NrsCallback =
-    unsafe extern "C" fn(evt: *const NrsEvent, opaque: *mut c_void);
+type NrsCallback = unsafe extern "C" fn(evt: *const NrsEvent, opaque: *mut c_void);
 
 unsafe extern "C" {
     fn nrsc5_open_pipe(st: *mut *mut NrsCtx) -> c_int;

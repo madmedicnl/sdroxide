@@ -90,6 +90,10 @@ impl SdroxideApp {
         self.hd_sync_row(ui, &d);
         ui.add_space(8.0);
 
+        if let Some(why) = d.unavailable.as_deref() {
+            ui.label(dim(why));
+            return cmds;
+        }
         if !d.locked {
             ui.label(dim(
                 "No HD Radio lock. The digital sidebands are transmitted about 20 dB below \
@@ -114,11 +118,7 @@ impl SdroxideApp {
     fn hd_sync_row(&self, ui: &mut egui::Ui, d: &HdRadioStatus) {
         let dot = |ui: &mut egui::Ui, on: bool| {
             let (rect, _) = ui.allocate_exact_size(egui::vec2(7.0, 7.0), egui::Sense::hover());
-            let ink = if on {
-                Color32::from_rgb(90, 200, 120)
-            } else {
-                crate::theme::gray(90)
-            };
+            let ink = if on { Color32::from_rgb(90, 200, 120) } else { crate::theme::gray(90) };
             ui.painter().circle_filled(rect.center(), 3.5, ink);
         };
         let stages = [

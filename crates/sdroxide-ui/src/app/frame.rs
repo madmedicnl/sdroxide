@@ -1291,10 +1291,13 @@ impl SdroxideApp {
                         self.alerts.on_ft8(&d, &st.config.my_call, &st.config.my_grid, &log, band);
                     }
                     // Prepend newest-slot decodes; keep a rolling window.
+                    let dial = self.state.rx_freq_hz();
                     for dec in d.into_iter().rev() {
                         self.digi_decodes.insert(0, dec);
+                        self.digi_decode_dials.insert(0, dial);
                     }
                     self.digi_decodes.truncate(200);
+                    self.digi_decode_dials.truncate(200);
                 }
                 RadioEvent::WsprSpots(s) => {
                     // Newest first, and de-duplicated against what is already

@@ -15,6 +15,8 @@ use sdroxide_dsp::MonoResampler;
 use sdroxide_radio::rtrb;
 use sdroxide_radio::{Complex32, IqSource, Result};
 
+use crate::audio_cat_source::{DropWatch, drain_tx_audio, write_tx_audio};
+
 /// The audio band the engine shows this radio's panadapter over, Hz each side
 /// of the dial. Demod audio arrives already inside the radio's own filter, so
 /// this is just the width of the picture, not a filter of ours.
@@ -23,8 +25,8 @@ use sdroxide_radio::{Complex32, IqSource, Result};
 /// demod-audio CAT path defaults to ([`sdroxide_types::CatConfig::audio_bw_hz`]).
 const AUDIO_BW_HZ: f64 = 4000.0;
 
-/// The first missing-box warning also says what the operator can expect; this
-/// one says who must act now.
+/// A radio reached through nothing but two sound cards: demod audio in from
+/// one, transmit audio out to the other, keyed by the rig's own VOX.
 pub struct UsbAudioSource {
     // RX audio from the radio (mono demod). `None` when the capture device
     // could not be opened — the app still runs so the user can fix the device
@@ -48,14 +50,14 @@ pub struct UsbAudioSource {
     /// channel bookkeeping, the digi identity and the log; it never becomes a
     /// command to hardware ([`IqSource::center_is_dial`] is false).
     center: f64,
-    /// Whether a mode that follows the band has to be translated to a plain
-    /// sideband by the engine before this source sees it. False: there is no
-    /// sideband to command, the radio sits wherever its own knob is, and
-    /// whatever arrives at the mic line is what goes out.
+    /// What [`IqSource::describe`] calls this radio: the receive card's name.
     label: String,
     /// Warning captured at open time (RX device unavailable), surfaced to the
     /// UI. `None` when RX came up cleanly.
     status: Option<String>,
+    /// Set by [`IqSource::release`]: both sound devices have been given back,
+    /// and the engine is to build a replacement.
+    released: bool,
 }
 
 impl UsbAudioSource {
@@ -76,7 +78,7 @@ impl UsbAudioSource {
             tracing::warn!(
                 "no sound card chosen for the USB audio radio ({}) — falling back to the system \
                  default, which is not this radio unless it happens to be the default. Pick its \
-                 devices under Settings → General → Radio audio.",
+                 devices under Settings → Radio.",
                 match (audio_in.is_none(), audio_out.is_none()) {
                     (true, true) => "receive and transmit",
                     (true, false) => "receive",
@@ -148,6 +150,7 @@ impl UsbAudioSource {
             center: center_hz,
             label: format!("USB audio radio on {dev_label}"),
             status,
+            released: false,
         })
     }
 
@@ -185,53 +188,6 @@ impl UsbAudioSource {
         );
     }
 }
-
-/// The capture counter's bookkeeping: what it read last time and when.
-///
-/// Split out the same way the CAT source does — this is arithmetic about
-/// wall-clock time and a monotonic total, which is exactly where it went wrong
-/// before and exactly what should be checkable without a radio plugged in.
-struct DropWatch {
-    /// The card's lifetime drop total as of the last look.
-    seen: u64,
-    /// When that look happened — the time it *did*, not the time the next one
-    /// is due.
-    last_check: std::time::Instant,
-}
-
-impl DropWatch {
-    fn started(now: std::time::Instant) -> Self {
-        DropWatch { seen: 0, last_check: now }
-    }
-
-    /// Frames lost since the last look and the window they were lost in, or
-    /// `None` when it is not yet time to look or nothing was lost.
-    fn check(&mut self, now: std::time::Instant, total: u64) -> Option<(u64, std::time::Duration)> {
-        let window = now.duration_since(self.last_check);
-        if window < DROP_CHECK_INTERVAL {
-            return None;
-        }
-        self.last_check = now;
-        let lost = total.saturating_sub(self.seen);
-        if lost == 0 {
-            return None;
-        }
-        self.seen = total;
-        Some((lost, window))
-    }
-
-    /// Forget what the counter accumulated and start the window again from
-    /// `now` — for drops that happened while nobody was reading the stream and
-    /// so say nothing about whether this machine can keep up with it.
-    fn rebase(&mut self, now: std::time::Instant, total: u64) {
-        self.seen = total;
-        self.last_check = now;
-    }
-}
-
-/// The soonest [`UsbAudioSource::check_dropped`] looks again — the same window
-/// the CAT source uses, for the same reason.
-const DROP_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
 
 impl IqSource for UsbAudioSource {
     fn sample_rate(&self) -> f64 {
@@ -293,6 +249,24 @@ impl IqSource for UsbAudioSource {
         self.status.clone()
     }
 
+    fn needs_reopen(&self) -> bool {
+        self.released
+    }
+
+    /// Give back both sound devices before the engine opens the replacement,
+    /// which will want at least one of them — the same cards after "Apply /
+    /// reconnect", or the same card for a CAT rig. A named ALSA `hw:` device is
+    /// held exclusively, so opening the new source beside this one fails and
+    /// leaves the radio deaf (issue #15, the same fix `AudioCatSource` has).
+    fn release(&mut self) {
+        if self.released {
+            return;
+        }
+        self.in_stream = None;
+        self.out = None;
+        self.released = true;
+    }
+
     fn display_bandwidth(&self) -> Option<f64> {
         Some(AUDIO_BW_HZ)
     }
@@ -331,40 +305,7 @@ impl IqSource for UsbAudioSource {
         let Some((_, producer)) = self.out.as_mut() else {
             return Ok(()); // no TX device — nothing keyed, and nothing to send
         };
-        // Resample 48 kHz → card rate, then interleave to stereo.
-        //
-        // A *pair* per sample, whatever the card's own channel count is: the
-        // ring `start_output` hands back is interleaved stereo by definition,
-        // and the playback callback takes two out of it for every frame it
-        // fills and mixes them down itself where the device opened mono. One
-        // per sample on such a card is therefore not a quieter over — the
-        // callback consumes the ring twice as fast as it is filled, so the
-        // audio goes out at double speed with every pair averaged together and
-        // silence spliced in wherever it ran dry (issue #247).
-        self.tx_scratch.clear();
-        match self.tx_resampler.as_mut() {
-            Some(rs) => rs.push(audio, &mut self.tx_scratch),
-            None => self.tx_scratch.extend_from_slice(audio),
-        }
-        // Block until the card drains room, applying backpressure so the engine's
-        // TX loop is paced to real time. Without this a long continuous burst
-        // is generated at CPU speed and mostly dropped on a full ring, so the
-        // radio only transmits the first buffer-full — and on a VOX radio the
-        // gap that follows is a key that drops out mid-sentence.
-        for &s in &self.tx_scratch {
-            for _ in 0..2 {
-                let mut v = s;
-                let mut tries = 0u32;
-                while let Err(rtrb::PushError::Full(x)) = producer.push(v) {
-                    v = x;
-                    tries += 1;
-                    if tries > 200 {
-                        break; // output device stalled — drop rather than hang TX
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                }
-            }
-        }
+        write_tx_audio(producer, self.tx_resampler.as_mut(), &mut self.tx_scratch, audio);
         Ok(())
     }
 
@@ -374,14 +315,7 @@ impl IqSource for UsbAudioSource {
         // unkeys. `tx_end` (which releases the "PTT", such as it is on a VOX
         // radio) comes after this.
         if let Some((_, producer)) = self.out.as_ref() {
-            let cap = producer.buffer().capacity();
-            for _ in 0..1000 {
-                let buffered = cap.saturating_sub(producer.slots());
-                if buffered <= cap / 40 {
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(2));
-            }
+            drain_tx_audio(producer);
         }
     }
 }

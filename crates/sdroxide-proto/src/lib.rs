@@ -1312,19 +1312,29 @@ use sdroxide_types::{
 /// surviving discriminant moved, but a v145 station has no name for it and
 /// fails to decode the message carrying it.
 ///
-/// v147: HD Radio reception — the FM digital sidecar (issue #437). `Mode::HdRadio`,
+/// v147: [`sdroxide_types::Backend`] gains `UsbAudio`, a radio with no control
+/// port — receive and transmit over two sound cards, keyed by the rig's own
+/// VOX (PR #456). Appended, so no surviving discriminant moved, but `Backend`
+/// rides inside `RadioConfig` and so inside `ServerMsg::RadioConfig` and
+/// `Command::SetRadioConfig`: a v146 peer handed one fails to decode the
+/// message carrying it.
+///
+/// v148: HD Radio reception — the FM digital sidecar (issue #437). `Mode::HdRadio`,
 /// `ServerMsg::Hd` carrying `HdRadioStatus`, and `Command::SetHdProgram` for the
 /// HD-2 subchannels, all appended last so no surviving discriminant moved, but a
-/// v146 peer handed any of them fails to decode the message carrying it.
+/// v147 peer handed any of them fails to decode the message carrying it.
 ///
-/// v148: the LOG11DX logbook and the WSJT-CB spot server. `UploadTarget` and
-/// `LoginTarget` each gain `Log11Dx`, `QsoRecord` gains `log11dx_sent`,
-/// `NetworkConfig` gains `wsjtcb` (report flag and URL) and then
-/// `log11dx_api_url`, `log11dx_api_token` and `auto_upload_log11dx`, all
-/// appended last so no surviving discriminant moved. Postcard is positional,
-/// though, so a v147 peer desynchronises on the tail of any `NetworkConfig` or
-/// `QsoRecord` — the handshake's equality test is what stops it trying.
-pub const PROTO_VERSION: u16 = 148;
+/// v149: the listener fork's additions on top of v148. `NetworkConfig` gains
+/// `wsjtcb` (the WSJT-CB spot server) and then `log11dx_api_url`,
+/// `log11dx_api_token` and `auto_upload_log11dx`; `QsoRecord` gains
+/// `log11dx_sent`; `UploadTarget` and `LoginTarget` each gain `Log11Dx`; and
+/// `Command` gains the station profiles, the receive tone, the replay switch
+/// and the CB transmit opt-in. All appended, so no surviving discriminant
+/// moved — but postcard is positional and this fork's `Mode` numbering already
+/// diverges (it carries `Cquam` and `Acars` before `HdRadio`), so a v148 peer
+/// desynchronises on the tail of the structs and on the `Mode` byte; the
+/// handshake's equality test is what stops it trying.
+pub const PROTO_VERSION: u16 = 149;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

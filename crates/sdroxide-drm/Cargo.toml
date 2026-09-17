@@ -8,18 +8,18 @@ edition.workspace = true
 # FDK licence cannot be linked here at all, whatever its technical merits, which
 # is why xHE-AAC is decoded through a library looked up at run time and nothing
 # from `vendor/fdk-aac` (headers only) reaches the linker. See
-# `vendor/fdk-aac/PROVENANCE.md`.
-#
-# `vendor/faad2` is pinned to the two-commit fork `madmedicnl/faad2-hdc` (stock
-# 2.11.2 plus HDC support), so the single faad2 build also decodes HD Radio.
-# Re-point the submodule to `knik0/faad2` and drop `HDC_SUPPORT` from the build
-# script once upstream merges the HDC variant.
+# `vendor/fdk-aac/PROVENANCE.md`. faad2's HDC variant, which HD Radio needs, is
+# applied to stock faad2 at build time by `crates/sdroxide-faad2` rather than
+# kept as a fork, so the submodule stays on `knik0/faad2`.
 license.workspace = true
 
 # Native-only: links a vendored C++ receiver and a vendored C codec. Must never
 # be a dependency of any wasm-targeted crate.
 
 [dependencies]
+# The faad2 Dream decodes its AAC with — one archive, shared with the HD Radio
+# decoder, which is why it is its own crate. See `crates/sdroxide-faad2`.
+sdroxide-faad2.workspace = true
 sdroxide-types.workspace = true
 sdroxide-dsp.workspace = true
 num-complex.workspace = true

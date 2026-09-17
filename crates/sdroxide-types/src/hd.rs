@@ -58,7 +58,9 @@ pub struct HdRadioStatus {
     /// holds.
     #[serde(default)]
     pub locked: bool,
-    /// Audio frames have arrived since the last lock was acquired.
+    /// The selected programme is producing sound: its latest audio frame was
+    /// decoded, not the silence the decoder fills a missing or failed packet
+    /// with.
     #[serde(default)]
     pub audio: bool,
     /// Residual carrier frequency offset, in Hz, as the sync reported it.
@@ -91,6 +93,11 @@ pub struct HdRadioStatus {
     /// A short text the broadcaster is currently airing.
     #[serde(default)]
     pub station_message: String,
+
+    /// Why no decoder is running, when none can: the sentence names the number
+    /// it is about. `None` while decoding is possible, locked or not.
+    #[serde(default)]
+    pub unavailable: Option<String>,
 }
 
 impl HdRadioStatus {
@@ -102,14 +109,13 @@ impl HdRadioStatus {
     /// A one-line summary for a status bar: the station's name if the
     /// multiplex has named itself, else how far the chain has got.
     pub fn summary(&self) -> String {
+        if self.unavailable.is_some() {
+            return "unavailable".to_string();
+        }
         if !self.station_name.is_empty() {
             return self.station_name.clone();
         }
-        if self.locked {
-            "acquiring service".to_string()
-        } else {
-            "no signal".to_string()
-        }
+        if self.locked { "acquiring service".to_string() } else { "no signal".to_string() }
     }
 }
 

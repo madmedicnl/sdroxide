@@ -2672,7 +2672,7 @@ States and Mexico transmit it, and a hybrid station sounds better on the digital
 side than on the analog one — provided it can be heard at all, because the
 sidebands are far weaker than the carrier they share.
 
-Select `HD Radio` on the **MODE** button and listen. It is a **broadcast** mode,
+Select **HD RADIO** on the **MODE** button and listen. It is a **broadcast** mode,
 like WFM and DRM: there is nothing to transmit and no transcript. The panel is
 receive-only.
 
@@ -2680,9 +2680,10 @@ receive-only.
 would use for plain WFM. Unlike DRM, the digital carriers are not centred on
 that frequency but spread out around it — roughly 129 to 198 kHz either side —
 so the front end has to capture a span of at least about ±200 kHz to see them at
-all. **A complex sample rate of 1 Msps or more is ample**; at much narrower
-rates the decoder still runs but has one or both sidebands missing, and will not
-lock. The default passband is ±200 kHz, which is the channel the sidebands
+all. **A complex sample rate of 1 Msps or more is ample.** Below 400 kHz the
+decoder is not started at all — both sidebands cannot fit, so it could never
+lock — and the window says so, naming the rate this receiver delivers; that is
+also what a CAT rig handing over demodulated audio gets. The default passband is ±200 kHz, which is the channel the sidebands
 occupy, and there are no filter presets — the decoder reads the real channel out
 of the transmission.
 
@@ -2701,7 +2702,7 @@ the decode, in the order they lock:
 | Stage | What it means |
 | --- | --- |
 | **SYNC** | The OFDM frame is being read. |
-| **AUDIO** | Audio frames are decoding. |
+| **AUDIO** | The selected programme's audio is decoding — not the silence the decoder fills a lost or failed packet with. |
 
 Sync without audio is a real state — the frame is locked but the programme's
 audio is not coming through, often because the signal is marginal — so the HD
@@ -2723,10 +2724,15 @@ Below the indicators, once the signal is locked:
 
 Then the station's own text: its name, its slogan, and a message it is currently
 airing. If the multiplex carries more than one programme — HD-1 and an HD-2
-subchannel, say — a row of **HD-n** chips lets you pick which to hear.
+subchannel, say — a row of **HD-n** chips lets you pick which to hear. Tuning to
+another station puts it back on HD-1.
 
 The audio is **stereo** (HDC carries two channels) and plays as two; a mono
 transmission simply has equal channels, so it sounds the same.
+
+The decoding itself runs on a thread of its own, so it does not hold up the
+panadapter or any other decoder on the same receiver; a machine too slow to keep
+up with it loses samples and re-acquires rather than stalling the radio.
 
 **What is not here.** Transmit: HD Radio is a broadcast system. **HD on the AM
 band** (medium wave) is not wired up yet; this build decodes the FM hybrid only.
@@ -3347,6 +3353,16 @@ The panel has two halves:
   **CLEAR RX** empties the list by hand, for when the band has gone quiet and
   what is on screen is a list of stations that *were* there. Nothing on the air
   stops, and the next slot starts filling it again.
+  **CSV** and **ADIF** in the DECODES header save the list as it stands — the
+  last 200 decodes — for a listener who has heard stations but worked none, so
+  the logbook's own exports have nothing to write (issue #433). The frequency
+  of each row is the dial it was heard on plus its audio tone, so a row keeps
+  its frequency after a move within the band. **CSV** is one row per decode, for
+  a spreadsheet. **ADIF** is one record per station heard, marked `SWL` so a
+  logger — sdroxide's own **IMPORT** included — takes it as a received report
+  rather than a contact, with no report sent or received; a decode that names
+  no sender (free text, a hashed call not yet resolved) has no call to log and
+  is left out.
 - **QSO** (right) — a **⇵** frequency button listing every band's agreed FT8/FT4
   frequency ([3.1](#31-general-considerations)), a world map
   (your location, the station you are working, and
@@ -3674,7 +3690,10 @@ manual entries. You can:
   de-duplicated against the log (same call + band within two minutes are skipped).
   Field lengths are read as the byte counts ADIF specifies, but exporters that
   count characters instead (QRZ's logbook among them) are handled too, so
-  accented names and QTHs survive the import intact.
+  accented names and QTHs survive the import intact. Records marked `SWL` are
+  received reports, not contacts — the DECODES panel's ADIF export writes them
+  — and are left out; the network log line at the end of the import says how
+  many.
 
   A file need not be Unicode. Plenty of Windows loggers write their national
   code page instead, and a Cyrillic or accented name in one used to stop the
@@ -4279,7 +4298,10 @@ STOP, which is what an operator recording a continuous transmission wants.
 - **PHASE** ◀ ▶ shifts the picture sideways in 10- or 100-pixel steps. A chart
   begins with about thirty seconds of phasing signal that tells sdroxide where a
   line starts; if you tuned in after that went by, the chart arrives cut
-  vertically and wrapped, and this is what puts it back together.
+  vertically and wrapped, and this is what puts it back together. The shift
+  applies to the part of the chart already received as well as the lines still
+  to come, so the whole picture moves at once and the saved image is corrected
+  with it (issue #439).
 - **SLANT** trims the sample clock in parts per million. If the chart leans to
   the left, increase it; to the right, decrease it. A sound card a hundred ppm
   off — well within tolerance — walks a fifteen-minute chart most of a line
@@ -5485,6 +5507,18 @@ read the wrong way round, which put ships all over the world map or left it
 empty; the decoder is now checked against a published sentence decoded by
 gpsd — issues #345 and #408.)
 
+#### The chart
+
+The chart frames your station and every vessel with a fresh position, and keeps
+reframing as they move. Zoom with the wheel, a trackpad or a pinch — about the
+point under the pointer — and drag to pan; either one holds the view where you
+left it. The **−**, **+** and **FIT** chips in the top-right corner do the same
+without a wheel, zooming about the middle of the chart, and **FIT** (or a
+double-click) hands the view back to the automatic framing. The note in the
+bottom-left corner says how much the view spans, in degrees of longitude and
+roughly in kilometres, so a chart that looks fully zoomed in but is still half
+an ocean wide says so (issue #459).
+
 #### Data fields
 
 - **slots** — how many transmissions the gate opened on. A high slot count with
@@ -6641,6 +6675,10 @@ radio. Everything below the selector changes to match the choice:
   tuned entirely in software. Both HF ports at once are combined by the same
   adaptive filter the RSPduo and LimeSDR use.
   See [6.2.20](#6220-rigexpert-fobos-sdr-usb).
+- **USB audio radio (sound card)** — a radio with no control port: a handheld,
+  a walkie, a USB dongle rig. Its audio comes in on one sound card, transmit
+  audio goes out on another, and the radio keys itself on VOX. See
+  [6.2.21](#6221-usb-audio-radio-sound-card-only).
 
 There is no auto-detect: you pick the interface, and an interface that cannot be
 opened falls back to a silent source rather than guessing at another one.
@@ -10211,10 +10249,25 @@ than a continuous control).
 
 Leave the port **empty** and an FDM-DUO is still usable on its receive cable
 alone: the driver tunes, changes mode and keys through the CAT gateway on the
-same USB interface. What you give up is everything that needs an *answer* — the
-S-meter, the SWR, the power readback, and any notice that somebody has touched
-the front panel. That is also the setting for an FDM-S1 or FDM-S2, which have no
-CAT port at all.
+same USB interface, and the radio's own dial is followed — the receive cable
+carries a read-back of the frequency the radio is tuned to, which sdroxide asks
+for four times a second, so turning the knob moves the panadapter with it. What
+you give up is the rest of what needs an *answer*: the S-meter, the SWR, the
+power readback, and any notice of a mode changed at the front panel. That is
+also the setting for an FDM-S1 or FDM-S2, which have no CAT port at all.
+
+**A and B are the radio's own two VFOs on that cable.** The FDM-DUO has the
+pair a transceiver has, and its receive window follows whichever is selected, so
+taking up sdroxide's VFO B takes up the radio's: its display, its knob and its
+A/B button are all on the dial you are working, and each VFO keeps its own mode
+at both ends. What it cannot see is that button being pressed *at the radio* —
+the read-back reports a frequency, not which VFO produced it, so sdroxide reads
+a press of A/B as the dial having moved and follows it onto the VFO it already
+thinks you are on. To put the two back in step, click sdroxide's **A** or **B**
+for the VFO you want, even the one already lit: that selects it at the radio
+too. With a CAT serial port set instead, the radio is kept on its
+VFO A and sdroxide drives that one dial, because the dial is read there by
+asking `FA;`, which answers VFO A whichever VFO is selected.
 
 **Transmit input** is the radio's `TI` command, menu 32 `TX IN` at the front
 panel, asserted when the port opens. **USB audio** is what makes transmit work
@@ -10265,11 +10318,14 @@ worked frequency on this side too, so the two displays then agree. Nothing on
 the waterfall moves. Without it the paddle answered every station a whole
 sidetone low and nobody came back.
 
-> **Not verified against hardware.** The whole of this backend — the USB
-> protocol, the tuning arithmetic, the calibration map and the CAT dialect — is
-> written from ELAD's own [gr-elad](https://github.com/ELADIT/gr-elad) GNU Radio
-> module and from the FDM-DUO manual's CAT chapter. Nobody has run it against a
-> radio. If it misbehaves, **Copy diagnostic report** on the Radio tab puts
+> **Mostly not verified against hardware.** This backend — the USB protocol,
+> the tuning arithmetic, the calibration map and the CAT dialect — is written
+> from ELAD's own [gr-elad](https://github.com/ELADIT/gr-elad) GNU Radio module
+> and from the FDM-DUO manual's CAT chapter. Receiving on an FDM-DUO over the
+> USB interface alone has since been run on one (hardware 2.9, firmware 4.9, at
+> 192 kHz): the I/Q order, the tuning word, following the radio's own dial and
+> its VFO A/B all checked out. Transmit, the serial CAT port on a bench, the
+> higher sample rates and the FDM-S1/S2 have not been. If it misbehaves, **Copy diagnostic report** on the Radio tab puts
 > every command exchanged with the device on the clipboard; `cargo run -p
 > sdroxide-elad --example probe` does the same from a terminal and also settles
 > what rate the device is really in.
@@ -10889,6 +10945,49 @@ selection steers around both. The cost is a practical ceiling around 10 MHz for
 the widest HF views; wider targets need a faster ADC than the safe rates
 provide.
 
+#### 6.2.21 USB audio radio (sound card only)
+
+For a radio sdroxide cannot control at all — a handheld, a walkie, a USB
+dongle rig — but can hear and talk through. Nothing is commanded: no
+frequency, no mode, no PTT. There are two sound cards and the radio's own VOX.
+
+**Receive (radio → PC)** is the card the radio's headphone or speaker socket
+feeds, and **Transmit (PC → radio mic)** is the card whose output goes into
+the radio's mic socket. Pick both by name; the lists are the cards on the
+machine the radio is plugged into and appear once that machine has answered.
+Left on the system default, either one is almost never the radio — it is the
+computer's own headset or speakers — and the log says so when the radio opens.
+**Apply / reconnect** reopens the radio on the cards chosen, handing the old
+ones back first, so the same card can be picked again or moved to a CAT rig
+without a restart.
+
+**The dial is a label.** The radio sits wherever its own knob is, and sdroxide
+has no way to read or move it. Type the frequency the radio is on into the dial
+anyway: it is what the log, the spots and the transmit lockout go by. Received
+audio is already demodulated by the radio, so the panadapter shows a few
+kilohertz of audio around the dial rather than a view of the band, and the
+digital modes decode from it as they do on a CAT rig's demod audio.
+
+**Transmit is audio into the mic socket, and VOX does the keying.** Turn VOX on
+at the radio, and set its mic gain so the audio arriving from the computer
+does not overdrive it. Speech, digital-mode tones and CW (sent as keyed audio
+tones, MCW) all go out the same way. Two consequences of a radio that keys on
+whatever it hears:
+
+- **Anything else played to the transmit card keys the radio too** — a system
+  notification sound, a browser tab, another program's audio. Give the radio a
+  card of its own, and keep it out of the operating system's choice of default
+  output.
+- **The transmit lockout still applies, to the frequency typed in the dial.**
+  With `tx_ham_only` set (the default) sdroxide refuses to key outside the
+  amateur bands, and a licence-free radio — PMR446, FRS, CB — is outside them.
+  See [§12](#12-command-line-reference) for `--oob-tx`, which lifts the lockout
+  for one run, and check that you are licensed for what you are about to do.
+
+There is no S-meter reading, SWR or power readback: the radio has nothing to
+report them on. If the capture card drops audio because the machine is not
+emptying it fast enough, the log says how much was lost.
+
 ### 6.3 UI: display preferences and voice announcements
 
 ![The UI tab: frame rate, scroll/spectrum speed, palette, and spectrum background](images/settings-ui.jpg)
@@ -10952,19 +11051,15 @@ spoken announcements below them under `[speech]`:
   and near-black text, for a bright shack or a screen read in daylight),
   **High contrast** (white on black, at the widest separation the screen can
   give), **Green phosphor** and **Amber phosphor** (monochrome CRT looks),
-  **Teal / orange**, or **Rainbow** (the accents spread across the spectrum).
-  The ten themes this fork adds sit alongside them: **Nord** and **Nord dark**
-  (polar-night navy, frost cyan), **Gruvbox** (parchment on near-black browns),
-  **Everforest** (green-tinged deep blues, cream text), **Solarized** and
-  **Solarized dark** (Ethan Schoonover's palette, dark and on paper),
-  **Dracula** (graphite, mint cyan, soft magenta), **Catppuccin mocha** (deep
-  indigo, sky blue) and **Catppuccin latte** (cream, teal and blue), and
-  **Modern minimalist**. The dark ones are hand-tuned fabrics; the three
-  bright-ground themes (*Solarized*, *Catppuccin latte*, *Modern minimalist*)
-  hold a 4.5:1 contrast promise on every ink, tint and chip on their own
-  panels, and every theme's instruments — paper meters on bright grounds,
-  dark-glass scopes, atlas-shaded maps — derive from its own hues rather than
-  a second hand-written table.
+  **Teal / orange**, **Rainbow** (the accents spread across the spectrum), or
+  one of ten schemes after the editor palettes of the same names: **Nord**,
+  **Nord dark**, **Gruvbox**, **Everforest**, **Solarized dark**, **Dracula** and
+  **Catppuccin mocha** on dark grounds, and **Solarized**, **Catppuccin latte**
+  and **Modern minimalist** on bright ones. Where a palette's own accent would be
+  too faint to read on its panel it is lightened (or, on a bright ground,
+  darkened) just far enough to be, so a scheme can differ a shade from the
+  editor theme it is named after. The meters, scopes and maps take their
+  colours from the same scheme.
   Applied the moment it is picked, no restart. Every theme keeps transmit, SWR
   and error indications red on purpose — whether RF is leaving the antenna is
   never left to a shade of green. Content colours (the waterfall palette below,
@@ -13110,6 +13205,17 @@ The same single-client and sign-in notes as
 [remote operation](#8-remote-operation) apply, and nothing here is encrypted —
 put the server behind HTTPS if it is reachable from an untrusted network.
 
+**Files** go through the browser: every export is a download, and the logbook's
+**IMPORT** and the memory channels' **CHIRP IMPORT** open the browser's own file
+picker, reading a file in any encoding the native application reads. A channel
+import goes to the station, which keeps the memory list. An ADIF import goes
+into *this browser's* logbook, which lives in the page's local storage — not in
+the station's log — and browsers cap that storage at around 5 MB per site: a
+logbook of a few thousand contacts, depending on how much each one carries.
+Past that the import still reports what it added, but the browser declines to
+keep it, and after a reload the log is back to what it was. Keep a large log in
+the native application. Exporting and importing the settings is native only.
+
 ### 9.3 Audio needs a secure context
 
 Browsers only hand out the two APIs the web client's audio is built on —
@@ -13209,6 +13315,13 @@ there is no hovering pointer to hold them open.
 **−**, the step, and **+**. Each press moves the dial by the step shown, and
 tapping the step itself takes the next one — 10 Hz, 100 Hz, 500 Hz, 1, 2.5, 5,
 9, 10 and 25 kHz, then round again. It is remembered between sessions.
+
+**Settings → UI → First press snaps to the step** (off by default) tidies a dial
+left anywhere: a press goes to the next multiple of the step *in the direction
+pressed* — from 7 074 300 at a 1 kHz step, **+** goes to 7 075 000 and **−** to
+7 074 000 — and every press after that moves by exactly the step. At a 9 kHz
+step that is the medium-wave channel raster; at 1 kHz, the zeroes on a printed
+channel list (issue #422).
 
 This is the one thing a touched screen had no way to do (issue #380). A desktop
 tunes three ways and a phone has none of them: there is no wheel, so scrolling a

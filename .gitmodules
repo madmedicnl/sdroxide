@@ -10,5 +10,4 @@
 	branch = master
 [submodule "vendor/faad2"]
 	path = vendor/faad2
-	url = https://github.com/madmedicnl/faad2-hdc.git
-	branch = main
+	url = https://github.com/knik0/faad2

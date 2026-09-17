@@ -124,10 +124,12 @@ pub use digi::{
     NavtexStatus, PACKET_HEARD_MAX, PACKET_TERM_LINE_MAX, PACKET_TERM_MAX, PacketBaud, PacketHeard,
     PacketLink, PacketLinkOwner, PacketStatus, PacketTermKind, PacketTermLine, QsoLive, QsoRecord,
     QsoStep, QueuedCall, RTTY_CENTER_HZ, RadeStatus, TX_AUDIO_LEVEL_MIN, TX_AUDIO_LEVEL_MIN_DB,
-    ThorMode, TranscriptLine, adif_band, adif_records, adif_to_qso_log, clock_health, cq_is_for_us,
-    digi_decode_to_adif_record, digi_decodes_to_adif, digi_decodes_to_csv, eu_vhf_rs,
-    fmt_report, next_contest_serial, qso_log_to_adif, qso_log_to_text,
-    qso_to_adif_record, tx_level_db, tx_level_from_db, utc_ymd_hms, worked_before, ymd_hms_to_unix, AcarsMessage, AcarsStatus, ACARS_MESSAGE_MAX, };
+    ThorMode, TranscriptLine, adif_band, adif_records, adif_to_qso_log,
+    adif_to_qso_log_counting_swl, clock_health, cq_is_for_us, digi_decode_to_adif_record,
+    digi_decodes_to_adif, digi_decodes_to_csv, eu_vhf_rs, fmt_report, next_contest_serial,
+    qso_log_to_adif, qso_log_to_text, qso_to_adif_record, tx_level_db, tx_level_from_db,
+    utc_ymd_hms, worked_before, ymd_hms_to_unix, AcarsMessage, AcarsStatus, ACARS_MESSAGE_MAX,
+};
 pub use drm::{
     DrmChannel, DrmCodec, DrmConstellation, DrmRobustness, DrmService, DrmStatus, DrmSync, DrmTime,
     spectrum_occupancy_khz,
@@ -274,7 +276,7 @@ pub use vdl2::{
 };
 pub use voice::{VOICE_MAX_LEN_S, VOICE_SLOTS, VoiceSlotInfo, VoiceStatus, slot_label};
 pub use wefax::{
-    WEFAX_STATIONS, WefaxChartMeta, WefaxIoc, WefaxLpm, WefaxStation, WefaxStatus, shift_rows,
+    WEFAX_STATIONS, WefaxChartMeta, WefaxIoc, WefaxLpm, WefaxStation, WefaxStatus, shift_fax_rows,
 };
 pub use winlink::{
     DEFAULT_CMS_ADDRESS, MAIL_PAGE_MAX, MailAttachment, MailDraft, MailEntry, MailFolder,

@@ -4995,6 +4995,7 @@ dependencies = [
  "num-complex",
  "rustfft",
  "sdroxide-dsp",
+ "sdroxide-faad2",
  "sdroxide-types",
  "thiserror 2.0.20",
  "tracing",
@@ -5027,6 +5028,13 @@ dependencies = [
  "thiserror 2.0.20",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "sdroxide-faad2"
+version = "1.6.12"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -5189,10 +5197,12 @@ version = "1.6.12"
 dependencies = [
  "cc",
  "num-complex",
- "sdroxide-drm",
+ "rtrb",
  "sdroxide-dsp",
+ "sdroxide-faad2",
  "sdroxide-types",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

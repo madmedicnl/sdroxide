@@ -2592,13 +2592,36 @@ fn adif_visit(adif: &str, mut visit: impl FnMut(&[(String, String)])) {
 /// (ignored) and of a missing/short header. Used both for importing external
 /// logs and for ingesting downloaded QSL confirmations. The inverse of
 /// [`qso_log_to_adif`] for the fields sdroxide round-trips.
+///
+/// Records marked `SWL` are left out — see [`adif_to_qso_log_counting_swl`].
 pub fn adif_to_qso_log(adif: &str) -> Vec<QsoRecord> {
+    adif_to_qso_log_counting_swl(adif).0
+}
+
+/// [`adif_to_qso_log`], also saying how many records were left out for being
+/// marked `SWL`.
+///
+/// A record with `SWL` set is a received report — a station heard, not worked —
+/// which is what [`digi_decodes_to_adif`] writes for a listener. The logbook is
+/// contacts: it feeds the worked/new badges, awards and the QSL uploads, so a
+/// report read in as a contact would turn every station an SWL heard into one
+/// the log claims was worked. The count is for the import to say so, rather
+/// than report a file of reports as nothing added.
+pub fn adif_to_qso_log_counting_swl(adif: &str) -> (Vec<QsoRecord>, usize) {
     let mut records = Vec::new();
+    let mut swl = 0usize;
     // Each record is converted as it is tokenized: importing somebody's
     // fifty-thousand-QSO log should cost one `QsoRecord` per contact, not that
     // plus every field of every contact still held as a pair of `String`s.
-    adif_visit(adif, |fields| records.push(record_from_fields(fields)));
-    records
+    adif_visit(adif, |fields| {
+        let is_swl = fields.iter().any(|(k, v)| k == "SWL" && v.trim().eq_ignore_ascii_case("Y"));
+        if is_swl {
+            swl += 1;
+        } else {
+            records.push(record_from_fields(fields));
+        }
+    });
+    (records, swl)
 }
 
 fn record_from_fields(fields: &[(String, String)]) -> QsoRecord {
@@ -2746,12 +2769,17 @@ fn decode_utc(dec: &Decode) -> String {
 ///
 /// This is the short-wave listener's export. Nothing in the decode list is a
 /// contact, so there is no [`QsoRecord`] to write and the logbook's own ADIF and
-/// text exports have nothing to say about it (issue #433). `dial_hz` and `mode`
-/// come from the receiver: a [`Decode`] carries the audio offset, not the
-/// absolute frequency, so the signal is the dial plus `audio_hz`.
-pub fn digi_decodes_to_csv(decodes: &[Decode], dial_hz: f64, mode: Mode) -> String {
+/// text exports have nothing to say about it (issue #433). Each decode comes
+/// with the receive dial it was heard on: a [`Decode`] carries the audio offset,
+/// not the absolute frequency, so the signal is that dial plus `audio_hz` — and
+/// the list survives a QSY inside the band, so the dial *now* is not the one an
+/// older decode was heard on. `mode` is the receiver's.
+pub fn digi_decodes_to_csv<'a>(
+    decodes: impl IntoIterator<Item = (&'a Decode, f64)>,
+    mode: Mode,
+) -> String {
     let mut out = String::from("utc,snr_db,dt,freq_mhz,band,mode,call,to,grid,cq,message\r\n");
-    for d in decodes {
+    for (d, dial_hz) in decodes {
         let freq = dial_hz + d.audio_hz as f64;
         out.push_str(&format!(
             "{},{},{:.2},{:.6},{},{},{},{},{},{},{}\r\n",
@@ -2771,20 +2799,28 @@ pub fn digi_decodes_to_csv(decodes: &[Decode], dial_hz: f64, mode: Mode) -> Stri
     out
 }
 
-/// One received decode as a bare ADIF record, ending in `<EOR>`.
+/// One received decode as a bare ADIF record, ending in `<EOR>` — or `None`
+/// for a decode that names no sender.
 ///
 /// A received report, not a contact: there is no report *sent*, no serial and no
 /// operator at this end, so those tags are left out rather than filled with a
-/// placeholder that would claim a QSO happened. `CALL` is the station heard —
+/// placeholder that would claim a QSO happened, and `SWL` says so in the field
+/// ADIF defines for it. Without that a logger — this program's own IMPORT
+/// included — reads every heard station as a worked one, and one that uploads
+/// to LoTW or Club Log sends them on as contacts. `CALL` is the station heard —
 /// what an SWL logs — and the decode's own figures ride in `APP_` fields ADIF
 /// reserves for exactly this, with the message in `COMMENT`.
-pub fn digi_decode_to_adif_record(d: &Decode, dial_hz: f64, mode: Mode) -> String {
+///
+/// A record needs a `CALL`, so free text and a sender heard only as an
+/// unresolved hash (`<...>`) have nothing to export: a logger rejects a record
+/// without one, or imports it with the call blank.
+pub fn digi_decode_to_adif_record(d: &Decode, dial_hz: f64, mode: Mode) -> Option<String> {
+    let call = d.from.as_deref()?;
     let mut out = String::new();
     let freq = dial_hz + d.audio_hz as f64;
     let (date, time) = adif_date_time(d.slot_utc);
-    if let Some(call) = &d.from {
-        out.push_str(&adif_field("CALL", call));
-    }
+    out.push_str(&adif_field("CALL", call));
+    out.push_str(&adif_field("SWL", "Y"));
     out.push_str(&adif_field("QSO_DATE", &date));
     out.push_str(&adif_field("TIME_ON", &time));
     out.push_str(&adif_field("BAND", adif_band(freq)));
@@ -2799,17 +2835,24 @@ pub fn digi_decode_to_adif_record(d: &Decode, dial_hz: f64, mode: Mode) -> Strin
     out.push_str(&adif_field("APP_SDROXIDE_SNR", &d.snr_db.to_string()));
     out.push_str(&adif_field("APP_SDROXIDE_DT", &format!("{:.2}", d.dt)));
     out.push_str("<EOR>");
-    out
+    Some(out)
 }
 
-/// The whole decode list as an ADIF file.
-pub fn digi_decodes_to_adif(decodes: &[Decode], dial_hz: f64, mode: Mode) -> String {
+/// The whole decode list as an ADIF file, each decode with the dial it was heard
+/// on (see [`digi_decodes_to_csv`]), skipping the decodes that name no sender
+/// (see [`digi_decode_to_adif_record`]).
+pub fn digi_decodes_to_adif<'a>(
+    decodes: impl IntoIterator<Item = (&'a Decode, f64)>,
+    mode: Mode,
+) -> String {
     let mut out = String::from(
         "ADIF export from sdroxide — received reports (SWL)\r\n\
          <ADIF_VER:5>3.1.4\r\n<PROGRAMID:8>sdroxide\r\n<EOH>\r\n",
     );
-    for d in decodes {
-        out.push_str(&digi_decode_to_adif_record(d, dial_hz, mode));
+    for record in
+        decodes.into_iter().filter_map(|(d, dial_hz)| digi_decode_to_adif_record(d, dial_hz, mode))
+    {
+        out.push_str(&record);
         out.push_str("\r\n");
     }
     out
@@ -2838,7 +2881,7 @@ mod tests {
             free_text: false,
             rr73_to: None,
         };
-        let csv = digi_decodes_to_csv(std::slice::from_ref(&d), 27_265_000.0, Mode::Ft8);
+        let csv = digi_decodes_to_csv([(&d, 27_265_000.0)], Mode::Ft8);
         assert!(
             csv.starts_with("utc,snr_db,dt,freq_mhz,band,mode,call,to,grid,cq,message"),
             "{csv}"
@@ -2851,11 +2894,30 @@ mod tests {
         // A message with a comma is quoted; a spreadsheet is one cell per column.
         let mut comma = d.clone();
         comma.message = "CQ, TEST".into();
-        let csv = digi_decodes_to_csv(&[comma], 27_265_000.0, Mode::Ft8);
+        let csv = digi_decodes_to_csv([(&comma, 27_265_000.0)], Mode::Ft8);
         assert!(csv.contains("\"CQ, TEST\""), "a comma must be quoted: {csv}");
 
-        let adif = digi_decodes_to_adif(&[d], 27_265_000.0, Mode::Ft8);
+        // Free text names nobody, so it has no record to be.
+        let free = Decode {
+            message: "TNX FER QSO".into(),
+            from: None,
+            grid: None,
+            is_cq: false,
+            free_text: true,
+            ..d.clone()
+        };
+        // Each decode is placed on the dial it was heard on, not the one the
+        // receiver has moved to since.
+        let later = Decode { slot_utc: d.slot_utc + 15, ..d.clone() };
+        let csv = digi_decodes_to_csv([(&later, 27_275_000.0), (&d, 27_265_000.0)], Mode::Ft8);
+        assert!(csv.contains("27.276500") && csv.contains("27.266500"), "per decode: {csv}");
+
+        let adif = digi_decodes_to_adif([(&d, 27_265_000.0), (&free, 27_265_000.0)], Mode::Ft8);
+        // Read back by the logbook's own import, a report is not a contact.
+        assert_eq!(adif_to_qso_log_counting_swl(&adif), (Vec::new(), 1), "{adif}");
         assert!(adif.contains("<CALL:7>19AT250"), "the heard call: {adif}");
+        assert_eq!(adif.matches("<EOR>").count(), 1, "only the decode with a sender: {adif}");
+        assert!(adif.contains("<SWL:1>Y"), "a logger must not read it as a contact: {adif}");
         assert!(adif.contains("<MODE:3>FT8"), "{adif}");
         assert!(adif.contains("APP_SDROXIDE_SNR"), "the decode's own figure: {adif}");
         assert!(!adif.contains("RST_SENT"), "an SWL report sends nothing: {adif}");
@@ -3348,6 +3410,23 @@ mod tests {
             if doc.is_char_boundary(end) {
                 let _ = adif_to_qso_log(&doc[..end]);
             }
+        }
+    }
+
+    #[test]
+    fn adif_import_survives_tags_that_are_not_tags() {
+        // In the browser a parser panic aborts the page rather than the import,
+        // so malformed tags have to be survived here, not caught upstream.
+        for junk in [
+            "<call:99999999999999999999999>W1AW<eor>",
+            "<call:-1>W1AW<eor>",
+            "<:5>W1AW<eor>",
+            "<call:5:x>W1AW <eor",
+            "<qso_date:8>9999999<time_on:6>99 <eor>",
+            "<eoh><eoh><eor><eor><<<>>>",
+            "<call:3>Ä€ <freq:4>NaN <band:0> <eor>",
+        ] {
+            let _ = adif_to_qso_log(junk);
         }
     }
 
