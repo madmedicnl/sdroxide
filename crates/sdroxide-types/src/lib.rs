@@ -38,6 +38,7 @@ mod mode;
 mod netcfg;
 mod pictures;
 mod probe;
+mod profile;
 mod prop_store;
 mod propagation;
 pub mod publicsdr;
@@ -252,6 +253,7 @@ pub use speech::{
 };
 pub use spot::{Spot, SpotKind};
 pub use sstv::{SstvMode, SstvStatus};
+pub use profile::{ModeProfile, ModeProfiles};
 pub use ui::{force_swl, set_force_swl};
 pub use state::{
     CESSB_MAX_DB, MAX_DECIMATION, MAX_MANUAL_GAIN_DB, MIN_DECIMATED_RATE_HZ, OffsetState,

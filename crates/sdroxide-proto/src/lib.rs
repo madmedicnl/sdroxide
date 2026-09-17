@@ -1334,7 +1334,14 @@ use sdroxide_types::{
 /// diverges (it carries `Cquam` and `Acars` before `HdRadio`), so a v148 peer
 /// desynchronises on the tail of the structs and on the `Mode` byte; the
 /// handshake's equality test is what stops it trying.
-pub const PROTO_VERSION: u16 = 149;
+///
+/// v150: per-mode settings. The engine now applies AGC, squelch, noise
+/// reduction and the rest from a profile when the mode changes, and remembers
+/// what the operator changes while a mode is selected, so `Command` gains
+/// `ResetModeDefaults` — appended, so no surviving discriminant moved. The
+/// profiles themselves travel as receiver state, so a v149 peer's state decode
+/// is unchanged; it just cannot ask for a reset.
+pub const PROTO_VERSION: u16 = 150;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

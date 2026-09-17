@@ -1901,6 +1901,11 @@ impl SdroxideApp {
                 ui.add_space(10.0);
                 ui.separator();
                 ui.add_space(6.0);
+                self.settings_mode_defaults(ui, cmds);
+
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(6.0);
                 self.settings_user_audio(ui, io.audio_pick);
                 if let Some(cfg) = io.radio_edit.as_mut() {
                     crate::app::settings::general::settings_rx_audio_gain(ui, cfg);

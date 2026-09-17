@@ -641,9 +641,10 @@ pub fn config_dir() -> Result<PathBuf, ConfigError> {
 /// migration and stays downgrade-safe.
 ///
 /// Only the files that describe *a radio* are scoped: `radio.json`,
-/// `session.json`, `scanner.json`, `tciserver.json`, `rigctld.json`,
-/// `wsjtx.json`. Everything the operator shares across radios — memories,
-/// band stacks, the logbook, `config.toml` — stays on the root free functions.
+/// `session.json`, `scanner.json`, `modeprofiles.json`, `tciserver.json`,
+/// `rigctld.json`, `wsjtx.json`. Everything the operator shares across radios —
+/// memories, band stacks, the logbook, `config.toml` — stays on the root free
+/// functions.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Store {
     /// `None` = the legacy root (the station scope, and radio 0);
@@ -772,6 +773,18 @@ impl Store {
 
     pub fn save_session(&self, session: &Session) -> Result<(), ConfigError> {
         self.save("session.json", session)
+    }
+
+    /// This station's per-mode settings overrides, or none on a first run.
+    pub fn load_mode_profiles(&self) -> sdroxide_types::ModeProfiles {
+        self.load("modeprofiles.json")
+    }
+
+    pub fn save_mode_profiles(
+        &self,
+        profiles: &sdroxide_types::ModeProfiles,
+    ) -> Result<(), ConfigError> {
+        self.save("modeprofiles.json", profiles)
     }
 
     pub fn load_scanner_config(&self) -> sdroxide_types::ScannerConfig {
