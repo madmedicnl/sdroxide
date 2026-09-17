@@ -900,4 +900,37 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
               --title "$title" --notes-file notes.md --generate-notes "${extra[@]}"
           fi
-          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber dist/*
+          # One asset at a time, with its own retries, rather than one
+          # `gh release upload dist/*`: the uploads endpoint returns HTTP 500
+          # often enough on a ~150 MB asset that a whole release could abort
+          # with everything already uploaded intact and only the *next* file
+          # lost (seen on v1.6.13_CB: ten assets in, "Error saving asset" on the
+          # eleventh). Files already on the release are skipped, so a re-run
+          # after such a failure carries only what did not make it instead of
+          # re-uploading gigabytes.
+          existing=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --json assets -q '.assets[].name')
+          failed=""
+          for f in dist/*; do
+            name=$(basename "$f")
+            if printf '%s\n' "$existing" | grep -Fxq "$name"; then
+              echo "already uploaded: $name"
+              continue
+            fi
+            ok=0
+            for attempt in 1 2 3 4 5; do
+              if gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "$f"; then
+                ok=1
+                break
+              fi
+              echo "::warning::$name failed to upload (attempt $attempt) — retrying"
+              sleep $((attempt * 20))
+            done
+            if [ "$ok" -ne 1 ]; then
+              failed="$failed $name"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::assets still missing after retries:$failed"
+            exit 1
+          fi
