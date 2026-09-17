@@ -80,29 +80,29 @@ rest.
 | --- | --- | --- |
 | **Focus** | amateur (ham) transceiver | **CB and shortwave listening**; transmit stays behind explicit switches |
 | **Amateur bands** | 160 m … 3 cm, by IARU region, with band-plan lockout | identical, untouched |
-| **11 m / citizens' band** | not present | on the bar (26.965–27.860 MHz): WSJT-CB interop, country flags, digimode channels, per-country channel plans, transmit opt-in behind a one-time warning, and opt-in **spotting to the WSJT-CB spot server** |
+| **11 m / citizens' band** | the band itself (26.965–27.860 MHz) and its digimode conventions | **per-country channel plans** (`WORLD EU DE UK US AU`) with the channels and modes each allows, **CB country flags**, the transmit opt-in behind a one-time warning, and opt-in **spotting to the WSJT-CB spot server** |
 | **LOG11DX logbook** | — | uploads each logged QSO straight to the 11 m [LOG11DX](https://log11dx.com/) logbook — no separate bridge program, which its own WSJT-X integration otherwise needs |
 | **Broadcast & utility bands** | general coverage only | **LW / MW / SW / FM**, the VHF civil **AIR**band (108–137 MHz, AM) and the **MIL**itary UHF airband (225–400 MHz, AM) on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
-| **Broadcast schedule** | — | ~4,600 EiBi transmitters labelled with UTC window and site, and a **SCHEDULE** window filtering them by time, band, language and target that tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
+| **Broadcast schedule** | EiBi transmitters labelled on the waterfall | plus a **SCHEDULE** window that filters them by time, band, language and target and tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
 | **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** |
 | **C-QUAM AM stereo** | — | decoded on MW, with a stereo lamp and a mono blend (not yet verified against a real signal) |
-| **HD Radio (NRSC-5)** | — | the FM digital sidecar as a receive mode (87.5–108 MHz): stereo HDC audio, HD-1/HD-2 programme selection, and a panel with sync, per-sideband MER, CBER, offset, PSMI and the station's own name, slogan and message |
-| **ACARS** | — | the VHF airband airline datalink decoded on the shared channels (131.550, 131.725 MHz and friends), with a message panel |
-| **MW/SW DX tools** | ham audio chain | **ECSS** on SAM, synchronous AM, a receive **tone** control |
+| **MW/SW DX tools** | SAM and the ham audio chain | **ECSS-U / ECSS-L** presets on SAM and a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (spots, awards) for the listener's; **Start in SWL mode** in Settings → UI, or **`--swl`** |
-| **Simple interface** | — | hides the advanced chips; the band/mode menu leads with **AM · FM · USB · LSB** |
-| **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, and modes that do not apply on the current band (AM on the FM broadcast band, WFM on 11 m) greyed out and refused engine-side |
-| **Station profiles** | — | save and re-apply a whole working setup in one click |
+| **Simple interface** | — | hides the advanced chips |
+| **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and modes that do not apply on the current band (AM on the FM broadcast band, WFM on 11 m) greyed out and refused engine-side |
 | **CW straight key** | — | the PC keyboard as a straight key (hold **Space**) |
-| **Decode-list export** | — | the decode list to **CSV** and a *received-report* **ADIF** |
-| **Browser import** | export only | the browser client imports **ADIF** and **CHIRP** files too |
-| **First-press tuning** | — | opt-in *first press rounds to 000* on the step row |
-| **Propagation columns** | — | measured **WSPR** and **PSK Reporter** activity in the **BANDS** window |
+| **Propagation columns** | propagation heat map | measured **WSPR** and **PSK Reporter** activity in the **BANDS** window |
 | **Audible alerts** | — | calls, directed CQs and new DXCC/grids ring on their own output |
 | **Waterfall levels** | a popup behind a chip | a vertical level slider beside the waterfall, plus the popup |
-| **Radio backends** | 17 kinds of radio | plus a **USB sound-card** backend for VOX-keyed rigs and dongles |
-| **UI themes** | the built-in set | 10 more — Nord, Gruvbox, Everforest, Solarized, Dracula, Catppuccin, … |
+
+Upstream has merged most of this fork's general-purpose work since it was
+offered, so several rows that used to be differences are not any more and have
+been dropped from the table: **HD Radio (NRSC-5)**, **ACARS**, **station
+profiles**, the ten editor **themes**, the **USB sound-card** backend, the 11 m
+band and its digimode conventions, **EiBi** broadcast labelling, decode
+**CSV/ADIF export**, browser **ADIF/CHIRP import** and the step-row **snap** all
+live in upstream now. What the table lists is what this fork still adds on top.
 
 The full interface: the radio, receiver, display and system controls along the top, the waterfall with its level slider on the right.
 
@@ -142,7 +142,8 @@ The full interface: the radio, receiver, display and system controls along the t
 - **Spots, awards, QSL** — DX cluster / POTA / SOTA / PSK Reporter spots as
   clickable panadapter markers, callsign lookup, one-click upload to
   LoTW/eQSL/Club Log/QRZ/HamQTH, and DXCC/WAS/WAZ/grid tracking. The fork adds
-  ~4,600 **broadcast-station** labels with their transmit windows and sites.
+  a **SCHEDULE** window over the broadcast-station labels — filter by time,
+  band, language and target, then tune or log a station.
 - **Control** — every shortcut rebindable, any class-compliant **MIDI** controller
   (jog wheel, pads, faders, LEDs), mouse-button bindings, and optional **spoken
   announcements** through a bundled local neural voice (plus NVDA/Orca/VoiceOver).
@@ -318,3 +319,9 @@ the amateur-side FT8/FT4/FT2 it builds on comes from the WSJT-X project. The
 original program is [sdroxide](https://github.com/dividebysandwich/sdroxide) by
 dividebysandwich; this fork is upstream's work plus the CB and listener
 additions. All of it stands on your work.
+
+A special shout-out to the **[Dutch CB Group](https://www.dutchcbgroup.nl/)** and
+**[LOG11DX.net](https://log11dx.com/)** — two of the best CB communities there
+are, and the reason the 11 m side of this fork exists at all. Thanks for the
+channels, the logs and the company.
+
