@@ -231,7 +231,12 @@ fn upload_log11dx(cfg: &NetworkConfig, my_call: &str, adif: &str) -> Result<Stri
         return Err("LOG11DX API token not set".into());
     }
     let body = log11dx_body(my_call, adif)?;
-    let (status, reply) = http::post_json_status(&log11dx_url(cfg, "upload-qso.php"), token, &body)?;
+    let url = if cfg.log11dx_api_url.trim().is_empty() {
+        LOG11DX_DEFAULT_URL
+    } else {
+        cfg.log11dx_api_url.trim()
+    };
+    let (status, reply) = http::post_json_status(url, token, &body)?;
     let parsed: serde_json::Value =
         serde_json::from_str(&reply).unwrap_or(serde_json::Value::Null);
     let what = parsed.get("status").and_then(|v| v.as_str()).unwrap_or("");
@@ -257,20 +262,19 @@ fn upload_log11dx(cfg: &NetworkConfig, my_call: &str, adif: &str) -> Result<Stri
     }
 }
 
-/// One of LOG11DX's API files, derived from the configured URL.
+/// The token-status endpoint for a configured API URL.
 ///
-/// The profile page gives the upload URL; the token check uses the same
-/// directory with a different file name, so it is derived rather than
-/// configured a second time.
-fn log11dx_url(cfg: &NetworkConfig, file: &str) -> String {
-    let configured = if cfg.log11dx_api_url.trim().is_empty() {
-        LOG11DX_DEFAULT_URL
-    } else {
-        cfg.log11dx_api_url.trim()
-    };
-    match configured.rsplit_once('/') {
-        Some((base, _)) => format!("{base}/{file}"),
-        None => LOG11DX_DEFAULT_URL.to_string(),
+/// The site's own bridge takes the scheme and host from the upload URL and
+/// appends this fixed path, so a mirror's upload URL still reaches the right
+/// status file.
+fn log11dx_status_url(api_url: &str) -> String {
+    let configured = if api_url.trim().is_empty() { LOG11DX_DEFAULT_URL } else { api_url.trim() };
+    match configured.split_once("://") {
+        Some((scheme, rest)) => {
+            let host = rest.split('/').next().unwrap_or(rest);
+            format!("{scheme}://{host}/api/wsjtx/token-status.php")
+        }
+        None => "https://log11dx.com/api/wsjtx/token-status.php".to_string(),
     }
 }
 
@@ -321,25 +325,40 @@ fn log11dx_body(my_call: &str, adif: &str) -> Result<String, String> {
 }
 
 /// Check the LOG11DX token against the status endpoint.
+///
+/// The site's bridge reads `ok`, `message`, `callsign` and `name` from the
+/// reply and treats a 401 as a rejection; this does the same, and passes the
+/// callsign and name on so the operator sees which account answered.
 fn test_log11dx(cfg: &NetworkConfig) -> Result<String, String> {
     let token = cfg.log11dx_api_token.trim();
     if token.is_empty() {
         return Err("API token not set".into());
     }
-    let (status, reply) = http::get_bearer_status(&log11dx_url(cfg, "token-status.php"), token)?;
-    let parsed: serde_json::Value =
-        serde_json::from_str(&reply).unwrap_or(serde_json::Value::Null);
-    if parsed.get("status").and_then(|v| v.as_str()) == Some("invalid_token") {
+    let (status, reply) =
+        http::get_bearer_status(&log11dx_status_url(&cfg.log11dx_api_url), token)?;
+    // A rejected token is a 401; its body may be empty, so this is checked
+    // before the JSON.
+    if status == 401 {
         return Err("token rejected — copy it again from your profile page".into());
     }
-    if parsed.get("ok").and_then(|v| v.as_bool()) == Some(false) {
-        let message = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("token rejected");
-        return Err(message.to_string());
+    let parsed: serde_json::Value =
+        serde_json::from_str(&reply).unwrap_or(serde_json::Value::Null);
+    let message = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("");
+    let rejected = parsed.get("ok").and_then(|v| v.as_bool()) == Some(false)
+        || parsed.get("status").and_then(|v| v.as_str()) == Some("invalid_token");
+    if rejected {
+        return Err(if message.is_empty() { "token rejected".to_string() } else { message.to_string() });
     }
     if !(200..300).contains(&status) {
         return Err(format!("HTTP {status}"));
     }
-    Ok("LOG11DX: token accepted".into())
+    let call = parsed.get("callsign").and_then(|v| v.as_str()).unwrap_or("").trim();
+    let name = parsed.get("name").and_then(|v| v.as_str()).unwrap_or("").trim();
+    Ok(match (call.is_empty(), name.is_empty()) {
+        (false, false) => format!("LOG11DX: connected as {call} ({name})"),
+        (false, true) => format!("LOG11DX: connected as {call}"),
+        _ => "LOG11DX: token accepted".into(),
+    })
 }
 
 /// Turn WRL's refusal into a sentence that says what to do about it.
@@ -1153,5 +1172,21 @@ mod tests {
         // Only what the QSO has: this ADIF carries no COMMENT, so none is sent
         // rather than an empty one.
         assert!(q.get("comment").is_none(), "{q}");
+    }
+
+    /// The status URL takes the host from the upload URL, as the bridge does,
+    /// so a mirror is still asked about its own token.
+    #[test]
+    fn the_log11dx_status_url_comes_from_the_host() {
+        assert_eq!(
+            log11dx_status_url("https://log11dx.com/api/wsjtx/upload-qso.php"),
+            "https://log11dx.com/api/wsjtx/token-status.php"
+        );
+        assert_eq!(
+            log11dx_status_url("http://mirror.example:8080/api/wsjtx/upload-qso.php"),
+            "http://mirror.example:8080/api/wsjtx/token-status.php"
+        );
+        assert_eq!(log11dx_status_url(""), "https://log11dx.com/api/wsjtx/token-status.php");
+        assert_eq!(log11dx_status_url("garbage"), "https://log11dx.com/api/wsjtx/token-status.php");
     }
 }
