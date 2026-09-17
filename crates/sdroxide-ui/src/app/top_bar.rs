@@ -2378,7 +2378,17 @@ impl SdroxideApp {
         let stated = self.radio_cfg.as_ref().is_some_and(|c| !c.freq_ranges_rx.is_empty());
         let (conditions, daylight) = (self.band_conditions.as_ref(), self.daylight);
         crate::chrome::fading_menu_popup(ui, &btn, &mut self.mode_popup_since, |ui| {
-            band_mode_menu(ui, mode, state, caps.as_ref(), stated, conditions, daylight, cmds);
+            band_mode_menu(
+                ui,
+                &mut self.band_menu_tab,
+                mode,
+                state,
+                caps.as_ref(),
+                stated,
+                conditions,
+                daylight,
+                cmds,
+            );
         });
     }
 
@@ -6222,13 +6232,57 @@ fn stepped_hz(cur: f64, step: f64, round_first: bool) -> f64 {
     (cur + step).max(0.0)
 }
 
+/// Which half of the band/mode menu is showing.
+///
+/// The popup had grown to ninety chips in one scroll — every allocation, every
+/// service band, the metre bands, the CB plans and three rows of modes — and
+/// nothing in it said which half of the program you were in. Split by what the
+/// operator is doing: the listener's side (broadcast and utility bands, the
+/// receive modes) and the operator's (allocations, CB, the transmit modes).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(in crate::app) enum BandMenuTab {
+    Listen,
+    Operate,
+}
+
+/// A mode chip that greys out when the mode does not apply on `band`, and says
+/// why. The rule is [`Band::accepts_mode`]; the engine refuses the same pair at
+/// the command boundary, so this is the explanation rather than the only gate.
+fn mode_band_chip(
+    ui: &mut egui::Ui,
+    cur: Mode,
+    m: Mode,
+    band: Band,
+    cmds: &mut Vec<Command>,
+) {
+    let fits = band.accepts_mode(m);
+    // `chip_enabled_tinted` rather than a chip inside `add_enabled_ui`: the
+    // latter wraps every chip in a child scope, which stops the row it is in
+    // from wrapping, and this row holds fourteen of them.
+    let resp = crate::chrome::chip_enabled_tinted(ui, fits, cur == m, m.label(), None, false);
+    let resp = if fits {
+        resp
+    } else {
+        resp.on_disabled_hover_text(format!(
+            "{} is not used on {} — pick a band it belongs to",
+            m.label(),
+            band.label()
+        ))
+    };
+    if resp.clicked() {
+        cmds.push(Command::SetMode { rx: RxId::Main, mode: m });
+    }
+}
+
 /// The band + mode + digital chip rows: the body of the band/mode popup.
 ///
 /// A free function taking the state it draws from, rather than a method, so a
 /// test can lay the whole menu out on a phone-sized viewport without an app
 /// around it — see `the_band_menu_fits_a_phone_screen`.
+#[allow(clippy::too_many_arguments)]
 fn band_mode_menu(
     ui: &mut egui::Ui,
+    tab: &mut BandMenuTab,
     mode: Mode,
     state: &RadioState,
     caps: Option<&DeviceCaps>,
@@ -6243,6 +6297,17 @@ fn band_mode_menu(
     daylight: bool,
     cmds: &mut Vec<Command>,
 ) {
+    // Which half of the menu; the band and mode rows below draw from it.
+    ui.horizontal(|ui| {
+        for (t, label) in [(BandMenuTab::Listen, "LISTEN"), (BandMenuTab::Operate, "OPERATE")] {
+            if crate::chrome::chip(ui, *tab == t, label).clicked() {
+                *tab = t;
+            }
+        }
+    });
+    ui.add_space(6.0);
+
+    let band = state.band;
     crate::chrome::menu_caption(ui, "Band");
     let digital = mode.is_digital();
     {
@@ -6332,122 +6397,145 @@ fn band_mode_menu(
                 }
             }
         };
-        // The allocations, in bar order — 160 m up through 3 cm, with 11 m
-        // where the frequencies put it.
-        ui.horizontal_wrapped(|ui| {
-            for b in Band::ALL.into_iter().filter(|b| !b.is_listen_service()) {
-                band_chip(ui, b);
+        match *tab {
+            // The allocations, in bar order — 160 m up through 3 cm, with 11 m
+            // where the frequencies put it.
+            BandMenuTab::Operate => {
+                ui.horizontal_wrapped(|ui| {
+                    for b in Band::ALL.into_iter().filter(|b| !b.is_listen_service()) {
+                        band_chip(ui, b);
+                    }
+                });
             }
-        });
-        // The broadcast services on their own line under a caption, after the
-        // amateur bands rather than threaded between them. They are what an
-        // SWL tunes and they are not allocations the band plan knows; LW and MW
-        // ahead of 160 m, and FM between 4 m and 2 m, made the bar read as one
-        // list of one kind of thing.
-        ui.add_space(6.0);
-        crate::chrome::menu_caption(ui, "Broadcast & utility");
-        ui.horizontal_wrapped(|ui| {
-            // By frequency, the way a radio face orders them — not the bar's
-            // order, which threads FM between 4 m and 2 m and SW at the end.
-            for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil] {
-                band_chip(ui, b);
+            // The listener's side: the broadcast and utility services, by
+            // frequency the way a radio face orders them.
+            BandMenuTab::Listen => {
+                ui.horizontal_wrapped(|ui| {
+                    for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil] {
+                        band_chip(ui, b);
+                    }
+                });
+                // The metre bands themselves, under the broadcast services: a
+                // listener plans in 49 m and 41 m, and a shortcut that lands in
+                // the middle of one is what turns the name into a place. One
+                // table with the schedule's (`broadcast::METRE_BANDS`), so the
+                // two agree.
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    let dial_khz = state.rx_freq_hz() / 1e3;
+                    let here = sdroxide_types::broadcast::metre_band(dial_khz);
+                    for &(name, lo, hi) in sdroxide_types::broadcast::METRE_BANDS {
+                        let lit = state.band == Band::Sw && here == Some(name);
+                        if crate::chrome::chip(ui, lit, name)
+                            .on_hover_text(format!("Tune to the middle of {name} broadcast"))
+                            .clicked()
+                        {
+                            let hz = (lo + hi) * 500.0;
+                            cmds.push(Command::SetVfo { vfo: state.active_vfo, hz });
+                            cmds.push(Command::SetMode { rx: RxId::Main, mode: Mode::Am });
+                        }
+                    }
+                });
             }
-        });
-        // The metre bands themselves, under the broadcast services: a listener
-        // plans in 49 m and 41 m, and a shortcut that lands in the middle of one
-        // is what turns the name into a place. One table with the schedule's
-        // (`broadcast::METRE_BANDS`), so the two agree.
-        ui.horizontal_wrapped(|ui| {
-            let dial_khz = state.rx_freq_hz() / 1e3;
-            let here = sdroxide_types::broadcast::metre_band(dial_khz);
-            for &(name, lo, hi) in sdroxide_types::broadcast::METRE_BANDS {
-                let lit = state.band == Band::Sw && here == Some(name);
-                if crate::chrome::chip(ui, lit, name)
-                    .on_hover_text(format!("Tune to the middle of {name} broadcast"))
-                    .clicked()
-                {
-                    let hz = (lo + hi) * 500.0;
-                    cmds.push(Command::SetVfo { vfo: state.active_vfo, hz });
-                    cmds.push(Command::SetMode { rx: RxId::Main, mode: Mode::Am });
-                }
-            }
-        });
+        }
     }
-    ui.add_space(6.0);
-    crate::chrome::menu_caption(ui, "CB plan (11 m)");
-    ui.horizontal_wrapped(|ui| {
-        // Which country's channels the 11 m dial reads in. Only the channels
-        // and the channel the band opens on — the band's edges are left wide,
-        // so switching never changes what receives or transmits.
-        let current = sdroxide_types::cb_plan();
-        for p in sdroxide_types::CbPlan::ALL {
-            if crate::chrome::chip(ui, current == p, p.short())
-                .on_hover_text(format!("{} — {}", p.label(), p.modes()))
-                .clicked()
-            {
-                cmds.push(Command::SetCbPlan(p));
-            }
+    match *tab {
+        BandMenuTab::Operate => {
+            ui.add_space(6.0);
+            crate::chrome::menu_caption(ui, "CB plan (11 m)");
+            ui.horizontal_wrapped(|ui| {
+                // Which country's channels the 11 m dial reads in. Only the
+                // channels and the channel the band opens on — the band's edges
+                // are left wide, so switching never changes what receives or
+                // transmits.
+                let current = sdroxide_types::cb_plan();
+                for p in sdroxide_types::CbPlan::ALL {
+                    if crate::chrome::chip(ui, current == p, p.short())
+                        .on_hover_text(format!("{} — {}", p.label(), p.modes()))
+                        .clicked()
+                    {
+                        cmds.push(Command::SetCbPlan(p));
+                    }
+                }
+            });
+            ui.add_space(6.0);
+            crate::chrome::menu_caption(ui, "Primary modes");
+            ui.horizontal(|ui| {
+                // The four a CB or short-wave operator reaches for: AM and FM
+                // on 11 m, the sidebands above it. On their own row rather than
+                // left to be found among the digital and DRM modes, which is
+                // where the full list below buries them.
+                for m in [Mode::Am, Mode::Nfm, Mode::Usb, Mode::Lsb] {
+                    mode_band_chip(ui, mode, m, band, cmds);
+                }
+            });
+            ui.add_space(6.0);
+            crate::chrome::menu_caption(ui, "Mode");
+            ui.horizontal_wrapped(|ui| {
+                for m in [
+                    Mode::Lsb,
+                    Mode::Usb,
+                    Mode::Cw,
+                    Mode::Am,
+                    Mode::Sam,
+                    Mode::Cquam,
+                    Mode::Nfm,
+                    Mode::Wfm,
+                    // DRM belongs with the analog modes rather than under
+                    // "Digital" below: that heading is the modes the digi engine
+                    // decodes and transmits, and DRM is a broadcast to listen to
+                    // — a demodulator, like WFM beside it.
+                    Mode::Drm,
+                    // HD Radio is the same kind of thing — the digital sidecar
+                    // of an FM broadcast, a demodulator and not a digi-engine
+                    // mode — so it sits here too.
+                    Mode::HdRadio,
+                    Mode::Digu,
+                    Mode::Digl,
+                    Mode::Dsb,
+                    Mode::Isb,
+                    Mode::Spec,
+                ] {
+                    mode_band_chip(ui, mode, m, band, cmds);
+                }
+            });
+            ui.add_space(6.0);
+            crate::chrome::menu_caption(ui, "Digital");
+            ui.horizontal_wrapped(|ui| {
+                // ADS-B, VDL2 and AIS ride along at the end of this row rather
+                // than in [`Mode::DIGITAL`] itself: that list is what the digi
+                // engine decodes and transmits, and neither of these is — each
+                // has its own lane, no QSO and no transmitter. They are digital
+                // signals all the same, and this is where an operator looks for
+                // one.
+                for m in Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais]) {
+                    mode_band_chip(ui, mode, m, band, cmds);
+                }
+            });
         }
-    });
-    ui.add_space(6.0);
-    crate::chrome::menu_caption(ui, "Primary modes");
-    ui.horizontal(|ui| {
-        // The four a CB or short-wave operator reaches for: AM and FM on 11 m,
-        // the sidebands above it. On their own row rather than left to be found
-        // among the digital and DRM modes, which is where the full list below
-        // buries them.
-        for m in [Mode::Am, Mode::Nfm, Mode::Usb, Mode::Lsb] {
-            if crate::chrome::chip(ui, mode == m, RichText::new(m.label()).size(14.0)).clicked() {
-                cmds.push(Command::SetMode { rx: RxId::Main, mode: m });
-            }
+        BandMenuTab::Listen => {
+            ui.add_space(6.0);
+            crate::chrome::menu_caption(ui, "Receive modes");
+            ui.horizontal_wrapped(|ui| {
+                // What a listener actually selects on a service band: AM and
+                // its synchronous/ECSS variants, FM broadcast with its stereo
+                // pilot and RDS, the two digital broadcast modes, and C-QUAM
+                // where it exists (medium wave alone). CW covers the beacons and
+                // utility signals.
+                for m in [
+                    Mode::Am,
+                    Mode::Sam,
+                    Mode::Cw,
+                    Mode::Wfm,
+                    Mode::Drm,
+                    Mode::HdRadio,
+                    Mode::Cquam,
+                ] {
+                    mode_band_chip(ui, mode, m, band, cmds);
+                }
+            });
         }
-    });
-    ui.add_space(6.0);
-    crate::chrome::menu_caption(ui, "Mode");
-    ui.horizontal_wrapped(|ui| {
-        for m in [
-            Mode::Lsb,
-            Mode::Usb,
-            Mode::Cw,
-            Mode::Am,
-            Mode::Sam,
-            Mode::Cquam,
-            Mode::Nfm,
-            Mode::Wfm,
-            // DRM belongs with the analog modes rather than under "Digital"
-            // below: that heading is the modes the digi engine decodes and
-            // transmits, and DRM is a broadcast to listen to — a demodulator,
-            // like WFM beside it.
-            Mode::Drm,
-            // HD Radio is the same kind of thing — the digital sidecar of an FM
-            // broadcast, a demodulator and not a digi-engine mode — so it sits
-            // here too.
-            Mode::HdRadio,
-            Mode::Digu,
-            Mode::Digl,
-            Mode::Dsb,
-            Mode::Isb,
-            Mode::Spec,
-        ] {
-            if crate::chrome::chip(ui, mode == m, m.label()).clicked() {
-                cmds.push(Command::SetMode { rx: RxId::Main, mode: m });
-            }
-        }
-    });
-    ui.add_space(6.0);
-    crate::chrome::menu_caption(ui, "Digital");
-    ui.horizontal_wrapped(|ui| {
-        // ADS-B, VDL2 and AIS ride along at the end of this row rather than in
-        // [`Mode::DIGITAL`] itself: that list is what the digi engine decodes
-        // and transmits, and neither of these is — each has its own lane, no
-        // QSO and no transmitter. They are digital signals all the same, and
-        // this is where an operator looks for one.
-        for m in Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais]) {
-            if crate::chrome::chip(ui, mode == m, m.label()).clicked() {
-                cmds.push(Command::SetMode { rx: RxId::Main, mode: m });
-            }
-        }
-    });
+    }
 }
 
 /// The VFO A/B selector chips. In the frequency box on a desktop, in the VFO
@@ -8009,6 +8097,7 @@ mod tests {
             crate::chrome::menu_popup(ui, &btn, |ui| {
                 band_mode_menu(
                     ui,
+                    &mut BandMenuTab::Operate,
                     state.rx[0].mode,
                     &state,
                     None,

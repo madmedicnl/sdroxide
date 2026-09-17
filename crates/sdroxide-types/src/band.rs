@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::Region;
+use crate::{Mode, Region};
 
 /// Amateur bands plus general coverage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -355,6 +355,58 @@ impl Band {
     /// them between 160 m and 30 m or between 4 m and 2 m.
     pub fn is_listen_service(self) -> bool {
         matches!(self, Band::Lw | Band::Mw | Band::Sw | Band::Fm | Band::Air | Band::Mil)
+    }
+
+    /// The modes that make sense on this band, or `None` when the band takes
+    /// any of them.
+    ///
+    /// The amateur allocations are unrestricted: a band plan's segments decide
+    /// what is good practice and the transmit rails decide what is legal, but
+    /// no mode is *impossible* on them. The service bands are different — an FM
+    /// broadcast is not amplitude modulated and the airband is not frequency
+    /// modulated — and offering WFM beside a CB channel, or AM on the FM
+    /// broadcast band, only ever offers silence. This is what the band/mode
+    /// menu greys the impossible half of a pair out with, and what the engine
+    /// refuses at the command boundary so a remote client cannot pick it.
+    ///
+    /// Coarser than a licensing rule on purpose: it says what a mode *is for*,
+    /// not what any one country allows on any one frequency.
+    pub fn modes_for_band(self) -> Option<&'static [Mode]> {
+        match self {
+            // General coverage is whatever the operator points it at.
+            Band::Gen => None,
+            // Longwave: broadcast AM, and the NDB beacons. SAM carries ECSS.
+            Band::Lw => Some(&[Mode::Am, Mode::Sam, Mode::Cw]),
+            // Medium wave: AM and C-QUAM stereo, DRM, and SAM for ECSS.
+            Band::Mw => Some(&[Mode::Am, Mode::Sam, Mode::Cquam, Mode::Drm, Mode::Cw]),
+            // Shortwave: broadcast AM and DRM, and the utility services on
+            // SSB/CW alongside them.
+            Band::Sw => {
+                Some(&[Mode::Am, Mode::Sam, Mode::Usb, Mode::Lsb, Mode::Cw, Mode::Drm])
+            }
+            // FM broadcast: WFM, with the stereo pilot and RDS its own business.
+            Band::Fm => Some(&[Mode::Wfm]),
+            // Both airbands are amplitude modulated.
+            Band::Air | Band::Mil => Some(&[Mode::Am]),
+            // 11 m: the CB modes, and the WSJT-CB digital exchange on top.
+            Band::M11 => Some(&[
+                Mode::Am,
+                Mode::Nfm,
+                Mode::Usb,
+                Mode::Lsb,
+                Mode::Cw,
+                Mode::Ft8,
+                Mode::Ft4,
+                Mode::Ft2,
+            ]),
+            // Every amateur allocation takes anything.
+            _ => None,
+        }
+    }
+
+    /// Whether `mode` applies on this band — see [`Band::modes_for_band`].
+    pub fn accepts_mode(self, mode: Mode) -> bool {
+        self.modes_for_band().is_none_or(|modes| modes.contains(&mode))
     }
 
     /// Band edges in Hz for the station's configured region (see
@@ -985,6 +1037,37 @@ mod tests {
                     "{band:?} opens on {hz} Hz, outside {lo}..{hi} in {region:?}"
                 );
             }
+        }
+    }
+
+    /// The rule the band/mode menu greys chips with. It has to reject the
+    /// impossible pairs the service bands actually produce, and leave the
+    /// amateur bands alone so a band plan's own segments stay the only thing
+    /// narrowing those.
+    #[test]
+    fn a_service_band_only_takes_its_own_modes() {
+        // FM broadcast is not amplitude modulated and the airband is not
+        // frequency modulated.
+        assert!(!Band::Fm.accepts_mode(Mode::Am));
+        assert!(!Band::Fm.accepts_mode(Mode::Nfm));
+        assert!(Band::Fm.accepts_mode(Mode::Wfm));
+        assert!(Band::Air.accepts_mode(Mode::Am));
+        assert!(!Band::Air.accepts_mode(Mode::Wfm));
+        assert!(!Band::Mil.accepts_mode(Mode::Nfm));
+
+        // 11 m takes the CB modes and the WSJT-CB exchange, nothing else.
+        assert!(Band::M11.accepts_mode(Mode::Nfm));
+        assert!(Band::M11.accepts_mode(Mode::Usb));
+        assert!(Band::M11.accepts_mode(Mode::Ft8));
+        assert!(!Band::M11.accepts_mode(Mode::Wfm));
+        assert!(!Band::M11.accepts_mode(Mode::Olivia));
+
+        // General coverage and the amateur allocations stay unrestricted.
+        assert!(Band::Gen.accepts_mode(Mode::Wfm));
+        for b in [Band::M20, Band::M2, Band::M70, Band::Cm3] {
+            assert!(b.modes_for_band().is_none(), "{b:?} was restricted");
+            assert!(b.accepts_mode(Mode::Wfm));
+            assert!(b.accepts_mode(Mode::Ft8));
         }
     }
 }

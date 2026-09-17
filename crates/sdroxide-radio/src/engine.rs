@@ -7807,6 +7807,22 @@ impl Engine {
                 self.change_band(band);
             }
             SetMode { rx, mode } => {
+                // Refuse a mode that does not apply on the band the receiver is
+                // on — WFM on 11 m, AM on an FM broadcast, FM on the airband.
+                // The band/mode menu greys these out, but a remote client can
+                // send the command directly and the pair would only ever be
+                // silence. General coverage and the amateur allocations accept
+                // anything (`Band::accepts_mode`), so this only bites on the
+                // service bands.
+                let band = self.state.band;
+                if !band.accepts_mode(mode) {
+                    self.notice(&format!(
+                        "{} is not used on {} — pick a band it belongs to",
+                        mode.label(),
+                        band.label()
+                    ));
+                    return;
+                }
                 // Decided before the mode is applied, because knowing whether
                 // this is a change at all means asking what is being left, and
                 // applied after it, because the dial push is mode-aware: the
@@ -12642,15 +12658,17 @@ impl Engine {
                 BandStackEntry { freq_hz, mode, filter_lo, filter_hi }
             });
 
-        // The FM broadcast band is WFM by its nature. The stack remembers the
-        // mode a band was last left in, which is right for the ham bands — the
-        // sideband and passband an operator works a band in are theirs to keep
-        // — but an FM broadcast channel tuned in AM (or left that way by an
-        // earlier session) is nothing to restore: picking FM means wanting to
-        // hear the broadcast.
-        if band == Band::Fm && entry.mode != Mode::Wfm {
-            entry.mode = Mode::Wfm;
-            let (filter_lo, filter_hi) = Mode::Wfm.default_filter_at(entry.freq_hz);
+        // A band and a mode have to fit. The stack remembers the mode a band
+        // was last left in, which is right for the ham bands — the sideband and
+        // passband an operator works a band in are theirs to keep — but a mode
+        // that does not apply on the band is nothing to restore: picking the FM
+        // broadcast band means wanting to hear the broadcast, and 11 m left in
+        // WFM by an older session does not. Fall back to the band's own default
+        // mode, with the filter that goes with it, keeping the stored frequency.
+        if !band.accepts_mode(entry.mode) {
+            let mode = band.default_entry().1;
+            let (filter_lo, filter_hi) = mode.default_filter_at(entry.freq_hz);
+            entry.mode = mode;
             entry.filter_lo = filter_lo;
             entry.filter_hi = filter_hi;
         }

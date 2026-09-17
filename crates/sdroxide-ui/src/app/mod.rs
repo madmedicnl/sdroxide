@@ -455,6 +455,8 @@ pub struct SdroxideApp {
     /// When the band/mode, FFT and skimmer popups opened (egui time), for their
     /// auto-fade.
     mode_popup_since: Option<f64>,
+    /// Which half of the band/mode menu was last shown (listen or operate).
+    band_menu_tab: top_bar::BandMenuTab,
     fft_popup_since: Option<f64>,
     skimmer_popup_since: Option<f64>,
     /// Fade clock for the SPEC popup's layer chips, like `skimmer_popup_since`.
@@ -1391,6 +1393,7 @@ impl SdroxideApp {
             show_voice: false,
             voice_name_edit: None,
             mode_popup_since: None,
+            band_menu_tab: top_bar::BandMenuTab::Operate,
             fft_popup_since: None,
             skimmer_popup_since: None,
             layers_popup_since: None,
