@@ -116,12 +116,14 @@ enough that one job should never depend on every file succeeding, and the
 `--clobber` re-runs that followed deleted and re-created assets until they too
 failed.
 
-Nightlies are separate: `.github/workflows/nightly.yml` runs Mon/Wed/Fri at
-03:00 UTC and by hand, moves the `nightly` tag to `main` and dispatches the same
-release workflow against it. `release.yml` publishes a `nightly` ref as a
-**pre-release** with a dated title, so `/releases/latest` and the README's
-stable download links keep pointing at a tagged release rather than at last
-night's build.
+Nightlies are separate: `.github/workflows/nightly.yml` runs Mondays at
+03:00 UTC (and by hand), moves the `nightly` tag to `main` and dispatches the
+same release workflow against it. A scheduled run whose `main` has not moved
+since the last one is skipped — no point rebuilding an unchanged tree — so a
+quiet week builds nothing; a manual dispatch always builds. `release.yml`
+publishes a `nightly` ref as a **pre-release** with a dated title, so
+`/releases/latest` and the README's stable download links keep pointing at a
+tagged release rather than at last week's build.
 
 ## Build and test
 
