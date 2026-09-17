@@ -29,6 +29,14 @@ use crate::theme;
 /// entirely so the QSO controls keep the space.
 pub const MIN_HEIGHT: f32 = 72.0;
 
+/// Points in a faint home→station path for a decoded station. Shorter than the
+/// active QSO trail's 90: these are drawn one per station and only need to read
+/// as an arc, not to be followed.
+const DECODE_PATH_POINTS: usize = 40;
+/// Alpha of a freshly decoded station's path. Low: it is context behind the
+/// dots, and a busy band draws a couple of dozen of them at once.
+const DECODE_PATH_ALPHA: f32 = 30.0;
+
 /// Never zoom tighter than this longitudinal span (degrees), so a single nearby
 /// contact doesn't blow the map up to street level.
 const MIN_LON_SPAN: f64 = 30.0;
@@ -616,6 +624,32 @@ pub fn show(
         let y = rect.top() + (0.5 - ((lat - clat) / lat_span) as f32) * rect.height();
         pos2(x, y)
     };
+
+    // A faint home-to-station path for every station currently on the map,
+    // drawn under the dots: the flat map's version of the 3D globe's fading
+    // arcs, so a decode is a path and not just a point. `stations` holds only
+    // what was heard in the last [`crate::digi_map::STATION_FADE_S`], so this
+    // is a couple of dozen lines on a busy band, and the fade keeps them from
+    // becoming a mat — an old path is nearly invisible before it expires.
+    if let Some(hll) = home {
+        for d in stations {
+            if d.fade <= 0.0 {
+                continue;
+            }
+            // Home is where every path starts, so a station plotted at our own
+            // locator (a decode of our own signal) has no line to draw.
+            if (d.lat - hll.0).abs() < 1e-9 && (d.lon - hll.1).abs() < 1e-9 {
+                continue;
+            }
+            for (lat, lon) in great_circle_points(hll, (d.lat, d.lon), DECODE_PATH_POINTS) {
+                p.circle_filled(
+                    project(lat, lon),
+                    dot_r.max(1.0),
+                    alpha(map.trail, DECODE_PATH_ALPHA * d.fade),
+                );
+            }
+        }
+    }
 
     // Every decoded station with a known grid, as small dots that fade with age
     // (`alpha`). The active DX, the clicked preview and home are painted over

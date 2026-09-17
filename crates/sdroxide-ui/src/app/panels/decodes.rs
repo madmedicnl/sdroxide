@@ -1100,6 +1100,14 @@ impl SdroxideApp {
         let map_hi = (full_h - below_map).min(avail_w).max(map_lo);
         let map_budget = map_lo + (map_hi - map_lo) * self.view.digi_map_fraction;
         let my_grid = status.as_ref().map(|s| s.config.my_grid.clone()).unwrap_or_default();
+        // Feed the shared station store every frame, whether or not the flat map
+        // is drawn: the 3D globe's time-lapse replays this same history, and
+        // folding it in only from inside the map block left the globe with
+        // nothing to replay on any layout without a flat map (a tablet or phone,
+        // where `show_map` is false). Ages use egui frame time (monotonic, works
+        // native + wasm).
+        let now_t = ui.input(|i| i.time);
+        self.digi_stations.observe(&self.digi_decodes, now_t, now_unix());
         // Everything from here to the map itself is only ever read by the map,
         // so a layout without one does none of it — including walking every
         // spot the client holds, once a frame.
@@ -1113,10 +1121,6 @@ impl SdroxideApp {
             let tx_active = status.as_ref().map(|s| s.transmitting).unwrap_or(false);
             // White station dots fade over 2 minutes since a station was last
             // decoded, then expire (dropped from the map and from the zoom fit).
-            // Ages use egui frame time (monotonic, works native + wasm); each grid
-            // remembers the frame it was last freshly decoded in.
-            let now_t = ui.input(|i| i.time);
-            self.digi_stations.observe(&self.digi_decodes, now_t, now_unix());
             let stations = self.digi_stations.stations(now_t);
             // Located network spots (filtered by the shown-kind toggles), as
             // kind-coloured dots on the map.
