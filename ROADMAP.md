@@ -1,9 +1,10 @@
-# ROADMAP — SDR Oxide, the SWL edition
+# ROADMAP — SDR Oxide, the CB and SWL fork
 
 What this fork is for: turning sdroxide's receiver into the best **shortwave
-listening** program it can be — no licence, no callsign, no transmitting unless
-asked for. This file is the plan; it changes as the fork teaches us what
-matters.
+listening** and **11 m** program it can be — no licence, no callsign, no
+transmitting unless asked for. This file is the plan for the listener side; it
+changes as the fork teaches us what matters, and it is the part that stays
+here. General-purpose work goes upstream (see "Relationship to upstream").
 
 Ordered by value to a listener, not by effort. Each phase is meant to stand on
 its own.
@@ -81,16 +82,12 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
   surfaces the label and text, so it needs the shim extended (C++ + FFI + a
   panel) and a real signal with a slideshow to validate. The largest remaining
   item.
-- **HD Radio (NRSC-5) for the listener.** **FM done** — the digital sidecar of
-  an FM broadcast is a `Mode`, decoded by the vendored nrsc5 receiver and heard
-  through the ordinary audio path, with an HD Radio panel showing sync, both
-  sidebands' MER, CBER, the programme and the station's own name, slogan and
-  message (issue #437). Needs a front end capturing roughly ±200 kHz around the
-  carrier — a complex rate of about 1 Msps or more. The **AM-band variant** (HD
-  on medium wave) is open: the decoder wants opening in its AM mode and feeding
-  at 46,511.71875 S/s, which the engine would choose from the dial frequency.
-  The **HD-2/HD-3 subchannel** chips and the **album art / PSD** the multiplex
-  can carry are further open work.
+- **HD Radio (NRSC-5) for the listener.** **Upstream's now.** The FM digital
+  sidecar — a `Mode`, the vendored nrsc5 receiver, the panel with sync, MER,
+  CBER, programme and station text — landed upstream with issue #437, and this
+  fork's own copy was retired in the merge (it depends on `sdroxide-faad2`).
+  Anything further here — the **AM-band variant**, the **HD-2/HD-3 subchannel**
+  chips, the **album art / PSD** — is upstream's to take; offer it there first.
 
 ## Not goals
 
@@ -99,13 +96,18 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
   upstream lockouts.
 - **Ham operating aids.** Awards, contesting and QSL chasing are upstream's and
   stay read-only-or-hidden.
-- **The CB band.** This fork grew out of the CB/SWL fork and still carries its
-  11 m work; it is not the focus here and may be retired or hidden as the
-  listener features take over.
+- **The CB band.** The opposite: 11 m is half of what this fork is now — the
+  channel plans, the WSJT-CB interop and reporting, LOG11DX. It is not a
+  listener afterthought and is not going away.
 
 ## Relationship to upstream
 
-Seeded from the CB/SWL fork (`madmedicnl/sdroxide`), which is a fork of
-`dividebysandwich/sdroxide`. Upstream changes are merged in periodically; a
-feature that is useful to *anyone* (not just listeners) is a candidate to offer
-upstream as a pull request rather than keep here.
+This fork is `madmedicnl/sdroxide`, a fork of `dividebysandwich/sdroxide`.
+Upstream changes are merged in regularly (after each release, or monthly, to
+keep the conflicts small), and a feature that is useful to *anyone* — not just
+CB or SWL — is offered **upstream-first**: branch from `upstream/main`, open
+the PR, then merge the result back here. Upstream is responsive and has already
+taken most of this fork's general-purpose work — HD Radio, the CW straight key,
+audible alerts, station profiles, AIS, the editor themes, the USB sound-card
+backend, the 11 m band, EiBi labelling, decode export and browser import, the
+step-row snap. What is left here is the listener and CB work.
