@@ -16,15 +16,19 @@ use sdroxide_types::{AcarsStatus, Command, Vfo};
 use crate::app::SdroxideApp;
 use crate::theme;
 
-/// The airline channels ACARS is commonly found on. Widely published; the two
-/// main service frequencies are in the middle of the band and of this list.
+/// The airline channels ACARS is commonly found on. Widely published: 131.550
+/// is the primary almost everywhere, Europe works 131.525, 131.725 and 131.825
+/// (the three acarsdec's own examples listen to), and the rest are North
+/// American.
 const CHANNELS: &[(u32, &str)] = &[
     (129_125_000, "129.125"),
     (130_025_000, "130.025"),
     (130_450_000, "130.450"),
     (131_125_000, "131.125"),
+    (131_525_000, "131.525"),
     (131_550_000, "131.550"),
     (131_725_000, "131.725"),
+    (131_825_000, "131.825"),
     (136_700_000, "136.700"),
 ];
 
@@ -90,24 +94,18 @@ impl SdroxideApp {
                 }
                 for m in st.messages.iter().rev() {
                     ui.horizontal(|ui| {
+                        let (_, _, _, h, mi, s) = sdroxide_types::utc_ymd_hms(m.at);
                         ui.label(
-                            RichText::new(crate::time::utc_clock(m.at))
+                            RichText::new(format!("{h:02}:{mi:02}:{s:02}"))
                                 .monospace()
                                 .size(10.0)
                                 .color(theme::CYAN_DIM()),
                         );
                         ui.label(
-                            RichText::new(&m.address)
-                                .monospace()
-                                .strong()
-                                .color(theme::CYAN()),
+                            RichText::new(&m.address).monospace().strong().color(theme::CYAN()),
                         );
                         if !m.mode.is_empty() {
-                            ui.label(
-                                RichText::new(format!("mode {}", m.mode))
-                                    .size(9.5)
-                                    .weak(),
-                            );
+                            ui.label(RichText::new(format!("mode {}", m.mode)).size(9.5).weak());
                         }
                         if !m.label.is_empty() {
                             ui.label(RichText::new(&m.label).monospace().size(10.0).weak());
@@ -119,8 +117,12 @@ impl SdroxideApp {
                             ui.label(RichText::new(&m.block_id).size(9.5).weak());
                         }
                         if !m.crc_ok {
-                            ui.label(RichText::new("check failed").size(9.5).color(theme::YELLOW()))
-                                .on_hover_text("The block-check sequence did not match — text may be wrong.");
+                            ui.label(
+                                RichText::new("check failed").size(9.5).color(theme::YELLOW()),
+                            )
+                            .on_hover_text(
+                                "The block-check sequence did not match — text may be wrong.",
+                            );
                         }
                     });
                     if m.text.trim().is_empty() {

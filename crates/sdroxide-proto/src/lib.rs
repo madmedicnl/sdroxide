@@ -1355,23 +1355,22 @@ use sdroxide_types::{
 /// decode the message carrying one. `ServerMsg` gains `Profiles`, the names
 /// to offer, appended last for the same reason: a v152 client handed the list
 /// fails to decode it.
-/// v154: the listener fork's additions on top of v153. `Command::ResetModeDefaults`
-/// (per-mode settings) and the ACARS `DigiStatus::acars` field, moved to that
-/// struct's tail. Both are fork-only — upstream's numbering skips them — so the
-/// fork's version runs one ahead. They are appended or positioned to keep every
-/// surviving discriminant and field where it was, but the fork's `Mode` and
-/// command order already diverge from upstream's, so a v153 peer desynchronises
-/// on the tail regardless; the handshake's equality test is what stops it
-/// trying.
 ///
-/// v155: the fork's listener identity work. `NetworkConfig::swl_id`, the
-/// reception-report identity, and `RadioConfig::callsign` and
-/// `RadioConfig::hide_tx`, the per-radio callsign and per-radio SWL switch,
-/// are each appended to their struct's tail, so no surviving field moved — but
-/// those structs ride whole (`SetNetworkConfig` and the station config for the
-/// first, `ServerMsg::RadioConfig` and `Command::SetRadioConfig` for the
-/// others), and a v154 peer handed one with a field it has no name for fails to
-/// decode the message carrying it. A downstream (fork) addition, like v154.
+/// v154: ACARS, the VHF airband airline datalink (issue #436). `Mode::Acars` is
+/// appended last, so no surviving discriminant moved, but a v153 peer has no
+/// name for it. The status rides the existing `RadioEvent::Ft8Status` /
+/// `ServerMsg::Ft8Status`, so there is no new message — but `DigiStatus` gains
+/// a trailing `acars` field, and postcard numbers struct fields by position, so
+/// a v153 peer desynchronises on the tail of every `DigiStatus`. The field is
+/// last, so no surviving field moved.
+///
+/// v155: the fork's additions on top of v154 — per-mode settings
+/// (`Command::ResetModeDefaults`) and the listener identity
+/// (`NetworkConfig::swl_id`, `RadioConfig::callsign`, `RadioConfig::hide_tx`).
+/// Each is appended or positioned to keep surviving discriminants and fields
+/// where they were, but the structs that carry them ride whole, so a v154 peer
+/// handed one with a field it has no name for fails to decode the message. The
+/// fork's version runs one ahead of upstream's, which has skipped it so far.
 pub const PROTO_VERSION: u16 = 155;
 const VERSION_BYTE: u8 = 0x12;
 
