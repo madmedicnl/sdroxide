@@ -49,6 +49,10 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     the `mfsk-core` fork pin in `crates/sdroxide-digi/Cargo.toml` can go.
   - `dividebysandwich/sdroxide#465` — the fork's ACARS mode, open upstream.
     See "The ACARS decoder" below before touching it.
+  - `dividebysandwich/sdroxide#485` — the fork's per-mode settings, offered
+    upstream. If it merges, drop the fork's copy in the next merge and keep the
+    protocol bump reconciled (it claims v154, as ACARS does; whichever lands
+    second moves up).
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
