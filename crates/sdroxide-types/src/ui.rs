@@ -682,19 +682,13 @@ pub struct UiSettings {
     /// operator's. The 3D globe is untouched — its cities are night-side lights
     /// rather than markers, and nothing is written across a contact there.
     pub map_cities: bool,
-    /// SWL (Short Wave Listener) mode. When on, every transmit control in the
-    /// UI is hidden rather than greyed out — the PTT, the CALL CQ button, the
-    /// TX level slider, the SEND chip, all of it. What remains is a clean
-    /// receive-only interface, which is what an operator with a listening
-    /// dongle (an RTL-SDR, a SpyServer, a WebSDR) actually needs.
-    ///
-    /// It also swaps the strip's ham extras for the listener's: the spot feeds
-    /// (DX cluster / POTA / SOTA) and the award tracking give way to SCHEDULE
-    /// and LISTEN. One switch, not two — a listener should not have to find a
-    /// second one to be rid of the parts they never open.
-    ///
-    /// Off by default: a station with a transmitter should see the controls
-    /// until it says otherwise.
+    /// **Retired** global SWL-mode switch. SWL mode is per radio now
+    /// (`RadioConfig::hide_tx`, Settings → Radio), because what a radio is for
+    /// is a property of the radio, not of the screen. This is still read once
+    /// at startup to seed [`Self::start_swl`]-style behaviour for a listener
+    /// upgrading from a version that only had the global switch; nothing in
+    /// the UI writes it any more, and it is cleared the first time the
+    /// per-radio switch is used.
     #[serde(default)]
     pub swl: bool,
     /// Start every session in SWL mode, whether or not [`Self::swl`] was left

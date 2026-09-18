@@ -37,10 +37,12 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   lineages of one feature until the next merge, and each merge is bigger for
   it.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at 153, the fork at 154, the extra being the fork's per-mode
-  `Command::ResetModeDefaults` and the ACARS `DigiStatus` field. When merging,
-  keep the number ahead of upstream's and fold its new entries in rather than
-  dropping them.
+  upstream is at 153, the fork at 155, the extras being the fork's per-mode
+  `Command::ResetModeDefaults`, the ACARS `DigiStatus` field (both v154) and
+  the v155 listener identity: `NetworkConfig::swl_id` (reception-report
+  identity) plus `RadioConfig::callsign` and `RadioConfig::hide_tx` (per-radio
+  callsign and per-radio SWL mode). When merging, keep the number ahead of
+  upstream's and fold its new entries in rather than dropping them.
 - Watch list:
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46

@@ -152,7 +152,7 @@ impl SdroxideApp {
                 {
                     self.show_digi_settings = !self.show_digi_settings;
                 }
-                if !self.ui_settings.swl {
+                if !self.swl_mode() {
                     // The beacon interval, here rather than only in the setup
                     // dialog: how often an unattended transmitter keys is the
                     // setting an operator reaches for while watching the channel,
@@ -751,7 +751,7 @@ impl SdroxideApp {
             });
 
         ui.add_space(2.0);
-        if !self.ui_settings.swl {
+        if !self.swl_mode() {
             let mut send = false;
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;

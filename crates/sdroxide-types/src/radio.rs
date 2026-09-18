@@ -7283,6 +7283,25 @@ pub struct RadioConfig {
     /// exactly right: no row means no trim, and the radio transmits at the
     /// operator's Drive setting on every band as it always did.
     pub tx_drive_trim: Vec<BandDriveTrim>,
+    /// The callsign *this radio* transmits and logs as. Empty — the default,
+    /// and what every `radio.json` written before this existed loads as —
+    /// means the station callsign on the General tab, which is right for a
+    /// station with one identity.
+    ///
+    /// Set it on a radio that is somebody else: a CB callsign on the 11 m set,
+    /// an amateur callsign on the HF rig, each while the other keeps its own.
+    /// Appended after `tx_drive_trim`, for the reason every field above is: the
+    /// layout is positional, and `RadioConfig` rides `ServerMsg::RadioConfig`
+    /// and `Command::SetRadioConfig` whole.
+    #[serde(default)]
+    pub callsign: String,
+    /// Hide every transmit control for this radio. Per radio rather than per
+    /// client because it is a property of what the radio is *for*: the
+    /// listening set on the long wire stays a listener's screen while the
+    /// transceiver beside it keeps its PTT. The hardware can still transmit;
+    /// this only hides the controls. Appended last, as the wire requires.
+    #[serde(default)]
+    pub hide_tx: bool,
 }
 
 impl RadioConfig {
@@ -7395,6 +7414,19 @@ impl RadioConfig {
             RxSite::Elsewhere(_) => None,
         }
     }
+
+    /// The callsign this radio asserts, given the station's own — its own
+    /// override when set, else the station callsign (possibly empty).
+    ///
+    /// The counterpart of [`Self::report_grid`], and the same idea: the
+    /// station is the fallback, and a radio that is somebody else states its
+    /// own identity. Used for everything that names a station — keying, the
+    /// logbook, a spotter — while reception *reporting* may substitute the
+    /// listener's SWL number on top (see [`crate::NetworkConfig::swl_id`]).
+    pub fn effective_call<'a>(&'a self, station_call: &'a str) -> &'a str {
+        let own = self.callsign.trim();
+        if own.is_empty() { station_call.trim() } else { own }
+    }
 }
 
 #[cfg(test)]
@@ -7405,6 +7437,33 @@ mod tests {
     /// covers every driver SoapySDR has and almost none of them has ever been
     /// run here. A configuration written before this existed opens its radio
     /// exactly as it always did.
+    /// The station callsign is the fallback; a radio with its own states it.
+    #[test]
+    fn a_radio_reports_its_own_callsign_or_the_stations() {
+        let station = "OE1STATION";
+        let plain = RadioConfig::default();
+        assert_eq!(plain.effective_call(station), station, "no override: the station's");
+        assert_eq!(plain.effective_call("  OE1STATION  "), station, "trimmed both sides");
+
+        let mut own = RadioConfig::default();
+        own.callsign = " 19DCG373 ".into();
+        assert_eq!(own.effective_call(station), "19DCG373");
+
+        // Empty station and empty override is a station nobody has named yet;
+        // the empty string is the honest answer, not a made-up default.
+        assert_eq!(RadioConfig::default().effective_call(""), "");
+    }
+
+    /// SWL mode is off unless the radio says otherwise, so a `radio.json`
+    /// written before it existed comes up with its transmit controls.
+    #[test]
+    fn transmit_controls_are_visible_by_default() {
+        assert!(!RadioConfig::default().hide_tx);
+        let c: RadioConfig = serde_json::from_str("{}").unwrap();
+        assert!(!c.hide_tx);
+        assert_eq!(c.callsign, "");
+    }
+
     #[test]
     fn an_untouched_soapy_block_asserts_nothing() {
         let cfg = SoapyConfig::default();

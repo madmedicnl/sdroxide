@@ -123,8 +123,8 @@ pub(in crate::app) fn tx_gated(
     rx_only_hint(ui.add_enabled_ui(tx_ok, add).inner, tx_ok)
 }
 
-/// Global flag mirrored from [`UiSettings::swl`] every frame so `tx_gated`
-/// can read it without threading the setting through every panel.
+/// Global flag mirrored from [`SdroxideApp::swl_mode`] every frame so
+/// `tx_gated` can read it without threading the setting through every panel.
 static SWL_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Update the global SWL flag. Called once per frame from the app.
@@ -291,6 +291,11 @@ pub struct SdroxideApp {
     /// Display preferences (frame rate, waterfall + spectrum speed), loaded from
     /// config at startup, edited in the UI tab, persisted on change.
     ui_settings: sdroxide_types::UiSettings,
+    /// Whether this session started in SWL mode because the stored
+    /// `start_swl` preference or `--swl` asked for it. A seed, not a setting:
+    /// the per-radio switch in Settings → Radio clears it, so the operator's
+    /// explicit per-radio choice is what governs once they have made one.
+    swl_start: bool,
     /// The theme and chrome styles last written into the egui context, so the
     /// top-of-frame check in `frame.rs` can re-apply the visuals the moment
     /// the settings dialog changes any of them — no restart.
@@ -528,10 +533,6 @@ pub struct SdroxideApp {
     pub(in crate::app) show_swl: bool,
     pub(in crate::app) swl_edit: Option<crate::app::swl_log::SwlEditForm>,
     pub(in crate::app) swl_selected: Option<u64>,
-    /// The listener's own identity for reception reports — an SWL number, a
-    /// club number, a name. `config.toml`'s `swl_id`, kept apart from the
-    /// transmitting callsign so a report never keys a CB transmitter with it.
-    pub(in crate::app) swl_id: String,
     /// The broadcast schedule window and its filters.
     pub(in crate::app) schedule: crate::app::schedule::ScheduleUi,
     /// Favourite broadcast stations, by name (`broadcast_favourites.json`).
@@ -1235,13 +1236,11 @@ impl SdroxideApp {
         // The look and the font sizes must be selected before `theme::apply`
         // reads them, or the first frame flashes the default theme at the
         // default scale.
-        let mut ui_settings = load_ui_settings(storage);
+        let ui_settings = load_ui_settings(storage);
         // Start in SWL mode when asked: either the stored preference or this
-        // run's `--swl`. The session's own toggle can still turn it off, but
-        // the next start honours the preference again.
-        if ui_settings.start_swl || sdroxide_types::force_swl() {
-            ui_settings.swl = true;
-        }
+        // run's `--swl`. The per-radio switch can still turn it off for a
+        // session (which clears this seed), but the next start honours the
+        // preference again. See `SdroxideApp::swl_start`.
         crate::theme::set_look(
             ui_settings.theme,
             ui_settings.button_style,
@@ -1343,6 +1342,11 @@ impl SdroxideApp {
             profile_apply_pending: false,
             settings_upload_tab: sdroxide_types::UploadTarget::QrzLogbook,
             ui_settings,
+            // `swl` is the retired global switch: carried so a listener who had
+            // it on is not dropped back into a transceiver's screen by the
+            // move to per-radio SWL mode. The Radio tab's switch is the one
+            // that persists now.
+            swl_start: ui_settings.start_swl || ui_settings.swl || sdroxide_types::force_swl(),
             applied_look: (ui_settings.theme, ui_settings.button_style, ui_settings.window_style),
             applied_ui_font: ui_settings.menu_font_size,
             speech: speech::SpeechRuntime::new(load_speech_settings(storage)),
@@ -1445,7 +1449,6 @@ impl SdroxideApp {
             show_swl: false,
             swl_edit: None,
             swl_selected: None,
-            swl_id: persist::load_swl_id(),
             schedule: Default::default(),
             broadcast_favs: load_broadcast_favourites(storage),
             recording_jobs: load_recording_jobs(storage),
@@ -2061,6 +2064,18 @@ impl SdroxideApp {
         self.radio_notice = Some(text);
     }
 
+    /// Whether transmit controls are hidden for the radio on screen.
+    ///
+    /// Three sources, in the order they override: `--swl` for the run, the
+    /// session's start-in-SWL seed, and this radio's own SWL switch. The
+    /// per-radio switch is the persisted one (Settings → Radio); the other two
+    /// only ever turn it *on*. See `SdroxideApp::swl_start`.
+    pub(in crate::app) fn swl_mode(&self) -> bool {
+        sdroxide_types::force_swl()
+            || self.swl_start
+            || self.radio_cfg.as_ref().is_some_and(|c| c.hide_tx)
+    }
+
     /// Whether this radio has a transmitter at all.
     ///
     /// `tx_channels == 0` is how a receive-only interface says so — an RTL
@@ -2072,7 +2087,7 @@ impl SdroxideApp {
     /// No capabilities yet reads as "cannot", matching the rest of the window:
     /// the top bar leaves its PTT out until the engine has said what it has.
     pub(in crate::app) fn tx_capable(&self) -> bool {
-        !self.ui_settings.swl && self.caps.as_ref().is_some_and(|c| c.is_transmit_capable())
+        !self.swl_mode() && self.caps.as_ref().is_some_and(|c| c.is_transmit_capable())
     }
 
     /// The CW tone being copied, in Hz — the cursor the CW panel moves and the

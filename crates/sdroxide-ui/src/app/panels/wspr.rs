@@ -382,7 +382,7 @@ impl SdroxideApp {
         // was on be turned off after the radio was swapped for one that cannot
         // key. The percentages go grey.
         let tx_ok = self.tx_capable();
-        if !self.ui_settings.swl {
+        if !self.swl_mode() {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 ui.label(RichText::new("TRANSMIT").size(9.5).color(crate::theme::CYAN_DIM()));
@@ -569,14 +569,14 @@ impl SdroxideApp {
         let call = self.digi_cfg_edit.my_call.trim();
         let grid = self.digi_cfg_edit.my_grid.trim();
         let identity = if call.is_empty() || grid.is_empty() {
-            if self.ui_settings.swl {
+            if self.swl_mode() {
                 "Set your callsign and grid on the General tab of Settings to label your spots."
                     .to_string()
             } else {
                 "Set your callsign and grid on the General tab of Settings before transmitting."
                     .to_string()
             }
-        } else if self.ui_settings.swl {
+        } else if self.swl_mode() {
             let sent = sdroxide_types::wspr_grid4(grid).unwrap_or_else(|| grid.to_string());
             format!("Listening as {call} in {sent} — set on the General tab of Settings.")
         } else {

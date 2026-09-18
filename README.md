@@ -64,8 +64,9 @@ rest.
    per-country channel plans are on the General tab, and the WSJT-CB digital
    exchange (with country flags) works like FT8 does. Transmitting on 11 m is a
    deliberate opt-in behind a one-time warning.
-6. **Listening (SWL).** Turn on **SWL mode** (Settings → UI, or start with
-   `--swl`) and every transmit control disappears. Then: browse the **SCHEDULE**
+6. **Listening (SWL).** Turn on **SWL mode** for that radio (Settings → Radio →
+   Transmit controls, or start every radio with `--swl`) and its transmit
+   controls disappear. Then: browse the **SCHEDULE**
    window of ~4,600 broadcasts and tune or log a station; watch broadcast
    carriers labelled on the waterfall; keep the separate **SWL log** with
    **SINPO/SIO** and send a **reception report**; replay the last two minutes
@@ -84,12 +85,13 @@ rest.
 | **LOG11DX logbook** | — | uploads each logged QSO straight to the 11 m [LOG11DX](https://log11dx.com/) logbook — no separate bridge program, which its own WSJT-X integration otherwise needs |
 | **Broadcast & utility bands** | general coverage only | **LW / MW / SW / FM**, the VHF civil **AIR**band (108–137 MHz, AM) and the **MIL**itary UHF airband (225–400 MHz, AM) on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
 | **Broadcast schedule** | EiBi transmitters labelled on the waterfall | plus a **SCHEDULE** window that filters them by time, band, language and target and tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
-| **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** signed with the listener's own **SWL number** (a separate box from the transmitting callsign, so a report never keys a CB with it) |
+| **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** signed with the listener's own **SWL number** (a **Report as (SWL)** box on the Spots tab, separate from the transmitting callsign: it also signs the PSK Reporter/WSPR uploads, but is never keyed, logged or spotted) |
 | **C-QUAM AM stereo** | — | decoded on MW, with a stereo lamp and a mono blend (not yet verified against a real signal) |
 | **ACARS** | — | the VHF airband airline datalink (131.550, 131.725 MHz and friends), with a message panel; the demodulator has carrier and bit-clock recovery and is checked against an off-air recording |
 | **MW/SW DX tools** | SAM and the ham audio chain | **ECSS-U / ECSS-L** presets on SAM and a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
-| **SWL mode** | — | hides every transmit control and swaps the ham chips (spots, awards) for the listener's; **Start in SWL mode** in Settings → UI, or **`--swl`** |
+| **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
+| **Per-radio identity** | one station callsign | a **callsign per radio** (Settings → Radio), falling back to the station callsign on the General tab — a CB callsign on the 11 m set and an amateur callsign on the HF rig at the same time |
 | **Simple interface** | — | hides the advanced chips |
 | **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and modes that do not apply on the current band (AM on the FM broadcast band, WFM on 11 m) greyed out and refused engine-side |
 | **Propagation columns** | propagation heat map | measured **WSPR** and **PSK Reporter** activity in the **BANDS** window |

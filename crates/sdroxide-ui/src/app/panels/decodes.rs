@@ -195,7 +195,7 @@ impl SdroxideApp {
             // decode in this list does.
             // SWL mode: the whole TX frequency row is meaningless without a
             // transmitter, so hide it entirely.
-            if self.digi_cfg_seeded && !self.ui_settings.swl {
+            if self.digi_cfg_seeded && !self.swl_mode() {
                 let held = self.digi_cfg_edit.hold_tx_freq;
                 let auto = self.digi_cfg_edit.auto_tx_freq;
                 // Greyed while held, because held wins: leaving it live would
@@ -1518,7 +1518,7 @@ impl SdroxideApp {
         // worth having even where it should have nothing to stop.
         // SWL mode: hide the entire action-button row.
         let tx_ok = self.tx_capable();
-        if !self.ui_settings.swl {
+        if !self.swl_mode() {
             ui.horizontal_wrapped(|ui| {
                 let cq = ui.add_enabled_ui(!in_qso && tx_ok, |ui| {
                     rx_only_hint(
@@ -1556,7 +1556,7 @@ impl SdroxideApp {
         // Message picker: choose by hand which message goes next (WSJT-X's
         // Tx1–Tx6), or send a line of free text in the next slot.
         // SWL mode: hide the message picker and free text entry.
-        if self.ui_settings.swl {
+        if self.swl_mode() {
             return;
         }
         let has_dx = status.as_ref().and_then(|s| s.dx_call.as_ref()).is_some();

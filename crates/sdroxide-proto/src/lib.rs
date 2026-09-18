@@ -1363,7 +1363,16 @@ use sdroxide_types::{
 /// command order already diverge from upstream's, so a v153 peer desynchronises
 /// on the tail regardless; the handshake's equality test is what stops it
 /// trying.
-pub const PROTO_VERSION: u16 = 154;
+///
+/// v155: the fork's listener identity work. `NetworkConfig::swl_id`, the
+/// reception-report identity, and `RadioConfig::callsign` and
+/// `RadioConfig::hide_tx`, the per-radio callsign and per-radio SWL switch,
+/// are each appended to their struct's tail, so no surviving field moved — but
+/// those structs ride whole (`SetNetworkConfig` and the station config for the
+/// first, `ServerMsg::RadioConfig` and `Command::SetRadioConfig` for the
+/// others), and a v154 peer handed one with a field it has no name for fails to
+/// decode the message carrying it. A downstream (fork) addition, like v154.
+pub const PROTO_VERSION: u16 = 155;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

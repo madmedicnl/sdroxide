@@ -208,7 +208,7 @@ impl SdroxideApp {
         }
         self.rf_paint.ensure(&ctx);
 
-        if self.ui_settings.swl {
+        if self.swl_mode() {
             egui::Frame::new()
                 .fill(crate::theme::ROW_BG())
                 .stroke(egui::Stroke::new(1.0, crate::theme::LINE_LIT()))

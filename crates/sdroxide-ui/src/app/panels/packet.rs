@@ -220,7 +220,7 @@ impl SdroxideApp {
         }
 
         // ── connect bar ───────────────────────────────────────────────────
-        if !self.ui_settings.swl {
+        if !self.swl_mode() {
             let mut connect = false;
             // Nothing transmits without a station callsign, and the refusal used to
             // arrive only after CONNECT was pressed. Saying so on the button is the
@@ -363,7 +363,7 @@ impl SdroxideApp {
             });
 
         // ── the line you type on ──────────────────────────────────────────
-        if !self.ui_settings.swl {
+        if !self.swl_mode() {
             let mut send = false;
             ui.horizontal(|ui| {
                 let room = (ui.available_width() - 56.0).max(80.0);

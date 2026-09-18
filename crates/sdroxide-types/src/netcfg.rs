@@ -369,6 +369,16 @@ pub struct NetworkConfig {
     /// requires.
     #[serde(default)]
     pub auto_upload_log11dx: bool,
+
+    // ── Reception identity ──
+    /// The listener's own identity for reception reports — a registered SWL
+    /// number, a club number, a name. When set it replaces the callsign as the
+    /// *reporter* on the PSK Reporter and WSPRnet uploads and on a broadcast
+    /// reception report; everything that transmits, logs or spots a QSO keeps
+    /// the callsign, so an SWL number is never keyed. Appended last, as the
+    /// wire requires.
+    #[serde(default)]
+    pub swl_id: String,
 }
 
 impl Default for NetworkConfig {
@@ -404,6 +414,7 @@ impl Default for NetworkConfig {
             log11dx_api_url: "https://log11dx.com/api/wsjtx/upload-qso.php".to_string(),
             log11dx_api_token: String::new(),
             auto_upload_log11dx: false,
+            swl_id: String::new(),
         }
     }
 }

@@ -75,7 +75,7 @@ impl SdroxideApp {
         let input_h = 56.0; // fixed-height, internally-scrolling TX box
         let gap = 5.0;
         let bottom_pad = 12.0; // clear space below the button row
-        let rx_h = if self.ui_settings.swl {
+        let rx_h = if self.swl_mode() {
             (content_bottom - ui.cursor().top() - bottom_pad).max(24.0)
         } else {
             (content_bottom - ui.cursor().top() - btn_h - input_h - 2.0 * gap - bottom_pad)
@@ -121,7 +121,7 @@ impl SdroxideApp {
         });
         ui.add_space(gap);
 
-        if self.ui_settings.swl {
+        if self.swl_mode() {
             return;
         }
 
@@ -393,7 +393,7 @@ impl SdroxideApp {
         let input_h = 56.0;
         let gap = 5.0;
         let bottom_pad = 12.0;
-        let rx_h = if self.ui_settings.swl {
+        let rx_h = if self.swl_mode() {
             (content_bottom - ui.cursor().top() - bottom_pad).max(28.0)
         } else {
             (content_bottom - ui.cursor().top() - btn_h - input_h - 2.0 * gap - bottom_pad)
@@ -415,7 +415,7 @@ impl SdroxideApp {
         self.hell.draw(ui, rect, &self.view.hell);
         ui.add_space(gap);
 
-        if self.ui_settings.swl {
+        if self.swl_mode() {
             return;
         }
 

@@ -47,7 +47,9 @@ pub struct SpotManager {
     psk: Option<PollHandle>,
     /// The operator's callsign and grid, pushed in from the digi config by the
     /// engine. Not part of [`NetworkConfig`]: there is one operator identity in
-    /// the app and it is set on the General tab.
+    /// the app and it is set on the General tab. The callsign is the *station*
+    /// identity; a listener's reception-report identity is the separate
+    /// [`NetworkConfig::swl_id`], which overrides it only for reporting.
     op_call: String,
     op_grid: String,
 
@@ -144,9 +146,14 @@ impl SpotManager {
         }
         if old.psk != self.cfg.psk {
             self.rebuild_psk();
+        }
+        // A changed SWL identity restarts the uploads but not the fetch feed:
+        // the reporter is who the decodes are credited to, the fetch feed is
+        // not identity-bearing.
+        if old.psk != self.cfg.psk || old.swl_id != self.cfg.swl_id {
             self.rebuild_psk_upload();
         }
-        if old.wspr != self.cfg.wspr {
+        if old.wspr != self.cfg.wspr || old.swl_id != self.cfg.swl_id {
             self.rebuild_wspr();
         }
         if old.wsjtcb != self.cfg.wsjtcb {
@@ -192,10 +199,11 @@ impl SpotManager {
             self.rebuild_rbn();
         }
         self.rebuild_freedv();
-        // Our callsign and grid *are* the PSK Reporter receiver record.
+        // The callsign and grid (or the SWL identity, if one is set) *are* the
+        // PSK Reporter receiver record.
         self.rebuild_psk_upload();
-        // And they are the whole of WSPRnet's identity: the callsign in the
-        // query is the account.
+        // And they are the whole of WSPRnet's report identity: the callsign in
+        // the query is the account.
         self.rebuild_wspr();
         // The WSJT-CB server names the spotter by callsign and grid too.
         self.rebuild_wsjtcb();
@@ -550,19 +558,34 @@ impl SpotManager {
         }
     }
 
-    /// (Re)start the PSK Reporter upload worker. Reporting needs both halves of
-    /// the operator identity: without a callsign there is no receiver to
-    /// report, and without a grid the reports can't be placed on the map.
+    /// The identity to report *receptions* under: the listener's SWL number
+    /// when one is set, else the operator's callsign.
+    ///
+    /// Only the reporting paths use this. Every path that asserts a station on
+    /// the air or in a logbook — keying, QSO uploads, the DX cluster and RBN
+    /// logins, WSJT-CB — keeps `op_call`, so an SWL number is never
+    /// transmitted and never names a spotter.
+    fn report_call(&self) -> &str {
+        let swl = self.cfg.swl_id.trim();
+        if swl.is_empty() { self.op_call.trim() } else { swl }
+    }
+
+    /// (Re)start the PSK Reporter upload worker. Reporting needs a reporter
+    /// identity and a grid: without the former there is no receiver to report,
+    /// and without the latter the reports can't be placed on the map. The
+    /// reporter may be the SWL number alone — a listener with no callsign is
+    /// exactly who reception reporting is for.
     fn rebuild_psk_upload(&mut self) {
         if !self.station {
             return;
         }
         self.psk_upload = None; // drop flushes what's pending and stops the thread
-        if !self.cfg.psk.report || self.op_call.is_empty() || self.op_grid.is_empty() {
+        let call = self.report_call().to_string();
+        if !self.cfg.psk.report || call.is_empty() || self.op_grid.is_empty() {
             return;
         }
         let station = crate::pskupload::Station {
-            call: self.op_call.clone(),
+            call,
             grid: self.op_grid.clone(),
             software: format!("sdroxide {}", env!("CARGO_PKG_VERSION")),
             antenna: self.cfg.psk.antenna.trim().to_string(),
@@ -573,10 +596,16 @@ impl SpotManager {
 
     /// (Re)start both halves of the WSPRnet conversation.
     ///
-    /// Both need the whole operator identity: the callsign is the account and
-    /// the grid is where the report is placed. Without either there is nothing
-    /// to say and nobody to say it as, so neither half starts — silently, since
-    /// a station that has not filled in its callsign yet is not an error.
+    /// Uploading needs a reporter identity and a grid: the reporter is the
+    /// account and the grid is where the report is placed. The reporter may be
+    /// the SWL number alone, so a receive-only listener can report. Without
+    /// either there is nothing to say and nobody to say it as, so nothing
+    /// starts — silently, since a station that has not filled in its identity
+    /// yet is not an error.
+    ///
+    /// "Who heard us" is different: it asks the network about a *transmitted*
+    /// callsign, and an SWL number is never on the air to be heard, so that
+    /// half still needs the operator's callsign.
     fn rebuild_wspr(&mut self) {
         if !self.station {
             return;
@@ -584,14 +613,15 @@ impl SpotManager {
         // Dropping the uploader flushes what is pending first.
         self.wspr_upload = None;
         self.wspr_heard_us = None;
-        if self.op_call.is_empty() || self.op_grid.is_empty() {
+        let call = self.report_call().to_string();
+        if call.is_empty() || self.op_grid.is_empty() {
             return;
         }
         if self.cfg.wspr.upload {
-            let rx = wsprnet::Reporter { call: self.op_call.clone(), grid: self.op_grid.clone() };
+            let rx = wsprnet::Reporter { call, grid: self.op_grid.clone() };
             self.wspr_upload = Some(wsprnet::spawn_upload(rx, self.event_tx.clone()));
         }
-        if self.cfg.wspr.download_heard_us {
+        if self.cfg.wspr.download_heard_us && !self.op_call.is_empty() {
             self.wspr_heard_us = Some(wsprnet::spawn_download(
                 self.op_call.clone(),
                 wsprnet::Query::HeardUs,
@@ -727,5 +757,38 @@ mod tests {
         assert!(m.freedv.is_none(), "nor a second FreeDV Reporter session");
         assert_eq!(m.cfg.qrz.user, "OE1TEST", "but the credentials must still have landed");
         assert!(m.cfg.cluster.enabled, "and the config is what a settings window reads back");
+    }
+
+    /// The SWL number takes over as the *reporter* identity, and only that:
+    /// the callsign is still what the cluster, RBN, the logbook and WSJT-CB
+    /// use, because those paths never consult `report_call`.
+    #[test]
+    fn the_swl_number_is_the_report_identity_when_set() {
+        let mut m = SpotManager::new();
+        m.set_operator("19DCG373", "JO22");
+        assert_eq!(m.report_call(), "19DCG373", "no number: report as the callsign");
+
+        let mut cfg = NetworkConfig::default();
+        cfg.swl_id = "  19SWL001  ".into();
+        m.set_config(cfg);
+        assert_eq!(m.report_call(), "19SWL001", "the number wins, trimmed");
+        assert_eq!(m.op_call, "19DCG373", "and the station identity is untouched");
+
+        m.set_config(NetworkConfig::default());
+        assert_eq!(m.report_call(), "19DCG373", "cleared again: back to the callsign");
+    }
+
+    /// A receive-only listener has no callsign at all; the number alone is
+    /// enough to be a receiver in the reporting networks.
+    #[test]
+    fn a_listener_with_no_callsign_still_has_a_report_identity() {
+        let mut m = SpotManager::new();
+        m.set_operator("", "JO22");
+        assert_eq!(m.report_call(), "", "no callsign and no number: nobody to report as");
+
+        let mut cfg = NetworkConfig::default();
+        cfg.swl_id = "19SWL001".into();
+        m.set_config(cfg);
+        assert_eq!(m.report_call(), "19SWL001");
     }
 }

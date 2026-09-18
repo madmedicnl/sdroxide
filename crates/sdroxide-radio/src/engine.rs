@@ -2497,6 +2497,11 @@ struct Engine {
     /// only while a digital mode is active.
     digi: Option<Box<dyn DigiEngine>>,
     digi_config: DigiConfig,
+    /// This radio's callsign override from `radio.json`, cached so the hot
+    /// paths (`SetDigiTxLevel` runs once a frame while a rail is dragged) do
+    /// not read and parse the file each time. Refreshed at startup and by
+    /// `Command::SetRadioConfig`, the only things that write the file.
+    radio_call: String,
     /// `digi_config` holds a change that is not on disk yet.
     ///
     /// Only `Command::SetDigiTxLevel` sets it: every other route through this
@@ -3702,6 +3707,13 @@ fn engine_thread(
     // and the receiver chain are built at, and building them at the device rate
     // first would mean tearing them down again before the first block.
     let session = engine_cfg.remember_session.then(|| engine_cfg.store.load_session());
+    // Whether that session came off the disk or is the default. `load_session`
+    // answers a default either way — which is what keeps an engine remembering
+    // from its first change — so the file's presence has to be asked
+    // separately. Only a *restored* session suppresses the mode defaults at
+    // startup; see the profile block below.
+    let session_restored =
+        engine_cfg.remember_session && engine_cfg.store.load_session_if_present().is_some();
     // Held separately from what this front end can carry: a start on a stand-in
     // (a radio switched off, a rig that isn't there yet) must not be the thing
     // that forgets it — see `Engine::want_decimation`.
@@ -3826,12 +3838,26 @@ fn engine_thread(
         state.repeater = s.repeater.clamped();
         state.recording_mono = s.recording_mono;
     }
-    // The mode's own settings sit on top of the remembered session. The session
-    // is the station's blanket fallback; a mode profile is a statement about
-    // that mode in particular, so it wins — see `Mode::default_profile`.
-    for rx in &mut state.rx {
-        let profile = mode_profiles.effective(rx.mode);
-        profile.apply_to(rx);
+    // A mode's profile is applied when the mode is *chosen*, not when the
+    // program starts into a mode the operator already left it in.
+    //
+    // Applying it here as well would undo the session that was just restored:
+    // `effective` fills every field the profile speaks to from the mode's
+    // defaults, so a station upgrading to a build with per-mode settings —
+    // whose `modeprofiles.json` is still empty — would come up with the saved
+    // AGC, squelch, noise reduction, binaural and RX gain reset to the mode
+    // defaults, silently. The restored session is the operator's own last
+    // word on the mode it was left in, so it stands; the profile applies from
+    // here on, the first time the mode changes (see `set_rx_mode`).
+    //
+    // With no session — a first run, or an engine told not to remember — there
+    // is nothing to undo and the mode's defaults are exactly what should be
+    // there.
+    if !session_restored {
+        for rx in &mut state.rx {
+            let profile = mode_profiles.effective(rx.mode);
+            profile.apply_to(rx);
+        }
     }
     // The command line outranks the remembered session, exactly as it does for
     // the dial and the mode.
@@ -3942,6 +3968,7 @@ fn engine_thread(
         audio_nr_level: NrLevel::Off,
         digi: None,
         digi_config,
+        radio_call: String::new(),
         digi_dirty: false,
         digi_tx_band: None,
         digi_tx: false,
@@ -4139,9 +4166,13 @@ fn engine_thread(
         engine.sync_ais(); // ...and the shipping lane, likewise
         engine.sync_qo100(); // a no-op today: `qo100_cfg` starts disabled and is never loaded
     }
+    // This radio's callsign override, read once here so the hot paths never
+    // have to touch the file. `SetRadioConfig` is the other writer.
+    engine.radio_call = engine.store.load_radio_config().callsign.trim().to_string();
     // Start any enabled network spot feeds from the persisted config. The
-    // operator identity comes from the digi config — one identity for the whole
-    // app — and has to be in place before the feeds that log in with it.
+    // operator identity comes from the digi config — the station's identity,
+    // with this radio's own on top — and has to be in place before the feeds
+    // that log in with it.
     //
     // Only the primary engine brings the feeds up: they hold logins and
     // sockets (DX cluster, RBN, the reporters) that a station has one of, not
@@ -4149,7 +4180,7 @@ fn engine_thread(
     if !engine.primary {
         engine.spots.stand_down();
     }
-    engine.spots.set_operator(&engine.digi_config.my_call, &engine.report_grid());
+    engine.spots.set_operator(&engine.effective_call(), &engine.report_grid());
     engine.net_cfg = sdroxide_config::load_network_config();
     // Hand the persisted account to the mailbox. Without this the manager keeps
     // the defaults it was built with and every session refuses with "set a
@@ -6059,7 +6090,7 @@ impl Engine {
                 .filter(|c| !c.is_empty())
                 .or_else(|| sdroxide_types::cb_callsign_in(&d.message));
             let Some(call) = call else { continue };
-            if call.eq_ignore_ascii_case(self.digi_config.my_call.trim()) {
+            if call.eq_ignore_ascii_case(self.effective_call().trim()) {
                 continue;
             }
             let freq = dial_hz + d.audio_hz as f64;
@@ -6096,7 +6127,7 @@ impl Engine {
         slot_utc: i64,
         dial_hz: f64,
     ) {
-        if call.eq_ignore_ascii_case(self.digi_config.my_call.trim()) {
+        if call.eq_ignore_ascii_case(self.effective_call().trim()) {
             return;
         }
         let freq = dial_hz + audio_hz as f64;
@@ -6356,8 +6387,15 @@ impl Engine {
                     self.wsjtx_decodes(&d);
                     let _ = self.event_tx.send(RadioEvent::Ft8Decodes(d));
                 }
-                DigiAction::Status(s) => {
+                DigiAction::Status(mut s) => {
+                    // WSJT-X is told who *this radio* keys as; the panel is
+                    // told the station identity, which is what its General-tab
+                    // callsign box edits. The controller holds the radio's
+                    // override (`digi_config_for_radio`), so it has to be
+                    // swapped back on the way out.
                     self.wsjtx_status(&s);
+                    s.config.my_call = self.digi_config.my_call.clone();
+                    s.config.my_grid = self.digi_config.my_grid.clone();
                     let _ = self.event_tx.send(RadioEvent::Ft8Status(s));
                 }
                 DigiAction::QsoLogged(r) => {
@@ -8448,9 +8486,7 @@ impl Engine {
                         // Already in RTTY when recalled: the mode didn't change,
                         // so no rebuild happened and the live modem still holds
                         // the old setup.
-                        if let Some(d) = self.digi.as_mut() {
-                            d.set_config(self.digi_config.clone());
-                        }
+                        self.push_digi_config();
                         // Persisted and echoed like any other setup change, so
                         // the panel's controls and the next start agree with
                         // what the modem is now doing.
@@ -8652,11 +8688,8 @@ impl Engine {
 
             // Digital modes (FT8/FT4).
             SetDigiConfig(c) => {
-                let c = keep_engine_owned(c, &self.digi_config);
-                self.digi_config = c.clone();
-                if let Some(d) = self.digi.as_mut() {
-                    d.set_config(c);
-                }
+                self.digi_config = keep_engine_owned(c, &self.digi_config);
+                self.push_digi_config();
                 // A radio that keys itself has its own speed control, and the
                 // panel's WPM chip is the operator setting it.
                 if self.state.rx[0].mode == Mode::Cw {
@@ -8677,7 +8710,7 @@ impl Engine {
                 self.mark_shared_store_write();
                 // The network features report the same operator identity, so a
                 // callsign or grid edit reaches them from here.
-                self.spots.set_operator(&self.digi_config.my_call, &self.report_grid());
+                self.spots.set_operator(&self.effective_call(), &self.report_grid());
                 // ...and so does the ADS-B lane, which needs the receiver's own
                 // position to place an aircraft on the ground.
                 self.sync_adsb_home();
@@ -8766,9 +8799,7 @@ impl Engine {
                 // The controller keeps its own copy and `DigiStatus.config` is
                 // built from it, so without this the echo below carries a stale
                 // map and every client seeds from the wrong number.
-                if let Some(d) = self.digi.as_mut() {
-                    d.set_config(self.digi_config.clone());
-                }
+                self.push_digi_config();
                 // Applied now, written later. A drag emits one of these per
                 // frame, and `save_digi_config` is an atomic write — temp file,
                 // fsync, rename — on the thread that is also pacing transmit
@@ -9575,6 +9606,16 @@ impl Engine {
                 if let Err(e) = self.store.save_radio_config(&cfg) {
                     warn!("saving radio config: {e}");
                 }
+                // The cached override the digi controller and the reporting
+                // feeds key as, refreshed from what was just applied. Only a
+                // callsign change reconfigures the controller: the rest of
+                // `radio.json` is the front end, which the modem has no part
+                // in.
+                let call = cfg.callsign.trim().to_string();
+                if call != self.radio_call {
+                    self.radio_call = call;
+                    self.push_digi_config();
+                }
                 // The per-band drive calibration is the one part of this file
                 // the engine holds a copy of, because it is read on every
                 // transmitted block (issue #295). Taken from what was asked
@@ -9598,7 +9639,7 @@ impl Engine {
                 // receptions are reported from — so an operator who has just
                 // taken a receiver on the other side of the world has moved the
                 // square every report goes out under (issue #284).
-                self.spots.set_operator(&self.digi_config.my_call, &self.report_grid());
+                self.spots.set_operator(&self.effective_call(), &self.report_grid());
                 self.sync_adsb_home();
                 if reopen {
                     self.reopen_source();
@@ -10559,6 +10600,42 @@ impl Engine {
             .report_grid(&self.digi_config.my_grid)
             .unwrap_or_default()
             .to_string()
+    }
+
+    /// The callsign this radio asserts: its `radio.json` override when set,
+    /// else the station callsign from the digi config.
+    fn effective_call(&self) -> String {
+        let own = self.radio_call.trim();
+        if own.is_empty() { self.digi_config.my_call.trim().to_string() } else { own.to_string() }
+    }
+
+    /// The digi config with this radio's callsign substituted for the station
+    /// one, for the controllers and paths that identify the station on air.
+    ///
+    /// `self.digi_config` stays the station-wide identity — it is what
+    /// [`Self::emit_digi_status`] broadcasts, so the General tab keeps showing
+    /// and editing the *general* callsign — while the digi controller keys and
+    /// logs as the radio's own. Only the callsign is substituted: the grid
+    /// stays the station's, because a per-radio receive site is already
+    /// handled by [`Self::report_grid`] on the reporting paths, not by the
+    /// transmit macros.
+    fn digi_config_for_radio(&self) -> DigiConfig {
+        let own = self.radio_call.trim();
+        if own.is_empty() {
+            return self.digi_config.clone();
+        }
+        DigiConfig { my_call: own.to_string(), ..self.digi_config.clone() }
+    }
+
+    /// Hand the live digi controller this radio's effective config. The
+    /// call sites that used to pass `self.digi_config.clone()` inline go
+    /// through here, because resolving the callsign reads the store and so
+    /// cannot happen while `self.digi` is borrowed.
+    fn push_digi_config(&mut self) {
+        let cfg = self.digi_config_for_radio();
+        if let Some(d) = self.digi.as_mut() {
+            d.set_config(cfg);
+        }
     }
 
     fn sync_adsb_home(&mut self) {
@@ -11542,9 +11619,7 @@ impl Engine {
     /// readout shows. Its own method because both routes that change it (a
     /// contact logged, the operator setting it) need all three.
     fn push_contest_serial(&mut self) {
-        if let Some(d) = self.digi.as_mut() {
-            d.set_config(self.digi_config.clone());
-        }
+        self.push_digi_config();
         if let Err(e) = sdroxide_config::save_digi_config(&self.digi_config) {
             warn!("saving digi config: {e}");
         }
@@ -11554,7 +11629,13 @@ impl Engine {
 
     fn emit_digi_status(&self) {
         if let Some(d) = self.digi.as_ref() {
-            let _ = self.event_tx.send(RadioEvent::Ft8Status(d.status()));
+            let mut s = d.status();
+            // The controller holds this radio's callsign override; the panel's
+            // General-tab identity stays the station's. See the
+            // `DigiAction::Status` arm for the same swap.
+            s.config.my_call = self.digi_config.my_call.clone();
+            s.config.my_grid = self.digi_config.my_grid.clone();
+            let _ = self.event_tx.send(RadioEvent::Ft8Status(s));
         }
     }
 
@@ -12285,9 +12366,7 @@ impl Engine {
             // The same fan-out SetDigiConfig does: the Setup panel's speed
             // chip reads this field, and a stale one would show 1200 while
             // the modem ran 9600.
-            if let Some(d) = self.digi.as_mut() {
-                d.set_config(self.digi_config.clone());
-            }
+            self.push_digi_config();
             if let Err(e) = sdroxide_config::save_digi_config(&self.digi_config) {
                 warn!("saving digi config: {e}");
             }
@@ -14142,7 +14221,7 @@ impl Engine {
         }
         self.digi_dirty = false;
         self.mark_shared_store_write();
-        self.spots.set_operator(&self.digi_config.my_call, &self.report_grid());
+        self.spots.set_operator(&self.effective_call(), &self.report_grid());
         self.sync_adsb_home();
         self.emit_digi_status();
 
@@ -14247,10 +14326,8 @@ impl Engine {
             // The same fan-out a SetDigiConfig does, minus the save: the other
             // engine already wrote the file.
             self.digi_config = digi_config;
-            if let Some(d) = self.digi.as_mut() {
-                d.set_config(self.digi_config.clone());
-            }
-            self.spots.set_operator(&self.digi_config.my_call, &self.report_grid());
+            self.push_digi_config();
+            self.spots.set_operator(&self.effective_call(), &self.report_grid());
             self.emit_digi_status();
         }
     }

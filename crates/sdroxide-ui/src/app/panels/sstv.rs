@@ -656,7 +656,7 @@ impl SdroxideApp {
             // Whichever one is up takes the row.
             Some(0) => (avail.x, 0.0),
             Some(_) => (0.0, avail.x),
-            None if self.ui_settings.swl => (avail.x, 0.0),
+            None if self.swl_mode() => (avail.x, 0.0),
             None => {
                 let tx = (avail.x * self.view.sstv_tx_fraction)
                     .clamp(300.0, (avail.x - handle_w - 300.0).max(300.0));
@@ -822,7 +822,7 @@ impl SdroxideApp {
                                     );
                                 }
 
-                                if !self.ui_settings.swl {
+                                if !self.swl_mode() {
                                     ui.add_space(12.0);
                                     ui.separator();
                                     ui.label(RichText::new("TX slant").size(10.0).weak()).on_hover_text(
@@ -1056,7 +1056,7 @@ impl SdroxideApp {
 
             // Draggable vertical divider between the receive side and the
             // TRANSMIT (send) column — mirrors the FT8 decode/QSO splitter.
-            if !self.ui_settings.swl && pane.is_none() {
+            if !self.swl_mode() && pane.is_none() {
                 let hresp = crate::chrome::split_handle(ui, egui::vec2(handle_w, full_h), None);
                 if hresp.dragged() {
                     // Dragging right shrinks the TX column (grows the receive side).
@@ -1066,7 +1066,7 @@ impl SdroxideApp {
             }
 
             // ── RIGHT: transmit compositor, full height ──
-            if !self.ui_settings.swl && pane.is_none_or(|p| p != 0) {
+            if !self.swl_mode() && pane.is_none_or(|p| p != 0) {
             ui.allocate_ui(egui::vec2(tx_w, full_h), |ui| {
                 sstv_section(ui, "TRANSMIT", egui::vec2(tx_w, full_h), |ui| {
                     // The compositor is a fixed stack — the five slots, the

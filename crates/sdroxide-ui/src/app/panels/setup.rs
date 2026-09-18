@@ -57,6 +57,10 @@ impl SdroxideApp {
                 crate::chrome::window_body_bg(ui);
                 // Edit the UI-owned copy so keystrokes aren't clobbered by the
                 // engine's status echo; persist on any change.
+                // Resolved before the borrow: `swl_mode` reads the radio
+                // config, which cannot be touched while `digi_cfg_edit` is
+                // mutably borrowed.
+                let swl = self.swl_mode();
                 let cfg = &mut self.digi_cfg_edit;
                 let mut changed = false;
                 egui::Grid::new("digi-cfg").num_columns(2).show(ui, |ui| {
@@ -128,7 +132,7 @@ impl SdroxideApp {
                             }
                         }
 
-                        if !self.ui_settings.swl {
+                        if !swl {
                             ui.label("TX delay");
                             ui.horizontal(|ui| {
                                 changed |= ui
@@ -495,7 +499,7 @@ impl SdroxideApp {
                         .changed();
                         ui.end_row();
 
-                        if !self.ui_settings.swl {
+                        if !swl {
                             ui.label("Beacon");
                             ui.horizontal(|ui| {
                                 changed |= ui
@@ -584,7 +588,7 @@ impl SdroxideApp {
                         ui.end_row();
                     }
 
-                    if mode.is_js8() && !self.ui_settings.swl {
+                    if mode.is_js8() && !swl {
                         let turbo = cfg.js8_speed == sdroxide_types::Js8Speed::Turbo;
                         ui.label("Auto-reply");
                         changed |= ui
@@ -702,7 +706,7 @@ impl SdroxideApp {
                     // every setting the operator typed is discarded the moment
                     // the window closes — which is what happened when this
                     // was written the other way (issue #150).
-                    if !mode.is_aprs() && !self.ui_settings.swl {
+                    if !mode.is_aprs() && !swl {
                         ui.label("TX period");
                         ui.horizontal(|ui| {
                             changed |=
@@ -886,7 +890,7 @@ impl SdroxideApp {
                     // would be ignored. One write route, and the rail on the
                     // transmit strip is the other end of it.
                     let fm = mode.is_fm_carrier();
-                    if !self.ui_settings.swl {
+                    if !swl {
                         ui.label("TX audio");
                         ui.horizontal(|ui| {
                             let mut db = sdroxide_types::tx_level_db(cfg.tx_level_for(mode)).round();
@@ -938,7 +942,7 @@ impl SdroxideApp {
                         ui.end_row();
                     }
                 });
-                if !mode.is_aprs() && !self.ui_settings.swl {
+                if !mode.is_aprs() && !swl {
                     ui.separator();
                     ui.label(
                         RichText::new("Message templates  {MYCALL} {MYGRID} {DX} {REPORT}")

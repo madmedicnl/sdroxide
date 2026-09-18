@@ -315,6 +315,30 @@ impl SdroxideApp {
             .unwrap_or_else(|| self.digi_cfg_edit.my_grid.clone())
     }
 
+    /// The callsign *this radio* asserts, with the same engine-copy-first
+    /// fallback as [`Self::my_grid`] and then the radio's own override on top
+    /// (`RadioConfig::effective_call`). Empty when neither the radio nor the
+    /// station has one.
+    pub(in crate::app) fn my_call(&self) -> String {
+        let station = self
+            .digi_status
+            .as_ref()
+            .map(|s| s.config.my_call.clone())
+            .filter(|c| !c.is_empty())
+            .unwrap_or_else(|| self.digi_cfg_edit.my_call.clone());
+        match self.radio_cfg.as_ref() {
+            Some(cfg) => cfg.effective_call(&station).to_string(),
+            None => station,
+        }
+    }
+
+    /// Who signs a reception report: the SWL identity from the reporting
+    /// settings when one is set, else the operator's callsign.
+    pub(in crate::app) fn report_identity(&self) -> String {
+        let swl = self.net_cfg_edit.swl_id.trim();
+        if swl.is_empty() { self.my_call() } else { swl.to_string() }
+    }
+
     /// Next free logbook id.
     pub(in crate::app) fn next_log_id(&self) -> u64 {
         self.qso_log.iter().map(|q| q.id).max().unwrap_or(0) + 1
@@ -653,8 +677,7 @@ impl SdroxideApp {
         }
         match action {
             1 => {
-                let (mc, mg) =
-                    (self.digi_cfg_edit.my_call.clone(), self.digi_cfg_edit.my_grid.clone());
+                let (mc, mg) = (self.my_call(), self.digi_cfg_edit.my_grid.clone());
                 if let Some(f) = self.log_edit.take() {
                     if let Some(rec) = f.to_record(&mc, &mg) {
                         if rec.id == 0 {

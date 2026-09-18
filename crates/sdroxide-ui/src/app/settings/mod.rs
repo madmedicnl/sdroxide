@@ -178,9 +178,6 @@ pub(in crate::app) struct SettingsIo<'a> {
     /// identity in place, so the screen's editable copy must be re-seeded —
     /// see `SdroxideApp::profile_apply_pending`.
     digi_reseed: &'a mut bool,
-    /// The listener's SWL identity, buffered until the dialog closes — see
-    /// `SdroxideApp::swl_id`.
-    swl_id: &'a mut String,
     /// Re-enumerate the USB bus for RTL-SDR dongles. Cheap and non-invasive —
     /// no device is opened — so it cannot disturb a running stream.
     rtlsdr_rescan: &'a mut bool,
@@ -981,7 +978,6 @@ impl SdroxideApp {
         let mut audio_pick: Option<(bool, Option<String>)> = None;
         let mut profile_name = std::mem::take(&mut self.profile_name_edit);
         let mut digi_reseed = false;
-        let mut swl_id = self.swl_id.clone();
         let mut speech_edit = self.speech.settings().clone();
         let speech_status = self.speech.status();
         let mut speech_test = false;
@@ -1156,7 +1152,6 @@ impl SdroxideApp {
                             hpsdr_discover: &mut hpsdr_discover,
                             profile_name: &mut profile_name,
                             digi_reseed: &mut digi_reseed,
-                            swl_id: &mut swl_id,
                             rtlsdr_rescan: &mut rtlsdr_rescan,
                             rx888_rescan: &mut rx888_rescan,
                             airspyhf_rescan: &mut airspyhf_rescan,
@@ -1263,10 +1258,6 @@ impl SdroxideApp {
         // current. And not cleared here either, or a status already on its way
         // from before the apply would re-seed the old callsign.
         self.profile_apply_pending |= digi_reseed;
-        if swl_id != self.swl_id {
-            self.swl_id = swl_id;
-            crate::app::persist::persist_swl_id(&self.swl_id);
-        }
         // The multi-radio shell drains these after the frame.
         self.radio_tab_requests.append(&mut radio_tab_reqs);
         {
@@ -1637,10 +1628,21 @@ impl SdroxideApp {
         self.range_edit = ranges;
         self.rx_site_edit = rx_site;
         if radio_edit != self.radio_cfg {
+            let hide_changed = radio_edit.as_ref().map(|c| c.hide_tx)
+                != self.radio_cfg.as_ref().map(|c| c.hide_tx);
             if let Some(cfg) = &radio_edit {
                 self.ctrl.set_radio_config(cfg.clone());
             }
             self.radio_cfg = radio_edit;
+            // An explicit per-radio choice supersedes the start-in-SWL seed
+            // and the legacy global switch, so it can also turn SWL *off* for
+            // a session that started in it.
+            if hide_changed {
+                self.swl_start = false;
+                if ui_edit.swl {
+                    ui_edit.swl = false;
+                }
+            }
         }
         if ui_edit != self.ui_settings {
             // Live: fps + averaging flow to the engine via the spectrum-config
@@ -1838,26 +1840,12 @@ impl SdroxideApp {
                         "Your callsign and grid, shared across FT8/FT4/FT2, SSTV image headers, \
                          the CB digital modes and the logbook. This is the identity that \
                          **transmits** — a CB callsign if you work 11 m, an amateur callsign \
-                         otherwise. A shortwave **reception report** uses the **SWL number** set on \
-                         the UI tab instead, so a registered listener's number is never keyed. \
-                         Also editable from the FT8 / SSTV setup dialog.",
+                         otherwise. For what a **reception report** is signed with, see the \
+                         **Report as (SWL)** box on the Spots tab. Also editable from the \
+                         FT8 / SSTV setup dialog.",
                     )
                     .weak(),
                 );
-
-                // Outside the digital-seeded gate above on purpose: a listener
-                // who never opens a digital mode still has a number to report
-                // under, and this is the only box that reaches a report.
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    ui.label("SWL number");
-                    crate::chrome::field(ui, egui::TextEdit::singleline(io.swl_id)).on_hover_text(
-                        "The listener's own identity for reception reports — a registered SWL \
-                         number, a club number, a name. It goes on a reception report and \
-                         nowhere else: what transmits is the Callsign above, so an SWL number \
-                         never keys a CB (or any other) transmitter.",
-                    );
-                });
 
                 // Its own grid, outside the enabled-ui above: the region comes
                 // from `config.toml` by way of the station announcement, not
@@ -2061,6 +2049,46 @@ impl SdroxideApp {
                              settings are below and can be changed from here meanwhile.",
                         );
                     }
+                    ui.end_row();
+
+                    // Who this radio is. Empty is the common case: a station
+                    // with one identity sets it once on the General tab.
+                    ui.label(RichText::new("Callsign").strong());
+                    crate::chrome::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut cfg.callsign).desired_width(140.0),
+                    )
+                    .on_hover_text(
+                        "The callsign this radio transmits, logs and spots as. Leave it empty \
+                         to use the station callsign on the General tab — the default, and \
+                         right for a station with one identity.\n\nSet it on a radio that is \
+                         somebody else: a CB callsign on the 11 m set, an amateur callsign on \
+                         the HF rig, each while the other keeps its own. The General-tab \
+                         callsign stays the fallback for every radio that does not override \
+                         it.\n\nReception *reports* may still be signed with the SWL number \
+                         from the Spots tab, which this does not change.\n\nTakes effect on \
+                         Apply.",
+                    );
+                    ui.end_row();
+
+                    // SWL mode is a property of the radio, not the screen: the
+                    // listening set stays a listener's while the transceiver
+                    // beside it keeps its PTT.
+                    ui.label(RichText::new("Transmit controls").strong());
+                    crate::chrome::checkbox(
+                        ui,
+                        &mut cfg.hide_tx,
+                        "hide them all (SWL mode)",
+                    )
+                    .on_hover_text(
+                        "Hide every transmit control for *this* radio — the PTT, CALL CQ, TX \
+                         level, SEND, BEACON, all of it — and swap the strip's ham extras \
+                         (spots, awards) for the listener's (SCHEDULE, LISTEN). Per radio: a \
+                         listening dongle on the long wire can sit in this mode while the \
+                         transceiver beside it keeps its transmitter.\n\nThe hardware can \
+                         still transmit; this only hides the controls. `--swl` forces it on \
+                         for every radio for the run.\n\nTakes effect on Apply.",
+                    );
                     ui.end_row();
 
                     ui.label(RichText::new("Converter").strong());
@@ -2806,8 +2834,25 @@ impl SdroxideApp {
                 )
                 .on_hover_text(
                     "Report what this station hears to pskreporter.info, so it appears \
-                         there as a receiver. Uses the callsign and grid from the General tab.",
+                         there as a receiver. Uses the callsign and grid from the General tab, \
+                         or the SWL number below when one is set.",
                 );
+                ui.horizontal(|ui| {
+                    ui.add_sized([96.0, 22.0], egui::Label::new("Report as (SWL)"));
+                    crate::chrome::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut io.net_edit.swl_id).desired_width(200.0),
+                    )
+                    .on_hover_text(
+                        "The listener's own identity for reception reports — a registered SWL \
+                         number, a club number, a name. When set it signs what this station \
+                         *hears* (PSK Reporter and WSPRnet uploads, and the reception report \
+                         the SWL log copies out) instead of the callsign. Leave it empty to \
+                         report as the callsign. It is never transmitted, never keys a radio \
+                         and never names a QSO or spotter, so a listener with no callsign can \
+                         report too.",
+                    );
+                });
                 if io.net_edit.psk.report {
                     net_row(ui, "Antenna", &mut io.net_edit.psk.antenna, 200.0);
                     ui.horizontal(|ui| {

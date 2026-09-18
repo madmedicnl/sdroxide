@@ -350,7 +350,7 @@ impl SdroxideApp {
                             });
                     });
                     ui.add_space(4.0);
-                    if !self.ui_settings.swl {
+                    if !self.swl_mode() {
                         let tgt = if self.fsq_target.is_empty() {
                             "ALLCALL".to_string()
                         } else {

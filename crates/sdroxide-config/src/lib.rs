@@ -244,15 +244,6 @@ pub struct Settings {
     /// travels to remote clients in the [`sdroxide_types::StationConfig`]
     /// bundle. Off by default.
     pub cb_tx_allowed: bool,
-    /// The shortwave listener's own identity for reception reports — a
-    /// registered SWL number, a club number, a name.
-    ///
-    /// Kept apart from the transmitting callsign ([`Self`]'s digi config,
-    /// `DigiConfig::my_call`): a listener's number is not a callsign, and an
-    /// operator who also works 11 m has a different identity for each. Putting
-    /// a number in the callsign box to get it onto a report is what made the CB
-    /// transmitter key with it. This one only ever reaches a report.
-    pub swl_id: String,
     /// UI / display preferences (frame rate, waterfall + spectrum speed).
     pub ui: sdroxide_types::UiSettings,
     /// Username and password a remote client must present in server mode.
@@ -304,7 +295,6 @@ impl Default for Settings {
             region: sdroxide_types::Region::default(),
             cb_plan: sdroxide_types::CbPlan::default(),
             cb_tx_allowed: false,
-            swl_id: String::new(),
             ui: sdroxide_types::UiSettings::default(),
             remote_access: sdroxide_types::RemoteAccess::default(),
             speech: sdroxide_types::SpeechSettings::default(),
@@ -324,18 +314,6 @@ pub fn load_ui_settings() -> sdroxide_types::UiSettings {
 pub fn save_ui_settings(ui: &sdroxide_types::UiSettings) -> Result<(), ConfigError> {
     let mut s = Settings::load();
     s.ui = *ui;
-    s.save()
-}
-
-/// Load just the listener's SWL identity for reception reports.
-pub fn load_swl_id() -> String {
-    Settings::load().swl_id
-}
-
-/// Persist the listener's SWL identity, preserving every other setting.
-pub fn save_swl_id(id: &str) -> Result<(), ConfigError> {
-    let mut s = Settings::load();
-    s.swl_id = id.to_string();
     s.save()
 }
 
@@ -789,8 +767,31 @@ impl Store {
 
     /// The remembered dial and mode, or the defaults on a first run.
     pub fn load_session(&self) -> Session {
+        self.load_session_if_present().unwrap_or_default()
+    }
+
+    /// The remembered session, or `None` when there is not one to restore —
+    /// no `session.json`, or one that failed [`Session::is_usable`].
+    ///
+    /// The engine has to tell "a session was restored" from "this is a first
+    /// run" apart. A mode's default profile is applied at startup only when
+    /// nothing was restored: laying it over a restored session would reset the
+    /// operator's saved AGC, squelch, noise reduction, binaural and RX gain to
+    /// the mode's defaults, which is exactly what a station upgrading to a
+    /// build with per-mode settings would hit, its `modeprofiles.json` still
+    /// empty.
+    ///
+    /// The file has to be *there*: [`Session::default`] is itself usable, so
+    /// `load` alone cannot tell a first run from a session that was saved.
+    /// `load_session` keeps returning a default either way, so an engine still
+    /// starts remembering from its first change.
+    pub fn load_session_if_present(&self) -> Option<Session> {
+        let dir = self.dir().ok()?;
+        if !matches!(read_config_text(&dir, "session.json"), FileText::Text(_)) {
+            return None;
+        }
         let s: Session = self.load("session.json");
-        if s.is_usable() { s.sanitized() } else { Session::default() }
+        if s.is_usable() { Some(s.sanitized()) } else { None }
     }
 
     pub fn save_session(&self, session: &Session) -> Result<(), ConfigError> {
@@ -2640,6 +2641,21 @@ mod tests {
             serde_json::from_str(r#"{"spot_max_age_secs":600}"#).unwrap();
         assert_eq!(c.spot_max_age_secs, 600);
         assert_eq!(c.freedv_reporter, sdroxide_types::FreeDvReporterConfig::default());
+    }
+
+    #[test]
+    fn network_config_loads_without_the_swl_identity() {
+        // A net.json written before the reception-report identity existed.
+        let c: sdroxide_types::NetworkConfig =
+            serde_json::from_str(r#"{"spot_max_age_secs":600}"#).unwrap();
+        assert_eq!(c.swl_id, "", "a station that never set one reports as its callsign");
+    }
+
+    #[test]
+    fn network_config_carries_the_swl_identity() {
+        let c: sdroxide_types::NetworkConfig =
+            serde_json::from_str(r#"{"swl_id":"19SWL001"}"#).unwrap();
+        assert_eq!(c.swl_id, "19SWL001");
     }
 
     #[test]

@@ -250,8 +250,9 @@ impl SdroxideApp {
                                 && let Some(e) = selected
                             {
                                 let grid = self.my_grid();
+                                let listener = self.report_identity();
                                 let text = e.report_text(
-                                    &self.swl_id,
+                                    &listener,
                                     &grid,
                                     "sdroxide",
                                     "",

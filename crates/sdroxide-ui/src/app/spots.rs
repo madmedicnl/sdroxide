@@ -143,6 +143,15 @@ impl SdroxideApp {
     /// The search query is deliberately *not* part of this: it narrows the list
     /// in the SPOTS window only. See [`App::spot_search`].
     pub(in crate::app) fn spot_visible(&self, s: &Spot) -> bool {
+        // SWL mode drops the ham feeds that need a licence to be useful — the
+        // DX cluster, POTA and SOTA — but keeps the receive-only networks
+        // (PSK Reporter, FreeDV Reporter) and the broadcast stations, which are
+        // exactly what a listener is here for.
+        if self.swl_mode()
+            && matches!(s.kind, SpotKind::DxCluster | SpotKind::Pota | SpotKind::Sota)
+        {
+            return false;
+        }
         if !self.view.spot_kinds_shown[s.kind.index()] {
             return false;
         }
@@ -301,6 +310,13 @@ impl SdroxideApp {
                 crate::chrome::window_body_bg(ui);
                 ui.horizontal(|ui| {
                     for (i, (kind, label)) in labels.iter().enumerate() {
+                        // SWL mode has no DX cluster / POTA / SOTA feed to show,
+                        // so it shows no chip for one.
+                        if self.swl_mode()
+                            && matches!(kind, SpotKind::DxCluster | SpotKind::Pota | SpotKind::Sota)
+                        {
+                            continue;
+                        }
                         let chip = crate::chrome::chip(ui, self.view.spot_kinds_shown[i], *label);
                         let chip = if *kind == SpotKind::Broadcast {
                             chip.on_hover_text("Longwave & shortwave broadcast stations on air now")

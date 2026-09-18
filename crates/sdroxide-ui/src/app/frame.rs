@@ -140,7 +140,7 @@ impl eframe::App for SdroxideApp {
         );
         // Publish the SWL flag so `tx_gated` can hide controls without
         // threading the setting through every panel.
-        super::set_swl_active(self.ui_settings.swl);
+        super::set_swl_active(self.swl_mode());
         crate::layout::set_short_tablet(
             &ctx,
             crate::layout::short_tablet_for(ui.max_rect().size(), self.ui_settings.layout),

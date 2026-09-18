@@ -226,20 +226,6 @@ pub(in crate::app) fn settings_ui_tab(
         enum_combo(ui, "ui-menu-font", &mut cfg.menu_font_size, &FontSize::ALL, FontSize::label);
         ui.end_row();
 
-        ui.label("SWL mode").on_hover_text(
-            "Short Wave Listener mode. Hides every transmit control in the \
-             interface — the PTT, CALL CQ, TX level, SEND, BEACON, all of it. \
-             What remains is a clean receive-only UI, which is what an \
-             operator with a listening dongle (an RTL-SDR, a SpyServer, a \
-             WebSDR) actually needs.\n\n\
-             It also swaps the strip's ham extras for the listener's: the spot \
-             feeds and the award tracking give way to SCHEDULE and LISTEN.\n\n\
-             The radio can still transmit if the hardware supports it; this \
-             only hides the buttons.",
-        );
-        crate::chrome::checkbox(ui, &mut cfg.swl, "hide all transmit controls");
-        ui.end_row();
-
         ui.label("Simple UI").on_hover_text(
             "Hide the advanced extras from the top strip: the 3D view, the \
              skimmers, the spectrum/waterfall layer switches, award tracking, \
@@ -255,9 +241,12 @@ pub(in crate::app) fn settings_ui_tab(
 
         ui.label("Start in SWL mode").on_hover_text(
             "Open every session with SWL mode already on, so a listener's \
-             screen is what the program comes up as. Off unless asked for; the \
-             SWL mode switch above can still turn it off for a session, and the \
-             next start honours this setting again.",
+             screen is what the program comes up as — for every radio, this \
+             being the screen's preference rather than a radio's.\n\n\
+             The per-radio switch is Settings → Radio → Transmit controls, so \
+             a station with one listening radio and one transceiver sets the \
+             listening one there and leaves this off. Using that switch turns \
+             this seed off for the session. `--swl` always wins.",
         );
         crate::chrome::checkbox(ui, &mut cfg.start_swl, "start with SWL mode on");
         ui.end_row();

@@ -791,7 +791,7 @@ impl SdroxideApp {
         }
         let w = self.display_rows_w(ui);
         boxes.push((Kind::Display, StripBox { w, flex: 1.0, max_w: w * CHIP_STRETCH_FACTOR }));
-        let w = system_rows_w(ui, self.ui_settings.simple_ui, self.ui_settings.swl);
+        let w = system_rows_w(ui, self.ui_settings.simple_ui, self.swl_mode());
         boxes.push((Kind::System, StripBox { w, flex: 1.0, max_w: w * CHIP_STRETCH_FACTOR }));
 
         // A whole row is worth more than digit size: when the strip packs into
@@ -5200,12 +5200,15 @@ impl SdroxideApp {
         let [log, spots, awards, bands, sat_label, ism, public_sdrs] = SYSTEM_CHIPS_TOP;
         let simple = self.ui_settings.simple_ui;
         // SWL mode is the listener's screen, and it takes the row the way the
-        // listener uses it: the spot feeds (DX cluster / POTA / SOTA) and the
-        // award tracking are ham receive extras they never open, so those two
-        // give way to the listener's own windows, SCHEDULE and LISTEN. The
-        // labels here are mirrored by `system_top_row`, which is what sizes the
-        // box — the two have to agree or the strip overflows (issue #211).
-        let swl = self.ui_settings.swl;
+        // listener uses it: award tracking is a ham receive extra they never
+        // open, so it gives way to the listener's own windows, SCHEDULE and
+        // LISTEN. The SPOTS window stays — the receive-only networks are a
+        // listener's tool as much as a ham's, and it is only the DX cluster /
+        // POTA / SOTA feeds *inside* it that SWL mode drops (see
+        // `SdroxideApp::spot_visible`). The labels here are mirrored by
+        // `system_top_row`, which is what sizes the box — the two have to agree
+        // or the strip overflows (issue #211).
+        let swl = self.swl_mode();
         if chip_stretched(ui, self.show_logbook, log, extra)
             .on_hover_text("Logbook — all QSOs (digital + manual)")
             .clicked()
@@ -5226,10 +5229,9 @@ impl SdroxideApp {
         {
             self.show_swl = !self.show_swl;
         }
-        if !swl
-            && chip_stretched(ui, self.show_spots, spots, extra)
-                .on_hover_text("Live spots — DX cluster, POTA, SOTA, PSK Reporter")
-                .clicked()
+        if chip_stretched(ui, self.show_spots, spots, extra)
+            .on_hover_text("Live spots — PSK Reporter (and, outside SWL mode, the DX cluster, POTA and SOTA)")
+            .clicked()
         {
             self.show_spots = !self.show_spots;
         }
@@ -5408,7 +5410,7 @@ impl SdroxideApp {
     fn windows_condensed(&mut self, ui: &mut egui::Ui, w: f32) {
         let inner = w - 2.0 * crate::chrome::MODULE_MARGIN_X;
         let simple = self.ui_settings.simple_ui;
-        let top = system_top_row(simple, self.ui_settings.swl);
+        let top = system_top_row(simple, self.swl_mode());
         let bottom = system_bottom_row(simple);
         let extra1 = ((inner - chip_row_w(ui, &top)) / top.len() as f32).max(0.0);
         let extra2 = ((inner - chip_row_w(ui, &bottom)) / bottom.len() as f32).max(0.0);
@@ -6197,8 +6199,9 @@ fn system_top_row(simple: bool, swl: bool) -> Vec<&'static str> {
         .iter()
         .enumerate()
         .filter(|(i, _)| !(simple && matches!(i, 2 | 4 | 5)))
-        // SWL takes over the spots and awards slots with its own two windows.
-        .filter(|(i, _)| !(swl && matches!(i, 1 | 2)))
+        // SWL takes over the awards slot with its own two windows. The spots
+        // slot stays: only the ham feeds inside it are dropped.
+        .filter(|(i, _)| !(swl && *i == 2))
         .map(|(_, l)| *l)
         .collect();
     if swl {
@@ -7276,9 +7279,12 @@ mod tests {
         assert_eq!(system_top_row(false, false), SYSTEM_CHIPS_TOP.to_vec());
         assert_eq!(system_bottom_row(false), SYSTEM_CHIPS_BOTTOM.to_vec());
         assert_eq!(system_top_row(true, false), vec!["LOG", "SPOTS", "BANDS", "PUBLIC SDR"]);
+        // SWL mode keeps the SPOTS chip (the receive-only networks are a
+        // listener's tool) and drops only award tracking, the ham feed being
+        // filtered inside the window instead.
         assert_eq!(
             system_top_row(false, true),
-            vec!["LOG", "SCHEDULE", "LISTEN", "BANDS", "SAT", "ISM", "PUBLIC SDR"]
+            vec!["LOG", "SCHEDULE", "LISTEN", "SPOTS", "BANDS", "SAT", "ISM", "PUBLIC SDR"]
         );
         assert_eq!(system_bottom_row(true), vec!["MEM", "SCAN", "⚙ SETTINGS", "? HELP"]);
     }

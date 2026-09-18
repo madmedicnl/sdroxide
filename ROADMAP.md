@@ -22,6 +22,24 @@ file, and records what was *heard* rather than worked.
 The goal it was built for: opening the program should feel like a listener's
 radio, not a transceiver with the transmit parts hidden.
 
+**Done — the reception-report identity.** A listener's **SWL number** (Spots
+tab, `net.json`'s `swl_id`) is the identity *receptions* are reported under:
+it signs the PSK Reporter and WSPRnet uploads and the reception report the
+LISTEN window copies out, and it is never keyed, never logged and never named
+as a spotter. Empty, reporting falls back to the callsign, so a ham who spots
+sees no change. A receive-only listener with an SWL number and a grid — and no
+callsign at all — can report.
+
+**Done — per-radio identity.** Each radio carries its own **callsign**
+(Settings → Radio), falling back to the station callsign on the General tab:
+the CB set keys and logs as its own while the HF rig keeps its amateur call.
+The same radio stores its own **SWL mode** (`hide_tx`), so one radio can be a
+listener's screen while another keeps its PTT, and in SWL mode the SPOTS window
+keeps the receive-only networks (PSK Reporter, FreeDV Reporter, the broadcast
+stations) and drops only the ham feeds (DX cluster, POTA, SOTA). Still open:
+**CW reception reporting** to PSK Reporter — the network accepts it, the skimmer
+does not upload yet.
+
 - **Listener profile.** One setting that sets SWL mode and Simple UI, and hides
   the ham *receive* chrome that means nothing to a listener — awards
   (DXCC/WAS/WAZ), the DX-cluster/POTA/SOTA spots, QSL uploads — replacing them
