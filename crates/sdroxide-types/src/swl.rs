@@ -132,12 +132,15 @@ impl SwlEntry {
     }
 
     /// A reception report, ready to paste into an email or a station's web
-    /// form. `grid`, `receiver` and `antenna` describe the *listening* station
-    /// and come from the screen, not the entry.
+    /// form. `listener`, `grid`, `receiver` and `antenna` describe the
+    /// *listening* station and come from the screen, not the entry. `listener`
+    /// is the listener's own identity — an SWL number, a club number, a name —
+    /// kept apart from the transmitting callsign so that reporting a broadcast
+    /// never keys a CB transmitter with it.
     ///
     /// Empty lines are left out rather than shown blank, and an unjudged
     /// reception says so instead of printing a row of zeroes.
-    pub fn report_text(&self, grid: &str, receiver: &str, antenna: &str) -> String {
+    pub fn report_text(&self, listener: &str, grid: &str, receiver: &str, antenna: &str) -> String {
         let mut out = String::from("Reception report\n\n");
         out.push_str(&format!("Station:    {}\n", self.station.trim()));
         out.push_str(&format!(
@@ -159,6 +162,7 @@ impl SwlEntry {
             None => out.push_str("Signal report: not judged\n"),
         }
         line(&mut out, "Notes:", &self.notes);
+        line(&mut out, "Reported by:", listener);
         out
     }
 }
@@ -220,7 +224,7 @@ mod tests {
 
     #[test]
     fn the_report_is_the_expected_text() {
-        let text = entry().report_text("JO22aa", "RTL-SDR + sdroxide", "long wire");
+        let text = entry().report_text("19DCG373", "JO22aa", "RTL-SDR + sdroxide", "long wire");
         let want = "Reception report\n\n\
                     Station:    Radio Taiwan International\n\
                     Frequency:  6185 kHz (6.185 MHz), AM\n\
@@ -229,7 +233,8 @@ mod tests {
                     Receiver:   RTL-SDR + sdroxide\n\
                     Antenna:    long wire\n\
                     SINPO:  4 3 3 4 4\n\
-                    Notes:      News, then music\n";
+                    Notes:      News, then music\n\
+                    Reported by:19DCG373\n";
         assert_eq!(text, want);
     }
 
@@ -239,9 +244,10 @@ mod tests {
         let mut e = entry();
         e.report = None;
         e.notes.clear();
-        let text = e.report_text("", "", "");
+        let text = e.report_text("", "", "", "");
         assert!(text.contains("Signal report: not judged"), "{text}");
         assert!(!text.contains("Location:"), "{text}");
         assert!(!text.contains("Notes:"), "{text}");
+        assert!(!text.contains("Reported by:"), "{text}");
     }
 }

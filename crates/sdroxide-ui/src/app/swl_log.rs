@@ -250,7 +250,12 @@ impl SdroxideApp {
                                 && let Some(e) = selected
                             {
                                 let grid = self.my_grid();
-                                let text = e.report_text(&grid, "sdroxide", "");
+                                let text = e.report_text(
+                                    &self.swl_id,
+                                    &grid,
+                                    "sdroxide",
+                                    "",
+                                );
                                 crate::download::save("reception-report.txt", text.as_bytes());
                             }
                         });

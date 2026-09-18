@@ -528,6 +528,10 @@ pub struct SdroxideApp {
     pub(in crate::app) show_swl: bool,
     pub(in crate::app) swl_edit: Option<crate::app::swl_log::SwlEditForm>,
     pub(in crate::app) swl_selected: Option<u64>,
+    /// The listener's own identity for reception reports — an SWL number, a
+    /// club number, a name. `config.toml`'s `swl_id`, kept apart from the
+    /// transmitting callsign so a report never keys a CB transmitter with it.
+    pub(in crate::app) swl_id: String,
     /// The broadcast schedule window and its filters.
     pub(in crate::app) schedule: crate::app::schedule::ScheduleUi,
     /// Favourite broadcast stations, by name (`broadcast_favourites.json`).
@@ -1441,6 +1445,7 @@ impl SdroxideApp {
             show_swl: false,
             swl_edit: None,
             swl_selected: None,
+            swl_id: persist::load_swl_id(),
             schedule: Default::default(),
             broadcast_favs: load_broadcast_favourites(storage),
             recording_jobs: load_recording_jobs(storage),

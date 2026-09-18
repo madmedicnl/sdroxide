@@ -244,6 +244,15 @@ pub struct Settings {
     /// travels to remote clients in the [`sdroxide_types::StationConfig`]
     /// bundle. Off by default.
     pub cb_tx_allowed: bool,
+    /// The shortwave listener's own identity for reception reports — a
+    /// registered SWL number, a club number, a name.
+    ///
+    /// Kept apart from the transmitting callsign ([`Self`]'s digi config,
+    /// `DigiConfig::my_call`): a listener's number is not a callsign, and an
+    /// operator who also works 11 m has a different identity for each. Putting
+    /// a number in the callsign box to get it onto a report is what made the CB
+    /// transmitter key with it. This one only ever reaches a report.
+    pub swl_id: String,
     /// UI / display preferences (frame rate, waterfall + spectrum speed).
     pub ui: sdroxide_types::UiSettings,
     /// Username and password a remote client must present in server mode.
@@ -295,6 +304,7 @@ impl Default for Settings {
             region: sdroxide_types::Region::default(),
             cb_plan: sdroxide_types::CbPlan::default(),
             cb_tx_allowed: false,
+            swl_id: String::new(),
             ui: sdroxide_types::UiSettings::default(),
             remote_access: sdroxide_types::RemoteAccess::default(),
             speech: sdroxide_types::SpeechSettings::default(),
@@ -314,6 +324,18 @@ pub fn load_ui_settings() -> sdroxide_types::UiSettings {
 pub fn save_ui_settings(ui: &sdroxide_types::UiSettings) -> Result<(), ConfigError> {
     let mut s = Settings::load();
     s.ui = *ui;
+    s.save()
+}
+
+/// Load just the listener's SWL identity for reception reports.
+pub fn load_swl_id() -> String {
+    Settings::load().swl_id
+}
+
+/// Persist the listener's SWL identity, preserving every other setting.
+pub fn save_swl_id(id: &str) -> Result<(), ConfigError> {
+    let mut s = Settings::load();
+    s.swl_id = id.to_string();
     s.save()
 }
 

@@ -192,6 +192,33 @@ pub(in crate::app) fn persist_alerts_settings(_cfg: &sdroxide_types::AlertSettin
     // Written by eframe's periodic `save()` into localStorage.
 }
 
+// ── The listener's SWL identity (native: config.toml `swl_id`) ───────────────
+//
+// The number a listener reports under, kept out of the transmitting callsign.
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(in crate::app) fn load_swl_id() -> String {
+    sdroxide_config::load_swl_id()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(in crate::app) fn load_swl_id() -> String {
+    // The browser client keeps it in its own settings; nothing to read here.
+    String::new()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(in crate::app) fn persist_swl_id(id: &str) {
+    if let Err(e) = sdroxide_config::save_swl_id(id) {
+        eprintln!("failed to save the SWL identity: {e}");
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(in crate::app) fn persist_swl_id(_id: &str) {
+    // Written by eframe's periodic `save()` into localStorage.
+}
+
 // ── Remote-access credentials (native: config.toml [remote_access]) ──────────
 //
 // Who may connect to *this* machine's server. There is no browser half: these

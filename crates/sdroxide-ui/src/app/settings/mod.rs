@@ -178,6 +178,9 @@ pub(in crate::app) struct SettingsIo<'a> {
     /// identity in place, so the screen's editable copy must be re-seeded —
     /// see `SdroxideApp::profile_apply_pending`.
     digi_reseed: &'a mut bool,
+    /// The listener's SWL identity, buffered until the dialog closes — see
+    /// `SdroxideApp::swl_id`.
+    swl_id: &'a mut String,
     /// Re-enumerate the USB bus for RTL-SDR dongles. Cheap and non-invasive —
     /// no device is opened — so it cannot disturb a running stream.
     rtlsdr_rescan: &'a mut bool,
@@ -978,6 +981,7 @@ impl SdroxideApp {
         let mut audio_pick: Option<(bool, Option<String>)> = None;
         let mut profile_name = std::mem::take(&mut self.profile_name_edit);
         let mut digi_reseed = false;
+        let mut swl_id = self.swl_id.clone();
         let mut speech_edit = self.speech.settings().clone();
         let speech_status = self.speech.status();
         let mut speech_test = false;
@@ -1152,6 +1156,7 @@ impl SdroxideApp {
                             hpsdr_discover: &mut hpsdr_discover,
                             profile_name: &mut profile_name,
                             digi_reseed: &mut digi_reseed,
+                            swl_id: &mut swl_id,
                             rtlsdr_rescan: &mut rtlsdr_rescan,
                             rx888_rescan: &mut rx888_rescan,
                             airspyhf_rescan: &mut airspyhf_rescan,
@@ -1258,6 +1263,10 @@ impl SdroxideApp {
         // current. And not cleared here either, or a status already on its way
         // from before the apply would re-seed the old callsign.
         self.profile_apply_pending |= digi_reseed;
+        if swl_id != self.swl_id {
+            self.swl_id = swl_id;
+            crate::app::persist::persist_swl_id(&self.swl_id);
+        }
         // The multi-radio shell drains these after the frame.
         self.radio_tab_requests.append(&mut radio_tab_reqs);
         {
@@ -1826,11 +1835,29 @@ impl SdroxideApp {
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new(
-                        "Your callsign and grid, shared across FT8/FT4/FT2, SSTV image headers, and \
-                         the logbook. Also editable from the FT8 / SSTV setup dialog.",
+                        "Your callsign and grid, shared across FT8/FT4/FT2, SSTV image headers, \
+                         the CB digital modes and the logbook. This is the identity that \
+                         **transmits** — a CB callsign if you work 11 m, an amateur callsign \
+                         otherwise. A shortwave **reception report** uses the **SWL number** set on \
+                         the UI tab instead, so a registered listener's number is never keyed. \
+                         Also editable from the FT8 / SSTV setup dialog.",
                     )
                     .weak(),
                 );
+
+                // Outside the digital-seeded gate above on purpose: a listener
+                // who never opens a digital mode still has a number to report
+                // under, and this is the only box that reaches a report.
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.label("SWL number");
+                    crate::chrome::field(ui, egui::TextEdit::singleline(io.swl_id)).on_hover_text(
+                        "The listener's own identity for reception reports — a registered SWL \
+                         number, a club number, a name. It goes on a reception report and \
+                         nowhere else: what transmits is the Callsign above, so an SWL number \
+                         never keys a CB (or any other) transmitter.",
+                    );
+                });
 
                 // Its own grid, outside the enabled-ui above: the region comes
                 // from `config.toml` by way of the station announcement, not
