@@ -16,7 +16,10 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Duration;
+
+use crate::time::now_unix_f64;
 
 use sdroxide_types::{AlertEvent, AlertSettings, AlertSound, Decode, LogIndex};
 
@@ -55,8 +58,12 @@ impl AlertStatus {
 /// logged, and a new entity calling CQ all evening would otherwise wail all
 /// evening.
 struct Cooldown {
-    /// (callsign, event) → when it last alarmed.
-    at: HashMap<(String, AlertEvent), Instant>,
+    /// (callsign, event) → Unix seconds when it last alarmed.
+    ///
+    /// Wall-clock seconds rather than `Instant`: `Instant::now()` panics on
+    /// `wasm32-unknown-unknown`, and the browser client runs this same code.
+    /// Cooldowns are minutes long, so a clock that steps does not matter here.
+    at: HashMap<(String, AlertEvent), f64>,
 }
 
 impl Cooldown {
@@ -68,16 +75,17 @@ impl Cooldown {
     fn eligible(&self, call: &str, event: AlertEvent) -> bool {
         match self.at.get(&(call.to_string(), event)) {
             None => true,
-            Some(&when) => when.elapsed().as_secs() >= event.cooldown_s(),
+            Some(&when) => now_unix_f64() - when >= event.cooldown_s() as f64,
         }
     }
 
     fn mark(&mut self, call: &str, event: AlertEvent) {
-        self.at.insert((call.to_string(), event), Instant::now());
+        let now = now_unix_f64();
+        self.at.insert((call.to_string(), event), now);
         // A wall of decoded stations could grow this forever, so once it gets
         // big, drop everything that has gone cold.
         if self.at.len() > 256 {
-            self.at.retain(|_, when| when.elapsed() < Duration::from_secs(600));
+            self.at.retain(|_, when| now - *when < 600.0);
         }
     }
 }
@@ -299,6 +307,13 @@ impl AlertRuntime {
         let device_changed = settings.device != self.settings.device;
         let enabled_changed = settings.enabled != self.settings.enabled;
         self.settings = settings;
+        // The worker owns the device it opened, so a different device means a
+        // different worker: drop the old one before reconciling, or the change
+        // did nothing at all. (No worker to drop on wasm.)
+        #[cfg(not(target_arch = "wasm32"))]
+        if device_changed {
+            self.sink = None;
+        }
         if enabled_changed || device_changed {
             self.sync_sink();
         }
@@ -343,6 +358,11 @@ impl AlertRuntime {
             }
             self.play(event.rule(&self.settings.events).sound);
             self.cooldowns.mark(from, event);
+            // One alarm per batch. A busy slot carries a dozen decodes and more
+            // than one of them can match — all sixteen ringing one after
+            // another says less than the first one does, and takes half a
+            // minute to say it.
+            break;
         }
     }
 
@@ -536,6 +556,29 @@ mod tests {
         settings.events.cq.enabled = true;
         let mut r = AlertRuntime::new(settings);
         r.on_ft8(&[dec(None, Some("OE3ABC"), true)], "dl1abc", "JO63", &log(), "");
+    }
+
+    /// A busy slot can carry a dozen decodes that all match; one alarm says it,
+    /// and a queue of them takes half a minute to stop saying it.
+    #[test]
+    fn only_one_alarm_is_raised_per_batch() {
+        let mut settings = AlertSettings { enabled: true, ..Default::default() };
+        settings.events.called.enabled = true;
+        let mut r = AlertRuntime::new(settings);
+        r.on_ft8(
+            &[
+                dec(Some("K1ABC"), Some("W1ABC"), false),
+                dec(Some("K1ABC"), Some("DL1ABC"), false),
+                dec(Some("K1ABC"), Some("F5ABC"), false),
+            ],
+            "k1abc",
+            "JO63",
+            &log(),
+            "",
+        );
+        assert!(r.cooldowns.at.contains_key(&("W1ABC".to_string(), AlertEvent::Called)));
+        assert!(!r.cooldowns.at.contains_key(&("DL1ABC".to_string(), AlertEvent::Called)));
+        assert!(!r.cooldowns.at.contains_key(&("F5ABC".to_string(), AlertEvent::Called)));
     }
 
     #[test]

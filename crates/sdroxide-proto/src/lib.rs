@@ -1341,7 +1341,13 @@ use sdroxide_types::{
 /// `ResetModeDefaults` — appended, so no surviving discriminant moved. The
 /// profiles themselves travel as receiver state, so a v149 peer's state decode
 /// is unchanged; it just cannot ask for a reset.
-pub const PROTO_VERSION: u16 = 150;
+///
+/// v151: ACARS on the wire. It rides the existing `DigiStatus`, but the field
+/// was inserted in the middle of the struct; postcard numbers fields by
+/// position, so a v150 peer desynchronises on the tail of every `DigiStatus`.
+/// The field is now last, so no surviving field moved, and the version is
+/// bumped so a mismatched peer refuses rather than mis-decoding.
+pub const PROTO_VERSION: u16 = 151;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
