@@ -86,23 +86,23 @@ rest.
 | **Broadcast schedule** | EiBi transmitters labelled on the waterfall | plus a **SCHEDULE** window that filters them by time, band, language and target and tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
 | **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** |
 | **C-QUAM AM stereo** | — | decoded on MW, with a stereo lamp and a mono blend (not yet verified against a real signal) |
+| **ACARS** | — | the VHF airband airline datalink (131.550, 131.725 MHz and friends), with a message panel; the demodulator has carrier and bit-clock recovery and is checked against an off-air recording |
 | **MW/SW DX tools** | SAM and the ham audio chain | **ECSS-U / ECSS-L** presets on SAM and a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (spots, awards) for the listener's; **Start in SWL mode** in Settings → UI, or **`--swl`** |
 | **Simple interface** | — | hides the advanced chips |
 | **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and modes that do not apply on the current band (AM on the FM broadcast band, WFM on 11 m) greyed out and refused engine-side |
-| **CW straight key** | — | the PC keyboard as a straight key (hold **Space**) |
 | **Propagation columns** | propagation heat map | measured **WSPR** and **PSK Reporter** activity in the **BANDS** window |
-| **Audible alerts** | — | calls, directed CQs and new DXCC/grids ring on their own output |
 | **Waterfall levels** | a popup behind a chip | a vertical level slider beside the waterfall, plus the popup |
 
 Upstream has merged most of this fork's general-purpose work since it was
 offered, so several rows that used to be differences are not any more and have
-been dropped from the table: **HD Radio (NRSC-5)**, **ACARS**, **station
-profiles**, the ten editor **themes**, the **USB sound-card** backend, the 11 m
-band and its digimode conventions, **EiBi** broadcast labelling, decode
-**CSV/ADIF export**, browser **ADIF/CHIRP import** and the step-row **snap** all
-live in upstream now. What the table lists is what this fork still adds on top.
+been dropped from the table: **HD Radio (NRSC-5)**, **station profiles**, the
+**CW straight key**, **audible alerts**, the ten editor **themes**, the **USB
+sound-card** backend, the 11 m band and its digimode conventions, **EiBi**
+broadcast labelling, **AIS**, decode **CSV/ADIF export**, browser **ADIF/CHIRP
+import** and the step-row **snap** all live in upstream now. What the table
+lists is what this fork still adds on top.
 
 The full interface: the radio, receiver, display and system controls along the top, the waterfall with its level slider on the right.
 

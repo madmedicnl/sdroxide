@@ -24,17 +24,31 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
 - `dividebysandwich/sdroxide` is the original. Fetch and merge rather than
   cherry-pick where possible, so the history stays recognisable.
 - Features useful to *anyone* (not just CB or SWL) are candidates to offer
-  upstream as pull requests rather than keep here. Most of them have now been
-  merged there — HD Radio, ACARS, station profiles, the editor themes, the USB
-  sound-card backend, the 11 m band, EiBi broadcast labelling, decode CSV/ADIF
-  export and browser ADIF/CHIRP import, the step-row snap — so check upstream
-  before assuming a feature is only ours. The README's comparison table is the
-  current list of what is still fork-only.
+  upstream as pull requests rather than keep here — upstream is responsive and
+  merges them, often within a day. Most have now gone there: HD Radio, the CW
+  straight key, audible alerts, station profiles, AIS, the editor themes, the
+  USB sound-card backend, the 11 m band, EiBi broadcast labelling, decode
+  CSV/ADIF export, browser ADIF/CHIRP import, the step-row snap. So check
+  upstream before assuming a feature is only ours; the README's comparison
+  table is the current list of what is still fork-only.
+- Work general-purpose features **upstream-first** where that is practical:
+  branch from `upstream/main`, open the PR, then merge the result back here.
+  Building here and porting afterwards costs twice — the fork ends up with two
+  lineages of one feature until the next merge, and each merge is bigger for
+  it.
+- `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
+  upstream is at 153, the fork at 154, the extra being the fork's per-mode
+  `Command::ResetModeDefaults` and the ACARS `DigiStatus` field. When merging,
+  keep the number ahead of upstream's and fold its new entries in rather than
+  dropping them.
 - Watch list:
-  - `dividebysandwich/sdroxide` — upstream moves; merge regularly.
+  - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
+    after each upstream release, or monthly, keeps the conflicts small; 46
+    accumulated commits made one merge twenty conflicted files.
   - `jl1nie/mfsk-core#373` — the opt-in `cb-callsigns` feature; when it merges,
-    the `mfsk-core` fork pin in `crates/sdroxide-digi/Cargo.toml` can go. The
-    only open upstream watch.
+    the `mfsk-core` fork pin in `crates/sdroxide-digi/Cargo.toml` can go.
+  - `dividebysandwich/sdroxide#465` — the fork's ACARS mode, open upstream.
+    See "The ACARS decoder" below before touching it.
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
@@ -69,6 +83,30 @@ against nrsc5's `support/sample.xz`, including **`HdDemod::backlog_drops() == 0`
 
 Off-air captures stay out of the tree: they are copyrighted programme material
 and tens of megabytes. Keep one beside the tree and point the example at it.
+
+### The ACARS decoder
+
+The ACARS mode (`crates/sdroxide-dsp/src/acars.rs`) is the fork's, offered
+upstream as #465. Two things about it are easy to get wrong, and were:
+
+- **The block check is a reflected CRC-16** — polynomial 0x8408, initial value
+  0, over the bytes **as received with their parity bits**, from the mode
+  character through `ETX`, with the low BCS byte first. It is not CCITT-FALSE
+  over parity-stripped bytes; that checks out on the decoder's own encoder and
+  on nothing on the air. Verified against real frames in acarsdec's `test.wav`.
+- **The demodulator needs carrier and bit-clock recovery.** It is ported from
+  acarsdec's `msk.c` (half-sine matched filter, VCO bit clock, PI carrier
+  loop), and the input is resampled to the 12 kHz those constants are defined
+  at. Re-deriving the constants per rate does not work — 48 kHz produced
+  nothing, and 48 kHz is what the engine feeds the decoder.
+
+The end-to-end test is an ignored fixture over an off-air recording —
+`an_off_air_recording_decodes` with `SDROXIDE_ACARS_SAMPLE=/path/test.wav`;
+acarsdec's own `test.wav` works and decodes a real `F-GTAE H1` frame at 12 kHz
+and 48 kHz. The synthetic end-to-end tests were removed: they fed the decoder
+its own encoder's output, which is exactly what hid both bugs (acarsdec cannot
+decode that audio either). Not ported: acarsdec's error correction, the
+syndrome search that fixes a few parity/CRC errors; only clean frames decode.
 
 ## Regenerating the quick-start PDFs
 
@@ -147,6 +185,11 @@ tagged release rather than at last week's build.
   rewrites what it prints.
 - No repo-wide `cargo fmt`. The tree is not rustfmt-clean and a sweep produces
   an unreadable diff; format only a file you are already editing, if at all.
+  (Upstream runs rustfmt over what it merges; do not fight it there.)
+- After resolving a merge, `git add` every edit the resolution produced and
+  compile the **committed** tree, not just the working one. A merge went up
+  non-compiling because three resolution edits were left unstaged while the
+  local build, which saw them, was green.
 - Commit messages: a short imperative subject, then the why. Say what was *not*
   tested when it could not be tested here.
 - Dependabot's two tract advisories (`tract-onnx`, `tract-nnef`, both reached
