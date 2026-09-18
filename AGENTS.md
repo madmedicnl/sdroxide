@@ -179,6 +179,16 @@ tagged release rather than at last week's build.
   `cargo test --release --bin sdroxide` before chasing a failure there.
 - `cargo check --release --target wasm32-unknown-unknown -p sdroxide-ui` — the
   browser client, which shares the same UI code.
+- `cargo test -p sdroxide-digi --release -- --ignored --nocapture sensitivity`
+  — the FT8/FT4 receive-sensitivity sweep. It measures the floor of *our* chain
+  (the 12 kHz path, i16 scaling, the search window), not mfsk-core's intrinsic
+  one: the decoder is the same engine WSJT-X and WSJT-CB run, so a difference
+  against them can only be the plumbing this measures. Reports SNR in the
+  2500 Hz reference bandwidth every FT8 figure is quoted in; the floor lands
+  near −24 dB (a decode's own reported −21 dB). Slow and a judgement rather
+  than an assertion, hence `#[ignore]`d. The other flakes under a full
+  workspace run but pass alone: `sdroxide-deepcw`, `sdroxide-radio --test
+  skim_window`, and the `sdroxide-tci`/`icomnet_source` ones above.
 
 ## House rules
 

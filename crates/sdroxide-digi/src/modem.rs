@@ -1737,4 +1737,169 @@ mod tests {
         assert!(wsjt77::is_valid_callsign("999ZZ/ZZ"));
         assert!(!wsjt77::is_standard_callsign("26AT715"));
     }
+
+    // ── the sensitivity sweep ───────────────────────────────────────────────
+    //
+    // Not a pass/fail gate but a measurement: the noise level at which a slot
+    // stops decoding, reported as SNR in the 2500 Hz reference bandwidth FT8's
+    // own reports are quoted in. It exercises *our* receive chain end to end —
+    // the 12 kHz path, the i16 scaling, the `AUDIO_MIN/MAX_HZ` window and the
+    // candidate budget — which is the part we own; the decoder underneath is
+    // mfsk-core, the same engine WSJT-X and WSJT-CB run, so a difference
+    // against them can only come from the plumbing this measures.
+    //
+    // `#[ignore]`d because it is slow (a binary search of ~7 decode attempts
+    // per mode) and because "is 2 dB worse than yesterday" is a judgement, not
+    // an assertion. Run it with:
+    //
+    //     cargo test -p sdroxide-digi --release -- --ignored --nocapture sensitivity
+
+    /// A deterministic Gaussian-ish noise source, so two runs report the same
+    /// number. A 12-sample sum of a uniform xorshift is close enough to
+    /// Gaussian for a bit-error measurement and needs no `rand` dependency.
+    struct Noise(u32);
+
+    impl Noise {
+        fn next(&mut self) -> f32 {
+            let mut sum = 0.0;
+            for _ in 0..12 {
+                self.0 ^= self.0 << 13;
+                self.0 ^= self.0 >> 17;
+                self.0 ^= self.0 << 5;
+                sum += (self.0 as i32 as f32) / (i32::MAX as f32);
+            }
+            // Sum of 12 unit uniforms has variance 1; scale to unit sigma.
+            sum / 12f32.sqrt()
+        }
+    }
+
+    /// One encoded slot at `level` of added noise, as the i16 buffer the engine
+    /// hands the decoder. Identical audio for every attempt at one seed, so the
+    /// search measures the decoder and not the dice.
+    fn noisy_slot(mode: Mode, text: &str, level: f32, seed: u32) -> Vec<i16> {
+        let modem = Ft8Modem::new(mode);
+        let (burst, _) = modem.encode_burst_12k(text, 1500.0, 0.5).expect("encode");
+        let slot_s = if mode == Mode::Ft4 { 7.5 } else { 15.0 };
+        let mut slot = vec![0.0f32; 6_000];
+        slot.extend_from_slice(&burst);
+        slot.resize((slot_s * 12_000.0) as usize, 0.0);
+        let mut n = Noise(seed);
+        slot.iter().map(|&s| ((s + level * n.next()) * 12_000.0) as i16).collect()
+    }
+
+    /// The smallest added-noise sigma at which `text` still decodes, found by
+    /// bisection on a log scale. The bounds are widened until a clean slot
+    /// decodes and a very dirty one does not, so the same routine works for
+    /// every layout without a hand-tuned range per case.
+    fn threshold_sigma(mode: Mode, text: &str, seed: u32) -> f32 {
+        // The hash of every CB call the layout might spell as `<...>`, seeded
+        // as a station that had already heard it would have resolved it. The
+        // standard calls decode without any.
+        let seeds: Vec<String> = ["26AT715", "25TT304"]
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect();
+        let decodes = |level: f32| {
+            let buf = noisy_slot(mode, text, level, seed);
+            let mut rx = Ft8Modem::new(mode);
+            rx.seed_hashes(&seeds);
+            rx.decode_slot(&buf, 0, &ApHints::default(), 1500.0)
+                .iter()
+                .any(|d| d.message == text)
+        };
+        // A clean slot has to decode, or the measurement is meaningless.
+        assert!(decodes(0.0), "{text}: does not decode even with no added noise");
+        // Find a ceiling that loses the signal, then bisect between it and
+        // silence. The ceiling is capped: past about sigma 30 the added noise
+        // saturates the i16 range and no longer models a receiver, so a case
+        // that survives that far is one the sweep cannot state a floor for.
+        let mut hi = 1.0f32;
+        while decodes(hi) {
+            hi *= 2.0;
+            assert!(hi <= 32.0, "{text}: still decodes at sigma {hi} — the sweep's ceiling");
+        }
+        let mut lo = 0.0f32;
+        // Bisect until the brackets are within 5 % — enough to place the floor
+        // to a tenth of a dB, which is finer than the measurement deserves.
+        while hi - lo > hi * 0.05 {
+            let mid = (lo + hi) / 2.0;
+            if mid <= 0.0 {
+                break;
+            }
+            if decodes(mid) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        lo
+    }
+
+    /// Signal and noise power of a slot, for the SNR figure — measured from the
+    /// buffers themselves rather than assumed, so the scaling in
+    /// [`noisy_slot`] cannot silently skew the answer.
+    fn powers(clean: &[i16], noisy: &[i16]) -> (f32, f32) {
+        let to_f = |b: &[i16]| b.iter().map(|&s| f32::from(s)).collect::<Vec<f32>>();
+        let (c, n) = (to_f(clean), to_f(noisy));
+        let sig = c.iter().map(|s| s * s).sum::<f32>() / c.len() as f32;
+        // The noise power is the dirty slot minus the clean one: the added
+        // noise alone, with the signal's own contribution removed.
+        let total = n.iter().map(|s| s * s).sum::<f32>() / n.len() as f32;
+        ((sig), (total - sig).max(1e-9))
+    }
+
+    /// Report the sensitivity floor of each FT8/FT4 message layout we carry.
+    ///
+    /// The reference bandwidth is 2500 Hz — the convention every FT8 SNR
+    /// figure is quoted in (WSJT-X reports `snr = signal − noise in 2500 Hz`),
+    /// so the numbers here read on the same scale as a decode's own `-21 dB`.
+    /// Signal power is the burst's own mean square over the slot, noise power
+    /// is sigma squared. The measurement is of *our chain's* floor, not
+    /// mfsk-core's intrinsic one: a difference between the two would be the
+    /// resample, the level scaling or the search window, and this is how you
+    /// see it.
+    #[test]
+    #[ignore = "slow sweep; a measurement, not an assertion"]
+    fn sensitivity_across_the_message_layouts() {
+        const BW_HZ: f32 = 2500.0;
+        const RATE: f32 = 12_000.0;
+        // A fixed seed per layout: the same audio every run, so the number is
+        // comparable between builds.
+        // Each entry is the text *as it decodes*, which for a CB call is the
+        // hashed spelling the layout actually carries.
+        let cases: [(&str, MsgKind, u32); 5] = [
+            ("CQ AB1CD FN42", MsgKind::Standard, 0x5eed_0001),
+            ("AB1CD W9XYZ -13", MsgKind::Standard, 0x5eed_0002),
+            ("CQ 26AT715", MsgKind::NonStandard, 0x5eed_0003),
+            ("<26AT715> AB1CD R-07", MsgKind::Standard, 0x5eed_0004),
+            ("CQ DX AB1CD FN42", MsgKind::Standard, 0x5eed_0005),
+        ];
+        println!("\nFT8 receive sensitivity — our chain, 2500 Hz reference bandwidth");
+        println!("{:<24} {:>10} {:>12} {:>8}", "message", "sigma", "SNR (dB)", "reports");
+        let report = |mode: Mode, text: &str, seed: u32| {
+            let sigma = threshold_sigma(mode, text, seed);
+            let clean = noisy_slot(mode, text, 0.0, seed);
+            let noisy = noisy_slot(mode, text, sigma, seed);
+            let (sig, noise) = powers(&clean, &noisy);
+            // The decoder's own SNR estimate at the threshold, for comparison
+            // with the figure we compute from the signal and noise powers.
+            let reported = Ft8Modem::new(mode)
+                .decode_slot(&noisy, 0, &ApHints::default(), 1500.0)
+                .into_iter()
+                .find(|d| d.message == text)
+                .map(|d| d.snr_db);
+            let snr_2500 = 10.0 * (sig / noise * BW_HZ / RATE).log10();
+            println!(
+                "{text:<24} {sigma:>10.4} {snr_2500:>12.1} {:>8}",
+                reported.map(|s| s.to_string()).unwrap_or_else(|| "—".into())
+            );
+        };
+        for (text, _kind, seed) in cases {
+            report(Mode::Ft8, text, seed);
+        }
+        // FT4, whose floor is a little higher per slot because the slot is half
+        // as long — same decoder family, different integration time.
+        report(Mode::Ft4, "CQ AB1CD FN42", 0x5eed_0010);
+        println!();
+    }
 }
