@@ -114,7 +114,7 @@ The full interface: the radio, receiver, display and system controls along the t
 
 ![The General settings tab](docs/images/settings-general.jpg)
 
-*Settings → General: station identity, IARU region and band plan, the settings file, the SWR guard and the audio devices.*
+*Settings → General: station identity, the reception-report identity, IARU region and band plan, the settings file, the SWR guard and the audio devices.*
 
 ![The simple interface, with the advanced chips hidden](docs/images/simple-ui.jpg)
 

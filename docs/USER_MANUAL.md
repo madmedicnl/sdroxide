@@ -6372,7 +6372,7 @@ section of the General tab is only shown there.
 
 ### 6.1 General: station, audio and remote access
 
-![The General tab: callsign, grid square, and your own speakers and microphone](images/settings-general.jpg)
+![The General tab: callsign, grid square, the reception-report identity, and your own speakers and microphone](images/settings-general.jpg)
 
 At the top is **SDRoxide** and the version number this copy was built from —
 the one to quote in a bug report, so there is no need to go looking for the
@@ -8988,6 +8988,8 @@ symptom to report if that ever fails.
 
 #### 6.2.8 SDRplay RSP (USB)
 
+![The Radio tab with the SDRplay RSP interface selected](images/settings-radio-sdrplay.jpg)
+
 The **SDRplay RSP (USB)** interface drives any RSP — RSP1, RSP1A, RSP1B, RSP2,
 RSPduo, RSPdx, RSPdx R2 — natively, with no SoapySDR in the path. Receive
 only, 1 kHz–2 GHz, up to 10 Msps of complex IQ.
@@ -11123,7 +11125,7 @@ emptying it fast enough, the log says how much was lost.
 
 ### 6.3 UI: display preferences and voice announcements
 
-![The UI tab: frame rate, scroll/spectrum speed, palette, and spectrum background](images/settings-ui.jpg)
+![The UI tab: frame rate, scroll/spectrum speed, palette, spectrum background, and the Simple UI / Start in SWL mode switches](images/settings-ui.jpg)
 
 The **UI** tab holds display preferences, stored in `config.toml` under `[ui]`, and the
 spoken announcements below them under `[speech]`:
@@ -11528,7 +11530,7 @@ by itself when you plug it back in.
 
 ### 6.5 Spots: spot feeds
 
-![The Spots tab: DX cluster login and the POTA / SOTA / PSK Reporter feeds](images/15-settings-spots.jpg)
+![The Spots tab: DX cluster login, the POTA / SOTA / PSK Reporter feeds, and the Report as (SWL) identity](images/15-settings-spots.jpg)
 
 The **Spots** tab turns on the feeds that put other stations on your panadapter
 and in the SPOTS window. What the spots then do — clicking one to work it, the
@@ -15643,6 +15645,8 @@ radio's headphone socket), transmit leaves through another into the **radio's
 mic socket**, and the radio keys itself **off VOX** — the moment audio arrives
 at its mic line it broadcasts it. There is no CAT, no TCI, no serial anywhere,
 which is exactly the point.
+
+![The Radio tab with the USB audio radio interface selected](images/settings-radio-usbaudio.jpg)
 
 In Settings → Radio, interface **USB audio radio (sound card)**, pick the two
 devices:
