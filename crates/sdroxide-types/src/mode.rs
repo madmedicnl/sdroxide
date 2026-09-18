@@ -263,7 +263,7 @@ pub enum Mode {
     Cquam,
     /// ACARS — the VHF aircraft datalink around 130 MHz (issue #436): an AM
     /// carrier in the airband carrying 2400-baud MSK, character-oriented, with
-    /// odd parity and a CCITT block check. Receive only: it is an airline
+    /// odd parity and a 16-bit block check. Receive only: it is an airline
     /// service, not an amateur one.
     ///
     /// Appended for the same reason as [`Mode::Hell`].
@@ -351,7 +351,8 @@ impl Mode {
     /// The digital modes handled by a dedicated decode/encode engine (the
     /// slotted FT8/FT4 modes, the continuous keyboard modes, Hell, SSTV, RIFP,
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
-    /// VHF SSTV, which frequency-modulate the carrier.
+    /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
+    /// received in AM.
     pub const DIGITAL: [Mode; 24] = [
         Mode::Ft8,
         Mode::Ft4,
@@ -485,8 +486,17 @@ impl Mode {
     /// frequency-modulates it. HF packet is *not* one of these — 300 baud is
     /// audio on a sideband like any other keyboard mode. APRS is VHF packet
     /// under another name, so it is.
+    ///
+    /// ACARS is the receive-side case of the same thing: its MSK is the
+    /// modulation of an AM carrier, so the rig belongs in AM with the dial on
+    /// the carrier. Left out, it was commanded onto the digital modes' sideband
+    /// while the engine expected AM back, and every mode report from the rig
+    /// was answered by commanding the mode again.
     pub fn is_carrier_centered(self) -> bool {
-        matches!(self, Mode::Rifp | Mode::Packet | Mode::Aprs | Mode::SstvFm | Mode::RttyFm)
+        matches!(
+            self,
+            Mode::Rifp | Mode::Packet | Mode::Aprs | Mode::SstvFm | Mode::RttyFm | Mode::Acars
+        )
     }
 
     /// True for the modes that go out on a *frequency-modulated* carrier.
@@ -1892,7 +1902,8 @@ mod tests {
         // checking is that it is a permutation of the enum, with nothing
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
-        // recently — not the one that reads last in the picker.
+        // recently — not the one that reads last in the picker. HdRadio in this
+        // fork: upstream appends ACARS last, the fork keeps HD Radio after it.
         let last = Mode::HdRadio as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
@@ -1908,6 +1919,16 @@ mod tests {
     /// sits 2210 Hz above the dial, so the contact is logged there; on a channel
     /// the tones are inside the FM carrier and the dial *is* the frequency.
     /// Copying `Mode::Rtty`'s answer would log every VHF bulletin 2.2 kHz high.
+    /// ACARS is received off an AM carrier: the dial is the carrier, not the
+    /// bottom of a sideband, so the rig is commanded AM and the frequency of a
+    /// message is the dial's.
+    #[test]
+    fn acars_is_an_am_channel_not_a_sideband() {
+        assert!(Mode::Acars.is_digital(), "it has a decoder and a panel");
+        assert!(Mode::Acars.is_carrier_centered(), "the dial is the carrier");
+        assert!(!Mode::Acars.tunes_off_dial());
+    }
+
     #[test]
     fn rtty_on_fm_is_a_channel_not_a_sideband() {
         assert!(Mode::RttyFm.is_text_modem(), "it is the RTTY modem and wants the RTTY panel");

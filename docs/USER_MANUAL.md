@@ -5738,11 +5738,13 @@ stations sending a file with the same name never collide.
 
 ### 3.18 ACARS (airline datalink on airband)
 
-ACARS (Aircraft Communications Addressing and Reporting System) is the text datalink airliners and ground stations use on VHF airband. Aircraft send position reports, crew requests and company messages; ground stations answer with clearance data, gate assignments and weather. Every exchange is a short burst — a second or two of MSK at 2400 baud on an AM carrier, usually with a 1800 Hz audio tone.
+ACARS (Aircraft Communications Addressing and Reporting System) is the text datalink airliners and ground stations use on VHF airband. Aircraft send position reports, crew requests and company messages; ground stations answer with clearance data, gate assignments and weather. Every exchange is a short burst — a second or two of 2400-baud MSK (tones at 1200 and 2400 Hz) carried as the audio of an AM transmitter.
 
-**Where to listen.** ACARS lives on a handful of airband frequencies shared with voice — the two main service channels are 131.550 and 131.725 MHz, with 129.125, 130.025, 130.450, 131.125 and 136.700 also common. Switch to **AM** (or **Airband** if you are in that preset) and tune so the carrier sits near 1800 Hz in the passband; the ACARS panel provides channel chips to jump between the published frequencies.
+**Where to listen.** ACARS lives on a handful of airband channels shared with voice. 131.550 MHz is the primary almost everywhere; Europe also works 131.525, 131.725 and 131.825 MHz, and North America 129.125, 130.025, 130.450, 131.125 and 136.700 MHz. Pick **ACARS** in the mode picker (or start with `--mode ACARS`) and put the dial on the channel: the mode demodulates the AM carrier itself, so the carrier belongs on the dial exactly as it does for listening to AM voice. The chips in the panel tune straight to those channels. A transceiver driven over CAT is put in AM, whatever the digital modes' sideband setting says.
 
-**What you see.** The panel lists frames newest first: the aircraft address (a trimmed hex code), the mode character, the two-character label (what kind of message it is), a block identifier, and the text. A CRC check marks frames where the block-check sequence failed. The level meter and frame/bad counters sit in the header — a channel with no ACARS traffic shows no frames but the meter still moves with airband noise, so you know the passband is open.
+**What you see.** The panel lists messages newest first: the time (UTC), the aircraft registration (`F-GTAE`, `N12345`), the mode character, the two-character label that says what kind of message it is (`H1` to or from the crew, `Q0` a link test, `_d` a general response), the acknowledgement (`NAK` when there is none), the block identifier, and the text. Only messages whose block check matches are listed; a damaged one is counted in the header's **bad** figure instead. The level meter sits beside the counters — a channel with no ACARS traffic shows no messages, but the meter still moves with airband noise, so you know the passband is open.
+
+**Damaged blocks are not repaired.** acarsdec corrects a bit error or two against the block check; this decoder does not yet, so a weak or fading signal that acarsdec would rescue shows up here as a bad block. A **bad** count that keeps climbing on a busy channel means the signal needs to be stronger.
 
 **Receive only.** ACARS is an airline service shared with air traffic control — there is nothing here for an amateur licence to do. The mode does not transmit, and its channel chips tune the dial without touching the transmit side.
 
@@ -8719,10 +8721,10 @@ configured in exactly the same way as one on your desk.
   default of 32768 is about 16 ms at 2 Msps: long enough that the per-transfer
   round trip is not the bottleneck, short enough that a retune is not visibly
   late. **Halve it if the log reports the receive socket being replaced** (see
-  *When the link stalls*, below) — a smaller transfer is both less likely to be
-  caught by a hiccup part-way through and quicker to make good afterwards.
-  Raise it to trade retune latency for fewer round trips. Takes effect on
-  Apply.
+  *When the receive stream stalls*, below) — a smaller transfer is both less
+  likely to be caught by a hiccup part-way through and quicker to make good
+  afterwards. Raise it to trade retune latency for fewer round trips. Takes
+  effect on Apply.
 - **RX / TX port** — the AD9361's `rf_port_select`. A stock Pluto wires one of
   each (`A_BALANCED` and `A`), so leave these empty unless you have a board that
   does not. The **ANT** control only offers the ports the board will actually
@@ -8850,8 +8852,8 @@ Three things to know before you switch it on:
 - **The panadapter still shows your transmission during an over**, not the
   receiver: the wideband display is fed the modulated I/Q as it goes out, which
   is the transmit monitor. It is the *audio* that keeps coming.
-- **A board in TDD cannot do it at all.** sdroxide reads the AD9361's
-  `ensm_mode` when you enable this and says so on connect if it is not `fdd`; a
+- **A board in TDD cannot do it at all.** sdroxide asks the AD9361 which duplex
+  it is configured for when you enable this and says so on connect if it is TDD; a
   stock Pluto boots in FDD, so this is only a concern on a board somebody has
   deliberately reconfigured — or on one you have put there yourself with the
   **PTT pins** setting below, which turns this checkbox off and says so.
@@ -8915,6 +8917,19 @@ these settings touched is left exactly as it booted, and so is one you have put
 in TDD yourself with no pin slaved to it — sdroxide undoes its own arrangement,
 not somebody else's.
 
+**If the radio connects but hears nothing at all.** The same state machine
+decides whether the receiver is on, and it can be left off with every other
+setting intact: the AD9361 driver parks it in *alert* while it calibrates, and
+does not always put it back. A Pluto in that state still streams, but what it
+streams is one value repeated — no signal and no noise, however the gain is
+set. sdroxide checks the state machine as the last step of every connect. On a
+board in FDD — every stock Pluto — it switches the receiver back on and logs
+that it did. It does not touch a board in TDD that you have not asked it to
+drive, or one whose state machine follows its enable pins, because both are
+somebody else's arrangement; it says on connect that the radio is not receiving
+and why instead. Choosing **TDD** under *Duplex* has sdroxide drive a TDD board
+itself.
+
 **The sample rate is a transmit setting too.** Every I/Q sample is four bytes in
 each direction, so 2.5 Msps is 10 MB/s the link has to carry — and on transmit
 it has to carry it *on time*, because the AD9361 plays out whatever is in its
@@ -8930,25 +8945,33 @@ is plenty for voice and leaves the most headroom. Reaching the radio over real
 Ethernet rather than the USB gadget helps too, and so does taking it off a USB
 hub.
 
-**When the link stalls.** A Pluto reached over a link with no headroom left —
-the USB Ethernet gadget at a high sample rate is the usual one — sometimes goes
-quiet part-way through a transfer while the board itself stays perfectly
-healthy. sdroxide waits a couple of seconds for the data to resume, which
-covers ordinary network jitter; past that it replaces the receive connection
-and reopens the buffer, and logs
+**When the receive stream stalls.** Now and then the receive connection to a
+Pluto goes quiet part-way through a transfer while the board itself is fine — a
+fresh connection is answered in milliseconds. It has been reported over the USB
+gadget and over a dedicated gigabit link alike, on stock and Tezuka firmware;
+the bytes stop reaching this computer, and why is not yet understood. Once the
+receive connection has been silent for half a second, sdroxide asks the board,
+on a connection of its own, whether it is still answering. If it is, the stuck
+connection is replaced and the buffer reopened straight away — well under a
+second of audio — and the log says
 
 ```
-PlutoSDR: the receive socket failed (…) — replacing it
+PlutoSDR: the receive socket failed (… nothing on this socket for 0.5s while the board answered a fresh connection in 3 ms — the socket is stuck, not the radio) — replacing it
 ```
 
-That costs a few tens of milliseconds of audio and leaves your dial, your gains
-and any transmission in progress alone — the control connection is a separate
-socket and is not touched. If it happens **once in a while**, ignore it. If it
-happens **repeatedly**, the link is the thing to fix: lower the sample rate,
-halve **Buffer size**, move the radio off a USB hub, or reach it over real
-Ethernet instead of the USB gadget. Should the receive connection fail to come
-back at all, the radio is reported as disconnected and reconnected from scratch
-in the usual way.
+If the board does not answer either, it has paused — usually its own processor
+too busy to feed the network — and sdroxide waits for it, a few seconds at
+most, rather than redialling around it. Neither touches your dial, your gains or
+a transmission in progress: the control connection is a separate socket.
+
+If it happens **once in a while**, ignore it. If the log keeps saying that **the
+board stops answering**, lighten its load: a lower sample rate, and on a Tezuka
+build the services described above. Halving **Buffer size** helps either way,
+because a smaller transfer is less likely to be caught part-way. Should the
+receive connection fail to come back at all, the radio is reported as
+disconnected and reconnected from scratch in the usual way. **Copy diagnostic
+report** records every stall and which of the two it was — that is the evidence
+that will find the cause, so it is worth attaching to a report.
 
 **Transmit, the first time.** Set TX gain to its minimum, key into a **dummy
 load**, and check the signal is where the dial says before you raise it. The
@@ -8983,7 +9006,11 @@ symptom to report if that ever fails.
 > It prints the limits the radio published, streams for two seconds, and reports
 > the measured rate and signal level. A plausible rate with a level of zero
 > means the link works and the sample layout does not; an implausible rate means
-> the framing is wrong.
+> the framing is wrong — unless every sample is the same value, which the probe
+> points out, and which means the receiver was not running at all (see *If the
+> radio connects but hears nothing*, above). The stream ends because the probe
+> closes the radio after its two seconds, so a trace that stops there is
+> expected, not a crash.
 
 
 #### 6.2.8 SDRplay RSP (USB)
@@ -15849,7 +15876,7 @@ using. Bind them under **Speech** on the Controls tab:
 | ADS-B | Aircraft surveillance on 1090 MHz: a target list and a radar picture with history dots, speed vectors and data blocks. Receive only, and needs a receiver streaming at least 2 Msps. See [3.13](#313-ads-b-aircraft-on-1090-mhz). |
 | VDL2 | The VHF datalink aircraft exchange ACARS over, on fourteen channels between 136.650 and 136.975 MHz at once: a message log and the stations sending them. Receive only. See [3.15](#315-vdl2-what-the-aircraft-are-saying). |
 | AIS | Ship reporting on the two channels either side of 162.000 MHz at once: a vessel list and a marine chart with hulls drawn to their heading, time-based trails and speed vectors. Receive only. See [3.16](#316-ais-ships-on-162-mhz). |
-| ACARS | Airline datalink on VHF airband: aircraft addresses, labels, message text and CRC checks. Receive only. See [3.18](#318-acars-airline-datalink-on-airband). |
+| ACARS | Airline datalink on VHF airband, decoded off the AM carrier: aircraft registrations, labels and message text, every message block-checked. Receive only. See [3.18](#318-acars-airline-datalink-on-airband). |
 | ATCHAT | AtCHAT NET — a 2.7 kHz COFDM multi-station keyboard and file mode: dynamic master election, a shared roster, common and directed chat, and block-CRC-ARQ file/image transfer. See [3.17](#317-atchat-net). |
 
 ### Bands
