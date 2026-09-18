@@ -128,7 +128,7 @@ or connects to a remote sdroxide server.
 - **Zoom out past the I/Q** — on a receiver that publishes a full-band
   spectrum as well as its I/Q (a KiwiSDR, a SpyServer, an RX-888), the main
   panadapter keeps widening past the streamed passband and draws those spans
-  from the full-band bins. See [§2.8](#28-the-display-and-view-controls).
+  from the full-band bins. See [§2.8](#28-the-display-and-fft-controls).
 - **QO-100 beacon plugin** — tracks the 10489.750 MHz narrowband beacon,
   measures how far your LNB is off, and (with AUTO) keeps correcting the
   converter offset as it drifts. In the **SAT** window's QO-100 tab; see
@@ -253,7 +253,7 @@ The smaller grey number below the readout is the *inactive* VFO's frequency.
   release the button the measurement lingers and fades out over about five
   seconds, so you can read it after letting go. The same ruler works on the
   full-band strip (see **WIDE** in
-  [§2.8](#28-the-display-and-view-controls)), where it measures in megahertz.
+  [§2.8](#28-the-display-and-fft-controls)), where it measures in megahertz.
 
 ![Bandwidth measurement tool](images/bw_measurement.jpg)
 
@@ -271,7 +271,7 @@ tuning does the same, and one notch of the wheel is one step of it.
 ![Tuning on the panadapter, showing the VFO marker and filter passband](images/03-panadapter-tuning.png)
 
 **Band-plan strip.** A colour-coded strip along the bottom of the waterfall (its
-top when the waterfall is flipped — see [§2.8](#28-the-display-and-view-controls))
+top when the waterfall is flipped — see [§2.8](#28-the-display-and-fft-controls))
 labels the allocations. Zoomed out it shows coarse bands (ham, broadcast, CB,
 AM); zoomed into a ham band it splits into the CW / digital / SSB / beacon
 sub-segments, or an all-modes block where the plan gives one. When you zoom in
@@ -524,7 +524,7 @@ mode. What is in the box never changes; only where the two rows are cut does.
     the bandwidth is eight times finer, across the whole span rather than only
     the part you have zoomed into. (Zooming gets its own resolution without
     this — see the **FFT** control in
-    [§2.8](#28-the-display-and-view-controls) — so this is no longer the only
+    [§2.8](#28-the-display-and-fft-controls) — so this is no longer the only
     way to a detailed picture, but it is still the way to a detailed picture of
     everything you can see.)
   - **A quieter noise floor.** Every halving throws away half the noise power
@@ -6544,7 +6544,7 @@ decides every band plan sdroxide draws and enforces:
   follow it: ADIF defines `6cm` for 5.65–5.925 GHz and nothing called `5cm`, so
   that is the band a contact there is filed under wherever you are.
 - **Sub-segments** — the CW / data / SSB / beacon blocks on the waterfall's
-  band strip ([§ 2.8](#28-the-display-and-view-controls)). Region 1 splits the top of each
+  band strip ([§ 2.8](#28-the-display-and-fft-controls)). Region 1 splits the top of each
   band into a phone sub-band; Regions 2 and 3 hand it to all modes, and their
   40 m data segment starts 5 kHz lower.
 - **Skimmer windows** — where the PSK and RTTY skimmers listen. 40 m PSK is
@@ -11313,9 +11313,9 @@ spoken announcements below them under `[speech]`:
 - **Panadapter detail**, the spectrum's **reaction** and the waterfall's
   **scroll** speed are not here: they moved to the **SPEC** popup in the Display
   module, beside the picture they change — see
-  [§2.8](#28-the-display-and-view-controls).
+  [§2.8](#28-the-display-and-fft-controls).
 - **Waterfall palette** — the waterfall colour scheme (see
-  [2.8](#28-the-display-and-view-controls) and the [appendix](#waterfall-colour-schemes)).
+  [2.8](#28-the-display-and-fft-controls) and the [appendix](#waterfall-colour-schemes)).
 - **Tuning buttons** — the **−** / step / **+** row under the control strip on a
   phone or tablet ([9.5](#95-phones-and-tablets)), with the step it is currently
   set to shown beside the box. Never drawn on a desktop.
@@ -11326,7 +11326,7 @@ spoken announcements below them under `[speech]`:
   a signal's *signature* off the picture needs: an interpolated signal cannot be
   told apart from a genuinely wider one, and the smoothing is why a waterfall
   can look lower-resolution than the transform behind it really is. A bigger FFT
-  (the **VIEW** chip, [2.8](#28-the-display-and-view-controls)) is the other half
+  (the **VIEW** chip, [2.8](#28-the-display-and-fft-controls)) is the other half
   of that, and the two are worth setting together.
 - **Spectrum background** — a vertical gradient behind the spectrum line, filled
   from the **top** colour down to the **bottom** colour (default dark red →
@@ -15642,7 +15642,7 @@ the band view off, or slow it down, in Settings → Radio if that matters.
 
 The main panadapter is not stuck at those 12 kHz, though: keep zooming out and
 it widens past them and goes on to cover the whole 0–30 MHz, drawn from the same
-waterfall bins the strip uses ([§2.8](#28-the-display-and-view-controls)). It
+waterfall bins the strip uses ([§2.8](#28-the-display-and-fft-controls)). It
 coarsens where it crosses over — those bins are all there is out there — and
 zooming back in returns the I/Q's own resolution.
 
@@ -15681,7 +15681,7 @@ Its **width** is your choice, though: the band view is one stage of the server's
 own decimation ladder, and **I/Q bandwidth**'s neighbour in Settings → Radio
 picks which. Stage 0 is the widest the server offers, and is the default. As
 with a KiwiSDR, the main panadapter can be zoomed out to cover the whole of it
-([§2.8](#28-the-display-and-view-controls)).
+([§2.8](#28-the-display-and-fft-controls)).
 
 #### Where your reports come from
 

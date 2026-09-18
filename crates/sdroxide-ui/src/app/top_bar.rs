@@ -4699,7 +4699,7 @@ impl SdroxideApp {
     }
 
     /// The bottom-row labels for the current interface mode. Simple keeps the
-    /// level fit and the VIEW popup (waterfall levels and flip); the centre-lock
+    /// level fit and the FFT popup (waterfall levels and flip); the centre-lock
     /// and the skimmers go.
     fn display_tool_row(&self) -> Vec<&'static str> {
         if self.ui_settings.simple_ui {
@@ -5000,7 +5000,7 @@ impl SdroxideApp {
         });
     }
 
-    /// The level fit, the skimmers and the VIEW popup — the condensed Display
+    /// The level fit, the skimmers and the FFT popup — the condensed Display
     /// box's bottom row, and the tail of the DISP menu's row.
     fn display_tool_chips(
         &mut self,
@@ -5055,8 +5055,9 @@ impl SdroxideApp {
             self.skimmer_button(ui, cmds, extra);
         }
         // Waterfall levels, FFT size and the scroll direction live in a popup
-        // off this button. "VIEW" rather than "FFT": an operator looking for
-        // contrast or a flip does not think of the transform by name.
+        // off this button. "FFT" not "VIEW": the box has to fit the desktop
+        // strip — "VIEW" measures ten points wider and was what pushed the
+        // display box, and with it the strip, onto a third row.
         let fft_btn = chip_stretched(ui, false, view, extra).on_hover_text(
             "Waterfall levels and contrast, FFT size, and the scroll direction",
         );
@@ -5126,7 +5127,7 @@ impl SdroxideApp {
     }
 
     /// Waterfall level (floor/ceiling), FFT size and the scroll direction.
-    /// Inlined by the DISP menu, behind the VIEW chip in the Display box — see
+    /// Inlined by the DISP menu, behind the FFT chip in the Display box — see
     /// [`Self::skimmer_controls`] for why a menu cannot use the popup.
     fn spectrum_controls(&mut self, ui: &mut egui::Ui) {
         crate::chrome::menu_caption(ui, "Spectrum");
@@ -5543,13 +5544,13 @@ pub(in crate::app) const DISPLAY_VIEW_CHIPS: [&str; 3] = ["☀ 3D", "SPEC", "WID
 /// The Display box's bottom row: the level fit, centre tuning, the skimmers,
 /// and the display popup (waterfall levels, FFT size and scroll direction).
 /// Read by the measurement and by each chip's own draw site.
-const DISPLAY_TOOL_CHIPS: [&str; 4] = ["FIT", "CTR", "SKIM", "VIEW"];
+const DISPLAY_TOOL_CHIPS: [&str; 4] = ["FIT", "CTR", "SKIM", "FFT"];
 
-/// The waterfall's scroll direction, a chip inside the VIEW popup.
+/// The waterfall's scroll direction, a chip inside the FFT popup.
 ///
 /// It used to sit under a "Waterfall" caption in a popup labelled "FFT" — a
-/// name an operator looking to flip the picture never clicks. The popup is
-/// "VIEW" now, and the flip is one of the things it plainly holds.
+/// name an operator looking to flip the picture never clicks. The popup keeps
+/// that name, but the flip is one of the things it plainly holds.
 const DISPLAY_FLIP_CHIP: &str = "FLIP";
 
 /// The keying chips' shared size: PTT and TUNE drawn to the wider of the two
@@ -6345,21 +6346,32 @@ fn mode_band_chip(
     cur: Mode,
     m: Mode,
     band: Band,
+    state: &RadioState,
     cmds: &mut Vec<Command>,
 ) {
+    // Two reasons a chip is greyed, and they wear different explanations: the
+    // band does not carry the mode, or the station cannot run it at all —
+    // HD Radio without an `libnrsc5` on the machine the engine is on is the
+    // one of those today (issue #488). Offered either way, so the operator
+    // learns the mode exists and what it would take.
+    let station_why = state.mode_unavailable(m);
     let fits = band.accepts_mode(m);
+    let enabled = fits && station_why.is_none();
     // `chip_enabled_tinted` rather than a chip inside `add_enabled_ui`: the
     // latter wraps every chip in a child scope, which stops the row it is in
     // from wrapping, and this row holds fourteen of them.
-    let resp = crate::chrome::chip_enabled_tinted(ui, fits, cur == m, m.label(), None, false);
-    let resp = if fits {
-        resp
+    let resp = crate::chrome::chip_enabled_tinted(ui, enabled, cur == m, m.label(), None, false);
+    let resp = if !enabled {
+        resp.on_disabled_hover_text(match station_why {
+            Some(why) => why.to_string(),
+            None => format!(
+                "{} is not used on {} — pick a band it belongs to",
+                m.label(),
+                band.label()
+            ),
+        })
     } else {
-        resp.on_disabled_hover_text(format!(
-            "{} is not used on {} — pick a band it belongs to",
-            m.label(),
-            band.label()
-        ))
+        resp
     };
     if resp.clicked() {
         cmds.push(Command::SetMode { rx: RxId::Main, mode: m });
@@ -6566,7 +6578,7 @@ fn band_mode_menu(
                 // left to be found among the digital and DRM modes, which is
                 // where the full list below buries them.
                 for m in [Mode::Am, Mode::Nfm, Mode::Usb, Mode::Lsb] {
-                    mode_band_chip(ui, mode, m, band, cmds);
+                    mode_band_chip(ui, mode, m, band, state, cmds);
                 }
             });
             ui.add_space(6.0);
@@ -6596,7 +6608,7 @@ fn band_mode_menu(
                     Mode::Isb,
                     Mode::Spec,
                 ] {
-                    mode_band_chip(ui, mode, m, band, cmds);
+                    mode_band_chip(ui, mode, m, band, state, cmds);
                 }
             });
             ui.add_space(6.0);
@@ -6609,7 +6621,7 @@ fn band_mode_menu(
                 // signals all the same, and this is where an operator looks for
                 // one.
                 for m in Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais]) {
-                    mode_band_chip(ui, mode, m, band, cmds);
+                    mode_band_chip(ui, mode, m, band, state, cmds);
                 }
             });
         }
@@ -6631,7 +6643,7 @@ fn band_mode_menu(
                     Mode::HdRadio,
                     Mode::Cquam,
                 ] {
-                    mode_band_chip(ui, mode, m, band, cmds);
+                    mode_band_chip(ui, mode, m, band, state, cmds);
                 }
             });
             // Every digimode decode, on the listener's side too: a listener
@@ -6645,7 +6657,7 @@ fn band_mode_menu(
             crate::chrome::menu_caption(ui, "Digital");
             ui.horizontal_wrapped(|ui| {
                 for m in Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais]) {
-                    mode_band_chip(ui, mode, m, band, cmds);
+                    mode_band_chip(ui, mode, m, band, state, cmds);
                 }
             });
         }
@@ -8204,7 +8216,17 @@ mod tests {
         let (ctx, input) = desktop_ctx();
         let draw = |input: egui::RawInput, cmds: &mut Vec<Command>| {
             ctx.run_ui(input, |ui| {
-                band_mode_menu(ui, state.rx[0].mode, state, None, false, None, true, cmds);
+                band_mode_menu(
+                    ui,
+                    &mut BandMenuTab::Operate,
+                    state.rx[0].mode,
+                    state,
+                    None,
+                    false,
+                    None,
+                    true,
+                    cmds,
+                );
             })
         };
         let first = draw(input.clone(), &mut Vec::new());
