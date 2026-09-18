@@ -2256,13 +2256,14 @@ pub fn show_ext(
             wf_rect.y_range(),
             Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 60, 60, 140)),
         );
-        // On the citizens' band, name the channel the dial is on: an 11 m
-        // operator thinks in channels, and which country's channels those are
-        // is the station's CB plan. Tagged by the line like the sub's, on
-        // whichever side has room.
-        if sdroxide_types::Band::containing(line_hz) == sdroxide_types::Band::M11
-            && let Some((n, _)) = sdroxide_types::cb_plan().on_channel(line_hz)
-        {
+        // Name the channel the dial is on, wherever the selected plan has one:
+        // an 11 m operator thinks in channels and so does a PMR446 one, and
+        // which channels those are is the station's plan (`cb_plan`). Driven by
+        // the plan rather than by the band, so the tag follows the dial onto
+        // 446 MHz as readily as onto 27 MHz, and never appears where the plan
+        // has no channel. Tagged by the line like the sub's, on whichever side
+        // has room.
+        if let Some((n, _)) = sdroxide_types::cb_plan().on_channel(line_hz) {
             let (anchor, tx) = if x > rect.right() - 40.0 {
                 (Align2::RIGHT_TOP, x - 3.0)
             } else {

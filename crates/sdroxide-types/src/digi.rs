@@ -2310,6 +2310,11 @@ pub fn adif_band(freq_hz: f64) -> &'static str {
         // service with no ADIF band, like the civil airband. Ends at 420, the
         // bottom of 70 cm in the region with the widest one.
         m if m < 420.0 => "",
+        // PMR446 (446.0-446.2) sits inside the Americas' 70 cm and has no
+        // amateur ADIF band of its own — a QSO logged there is not an amateur
+        // contact, and ADIF enumerates no PMR band. So the span reports empty,
+        // exactly as 11 m and the broadcast services do.
+        m if (446.0..446.2).contains(&m) => "",
         m if m < 450.1 => "70cm",
         m if m < 928.1 => "33cm",
         m if m < 1300.1 => "23cm",
@@ -3215,7 +3220,12 @@ mod tests {
             (147_500_000.0, "2m"),
             (223_500_000.0, "1.25m"),
             (432_174_000.0, "70cm"),
-            (446_000_000.0, "70cm"),
+            // 70 cm either side of PMR446 keeps its name; the PMR span itself
+            // has none, because it is not an amateur band.
+            (445_000_000.0, "70cm"),
+            (446_000_000.0, ""),
+            (446_100_000.0, ""),
+            (447_000_000.0, "70cm"),
             (902_100_000.0, "33cm"),
             (1_296_174_000.0, "23cm"),
             (2_304_174_000.0, "13cm"),

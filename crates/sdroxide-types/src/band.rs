@@ -392,7 +392,12 @@ impl Band {
             Band::Air => Some(&[Mode::Am, Mode::Vdl2, Mode::Acars]),
             // The military UHF airband is AM voice.
             Band::Mil => Some(&[Mode::Am]),
-            // 11 m: the CB modes, and the WSJT-CB digital exchange on top.
+            // 11 m: the CB modes, and the digital modes on top. Every mode the
+            // digi engine can key is allowed here — 11 m is used for far more
+            // than the CB voice channels (freeband data, the WSJT-CB exchange,
+            // SSTV on 27.700 and the rest), and which of them is legal or wise
+            // on any one channel is the operator's business, not this table's.
+            // The transmit rails still decide what leaves the radio.
             Band::M11 => Some(&[
                 Mode::Am,
                 Mode::Nfm,
@@ -403,6 +408,23 @@ impl Band {
                 Mode::Ft4,
                 Mode::Ft2,
                 Mode::Js8,
+                Mode::Wspr,
+                Mode::Psk,
+                Mode::Rtty,
+                Mode::RttyFm,
+                Mode::Olivia,
+                Mode::Thor,
+                Mode::Fsq,
+                Mode::AtChat,
+                Mode::Hell,
+                Mode::Sstv,
+                Mode::SstvFm,
+                Mode::Rifp,
+                Mode::RfPaint,
+                Mode::Rade,
+                Mode::Packet,
+                Mode::PacketHf,
+                Mode::Aprs,
             ]),
             // Every amateur allocation takes anything.
             _ => None,
@@ -1060,12 +1082,16 @@ mod tests {
         assert!(!Band::Air.accepts_mode(Mode::Wfm));
         assert!(!Band::Mil.accepts_mode(Mode::Nfm));
 
-        // 11 m takes the CB modes and the WSJT-CB exchange, nothing else.
+        // 11 m takes the CB modes and every digi-engine mode, but not a mode
+        // that is plainly wrong there.
         assert!(Band::M11.accepts_mode(Mode::Nfm));
         assert!(Band::M11.accepts_mode(Mode::Usb));
         assert!(Band::M11.accepts_mode(Mode::Ft8));
+        assert!(Band::M11.accepts_mode(Mode::Olivia));
+        assert!(Band::M11.accepts_mode(Mode::Sstv));
+        assert!(Band::M11.accepts_mode(Mode::Rade));
+        assert!(Band::M11.accepts_mode(Mode::PacketHf));
         assert!(!Band::M11.accepts_mode(Mode::Wfm));
-        assert!(!Band::M11.accepts_mode(Mode::Olivia));
 
         // General coverage and the amateur allocations stay unrestricted.
         assert!(Band::Gen.accepts_mode(Mode::Wfm));

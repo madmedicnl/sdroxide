@@ -1858,7 +1858,14 @@ impl SdroxideApp {
                         ui.label("IARU region");
                         region_combo(ui, io.region_edit);
                         ui.end_row();
-                        ui.label("CB plan");
+                        ui.label("11M/CB").on_hover_text(
+                            "Which channel plan the dial reads in: the 11 m citizens' band \
+                             plans, and the 446 MHz PMR446 ones. Only the channel numbers and \
+                             the channel the band opens on change — the band edges stay where \
+                             they are, so switching never moves what receives or transmits. \
+                             The channel number is drawn on the tuning line wherever the dial \
+                             is on one of the plan's channels.",
+                        );
                         cb_plan_combo(ui, io.cb_plan_edit);
                         ui.end_row();
                     },

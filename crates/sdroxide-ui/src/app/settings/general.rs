@@ -32,10 +32,11 @@ pub(in crate::app) fn region_combo(ui: &mut egui::Ui, region: &mut Region) {
     );
 }
 
-/// The CB channel-plan dropdown: which country's 27 MHz channels the 11 m dial
-/// reads in. Only the channels and the channel the band opens on — the band's
-/// edges are left wide, so switching plans never changes what receives or
-/// transmits.
+/// The licence-free channel-plan dropdown: which country's (or service's)
+/// channels the dial reads in — the 11 m citizens' band plans, and the 446 MHz
+/// PMR446 ones. Only the channels and the channel the band opens on — the
+/// band's edges are left wide, so switching plans never changes what receives
+/// or transmits.
 pub(in crate::app) fn cb_plan_combo(ui: &mut egui::Ui, plan: &mut CbPlan) {
     ComboBox::from_id_salt("cb-plan").width(360.0).selected_text(plan.label()).show_styled(
         ui,

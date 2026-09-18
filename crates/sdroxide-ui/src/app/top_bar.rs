@@ -6507,14 +6507,22 @@ fn band_mode_menu(
     match *tab {
         BandMenuTab::Operate => {
             ui.add_space(6.0);
-            crate::chrome::menu_caption(ui, "CB plan (11 m)");
+            crate::chrome::menu_caption(ui, "11M/CB");
             ui.horizontal_wrapped(|ui| {
-                // Which country's channels the 11 m dial reads in. Only the
-                // channels and the channel the band opens on — the band's edges
-                // are left wide, so switching never changes what receives or
-                // transmits.
+                // Which channel plan the dial reads in: the 11 m citizens' band
+                // plans, and the 446 MHz PMR446 ones. Only the channels and the
+                // channel the band opens on — the band's edges are left wide,
+                // so switching never changes what receives or transmits. The
+                // channel numbers themselves are drawn on the tuning line (see
+                // `spectrum_view`), not as bands on the bar: PMR446 is a
+                // licence-free service beside 11 m, not an amateur band.
                 let current = sdroxide_types::cb_plan();
                 for p in sdroxide_types::CbPlan::ALL {
+                    // A separator before the UHF plans, so the 11 m and 446 MHz
+                    // groups read apart without a second caption.
+                    if p == sdroxide_types::CbPlan::Pmr446 && !current.is_uhf() {
+                        ui.add_space(4.0);
+                    }
                     if crate::chrome::chip(ui, current == p, p.short())
                         .on_hover_text(format!("{} — {}", p.label(), p.modes()))
                         .clicked()
@@ -6596,6 +6604,20 @@ fn band_mode_menu(
                     Mode::HdRadio,
                     Mode::Cquam,
                 ] {
+                    mode_band_chip(ui, mode, m, band, cmds);
+                }
+            });
+            // Every digimode decode, on the listener's side too: a listener
+            // reads the same signals the operator does — WSPR beacons, RTTY
+            // and PSK bulletins, NAVTEX and weather fax, APRS, the aircraft
+            // datalinks — and meets them across the whole dial, not only in an
+            // amateur band. The same list the OPERATE tab uses, so the two
+            // cannot drift; the band rule still greys a mode out on a service
+            // band that cannot carry it (WFM on the airband, say).
+            ui.add_space(6.0);
+            crate::chrome::menu_caption(ui, "Digital");
+            ui.horizontal_wrapped(|ui| {
+                for m in Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais]) {
                     mode_band_chip(ui, mode, m, band, cmds);
                 }
             });

@@ -6325,7 +6325,7 @@ window opens the same dialog on its Spots tab). Fourteen tabs run across the top
 
 | Tab | What it holds |
 | --- | --- |
-| **General** | Which version this is, your callsign, grid, IARU region and CB plan, the sound devices, and who may connect remotely. [6.1](#61-general-station-audio-and-remote-access) |
+| **General** | Which version this is, your callsign, grid, IARU region and channel plan (11M/CB), the sound devices, and who may connect remotely. [6.1](#61-general-station-audio-and-remote-access) |
 | **Radio** | Which rig sdroxide talks to, and how. [6.2](#62-radio-choosing-and-configuring-the-rig) |
 | **UI** | Frame rate, waterfall palette, spectrum background, spot label colours, 3D cloud rendering, and the spoken announcements. [6.3](#63-ui-display-preferences-and-voice-announcements) |
 | **Alerts** | Sounds that ring when a decode matters: a station calling you, a new DXCC entity or grid. [Audible alerts](#audible-alerts) |
@@ -6438,16 +6438,26 @@ decides every band plan sdroxide draws and enforces:
   that range (the UK's second CB block starts at 27.60125) goes in
   `bandplan.json` and in your own saved frequencies.
 
-  **CB plan** — which country's channels the 11 m dial reads in, set on the
-  General tab beside the IARU region and in the band/mode menu. The world
+  **11M/CB** — which channel plan the dial reads in, set on the General tab
+  beside the IARU region and in the band/mode menu. Two licence-free services
+  are carried: the **11 m citizens' band** and **PMR446** at 446 MHz. The world
   shares the 40-channel CEPT/FCC table (**EU**); Germany adds a high band for
   80 (**DE**); the UK's 27/81 channels sit at their own frequencies (**UK**);
-  the US and Australia work the shared 40 in AM and SSB. **WORLD** (the
-  default) is the 40 plus the high band, permissive about mode. The plan picks
-  the channels, the channel 11 m opens on, and the **`CH nn`** readout on the
-  panadapter — it does **not** move the band's edges, so switching plans never
-  changes what receives or transmits. It is a station setting (`cb_plan` in
-  `config.toml`), so every radio and every client at the station agrees.
+  the US and Australia work the shared 40 in AM and SSB; **WORLD** (the
+  default) is the 40 plus the high band, permissive about mode. **PMR** is the
+  16 narrow-FM PMR446 channels of 446.0–446.2 MHz, **dPMR** the 32 dPMR446 FDMA
+  channels of the same band. The plan picks the channels, the channel the band
+  opens on, and the **`CH nn`** tag on the tuning line — it does **not** move
+  the band's edges, so switching plans never changes what receives or
+  transmits. It is a station setting (`cb_plan` in `config.toml`), so every
+  radio and every client at the station agrees.
+
+  > **The channel tag follows the dial, not the band.** Tune to any frequency
+  > on one of the selected plan's channels — 27.245 on 11 m, 446.09375 in the
+  > PMR plan — and the tuning line names it. PMR446 is a licence-free service
+  > beside 11 m, not an amateur band, so it has no button of its own on the
+  > band bar: reach it by tuning (or a memory), and it carries **no transmit
+  > permission** here, exactly as 11 m does not.
 
   **Allow transmit on 11 m (CB)** — sits under the CB plan, and is off by
   default. The amateur-band lockout refuses every band that is not an amateur
