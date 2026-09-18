@@ -1324,12 +1324,43 @@ use sdroxide_types::{
 /// HD-2 subchannels, all appended last so no surviving discriminant moved, but a
 /// v147 peer handed any of them fails to decode the message carrying it.
 ///
-/// v149: ACARS, the VHF airband airline datalink (issue #436). It rides the
-/// existing `RadioEvent::Ft8Status` / `ServerMsg::Ft8Status`, so there is no new
-/// variant — but `DigiStatus` gains a trailing `acars` field, and postcard
-/// numbers struct fields by position, so a v148 peer desynchronises on the
-/// tail of every `DigiStatus`. The field is last, so no surviving field moved.
-pub const PROTO_VERSION: u16 = 149;
+/// v149: [`sdroxide_types::Meters`] gains `puresignal`, what the adaptive
+/// predistortion loop is doing on a radio running one (issue #441). Appended
+/// last, but `Meters` is a struct in a non-self-describing encoding: a v148
+/// peer reads the extra bytes as the start of the next field and fails to
+/// decode every meter update.
+///
+/// v150: the SSTV vocabulary grows — [`sdroxide_types::SstvMode`] gains the PD
+/// family and the two Wraase SC-2 modes, and [`sdroxide_types::SstvStatus`]
+/// gains `unsupported`, the name of a mode a header arrived for and this build
+/// cannot draw (issue #421). The variants are appended so no surviving
+/// discriminant moved, but a v149 peer has no name for the new ones and reads
+/// the status's extra field as the start of the next, so every SSTV update
+/// fails to decode.
+///
+/// v151: [`sdroxide_types::PublicSdrNetwork`] gains `SdrList`, the
+/// `sdr-list.xyz` directory of PhantomSDR-Plus and friends (issue #482).
+/// Appended, so no surviving discriminant moved, but it rides inside
+/// `ProbeAnswer::PublicSdrs`: a v150 client handed a receiver from that
+/// directory fails to decode the whole answer, and its browse window stays
+/// empty rather than showing the two lists it does know.
+///
+/// v152: the CW keyboard straight key (issue #322). `Command::CwStraight` and
+/// `Command::CwKey`, appended last so no surviving discriminant moved, but a
+/// v151 peer has no name for either and fails to decode the message carrying it.
+///
+/// v153: station profiles (issue #197). `Command` gains `ProfileSave`,
+/// `ProfileApply` and `ProfileDelete`, appended last so no surviving
+/// discriminant moved, but a v152 station has no name for them and fails to
+/// decode the message carrying one. `ServerMsg` gains `Profiles`, the names
+/// to offer, appended last for the same reason: a v152 client handed the list
+/// fails to decode it.
+/// v154: ACARS, the VHF airband airline datalink (issue #436). It rides the
+/// existing `RadioEvent::Ft8Status` / `ServerMsg::Ft8Status`, so there is no
+/// new variant — but `DigiStatus` gains a trailing `acars` field, and postcard
+/// numbers struct fields by position, so a v153 peer desynchronises on the tail
+/// of every `DigiStatus`. The field is last, so no surviving field moved.
+pub const PROTO_VERSION: u16 = 154;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
