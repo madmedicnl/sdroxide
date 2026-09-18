@@ -884,14 +884,15 @@ These are the same controls that live under **Settings → Radio**
 what each one needs from the radio is; they are here so that changing bands and
 reaching for the other aerial do not mean opening a dialog.
 
-#### Per-mode settings (the DEFAULTS chip)
+#### Per-mode settings (the reset chip)
 
 The settings in this box are a matter of taste, but not the same taste in every
 mode: a little noise reduction helps a weak SSB voice and only gets in the way
 of an FT8 decoder, and a slow AGC is kinder to a signal sitting in the noise
 than the fast one that sounds right on a strong local. So each mode carries a
 set of starting values for **AGC**, **Man**, **SQL**, **NR**, **ANC**, **BIN**
-and WFM's **ST**, and selecting a mode lays its own on the receiver.
+and WFM's **ST**, and selecting a mode — here, or on a CAT rig's own controls —
+lays its own on the receiver.
 
 The built-in defaults are deliberately plain. A slow AGC on the weak-signal
 digital modes, whose whole point is signals near the noise, and the stock medium
@@ -907,15 +908,19 @@ have just made.
 Change any of them and the change is remembered **for the mode you were in**,
 not globally: turn the noise reduction up on 20 m SSB and FT8 still comes up
 with it off. Put a setting back to the mode's default and it stops being an
-override on its own. When anything in the current mode has been changed, a
-**DEFAULTS** chip appears in the filter/noise row: hovering it names what
-differs, and clicking it puts the mode's own values back and forgets what you
-had set. A station's per-mode values live in `modeprofiles.json` beside its
+override on its own. On the first start after upgrading to a version with
+per-mode settings, what you had set becomes the values for the mode you were
+in, and every other mode starts from its own defaults. When anything in the current mode has been changed, a
+chip with a **circular arrow** appears at the end of the filter/noise row:
+hovering it names what differs, and clicking it puts the mode's own values back
+and forgets what you had set. Its place in the row is kept while it is hidden,
+so the box does not change width — and the strip does not rearrange itself — as
+it comes and goes. A station's per-mode values live in `modeprofiles.json` beside its
 other per-radio files and travel with **Settings → Import/Export**; **Settings
 → General → Per-mode settings** has a **RESET EVERY MODE** button that clears
 them all at once.
 
-### 2.8 The display and view controls
+### 2.8 The display and FFT controls
 
 **Display module:**
 
@@ -1801,7 +1806,12 @@ there and its memory scan visits every channel as before.
 press **SQL** to use the receiver's own squelch, which makes the scan stop
 exactly where the audio would have opened — one control instead of two. Note
 that with the squelch slider at `off` the scan will stop on the first channel it
-looks at, since every channel then counts as busy.
+looks at, since every channel then counts as busy. The squelch is one of the
+per-mode settings (see *Per-mode settings (the reset chip)*), so **SQL** uses
+the squelch of the mode being scanned: a frequency scan in NFM started from
+SSB stops at NFM's squelch, which is open until you set one there, and a memory
+scan judges each channel by the squelch of the mode it was stored in. Set it
+once while the scan is running in that mode and it is remembered for next time.
 
 **Listens for** is how long it stays on a candidate before judging it. Below
 about a tenth of a second the level meter has not settled and weak signals get
@@ -2738,6 +2748,27 @@ sidebands are far weaker than the carrier they share.
 Select **HD RADIO** on the **MODE** button and listen. It is a **broadcast** mode,
 like WFM and DRM: there is nothing to transmit and no transcript. The panel is
 receive-only.
+
+**It needs nrsc5 installed.** The decoder is **libnrsc5**, from the
+[nrsc5](https://github.com/theori-io/nrsc5) project, and sdroxide does not
+include it: HD Radio's audio codec is proprietary, so the library is looked for
+on the computer the radio runs on when sdroxide starts, and used if it is there.
+Without it **HD RADIO** stays on the **MODE** button but greyed out — hover it
+for the reason — and the keyboard's next/previous-mode keys step past it. On
+Arch it is the `nrsc5-git` AUR package; elsewhere it is usually built from the
+nrsc5 source, whose `sudo make install` puts it in `/usr/local/lib`, where
+sdroxide looks. On Windows, put `libnrsc5.dll` and the DLLs it needs beside
+`sdroxide.exe`; anywhere, `libnrsc5` beside the executable is found, and the
+`SDROXIDE_NRSC5_LIB` environment variable names a library in any other place.
+**Restart sdroxide after installing it** — the library is looked for once, at
+startup. With a remote client it is the *station's* computer that needs it, not
+the one the client runs on.
+
+An nrsc5 built without its audio decoder (`-DUSE_FAAD2=OFF`, which a
+distribution unwilling to ship the patched codec might do) can find a station
+and read its name but never play it. sdroxide notices after a couple of seconds
+of locked signal with no audio at all, stops decoding, and the HD Radio window
+says so.
 
 **Tuning.** Put the dial on the **analog carrier's centre**, the same number you
 would use for plain WFM. Unlike DRM, the digital carriers are not centred on
@@ -5126,8 +5157,12 @@ something:
   the speed: two aircraft with equal leaders are going equally fast, at any zoom.
   It bends when the aircraft is turning.
 - **The data block** beside it is the callsign, the altitude and the speed — the
-  order every radar display in the world puts them in. On a crowded picture only
-  the selected and hovered targets keep theirs.
+  order every radar display in the world puts them in. It sits up and to the
+  right, or at another corner where the edge of the map or a neighbour is in
+  the way. On a crowded picture a block with no room anywhere is left off rather
+  than drawn over another block or target — aircraft on the ground give way
+  first — while the selected target, the one under the pointer and any squawking
+  an emergency always keep theirs.
 
 Drag to pan, scroll to zoom, double-click to reframe. Your own position is
 marked once **My grid** is set.
@@ -5622,6 +5657,14 @@ double-click) hands the view back to the automatic framing. The note in the
 bottom-left corner says how much the view spans, in degrees of longitude and
 roughly in kilometres, so a chart that looks fully zoomed in but is still half
 an ocean wide says so (issue #459).
+
+Each vessel's name — and its speed, where it has one — sits up and to the right
+of its symbol, or at another corner where the edge of the chart or a neighbour
+is in the way. On a busy chart a name with no room anywhere is left off rather
+than drawn over another name or symbol: marks (buoys, base stations) give way
+first, then everything that is not a SOLAS ship, while the selected vessel, the
+one under the pointer and any in distress always keep theirs. Zoom in and the
+names come back as the room does (issue #408).
 
 #### Data fields
 

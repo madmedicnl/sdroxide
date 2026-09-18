@@ -1,6 +1,7 @@
 pub mod bandplan;
 pub mod freq_display;
 pub mod level_slider;
+pub mod map_labels;
 pub mod memories;
 pub mod smeter;
 pub mod spectrum3d;

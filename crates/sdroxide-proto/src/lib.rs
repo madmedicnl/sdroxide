@@ -1364,14 +1364,30 @@ use sdroxide_types::{
 /// a v153 peer desynchronises on the tail of every `DigiStatus`. The field is
 /// last, so no surviving field moved.
 ///
-/// v155: the fork's additions on top of v154 — per-mode settings
-/// (`Command::ResetModeDefaults`) and the listener identity
-/// (`NetworkConfig::swl_id`, `RadioConfig::callsign`, `RadioConfig::hide_tx`).
-/// Each is appended or positioned to keep surviving discriminants and fields
-/// where they were, but the structs that carry them ride whole, so a v154 peer
-/// handed one with a field it has no name for fails to decode the message. The
-/// fork's version runs one ahead of upstream's, which has skipped it so far.
-pub const PROTO_VERSION: u16 = 155;
+/// v155: per-mode settings. The engine applies AGC, squelch, noise reduction
+/// and the rest from a profile when the mode changes, and remembers what the
+/// operator changes while a mode is selected, so `Command` gains
+/// `ResetModeDefaults` — appended, so no surviving discriminant moved. The
+/// profiles themselves travel as receiver state, so a v154 peer's state decode
+/// is unchanged; it just cannot ask for a reset. Numbered after ACARS because
+/// that landed upstream first (the two were in flight together).
+///
+/// v156: HD Radio's decoder is `libnrsc5`, loaded at run time rather than built
+/// in (issue #488), so whether the mode works is the station's to say.
+/// [`sdroxide_types::RadioState`] gains `hd_radio_unavailable`, the reason to
+/// show on the greyed-out mode. Appended last, but postcard numbers struct
+/// fields by position: a v155 peer reads the extra bytes as the start of
+/// whatever follows the state, and fails to decode `HelloAck` and every state
+/// update.
+///
+/// v157: the fork's listener identity, on top of v156 — `NetworkConfig::swl_id`
+/// (the reception-report identity) plus `RadioConfig::callsign` and
+/// `RadioConfig::hide_tx` (the per-radio callsign and per-radio SWL switch).
+/// Each is appended to its struct's tail, so no surviving field moved, but the
+/// structs that carry them ride whole, so a v156 peer handed one with a field it
+/// has no name for fails to decode the message. A downstream (fork) addition:
+/// upstream has never carried these.
+pub const PROTO_VERSION: u16 = 157;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -2480,6 +2496,29 @@ mod tests {
         // And a mode with no entry still reaches the carrier default across the
         // wire, which is the property that makes the map need no migration.
         assert_eq!(s.config.tx_level_for(Mode::Psk), 1.0);
+    }
+
+    /// Why HD Radio is greyed out is the station's to say, and it reaches a
+    /// remote client on the state, in the connect reply and in every update.
+    #[test]
+    fn roundtrip_hd_radio_unavailable() {
+        let state = RadioState {
+            hd_radio_unavailable: Some("no libnrsc5 on the station".into()),
+            ..RadioState::default()
+        };
+        let msgs = [
+            ServerMsg::State(state.clone()),
+            ServerMsg::HelloAck {
+                proto: PROTO_VERSION,
+                caps: DeviceCaps::default(),
+                state,
+                rx_codec: AudioCodec::Opus48kMono,
+                tx_codec: AudioCodec::Pcm16_48k,
+            },
+        ];
+        for m in &msgs {
+            assert_eq!(&decode::<ServerMsg>(&encode(m).unwrap()).unwrap(), m);
+        }
     }
 
     /// Whether CW leaves as audio is a capability, and the client needs it to

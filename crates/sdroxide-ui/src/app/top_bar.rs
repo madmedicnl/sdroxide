@@ -2784,7 +2784,9 @@ impl SdroxideApp {
     /// (see [`sdroxide_types::ModeProfile`]); this is the way back, next to the
     /// controls it concerns rather than buried in Settings. Nothing is drawn
     /// when the mode is sitting on its defaults, so the chip's presence is
-    /// itself the "something here is yours and not the mode's" signal.
+    /// itself the "something here is yours and not the mode's" signal — but
+    /// its room is kept either way ([`RxChip::Defaults`]), so the box is the
+    /// same width with it as without.
     fn mode_defaults_chip(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
         let rx = &self.state.rx[0];
         let defaults = rx.mode.default_profile();
@@ -2824,12 +2826,13 @@ impl SdroxideApp {
         }
         let mode = rx.mode;
         let hover = format!(
-            "Changed from {}'s defaults: {}.\n\nClick to put them back. \
-             The mode's own values return, and what you set here is forgotten.",
+            "Back to {0}'s defaults. Changed from them: {1}.\n\nClick to put them back. \
+             {0}'s own values return, and what you set here is forgotten.",
             mode.label(),
             changed.join(", ")
         );
-        if crate::chrome::chip(ui, false, "DEFAULTS").on_hover_text(hover).clicked() {
+        let side = defaults_chip_side(ui);
+        if crate::chrome::chip_reset(ui, egui::vec2(side, side)).on_hover_text(hover).clicked() {
             cmds.push(Command::ResetModeDefaults { mode: Some(mode) });
         }
     }
@@ -3060,6 +3063,7 @@ impl SdroxideApp {
                     self.show_hd = !self.show_hd;
                 }
             }
+            RxChip::Defaults => self.mode_defaults_chip(ui, cmds),
             RxChip::Tone => {
                 // CTCSS/DCS: what is coming in, and optionally what has to be
                 // present before the audio opens. Only NFM carries either.
@@ -5695,6 +5699,16 @@ enum RxChip {
     Hd,
     /// NFM's sub-audible tone.
     Tone,
+    /// The way back to the mode's own settings, drawn only while they differ
+    /// ([`SdroxideApp::mode_defaults_chip`]) but reserved in every mode.
+    Defaults,
+}
+
+/// The side of the square the defaults chip is drawn in: as tall as the chips
+/// beside it, and no wider — see [`crate::chrome::chip_reset`] for why it is an
+/// arrow and not a word.
+fn defaults_chip_side(ui: &egui::Ui) -> f32 {
+    crate::chrome::chip_height(ui, None)
 }
 
 impl RxChip {
@@ -5737,10 +5751,16 @@ impl RxChip {
             // rather than a decode, and a DCS code reads longer than any
             // CTCSS tone.
             Self::Tone => "·D023N",
+            // No label at all: it is a painted arrow, and `width` prices it as
+            // the square it is drawn in.
+            Self::Defaults => "",
         }
     }
 
     fn width(self, ui: &egui::Ui) -> f32 {
+        if self == Self::Defaults {
+            return defaults_chip_side(ui);
+        }
         if self == Self::Bw {
             // Every scale `bw_chip_label` can reach, at the widest digits: a
             // 250 Hz CW filter and the two megahertz an ADS-B receiver reads
@@ -5894,6 +5914,13 @@ fn rx_chips(mode: Mode) -> Vec<RxChip> {
         Mode::Nfm => chips.push(RxChip::Tone),
         _ => {}
     }
+    // Last, and in every mode, whether or not it is showing: it comes and goes
+    // as the operator turns a switch or drags the squelch, and a box that
+    // widened under that click would re-break the strip — and, before it was
+    // counted here at all, ran the RX box's row past its own edge and pushed
+    // the boxes after it off the window. Last, too, so the gap it leaves when
+    // it is not drawn is at the end of a row rather than in the middle of one.
+    chips.push(RxChip::Defaults);
     chips
 }
 
@@ -8169,6 +8196,63 @@ mod tests {
         assert_eq!(ink, Some(crate::theme::ALERT()));
     }
 
+    /// Draw the band/mode menu for `state` and click the chip labelled
+    /// `label`, returning what the menu asked for. Two passes, as `press` does
+    /// in the public-SDR browser: the first finds where the label was painted,
+    /// the second aims at it.
+    fn click_in_band_mode_menu(state: &RadioState, label: &str) -> Vec<Command> {
+        let (ctx, input) = desktop_ctx();
+        let draw = |input: egui::RawInput, cmds: &mut Vec<Command>| {
+            ctx.run_ui(input, |ui| {
+                band_mode_menu(ui, state.rx[0].mode, state, None, false, None, true, cmds);
+            })
+        };
+        let first = draw(input.clone(), &mut Vec::new());
+        let at = first
+            .shapes
+            .iter()
+            .find_map(|c| match &c.shape {
+                egui::Shape::Text(t) if t.galley.text() == label => {
+                    Some(t.pos + t.galley.rect.center().to_vec2())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{label} is not in the menu"));
+        first.drop_without_applying_deltas();
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        let mut cmds = Vec::new();
+        for events in [vec![egui::Event::PointerMoved(at), button(true)], vec![button(false)]] {
+            draw(egui::RawInput { events, ..input.clone() }, &mut cmds)
+                .drop_without_applying_deltas();
+        }
+        cmds
+    }
+
+    /// HD Radio stays on the mode row on a station without an nrsc5, but
+    /// greyed out: a click on it asks for nothing (issue #488). With the
+    /// library there, the same click picks the mode — so the test is of the
+    /// greying, not of a chip that could never be clicked.
+    #[test]
+    fn a_mode_the_station_cannot_run_is_offered_but_cannot_be_picked() {
+        let mut state = RadioState::default();
+        let picked = click_in_band_mode_menu(&state, "HD RADIO");
+        assert!(
+            picked.contains(&Command::SetMode { rx: RxId::Main, mode: Mode::HdRadio }),
+            "{picked:?}"
+        );
+
+        state.hd_radio_unavailable = Some("no libnrsc5 here".into());
+        assert_eq!(state.mode_unavailable(Mode::HdRadio), Some("no libnrsc5 here"));
+        assert_eq!(state.mode_unavailable(Mode::Wfm), None);
+        let picked = click_in_band_mode_menu(&state, "HD RADIO");
+        assert!(picked.is_empty(), "a greyed-out chip asked for {picked:?}");
+    }
+
     /// Open the band/mode menu on a `screen`-sized viewport and measure the
     /// popup it produced.
     fn band_menu_rect(screen: egui::Vec2) -> egui::Rect {
@@ -8383,6 +8467,11 @@ mod tests {
                             // what the box reserved for it.
                             let draw = |ui: &mut egui::Ui, run: &[RxChip]| {
                                 for c in run {
+                                    if *c == RxChip::Defaults {
+                                        let side = defaults_chip_side(ui);
+                                        crate::chrome::chip_reset(ui, egui::vec2(side, side));
+                                        continue;
+                                    }
                                     crate::chrome::chip_accent(
                                         ui,
                                         false,
@@ -8471,6 +8560,17 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// Every mode keeps room for the reset chip, at the end of the run. It
+    /// comes and goes under the operator's own clicks; drawn after the run
+    /// instead of in it, it was never priced, and appearing it ran the noise
+    /// row past the box's edge and pushed the boxes after it off the window.
+    #[test]
+    fn every_mode_keeps_room_for_the_defaults_chip() {
+        for mode in Mode::ALL {
+            assert_eq!(rx_chips(mode).last(), Some(&RxChip::Defaults), "{mode:?}");
         }
     }
 

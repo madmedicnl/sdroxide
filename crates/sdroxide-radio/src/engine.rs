@@ -912,10 +912,11 @@ impl RxChain {
         // not early-return when the mode has not actually changed — so a rig
         // reporting its mode back can trigger it at any moment.
         self.demod = None;
-        // Every mode but these two comes from `make_demod`. Their decoders link
-        // a vendored C library, which `sdroxide-dsp` cannot depend on and
-        // still build for the browser, so they are constructed here instead —
-        // see `Demodulator::take_drm` and `Demodulator::take_hd_radio`.
+        // Every mode but these two comes from `make_demod`. Their decoders are
+        // C libraries — DRM's linked in, HD Radio's loaded at run time — which
+        // `sdroxide-dsp` cannot depend on and still build for the browser, so
+        // they are constructed here instead — see `Demodulator::take_drm` and
+        // `Demodulator::take_hd_radio`.
         self.demod = match rx.mode {
             Mode::Drm => Some(Box::new(DrmDemod::new(self.ddc.out_rate())) as Box<dyn Demodulator>),
             Mode::HdRadio => {
@@ -3576,6 +3577,10 @@ fn engine_thread(
     // Published so every UI attached to this engine — including a remote one
     // started by somebody else — can warn about it.
     state.oob_tx = !engine_cfg.tx_ham_only;
+    // Whether this machine has an nrsc5 to decode HD Radio with. Asked here, on
+    // the machine the decoder would run on, so a remote client greys the mode
+    // out for the station's reason rather than its own.
+    state.hd_radio_unavailable = sdroxide_nrsc5::unavailable_reason().map(str::to_string);
     // Seeded here, next to the other config-derived state, so the very first
     // broadcast carries the real guard settings and no client ever renders the
     // 0.0 that `TxState::default()` would give it.
@@ -3705,14 +3710,16 @@ fn engine_thread(
     // further down: the remembered decimation decides what rate the analyzer
     // and the receiver chain are built at, and building them at the device rate
     // first would mean tearing them down again before the first block.
-    let session = engine_cfg.remember_session.then(|| engine_cfg.store.load_session());
-    // Whether that session came off the disk or is the default. `load_session`
-    // answers a default either way — which is what keeps an engine remembering
-    // from its first change — so the file's presence has to be asked
-    // separately. Only a *restored* session suppresses the mode defaults at
-    // startup; see the profile block below.
-    let session_restored =
-        engine_cfg.remember_session && engine_cfg.store.load_session_if_present().is_some();
+    //
+    // Whether it came off the disk is held apart from the session itself. An
+    // engine that remembers gets a default session when there is no file —
+    // which is what keeps it remembering from its first change — but only a
+    // *restored* one's levels are recorded as its mode's own values at startup;
+    // see the profile block below.
+    let restored =
+        engine_cfg.remember_session.then(|| engine_cfg.store.load_session_if_present()).flatten();
+    let session_restored = restored.is_some();
+    let session = engine_cfg.remember_session.then(|| restored.unwrap_or_default());
     // Held separately from what this front end can carry: a start on a stand-in
     // (a radio switched off, a rig that isn't there yet) must not be the thing
     // that forgets it — see `Engine::want_decimation`.
@@ -3760,7 +3767,7 @@ fn engine_thread(
     // Like the session, the per-mode overrides are only read and written by an
     // engine that was asked to remember its settings. A test or a one-shot
     // engine must not pick up the operator's file — or leave one behind.
-    let mode_profiles = if engine_cfg.remember_session {
+    let mut mode_profiles = if engine_cfg.remember_session {
         engine_cfg.store.load_mode_profiles()
     } else {
         sdroxide_types::ModeProfiles::default()
@@ -3837,26 +3844,45 @@ fn engine_thread(
         state.repeater = s.repeater.clamped();
         state.recording_mono = s.recording_mono;
     }
-    // A mode's profile is applied when the mode is *chosen*, not when the
-    // program starts into a mode the operator already left it in.
+    // Every receiver starts on its mode's settings: the mode's defaults with
+    // this station's overrides laid over them.
     //
-    // Applying it here as well would undo the session that was just restored:
-    // `effective` fills every field the profile speaks to from the mode's
-    // defaults, so a station upgrading to a build with per-mode settings —
-    // whose `modeprofiles.json` is still empty — would come up with the saved
-    // AGC, squelch, noise reduction, binaural and RX gain reset to the mode
-    // defaults, silently. The restored session is the operator's own last
-    // word on the mode it was left in, so it stands; the profile applies from
-    // here on, the first time the mode changes (see `set_rx_mode`).
+    // A restored session's levels are what the operator left its mode on, so
+    // they are first recorded as that mode's own values, and the profile then
+    // lays them back on the receiver. Standing on the receiver alone they
+    // would last only until the mode was next left — a station upgrading to a
+    // build with per-mode settings starts with an empty `modeprofiles.json`,
+    // and its saved AGC, squelch, noise reduction, binaural and RX gain would
+    // be gone the first time it changed mode and came back. Laid over the
+    // profile rather than instead of it, because the session does not carry
+    // everything: auto-notch, AGC max gain, WFM stereo and the whole sub
+    // receiver come from the profile alone, and an override for one of them
+    // has to be back after a restart too.
     //
-    // With no session — a first run, or an engine told not to remember — there
-    // is nothing to undo and the mode's defaults are exactly what should be
-    // there.
-    if !session_restored {
-        for rx in &mut state.rx {
-            let profile = mode_profiles.effective(rx.mode);
-            profile.apply_to(rx);
-        }
+    // Recorded against the mode the session was left in, which is not always
+    // the one the receiver starts in: `--mode` can pick another, and that is a
+    // mode change like any other.
+    //
+    // A first run, or an engine told not to remember, has no session to
+    // record: the profile alone, which is the mode's defaults.
+    let mut mode_profiles_dirty = false;
+    if let Some(s) = session.as_ref().filter(|_| session_restored) {
+        let left_on = sdroxide_types::ModeProfile {
+            agc: Some(s.agc),
+            manual_gain_db: Some(s.rx_gain_db),
+            squelch_db: Some(s.squelch_db),
+            noise_reduction: Some(s.noise_reduction),
+            binaural: Some(s.binaural),
+            ..Default::default()
+        };
+        let before = mode_profiles.overrides(s.mode);
+        let mut over = left_on.over(before.unwrap_or_default());
+        over.trim_against(&s.mode.default_profile());
+        mode_profiles.set(s.mode, over);
+        mode_profiles_dirty = mode_profiles.overrides(s.mode) != before;
+    }
+    for rx in &mut state.rx {
+        mode_profiles.effective(rx.mode).apply_to(rx);
     }
     // The command line outranks the remembered session, exactly as it does for
     // the dial and the mode.
@@ -4125,7 +4151,7 @@ fn engine_thread(
         store: engine_cfg.store,
         profiles,
         mode_profiles,
-        mode_profiles_dirty: false,
+        mode_profiles_dirty,
         instance: engine_cfg.instance,
         primary: engine_cfg.primary,
         tx_gate: engine_cfg.tx_gate,
@@ -4924,6 +4950,11 @@ impl Drop for Engine {
         // And the transmit-audio rail, for the same reason: an operator who
         // trims their level and quits has set it, not been trying it out.
         self.flush_digi_config();
+        // And the per-mode settings, on every way out and not only a clean one:
+        // a front end that drops its connection takes the engine down with a
+        // change since the last session tick still unwritten, while the session
+        // saved just above already describes it.
+        self.flush_mode_profiles();
         // Finalize any in-progress recording so the MP3 file is closed cleanly
         // when the engine thread exits (all controllers gone / fatal error).
         if let Some(rec) = self.recorder.take() {
@@ -5898,8 +5929,17 @@ impl Engine {
                 // Non-digital: follow the operator's rig, but only when the
                 // underlying rig class actually changed (ignore USB↔DIGU echoes).
                 if !same_class {
+                    // A mode chosen on the radio is a mode chosen: it gets that
+                    // mode's settings exactly as the mode buttons here would,
+                    // or an operator who works the rig's own controls would
+                    // carry one mode's AGC and noise reduction into the next.
+                    let profile =
+                        (self.state.rx[0].mode != m).then(|| self.mode_profiles.effective(m));
                     let r = &mut self.state.rx[0];
                     r.mode = m;
+                    if let Some(profile) = profile {
+                        profile.apply_to(r);
+                    }
                     (r.filter_lo, r.filter_hi) = m.default_filter();
                     let snapshot = *r;
                     // Rebuild the demodulator for the new mode. Sideband is
@@ -12824,11 +12864,13 @@ impl Engine {
             RxId::Sub => self.state.sub_rx_hz,
         };
         // The profile to lay on, decided before the borrow below. Only on a real
-        // change: `set_rx_mode` also runs when a rig reports the mode it is
-        // already in, and a profile re-applied then would overwrite the tweak
-        // the operator just made.
-        let profile = (self.state.rx[rx.index()].mode != mode)
-            .then(|| self.mode_profiles.effective(mode));
+        // change: `set_rx_mode` also runs when the mode stays what it was — a
+        // band-stack recall or a memory in the same mode, a client re-sending
+        // the mode it read — and a profile re-applied then would overwrite the
+        // tweak the operator just made. A mode the rig reports goes through
+        // `apply_control`, which applies the profile on the same terms.
+        let profile =
+            (self.state.rx[rx.index()].mode != mode).then(|| self.mode_profiles.effective(mode));
         let r = &mut self.state.rx[rx.index()];
         r.mode = mode;
         if let Some(profile) = profile {
@@ -14189,6 +14231,19 @@ impl Engine {
         self.state.tx.cessb_db = s.cessb_db.clamp(0.0, sdroxide_types::CESSB_MAX_DB);
         self.state.tx.eq = s.tx_eq.clamped();
         self.state.repeater = s.repeater.clamped();
+        // The per-mode ones among those levels are now what this mode is being
+        // worked with, so they are its own values from here on — the same thing
+        // a restored session gets at startup. Left on the receiver alone they
+        // would be replaced by the mode's old values the first time the
+        // operator changed mode and came back.
+        let r = self.state.rx[0];
+        self.remember_mode_setting(RxId::Main, |p| {
+            p.agc = Some(r.agc);
+            p.manual_gain_db = Some(r.manual_gain_db);
+            p.squelch_db = Some(r.squelch_db);
+            p.noise_reduction = Some(r.noise_reduction);
+            p.binaural = Some(r.binaural);
+        });
 
         // The hardware preferences travel with the profile: the antenna port
         // and the gain stages, applied through the same paths an antenna CLI
