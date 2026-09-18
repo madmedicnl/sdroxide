@@ -10,18 +10,18 @@
 
 use std::collections::HashMap;
 #[cfg(not(target_arch = "wasm32"))]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
 #[cfg(not(target_arch = "wasm32"))]
 use std::thread::JoinHandle;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
-use crate::time::now_unix_f64;
-
 use sdroxide_types::{AlertEvent, AlertSettings, AlertSound, Decode, LogIndex};
+
+use crate::time::now_unix_f64;
 
 /// How the alarm sounds right now.
 ///
@@ -94,11 +94,18 @@ impl Cooldown {
 #[cfg(not(target_arch = "wasm32"))]
 enum Job {
     Play { sound: AlertSound, volume: f32 },
+    Quit,
 }
 
-/// The alarms themselves: settings plus, on native, a background worker that
-/// owns the alert device.
+/// The alarms themselves, as a radio tab holds them: a handle on an
+/// [`AlertCore`], which every tab of a station shares — see
+/// [`AlertRuntime::station`].
 pub struct AlertRuntime {
+    core: Arc<Mutex<AlertCore>>,
+}
+
+/// Settings plus, on native, a background worker that owns the alert device.
+struct AlertCore {
     status: Arc<Mutex<AlertStatus>>,
     cooldowns: Cooldown,
     settings: AlertSettings,
@@ -108,38 +115,37 @@ pub struct AlertRuntime {
 
 /// Owns the worker. Dropping it asks the worker to quit and waits for it, so
 /// the cpal stream is closed tidily and never outlives its ring.
-///
-/// The order in `drop` matters: the sender of the job channel is closed *before*
-/// the join. `rx.recv()` then answers `Err` once the channel runs dry, so a
-/// worker that is blocked waiting, pacing a tone, or draining a failed device
-/// has a way out and `join` cannot wait on a thread that is waiting on this one
-/// to let go of the channel. `stop` is the shared "drop what you are doing"
-/// flag watched inside the tone-pacing loop, so a close during a tone hands the
-/// thread back within a tick rather than after the alarm finished.
 #[cfg(not(target_arch = "wasm32"))]
 struct AlertSink {
+    /// `Option` so [`Drop`] can let go of the sending end before joining: the
+    /// worker's failure path drains until the channel *closes*, and it can
+    /// never close while this still holds a sender.
     tx: Option<SyncSender<Job>>,
+    /// Raised by [`Drop`], and read by the worker wherever it waits on the
+    /// sound card — the one wait a closed channel cannot end.
+    stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
-    stop: Arc<AtomicU64>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Drop for AlertSink {
     fn drop(&mut self) {
-        self.stop.fetch_add(1, Ordering::SeqCst);
-        self.tx.take();
+        // The flag first: a worker part-way through an alarm is waiting on the
+        // sound card, not on the channel, and a card that stopped taking
+        // samples (unplugged mid-alarm) would hold it there for ever. It also
+        // keeps the worker from playing out whatever was still queued before
+        // it reached the `Quit`, which stalled the screen for as long as that
+        // took.
+        self.stop.store(true, Ordering::Relaxed);
+        // Then the sender. The worker that failed to open a device waits for
+        // the channel to close rather than for a `Quit`, so holding the sender
+        // across the join deadlocked on quit or when alarms were turned off —
+        // the whole app froze. `try_send`, so a full queue cannot block here.
+        if let Some(tx) = self.tx.take() {
+            let _ = tx.try_send(Job::Quit);
+        }
         if let Some(t) = self.thread.take() {
-            // Join through a sentinel rather than directly: a worker stuck
-            // *opening* a contended device has nothing to be woken by — it is
-            // not waiting on the channel or the stop flag yet — so a plain
-            // `join` could hold the app's close on ALSA's timetable. Give it a
-            // grace period, then leave it to fall off with the process.
-            let (done_tx, done_rx) = std::sync::mpsc::channel();
-            std::thread::spawn(move || {
-                let _ = t.join();
-                let _ = done_tx.send(());
-            });
-            let _ = done_rx.recv_timeout(CLOSE_GRACE);
+            let _ = t.join();
         }
     }
 }
@@ -255,9 +261,75 @@ fn render(sound: AlertSound, rate: u32, volume: f32) -> Vec<f32> {
 }
 
 impl AlertRuntime {
-    /// Build the runtime and, if enabled, open the device in the background.
+    /// A runtime of its own: its own device, settings and cooldowns.
     pub fn new(settings: AlertSettings) -> Self {
-        let mut runtime = AlertRuntime {
+        AlertRuntime { core: Arc::new(Mutex::new(AlertCore::new(settings))) }
+    }
+
+    /// The station's alarm: one per process, whichever radio tab asks for it.
+    ///
+    /// Each tab of a multi-radio station used to build its own — its own
+    /// output stream on the alert device and its own copy of the settings, read
+    /// once at start-up — so switching alerts off on one tab left the others
+    /// ringing until a restart, and a station calling us on two receivers
+    /// rang twice. `settings` only seeds the first. Held weakly, so the last
+    /// tab to close still closes the device.
+    pub fn station(settings: AlertSettings) -> Self {
+        static STATION: Mutex<Weak<Mutex<AlertCore>>> = Mutex::new(Weak::new());
+        let mut slot = STATION.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(core) = slot.upgrade() {
+            return AlertRuntime { core };
+        }
+        let runtime = AlertRuntime::new(settings);
+        *slot = Arc::downgrade(&runtime.core);
+        runtime
+    }
+
+    fn core(&self) -> MutexGuard<'_, AlertCore> {
+        self.core.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// A snapshot of the status, safe to read from any thread.
+    pub fn status(&self) -> AlertStatus {
+        self.core().status()
+    }
+
+    pub fn settings(&self) -> AlertSettings {
+        self.core().settings.clone()
+    }
+
+    /// Mastership goes here: whether alarms are worth listening for at all.
+    pub fn enabled(&self) -> bool {
+        self.core().settings.enabled
+    }
+
+    /// Update the configuration, for every tab at once.
+    pub fn set_settings(&mut self, settings: AlertSettings) {
+        self.core().set_settings(settings);
+    }
+
+    /// A preview alarm for the settings tab.
+    pub fn test(&self) {
+        self.core().test();
+    }
+
+    /// Feed one WSJT-style decode batch — see [`AlertCore::on_ft8`].
+    pub fn on_ft8(
+        &mut self,
+        decodes: &[Decode],
+        my_call: &str,
+        my_grid: &str,
+        log: &LogIndex,
+        band: &str,
+    ) {
+        self.core().on_ft8(decodes, my_call, my_grid, log, band);
+    }
+}
+
+impl AlertCore {
+    /// Build the runtime and, if enabled, open the device in the background.
+    fn new(settings: AlertSettings) -> Self {
+        let mut runtime = AlertCore {
             status: Arc::new(Mutex::new(AlertStatus::Idle)),
             cooldowns: Cooldown::new(),
             settings,
@@ -287,23 +359,13 @@ impl AlertRuntime {
         }
     }
 
-    /// A snapshot of the status, safe to read from any thread.
-    pub fn status(&self) -> AlertStatus {
+    fn status(&self) -> AlertStatus {
         self.status.lock().unwrap().clone()
-    }
-
-    pub fn settings(&self) -> &AlertSettings {
-        &self.settings
-    }
-
-    /// Mastership goes here: whether alarms are worth listening for at all.
-    pub fn enabled(&self) -> bool {
-        self.settings.enabled
     }
 
     /// Update the configuration. Any change to enabled/device means a new
     /// worker; the rest is read live at each decode.
-    pub fn set_settings(&mut self, settings: AlertSettings) {
+    fn set_settings(&mut self, settings: AlertSettings) {
         let device_changed = settings.device != self.settings.device;
         let enabled_changed = settings.enabled != self.settings.enabled;
         self.settings = settings;
@@ -321,14 +383,14 @@ impl AlertRuntime {
 
     /// A preview alarm for the settings tab: whatever sound the "called" rule
     /// is set to.
-    pub fn test(&self) {
+    fn test(&self) {
         self.play(self.settings.events.called.sound);
     }
 
     /// Feed one WSJT-style decode batch. Alarms intentionally do **not** wait
     /// for the window to be focused — the point is to reach the operator when
     /// they are looking at another window entirely.
-    pub fn on_ft8(
+    fn on_ft8(
         &mut self,
         decodes: &[Decode],
         my_call: &str,
@@ -344,6 +406,13 @@ impl AlertRuntime {
         if my_call.is_empty() {
             return;
         }
+        // One alarm per batch. A busy slot carries a dozen decodes and more
+        // than one of them can match — all sixteen ringing one after another
+        // says less than one does, and takes half a minute to say it. That one
+        // is the match that matters most, not the first in the list: the list
+        // is in decode order, and a new grid decoded ahead of a station calling
+        // us must not be what silences the call.
+        let mut best: Option<(AlertEvent, &str)> = None;
         for d in decodes {
             let Some(from) = d.from.as_deref() else { continue };
             let novelty = log.novelty(from, d.grid.as_deref(), band);
@@ -356,13 +425,13 @@ impl AlertRuntime {
             if !self.cooldowns.eligible(from, event) {
                 continue;
             }
+            if best.is_none_or(|(b, _)| event.rank() < b.rank()) {
+                best = Some((event, from));
+            }
+        }
+        if let Some((event, from)) = best {
             self.play(event.rule(&self.settings.events).sound);
             self.cooldowns.mark(from, event);
-            // One alarm per batch. A busy slot carries a dozen decodes and more
-            // than one of them can match — all sixteen ringing one after
-            // another says less than the first one does, and takes half a
-            // minute to say it.
-            break;
         }
     }
 
@@ -388,20 +457,20 @@ impl AlertRuntime {
 impl AlertSink {
     fn start(device: Option<String>, status: Arc<Mutex<AlertStatus>>) -> Self {
         let (tx, rx) = sync_channel::<Job>(16);
-        let stop = Arc::new(AtomicU64::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
         let thread = {
             let status = status.clone();
             let stop = stop.clone();
             std::thread::Builder::new()
                 .name("alerts".into())
-                .spawn(move || worker(rx, device, status, stop))
+                .spawn(move || worker(rx, device, status, &stop))
                 .ok()
         };
         if thread.is_none() {
             *status.lock().unwrap() =
                 AlertStatus::Failed("could not start the alert thread".into());
         }
-        AlertSink { tx: Some(tx), thread, stop }
+        AlertSink { tx: Some(tx), stop, thread }
     }
 
     fn play(&self, sound: AlertSound, volume: f32) {
@@ -421,30 +490,26 @@ const LEAD_S: f64 = 0.08;
 #[cfg(not(target_arch = "wasm32"))]
 const TICK: Duration = Duration::from_millis(20);
 
-/// How long `drop` waits for the worker to wind down. Long enough for the
-/// stream to be closed tidy in the normal case — the worker answers the stop
-/// flag inside a tick — short enough that a worker wedged inside a blocking
-/// device open cannot hold the app's exit on an audio driver.
-#[cfg(not(target_arch = "wasm32"))]
-const CLOSE_GRACE: Duration = Duration::from_millis(1500);
-
 /// Open the alert device and drive it until told to quit.
 #[cfg(not(target_arch = "wasm32"))]
 fn worker(
     rx: Receiver<Job>,
     device: Option<String>,
     status: Arc<Mutex<AlertStatus>>,
-    stop: Arc<AtomicU64>,
+    stop: &AtomicBool,
 ) {
     let (out, mut ring) = match sdroxide_audio::start_output(device.as_deref(), 48_000) {
         Ok(ok) => ok,
         Err(e) => {
             *status.lock().unwrap() = AlertStatus::Failed(e.to_string());
-            // Nothing can be played. Drain and discard what is queued; the
-            // channel closes when the sink drops, so `recv` answers `Err` and
-            // the thread can leave instead of sitting on a sender that the
-            // joining side cannot release.
-            while rx.recv().is_ok() {}
+            // Nothing can be played. Honour a quit, and otherwise wait for the
+            // sender to go — which it does before the join in `Drop`, so this
+            // cannot hold the app open.
+            while let Ok(job) = rx.recv() {
+                if matches!(job, Job::Quit) {
+                    break;
+                }
+            }
             return;
         }
     };
@@ -453,30 +518,54 @@ fn worker(
     let capacity = out.sample_rate as usize * 2;
     let lead = (out.sample_rate * LEAD_S) as usize;
 
-    while let Ok(Job::Play { sound, volume }) = rx.recv() {
-        // Paced one frame at a time, exactly like the speech worker:
-        // never run more than `lead` stereo frames ahead of the sound
-        // card, so a tone starts when it should and the whole pattern
-        // lands within a beat of the decode. The pacing loop watches
-        // `stop` as well, so a close during a tone hands the thread
-        // back to the join within a tick rather than after the alarm.
-        let generation = stop.load(Ordering::SeqCst);
-        for s in render(sound, out.sample_rate as u32, volume) {
-            loop {
-                if stop.load(Ordering::SeqCst) != generation {
+    while let Ok(job) = rx.recv() {
+        if stop.load(Ordering::Relaxed) {
+            break;
+        }
+        match job {
+            Job::Quit => break,
+            Job::Play { sound, volume } => {
+                // Paced one frame at a time, exactly like the speech worker:
+                // never run more than `lead` stereo frames ahead of the sound
+                // card, so a tone starts when it should and the whole pattern
+                // lands within a beat of the decode.
+                let pcm = render(sound, out.sample_rate as u32, volume);
+                let offer = |s| {
+                    let room = queued_frames(capacity, ring.slots()) < lead && ring.slots() >= 2;
+                    if room {
+                        let _ = ring.push(s);
+                    }
+                    room
+                };
+                if !push_paced(&pcm, stop, offer) {
                     break;
                 }
-                if queued_frames(capacity, ring.slots()) < lead && ring.slots() >= 2 {
-                    break;
-                }
-                std::thread::sleep(TICK);
             }
-            if stop.load(Ordering::SeqCst) != generation {
-                break;
-            }
-            let _ = ring.push(s);
         }
     }
+}
+
+/// Hand `pcm` to the sound card no faster than it plays: `offer` takes a
+/// sample only when the card has room for it, and each one is offered again
+/// until it is taken. `false` when `stop` went up first.
+///
+/// The stop is read inside the wait, like the speech worker's generation, and
+/// that is the point of it. A card that has stopped taking samples — a USB
+/// headset pulled out mid-alarm — never makes room again, so a wait that only
+/// watched the ring held the worker for good, and the join in `Drop` held the
+/// screen behind it: the app froze on quit, on alerts off and on a change of
+/// device.
+#[cfg(not(target_arch = "wasm32"))]
+fn push_paced(pcm: &[f32], stop: &AtomicBool, mut offer: impl FnMut(f32) -> bool) -> bool {
+    for &s in pcm {
+        while !offer(s) {
+            if stop.load(Ordering::Relaxed) {
+                return false;
+            }
+            std::thread::sleep(TICK);
+        }
+    }
+    true
 }
 
 /// Stereo frames currently queued for the sound card.
@@ -515,25 +604,6 @@ mod tests {
         let mut r = AlertRuntime::new(AlertSettings::default());
         r.on_ft8(&[dec(Some("OE3ABC"), Some("K1ABC"), false)], "oe3abc", "J063", &log(), "");
         assert_eq!(r.status(), AlertStatus::Idle);
-    }
-
-    /// The shutdown contract that kept a failed worker alive, simulated
-    /// without audio: a receiver shaped exactly like the failed-open drain
-    /// (`while rx.recv().is_ok() {}`) must end the moment its sender is
-    /// dropped. `AlertSink::drop` now closes the channel *before* joining, so
-    /// a worker that can no longer be serviced hands the thread back instead
-    /// of leaving the app's close waiting on it.
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn closing_the_channel_releases_a_draining_worker() {
-        let (tx, rx) = sync_channel::<Job>(16);
-        let drain = std::thread::spawn(move || {
-            while rx.recv().is_ok() {}
-        });
-        std::thread::sleep(Duration::from_millis(10));
-        drop(tx);
-        let done = drain.join().map(|_| true).unwrap_or(false);
-        assert!(done, "a drained worker must exit when its sender is released");
     }
 
     #[test]
@@ -576,9 +646,86 @@ mod tests {
             &log(),
             "",
         );
-        assert!(r.cooldowns.at.contains_key(&("W1ABC".to_string(), AlertEvent::Called)));
-        assert!(!r.cooldowns.at.contains_key(&("DL1ABC".to_string(), AlertEvent::Called)));
-        assert!(!r.cooldowns.at.contains_key(&("F5ABC".to_string(), AlertEvent::Called)));
+        assert!(r.core().cooldowns.at.contains_key(&("W1ABC".to_string(), AlertEvent::Called)));
+        assert!(!r.core().cooldowns.at.contains_key(&("DL1ABC".to_string(), AlertEvent::Called)));
+        assert!(!r.core().cooldowns.at.contains_key(&("F5ABC".to_string(), AlertEvent::Called)));
+    }
+
+    /// A sound card that stops taking samples mid-alarm must not hold the
+    /// worker: the stop reaches it inside the wait, which is what lets `Drop`
+    /// join it. Before, this wait only watched the ring and never returned.
+    /// Every tab asking for the station's alarm gets the same one: a setting
+    /// changed on one is the setting on all, and there is one device between
+    /// them. (Kept switched off, so no test here opens a sound card.)
+    #[test]
+    fn every_tab_shares_the_station_alarm() {
+        let mut a = AlertRuntime::station(AlertSettings::default());
+        let b = AlertRuntime::station(AlertSettings { volume: 0.1, ..Default::default() });
+        assert!(Arc::ptr_eq(&a.core, &b.core), "two tabs, two alarms");
+        a.set_settings(AlertSettings { volume: 0.3, ..Default::default() });
+        assert_eq!(b.settings().volume, 0.3, "the other tab kept its own copy");
+        // A runtime built on its own stays its own.
+        assert!(!Arc::ptr_eq(&a.core, &AlertRuntime::new(AlertSettings::default()).core));
+    }
+
+    /// The batch's alarm is its most important match, wherever in the list it
+    /// sits: a new entity decoded first must not stand in for a station
+    /// calling us decoded after it.
+    #[test]
+    fn a_call_further_down_the_batch_outranks_a_novelty_above_it() {
+        let mut settings = AlertSettings { enabled: true, ..Default::default() };
+        settings.events.called.enabled = true;
+        settings.events.new_dxcc.enabled = true;
+        // Two other stations working each other, from an entity this empty log
+        // has never had — and then someone calling us.
+        let novelty = dec(Some("W2AAA"), Some("JA1ABC"), false);
+        let call = dec(Some("K1ABC"), Some("DL1ABC"), false);
+
+        // The novelty on its own does ring, so the batch below is a real choice.
+        let mut r = AlertRuntime::new(settings.clone());
+        r.on_ft8(std::slice::from_ref(&novelty), "k1abc", "FN42", &log(), "20m");
+        assert!(r.core().cooldowns.at.contains_key(&("JA1ABC".to_string(), AlertEvent::NewDxcc)));
+
+        let mut r = AlertRuntime::new(settings);
+        r.on_ft8(&[novelty, call], "k1abc", "FN42", &log(), "20m");
+        assert!(r.core().cooldowns.at.contains_key(&("DL1ABC".to_string(), AlertEvent::Called)));
+        assert!(!r.core().cooldowns.at.contains_key(&("JA1ABC".to_string(), AlertEvent::NewDxcc)));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn a_card_that_stops_taking_samples_lets_the_worker_go() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let raise = {
+            let stop = stop.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(60));
+                stop.store(true, Ordering::Relaxed);
+            })
+        };
+        let mut taken = 0;
+        // Room for three samples, then none ever again.
+        let finished = push_paced(&[0.1; 64], &stop, |_| {
+            let room = taken < 3;
+            taken += room as usize;
+            room
+        });
+        raise.join().unwrap();
+        assert!(!finished, "the alarm claims to have played out");
+        assert_eq!(taken, 3);
+    }
+
+    /// And a card that keeps up is handed every sample, in order.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn a_card_that_keeps_up_gets_the_whole_alarm() {
+        let stop = AtomicBool::new(false);
+        let mut got = Vec::new();
+        assert!(push_paced(&[0.1, 0.2, 0.3], &stop, |s| {
+            got.push(s);
+            true
+        }));
+        assert_eq!(got, [0.1, 0.2, 0.3]);
     }
 
     #[test]

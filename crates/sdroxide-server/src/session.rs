@@ -74,6 +74,11 @@ async fn session(mut socket: WebSocket, shared: Arc<Shared>, station: Arc<Statio
     shared.busy.store(false, Ordering::SeqCst);
     let _ = shared.cmd_tx.send(Command::SetPtt(false));
     let _ = shared.cmd_tx.send(Command::SetTune(false));
+    // The CW straight key is a key of its own, held apart from PTT: a client
+    // that went away with the Space bar down would otherwise leave the carrier
+    // on until the keyer's hold cap ran out, half a minute later. Inert on
+    // any radio that is not being hand-keyed.
+    let _ = shared.cmd_tx.send(Command::CwKey(false));
     info!(radio = shared.id, "remote session ended");
 }
 
@@ -184,6 +189,7 @@ async fn run_session(
         drm,
         hd,
         relay,
+        profiles,
     ) = {
         let latest = shared.latest.lock().unwrap();
         (
@@ -209,6 +215,7 @@ async fn run_session(
             latest.drm.clone(),
             latest.hd.clone(),
             latest.relay.clone(),
+            latest.profiles.clone(),
         )
     };
     let ack = ServerMsg::HelloAck { proto: PROTO_VERSION, caps, state, rx_codec, tx_codec };
@@ -229,6 +236,7 @@ async fn run_session(
     let _ = socket.send(msg(&ServerMsg::Memories(memories))).await;
     let _ = socket.send(msg(&ServerMsg::MemoryFolders(mem_folders))).await;
     let _ = socket.send(msg(&ServerMsg::Scanner(scanner))).await;
+    let _ = socket.send(msg(&ServerMsg::Profiles(profiles))).await;
     // The operator config, which the engine announced once at startup. Without
     // this replay the client's callsign and grid come up empty and greyed out.
     if let Some(d) = digi {

@@ -39,6 +39,7 @@ use self::net::{
     broadcast_stations_settings, net_heading, net_row, net_secret, operator_identity_note,
     settings_freedv_tab,
 };
+use self::profiles::settings_profiles_tab;
 use self::radio::{
     settings_airspy_tab, settings_airspyhf_tab, settings_cat_tab, settings_elad_tab,
     settings_fobos_tab, settings_hackrf_tab, settings_hpsdr_tab, settings_hydrasdr_tab,
@@ -174,9 +175,9 @@ pub(in crate::app) struct SettingsIo<'a> {
     /// the dialog lives across taps of the tab bar, and a half-typed name is
     /// not a setting.
     profile_name: &'a mut String,
-    /// Set when an action rewrote the digital identity in the engine, so the
-    /// screen's editable copy must be re-seeded from the next status — see
-    /// `SdroxideApp::digi_cfg_seeded`.
+    /// Set when a profile was put on: the engine rewrites the digital
+    /// identity in place, so the screen's editable copy must be re-seeded —
+    /// see `SdroxideApp::profile_apply_pending`.
     digi_reseed: &'a mut bool,
     /// Re-enumerate the USB bus for RTL-SDR dongles. Cheap and non-invasive —
     /// no device is opened — so it cannot disturb a running stream.
@@ -977,11 +978,11 @@ impl SdroxideApp {
         // borrows `&self` and so can't touch `&mut self.ctrl`.
         let mut audio_pick: Option<(bool, Option<String>)> = None;
         let mut profile_name = std::mem::take(&mut self.profile_name_edit);
-        let mut digi_reseed = self.digi_cfg_seeded;
+        let mut digi_reseed = false;
         let mut speech_edit = self.speech.settings().clone();
         let speech_status = self.speech.status();
         let mut speech_test = false;
-        let mut alerts_edit = self.alerts.settings().clone();
+        let mut alerts_edit = self.alerts.settings();
         let alerts_status = self.alerts.status();
         let mut alerts_test = false;
         let mut hpsdr_discover = false;
@@ -1252,7 +1253,12 @@ impl SdroxideApp {
         self.settings_tab = tab;
         self.settings_upload_tab = upload_tab;
         self.profile_name_edit = profile_name;
-        self.digi_cfg_seeded = digi_reseed;
+        // Not `digi_cfg_seeded` itself: that flag is true once the copy *is*
+        // seeded, so writing the request into it marked a stale copy — or,
+        // before any digital status had arrived, an empty default one — as
+        // current. And not cleared here either, or a status already on its way
+        // from before the apply would re-seed the old callsign.
+        self.profile_apply_pending |= digi_reseed;
         // The multi-radio shell drains these after the frame.
         self.radio_tab_requests.append(&mut radio_tab_reqs);
         {
@@ -1643,7 +1649,7 @@ impl SdroxideApp {
         if speech_test {
             self.speech.announcer.say_sample(ctx.input(|i| i.time));
         }
-        if &alerts_edit != self.alerts.settings() {
+        if alerts_edit != self.alerts.settings() {
             // Live, like speech: a changed volume or rule reaches the running
             // worker on the next decode, and a changed device or master toggle
             // swaps the sink.
@@ -1755,6 +1761,7 @@ impl SdroxideApp {
             (SettingsTab::Tle, "TLE"),
             (SettingsTab::Profiles, "Profiles"),
         ];
+
         // Wrapped: the tab strip no longer fits the window's width on one line.
         // Real tabs rather than chips — a chip strip standing in for a tab strip
         // reads as a row of buttons that happen to stay pressed, with nothing to
@@ -1769,8 +1776,6 @@ impl SdroxideApp {
         // No separator: the strip's own baseline is the line between the tabs
         // and the page they open.
         ui.add_space(8.0);
-
-        let backend = io.radio_edit.as_ref().map(|c| c.backend);
 
         match io.tab {
             SettingsTab::General => {
@@ -1913,65 +1918,14 @@ impl SdroxideApp {
                 ui.add_space(10.0);
                 ui.separator();
                 ui.add_space(6.0);
+                // This screen's own speaker and microphone, and nothing else.
+                // The *radio's* sound card and the gain on what comes back off
+                // it are the radio's, not the program's, and live on the Radio
+                // tab beside the rest of that interface's settings — a station
+                // running two rigs at once runs two interfaces at once, and one
+                // pair of pickers on a shared page could only describe one of
+                // them (issue #474).
                 self.settings_user_audio(ui, io.audio_pick);
-                if let Some(cfg) = io.radio_edit.as_mut() {
-                    crate::app::settings::general::settings_rx_audio_gain(ui, cfg);
-                }
-                // The radio's own sound card is only used by the CAT / Audio
-                // interface; every other backend carries its audio in-band.
-                //
-                // These are the cards on the machine the *rig* is plugged into,
-                // asked for by name rather than taken from `audio_devices` —
-                // that list is this screen's own speaker and microphone, and
-                // offering a laptop's built-in mic as the shack transceiver's
-                // transmit path would be worse than offering nothing at all.
-                if backend == Some(Backend::Cat) && self.radio_audio_devices.is_none() {
-                    ui.add_space(8.0);
-                    ui.label(RichText::new("Radio audio (sound card)").strong());
-                    ui.label(
-                        RichText::new(
-                            "Waiting for the sound cards on the machine the radio is plugged \
-                             into.",
-                        )
-                        .weak(),
-                    );
-                }
-                if backend == Some(Backend::Cat)
-                    && let (Some((inputs, outputs)), Some(cfg)) =
-                        (self.radio_audio_devices.as_ref(), io.radio_edit.as_mut())
-                {
-                    ui.add_space(8.0);
-                    ui.label(RichText::new("Radio audio (sound card)").strong());
-                    egui::Grid::new("radio-audio").num_columns(2).spacing([12.0, 6.0]).show(
-                        ui,
-                        |ui| {
-                            let (ci, co) =
-                                (cfg.radio_audio_in.clone(), cfg.radio_audio_out.clone());
-                            ui.label("From radio (RX)");
-                            device_combo(ui, "r-in", inputs, &ci, |n| cfg.radio_audio_in = n);
-                            ui.end_row();
-                            ui.label("To radio (TX)");
-                            device_combo(ui, "r-out", outputs, &co, |n| cfg.radio_audio_out = n);
-                            ui.end_row();
-                        },
-                    );
-                    ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        if ui
-                            .button("Apply / reconnect")
-                            .on_hover_text("Reopen the CAT rig with these sound cards — no restart")
-                            .clicked()
-                        {
-                            *io.apply_iface = true;
-                        }
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new("Reconnects the radio without restarting.").weak(),
-                            )
-                            .wrap(),
-                        );
-                    });
-                }
 
                 if let Some(access) = io.access_edit.as_deref_mut() {
                     ui.add_space(10.0);
@@ -2471,7 +2425,11 @@ impl SdroxideApp {
                         self.caps.as_ref(),
                         &self.state.antenna_rx,
                         self.state.rx_antenna,
+                        self.radio_audio_devices
+                            .as_ref()
+                            .map(|(i, o)| (i.as_slice(), o.as_slice())),
                         io.can_probe,
+                        io.apply_iface,
                         cmds,
                     ),
                     Backend::UsbAudio => settings_usb_audio_tab(

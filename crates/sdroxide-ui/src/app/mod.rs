@@ -275,9 +275,15 @@ pub struct SdroxideApp {
     /// at start and after every save/apply/delete. Only the names — the
     /// profiles themselves stay with the radio's other remembered files.
     ///
-    /// Empty on a client that has not heard the announcement yet (a browser
-    /// client that connects late), or that the announcement is native-only.
+    /// Empty until the announcement arrives — at connect, for a remote or
+    /// browser client, which the server replays it to.
     profiles: Vec<String>,
+    /// A profile was put on from this screen and the engine has not answered
+    /// yet. Its answer — the profile list, announced once the apply is done —
+    /// clears [`Self::digi_cfg_seeded`], so the editable digital settings
+    /// re-seed from the next status, which the engine can only send after the
+    /// apply, and the next edit cannot put the old callsign back.
+    profile_apply_pending: bool,
     /// Which logging service the Uploads tab's own strip is showing. Session-only
     /// for the same reason as `settings_tab`: it is where the operator happens to
     /// be in the dialog, not a setting.
@@ -302,7 +308,8 @@ pub struct SdroxideApp {
     speech_voices: Vec<String>,
     /// Audible alerts: played over a separate output, so they are heard even
     /// when the radio audio is somewhere else. Always present — switched off,
-    /// the sink is closed and the cost is a boolean per decode batch.
+    /// the sink is closed and the cost is a boolean per decode batch. One for
+    /// the whole station: every radio tab holds the same one.
     alerts: alerts::AlertRuntime,
     radio_cfg: Option<sdroxide_types::RadioConfig>,
     /// The converter offset being typed on the Radio tab, in Hz. Held apart
@@ -366,7 +373,7 @@ pub struct SdroxideApp {
     public_sdrs_asked: bool,
     public_sdr_search: String,
     /// Indexed by `PublicSdrNetwork::ALL`, positionally.
-    public_sdr_nets_shown: [bool; 2],
+    public_sdr_nets_shown: [bool; sdroxide_types::PublicSdrNetwork::ALL.len()],
     public_sdr_free_only: bool,
     public_sdr_in_band: bool,
     /// Take a SpyServer in its VFO+FFT shape rather than wideband. No effect on
@@ -584,6 +591,7 @@ pub struct SdroxideApp {
     grid_lookup_at: f64,
     /// JS8: the last message we transmitted. What `AGN?` — "say again" — is
     /// asking for, and the one reply the operator cannot retype from memory.
+    /// Held unaddressed; the composer adds the callsign when it is sent.
     js8_last_sent: String,
     /// FSQ contacts (address book), native-persisted in `contacts.json`.
     fsq_contacts: Vec<sdroxide_types::FsqContact>,
@@ -1328,13 +1336,14 @@ impl SdroxideApp {
             settings_tab: SettingsTab::General,
             profile_name_edit: String::new(),
             profiles: Vec::new(),
+            profile_apply_pending: false,
             settings_upload_tab: sdroxide_types::UploadTarget::QrzLogbook,
             ui_settings,
             applied_look: (ui_settings.theme, ui_settings.button_style, ui_settings.window_style),
             applied_ui_font: ui_settings.menu_font_size,
             speech: speech::SpeechRuntime::new(load_speech_settings(storage)),
             speech_voices: Vec::new(),
-            alerts: alerts::AlertRuntime::new(load_alerts_settings(storage)),
+            alerts: alerts::AlertRuntime::station(load_alerts_settings(storage)),
             radio_cfg: None,
             converter_edit_hz: None,
             range_edit: None,
@@ -1362,7 +1371,7 @@ impl SdroxideApp {
             public_sdrs_asked: false,
             public_sdr_search: String::new(),
             // Both on: the point of the window is to show what is out there.
-            public_sdr_nets_shown: [true, true],
+            public_sdr_nets_shown: [true; sdroxide_types::PublicSdrNetwork::ALL.len()],
             // On, because a full receiver is not a receiver an operator can
             // use, and the reason is still shown for the ones this hides.
             public_sdr_free_only: true,

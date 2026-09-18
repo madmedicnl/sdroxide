@@ -29,6 +29,21 @@ fn js8_frame_estimate(text: &str) -> u8 {
     (n.div_ceil(PER_FRAME).max(1)).min(255) as u8
 }
 
+/// What goes on the air for `body` typed with `target` selected ("" is
+/// `@ALLCALL`).
+///
+/// CQ and HB are addressed to everyone, whichever station is selected:
+/// prefixing them with a callsign would turn "CQ" into a directed free-text
+/// message and "HB" into the wrong frame. Everything else goes to the target
+/// when there is one.
+fn js8_addressed(target: &str, body: &str) -> String {
+    let broadcast = matches!(
+        body.to_ascii_uppercase().as_str(),
+        "CQ" | "HB" | "HEARTBEAT" | "@ALLCALL CQ" | "@ALLCALL HB" | "@ALLCALL HEARTBEAT"
+    );
+    if target.is_empty() || broadcast { body.to_string() } else { format!("{target} {body}") }
+}
+
 /// How long a JS8 station stays lit on the maps after it was last heard.
 ///
 /// The mode's own convention is a heartbeat every ten or fifteen minutes, so
@@ -51,7 +66,8 @@ struct Js8Me {
     status: String,
     /// Callsigns heard recently, most recent first — the answer to `HEARING?`.
     hearing: Vec<String>,
-    /// The last thing we transmitted, which is what `AGN?` is asking for.
+    /// The last thing we transmitted, which is what `AGN?` is asking for — as
+    /// typed, without the callsign it was addressed to.
     last_sent: String,
 }
 
@@ -243,54 +259,52 @@ impl SdroxideApp {
                 cmds.push(Command::SetDigiAudioFreq((audio_hz + 10.0).clamp(200.0, 3500.0)));
             }
             self.digi_freq_chip(ui, cmds);
-            if !self.ui_settings.swl {
-                // Beacon state. An unattended transmitter must say so where the
-                // operator is already looking, and say when it will key next — a
-                // countdown is the difference between "armed" and "hung".
-                let hb_min = self.digi_cfg_edit.js8_heartbeat_min;
-                // Lit by what the engine is *doing*, not by what is configured: at
-                // Turbo the interval is set and nothing beacons, and a chip that
-                // claimed otherwise would be the one place this must not be wrong.
-                let hb_on = crate::chrome::chip(ui, js8.next_hb_in_s.is_some(), "HB AUTO")
-                    .on_hover_text(match js8.next_hb_in_s {
-                        Some(_) => format!("Beaconing every {hb_min} min — click to stop"),
-                        None if js8.speed == Js8Speed::Turbo => {
-                            "Turbo does not beacon — it is the local and VHF speed".to_string()
-                        }
-                        None => "Beacon your callsign and grid every 15 minutes".to_string(),
-                    })
-                    .clicked();
-                if hb_on {
-                    // Off if it was on; otherwise the interval most of the band
-                    // uses, which SETUP can then change.
-                    self.digi_cfg_edit.js8_heartbeat_min = if hb_min > 0 { 0 } else { 15 };
-                    cmds.push(Command::SetDigiConfig(self.digi_cfg_edit.clone()));
-                }
-                if let Some(left) = js8.next_hb_in_s {
-                    ui.label(
-                        RichText::new(format!("{}:{:02}", left / 60, left % 60))
-                            .monospace()
-                            .color(crate::theme::CYAN_DIM()),
-                    )
-                    .on_hover_text("Until the next heartbeat");
-                }
-                // Beacons do not go out on the working frequency, so the waterfall
-                // shows a burst where the panel's marker is not. Saying where it
-                // went is the difference between that reading as a bug and as the
-                // sub-band convention working.
-                if let Some(hz) = js8.hb_hz {
-                    ui.label(
-                        RichText::new(format!("HB {hz:.0} Hz"))
-                            .monospace()
-                            .color(crate::theme::GREEN()),
-                    )
-                    .on_hover_text(format!(
-                        "The last beacon went out at {hz:.0} Hz — a free slot in the {:.0}–{:.0} Hz \
-                         heartbeat sub-band, chosen so it lands clear of the signals being decoded.",
-                        sdroxide_types::HB_BAND_LO_HZ,
-                        sdroxide_types::HB_BAND_HI_HZ,
-                    ));
-                }
+            // Beacon state. An unattended transmitter must say so where the
+            // operator is already looking, and say when it will key next — a
+            // countdown is the difference between "armed" and "hung".
+            let hb_min = self.digi_cfg_edit.js8_heartbeat_min;
+            // Lit by what the engine is *doing*, not by what is configured: at
+            // Turbo the interval is set and nothing beacons, and a chip that
+            // claimed otherwise would be the one place this must not be wrong.
+            let hb_on = crate::chrome::chip(ui, js8.next_hb_in_s.is_some(), "HB AUTO")
+                .on_hover_text(match js8.next_hb_in_s {
+                    Some(_) => format!("Beaconing every {hb_min} min — click to stop"),
+                    None if js8.speed == Js8Speed::Turbo => {
+                        "Turbo does not beacon — it is the local and VHF speed".to_string()
+                    }
+                    None => "Beacon your callsign and grid every 15 minutes".to_string(),
+                })
+                .clicked();
+            if hb_on {
+                // Off if it was on; otherwise the interval most of the band
+                // uses, which SETUP can then change.
+                self.digi_cfg_edit.js8_heartbeat_min = if hb_min > 0 { 0 } else { 15 };
+                cmds.push(Command::SetDigiConfig(self.digi_cfg_edit.clone()));
+            }
+            if let Some(left) = js8.next_hb_in_s {
+                ui.label(
+                    RichText::new(format!("{}:{:02}", left / 60, left % 60))
+                        .monospace()
+                        .color(crate::theme::CYAN_DIM()),
+                )
+                .on_hover_text("Until the next heartbeat");
+            }
+            // Beacons do not go out on the working frequency, so the waterfall
+            // shows a burst where the panel's marker is not. Saying where it
+            // went is the difference between that reading as a bug and as the
+            // sub-band convention working.
+            if let Some(hz) = js8.hb_hz {
+                ui.label(
+                    RichText::new(format!("HB {hz:.0} Hz"))
+                        .monospace()
+                        .color(crate::theme::GREEN()),
+                )
+                .on_hover_text(format!(
+                    "The last beacon went out at {hz:.0} Hz — a free slot in the {:.0}–{:.0} Hz \
+                     heartbeat sub-band, chosen so it lands clear of the signals being decoded.",
+                    sdroxide_types::HB_BAND_LO_HZ,
+                    sdroxide_types::HB_BAND_HI_HZ,
+                ));
             }
             crate::chrome::row_tail(ui, |ui| {
                 // Every setting this mode has — callsign, groups, auto-reply,
@@ -393,11 +407,9 @@ impl SdroxideApp {
                 // First declared is lowest in a bottom-up layout, so this is
                 // the gap between the controls and the panel edge. Without it
                 // they sit flush against the frame.
-                if !self.ui_settings.swl {
-                    ui.add_space(8.0);
-                    self.js8_compose(ui, cmds, js8);
-                    ui.add_space(4.0);
-                }
+                ui.add_space(8.0);
+                self.js8_compose(ui, cmds, js8);
+                ui.add_space(4.0);
                 // Back to normal order for the scrolling part.
                 ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                     self.js8_conversation(ui, js8);
@@ -648,15 +660,9 @@ impl SdroxideApp {
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            let resp = if self.ui_settings.swl {
-                                                ui.label("")
-                                            } else {
-                                                reply_btn(ui)
-                                            };
+                                            let resp = reply_btn(ui);
                                             reply = resp.clicked();
-                                            if !self.ui_settings.swl {
-                                                reply_left = Some(resp.rect.left());
-                                            }
+                                            reply_left = Some(resp.rect.left());
                                             ui.with_layout(
                                                 egui::Layout::left_to_right(egui::Align::Center),
                                                 |ui| {
@@ -770,15 +776,9 @@ impl SdroxideApp {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        let resp = if self.ui_settings.swl {
-                                            ui.label("")
-                                        } else {
-                                            reply_btn(ui)
-                                        };
+                                        let resp = reply_btn(ui);
                                         reply = resp.clicked();
-                                        if !self.ui_settings.swl {
-                                            reply_left = Some(resp.rect.left());
-                                        }
+                                        reply_left = Some(resp.rect.left());
                                         ui.with_layout(
                                             egui::Layout::left_to_right(egui::Align::Center),
                                             |ui| {
@@ -1161,26 +1161,12 @@ impl SdroxideApp {
             });
             if send && !self.text_tx.trim().is_empty() {
                 let body = self.text_tx.trim().to_string();
-                // CQ and HB are addressed to everyone, whichever station is
-                // selected: prefixing them with a callsign would turn "CQ" into
-                // a directed free-text message and "HB" into the wrong frame.
-                // Everything else goes to the target when there is one.
-                let broadcast = matches!(
-                    body.to_ascii_uppercase().as_str(),
-                    "CQ" | "HB"
-                        | "HEARTBEAT"
-                        | "@ALLCALL CQ"
-                        | "@ALLCALL HB"
-                        | "@ALLCALL HEARTBEAT"
-                );
-                let full = if has_target && !broadcast {
-                    format!("{} {body}", self.js8_target)
-                } else {
-                    body
-                };
+                cmds.push(Command::DigiSendText(js8_addressed(&self.js8_target, &body)));
                 // Kept so `AGN?` — "say again" — has something to draft from.
-                self.js8_last_sent = full.clone();
-                cmds.push(Command::DigiSendText(full));
+                // The words as typed, not as addressed: the draft lands in this
+                // composer aimed at whoever asked, and SEND addresses it again,
+                // so keeping the callsign sent "KN4CRD KN4CRD …".
+                self.js8_last_sent = body;
                 self.text_tx.clear();
             }
         });
@@ -1189,7 +1175,7 @@ impl SdroxideApp {
 
 #[cfg(test)]
 mod js8_panel_tests {
-    use super::js8_frame_estimate;
+    use super::{js8_addressed, js8_frame_estimate};
 
     #[test]
     fn short_messages_take_one_frame() {
@@ -1222,7 +1208,7 @@ mod js8_panel_tests {
             grid: "FN42".into(),
             status: "PORTABLE".into(),
             hearing: vec!["KN4CRD".into(), "VK3ABC".into()],
-            last_sent: "KN4CRD HELLO FROM THE HILLS".into(),
+            last_sent: "HELLO FROM THE HILLS".into(),
         }
     }
 
@@ -1267,7 +1253,7 @@ mod js8_panel_tests {
             ("STATUS?", "STATUS PORTABLE"),
             ("HEARING?", "HEARING KN4CRD VK3ABC"),
             // "Say again" wants the same words back, not a new sentence.
-            ("AGN?", "KN4CRD HELLO FROM THE HILLS"),
+            ("AGN?", "HELLO FROM THE HILLS"),
         ] {
             assert_eq!(
                 js8_reply_for(&msg(Some(cmd), "N0JDS"), &me()).as_deref(),
@@ -1275,6 +1261,24 @@ mod js8_panel_tests {
                 "{cmd}"
             );
         }
+    }
+
+    /// A repeat is addressed once. The draft lands in the composer aimed at
+    /// whoever asked, and SEND addresses it; when the words were kept with their
+    /// callsign that made "KN4CRD KN4CRD HELLO FROM THE HILLS".
+    #[test]
+    fn a_say_again_is_addressed_once() {
+        let draft = js8_reply_for(&msg(Some("AGN?"), "N0JDS"), &me()).unwrap();
+        assert_eq!(js8_addressed("KN4CRD", &draft), "KN4CRD HELLO FROM THE HILLS");
+    }
+
+    #[test]
+    fn announcements_stay_broadcast_whoever_is_selected() {
+        for body in ["CQ", "hb", "HEARTBEAT", "@ALLCALL CQ", "@ALLCALL HB"] {
+            assert_eq!(js8_addressed("KN4CRD", body), body);
+        }
+        assert_eq!(js8_addressed("KN4CRD", "SNR?"), "KN4CRD SNR?");
+        assert_eq!(js8_addressed("", "HELLO ALL"), "HELLO ALL");
     }
 
     #[test]

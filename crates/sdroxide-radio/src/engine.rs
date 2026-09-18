@@ -45,7 +45,7 @@ use sdroxide_types::{
 };
 use sdroxide_vdl2::{Vdl2Action, Vdl2Controller};
 
-use crate::recorder::{Recorder, RecordingChannels};
+use crate::recorder::{Recorder, RecorderFault, RecordingChannels};
 use crate::voice::VoiceKeyer;
 use crate::{Complex32, ControlUpdate, IqSource};
 
@@ -3766,9 +3766,7 @@ fn engine_thread(
     let _ = event_tx.send(RadioEvent::Memories(memories.clone()));
     let _ = event_tx.send(RadioEvent::MemoryFolders(mem_folders.clone()));
     let _ = event_tx.send(RadioEvent::Scanner(scan_cfg.clone()));
-    let _ = event_tx.send(RadioEvent::Profiles(
-        profiles.iter().map(|p| p.name.clone()).collect(),
-    ));
+    let _ = event_tx.send(RadioEvent::Profiles(profiles.iter().map(|p| p.name.clone()).collect()));
     // Surface any warning captured while opening the source (e.g. radio audio
     // device unavailable / mono card chosen for IQ) so the UI can show it
     // instead of an unexplained "waiting for spectrum" — together with any
@@ -4593,6 +4591,11 @@ fn engine_thread(
         }
         if now >= next_meters {
             next_meters = now + METER_INTERVAL;
+            // A recording that has stopped writing, or stumbled and carried
+            // on. Nothing else in the program fails this quietly — the audio
+            // plays on, the button stays lit, and the only evidence is a file
+            // that ends early (issue #443).
+            engine.report_recorder_faults();
             // How much of the disk the I/Q capture has taken, for the readout
             // beside the button. At 2.4 Msps this climbs by 19 MB a second and
             // an operator wants to see that before the disk fills.
@@ -4617,6 +4620,11 @@ fn engine_thread(
             // side's view of the samples that arrived, and on a direct-sampling
             // radio the two answer different questions (issue #362).
             let adc_overload = engine.source.adc_overload();
+            // The predistortion loop, where the radio runs one. Also read once
+            // for both branches: whether it locked is asked mostly *after* the
+            // over, and a reading that vanished at unkey would hide the answer
+            // (issue #441).
+            let puresignal = engine.source.puresignal();
             let meters = if engine.tx_active || engine.rig_tx {
                 // CAT/TCI rigs report real forward power / SWR; HackRF and other
                 // IQ sources have no such sensor and leave both `None` (the meter
@@ -4748,6 +4756,7 @@ fn engine_thread(
                     // Transmitting: the receiver is stood down and whatever the
                     // chain last measured belongs to a moment that has passed.
                     passband_dbfs: f32::NEG_INFINITY,
+                    puresignal,
                 })
             } else {
                 // Not transmitting: both SWR counters belong to an over, so they
@@ -4779,6 +4788,7 @@ fn engine_thread(
                     stereo,
                     tone,
                     passband_dbfs,
+                    puresignal,
                 })
             };
             if let Some(m) = meters {
@@ -9626,11 +9636,7 @@ impl Engine {
                     digi: self.digi_config.clone(),
                     stacks: self.stacks.clone(),
                 };
-                match self
-                    .profiles
-                    .iter()
-                    .position(|p| p.name.eq_ignore_ascii_case(&name))
-                {
+                match self.profiles.iter().position(|p| p.name.eq_ignore_ascii_case(&name)) {
                     Some(i) => self.profiles[i] = snapshot,
                     None => self.profiles.push(snapshot),
                 }
@@ -9646,19 +9652,17 @@ impl Engine {
 
             ProfileApply(name) => {
                 // A profile moves the dial, the mode and the transmit setup
-                // under whatever is on the air, so it waits for the over.
-                if self.tx_active || self.state.tx.ptt {
-                    self.notice(
-                        "Wait for the transmission to finish before putting a profile on.",
-                    );
+                // under whatever is on the air, so it waits for the over — by
+                // any route: keyed at the radio, or a message the rig's own
+                // keyer is sending, as well as our own key.
+                if self.on_air() || self.state.tx.ptt {
+                    self.notice("Wait for the transmission to finish before putting a profile on.");
                     return;
                 }
                 let Some(profile) =
                     self.profiles.iter().find(|p| p.name.eq_ignore_ascii_case(&name)).cloned()
                 else {
-                    self.notice(&format!(
-                        "Profile \u{201c}{name}\u{201d} does not exist."
-                    ));
+                    self.notice(&format!("Profile \u{201c}{name}\u{201d} does not exist."));
                     return;
                 };
                 self.apply_profile(&profile);
@@ -9670,12 +9674,9 @@ impl Engine {
             ProfileDelete(name) => {
                 self.poll_shared_stores();
                 let before = self.profiles.len();
-                self.profiles
-                    .retain(|p| !p.name.eq_ignore_ascii_case(&name));
+                self.profiles.retain(|p| !p.name.eq_ignore_ascii_case(&name));
                 if self.profiles.len() == before {
-                    self.notice(&format!(
-                        "Profile \u{201c}{name}\u{201d} does not exist."
-                    ));
+                    self.notice(&format!("Profile \u{201c}{name}\u{201d} does not exist."));
                     return;
                 }
                 if let Err(e) = sdroxide_config::save_profiles(&self.profiles) {
@@ -9799,6 +9800,32 @@ impl Engine {
         self.state.iq_recording = false;
         self.state.iq_recording_file = None;
         self.state.iq_recording_mb = 0;
+    }
+
+    /// Tell the operator when the MP3 encoder has stumbled, and take the
+    /// recording down when it cannot be brought back.
+    ///
+    /// A dead recorder leaves `state.recording` lit and the mixer feeding a
+    /// ring nobody drains, so the button would go on claiming a recording that
+    /// stopped minutes ago. It is torn down here for the same reason the
+    /// operator is told: the honest state is "not recording".
+    fn report_recorder_faults(&mut self) {
+        let Some(fault) = self.recorder.as_ref().and_then(|r| r.failure()) else { return };
+        match fault {
+            RecorderFault::Glitch => {
+                let _ = self.event_tx.send(RadioEvent::Notice(Some(
+                    "Recording: the MP3 encoder hiccuped — there is a short gap in the file".into(),
+                )));
+            }
+            RecorderFault::Dead => {
+                let file = self.state.recording_file.clone().unwrap_or_default();
+                self.stop_recording();
+                let _ = self.event_tx.send(RadioEvent::Notice(Some(format!(
+                    "Recording stopped: the MP3 encoder failed. {file} holds what was captured \
+                     up to that point."
+                ))));
+            }
+        }
     }
 
     /// Stop and finalize any active recording.
@@ -14021,12 +14048,22 @@ impl Engine {
         // `current_session`), so the *active* dial is `vfo_b_hz` when B was the
         // one in use — reading `freq_hz` there put a profile saved on B onto A's
         // frequency.
-        self.state.active_vfo = s.active_vfo;
         let active_hz = match s.active_vfo {
             sdroxide_types::Vfo::A => s.freq_hz,
             sdroxide_types::Vfo::B => s.vfo_b_hz.unwrap_or(s.freq_hz),
         };
         let mode = s.vfo_modes.map(|m| m[s.active_vfo.index()]).unwrap_or(s.mode);
+        if s.active_vfo != self.state.active_vfo {
+            self.state.active_vfo = s.active_vfo;
+            // A rig with its own pair of VFOs is told which one is now being
+            // worked, and before the retune below, for `SelectVfo`'s reasons:
+            // a retune sent ahead of the selection lands on the VFO being left
+            // and overwrites the radio's other dial. The rig's number, in the
+            // mode the profile puts it in, as there. The inactive shelf needs
+            // no shelving here — it is set whole from the profile below.
+            let rig_hz = active_hz + self.rig_cw_offset_hz_in(mode);
+            self.source.select_vfo(s.active_vfo, rig_hz);
+        }
         let band = Band::containing(active_hz);
         let (filter_lo, filter_hi) = self
             .stacks

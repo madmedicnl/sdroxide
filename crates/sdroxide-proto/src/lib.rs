@@ -1324,30 +1324,46 @@ use sdroxide_types::{
 /// HD-2 subchannels, all appended last so no surviving discriminant moved, but a
 /// v147 peer handed any of them fails to decode the message carrying it.
 ///
-/// v149: the listener fork's additions on top of v148. `NetworkConfig` gains
-/// `wsjtcb` (the WSJT-CB spot server) and then `log11dx_api_url`,
-/// `log11dx_api_token` and `auto_upload_log11dx`; `QsoRecord` gains
-/// `log11dx_sent`; `UploadTarget` and `LoginTarget` each gain `Log11Dx`; and
-/// `Command` gains the station profiles, the receive tone, the replay switch
-/// and the CB transmit opt-in. All appended, so no surviving discriminant
-/// moved — but postcard is positional and this fork's `Mode` numbering already
-/// diverges (it carries `Cquam` and `Acars` before `HdRadio`), so a v148 peer
-/// desynchronises on the tail of the structs and on the `Mode` byte; the
-/// handshake's equality test is what stops it trying.
+/// v149: [`sdroxide_types::Meters`] gains `puresignal`, what the adaptive
+/// predistortion loop is doing on a radio running one (issue #441). Appended
+/// last, but `Meters` is a struct in a non-self-describing encoding: a v148
+/// peer reads the extra bytes as the start of the next field and fails to
+/// decode every meter update.
 ///
-/// v150: per-mode settings. The engine now applies AGC, squelch, noise
-/// reduction and the rest from a profile when the mode changes, and remembers
-/// what the operator changes while a mode is selected, so `Command` gains
-/// `ResetModeDefaults` — appended, so no surviving discriminant moved. The
-/// profiles themselves travel as receiver state, so a v149 peer's state decode
-/// is unchanged; it just cannot ask for a reset.
+/// v150: the SSTV vocabulary grows — [`sdroxide_types::SstvMode`] gains the PD
+/// family and the two Wraase SC-2 modes, and [`sdroxide_types::SstvStatus`]
+/// gains `unsupported`, the name of a mode a header arrived for and this build
+/// cannot draw (issue #421). The variants are appended so no surviving
+/// discriminant moved, but a v149 peer has no name for the new ones and reads
+/// the status's extra field as the start of the next, so every SSTV update
+/// fails to decode.
 ///
-/// v151: ACARS on the wire. It rides the existing `DigiStatus`, but the field
-/// was inserted in the middle of the struct; postcard numbers fields by
-/// position, so a v150 peer desynchronises on the tail of every `DigiStatus`.
-/// The field is now last, so no surviving field moved, and the version is
-/// bumped so a mismatched peer refuses rather than mis-decoding.
-pub const PROTO_VERSION: u16 = 151;
+/// v151: [`sdroxide_types::PublicSdrNetwork`] gains `SdrList`, the
+/// `sdr-list.xyz` directory of PhantomSDR-Plus and friends (issue #482).
+/// Appended, so no surviving discriminant moved, but it rides inside
+/// `ProbeAnswer::PublicSdrs`: a v150 client handed a receiver from that
+/// directory fails to decode the whole answer, and its browse window stays
+/// empty rather than showing the two lists it does know.
+///
+/// v152: the CW keyboard straight key (issue #322). `Command::CwStraight` and
+/// `Command::CwKey`, appended last so no surviving discriminant moved, but a
+/// v151 peer has no name for either and fails to decode the message carrying it.
+///
+/// v153: station profiles (issue #197). `Command` gains `ProfileSave`,
+/// `ProfileApply` and `ProfileDelete`, appended last so no surviving
+/// discriminant moved, but a v152 station has no name for them and fails to
+/// decode the message carrying one. `ServerMsg` gains `Profiles`, the names
+/// to offer, appended last for the same reason: a v152 client handed the list
+/// fails to decode it.
+/// v154: the listener fork's additions on top of v153. `Command::ResetModeDefaults`
+/// (per-mode settings) and the ACARS `DigiStatus::acars` field, moved to that
+/// struct's tail. Both are fork-only — upstream's numbering skips them — so the
+/// fork's version runs one ahead. They are appended or positioned to keep every
+/// surviving discriminant and field where it was, but the fork's `Mode` and
+/// command order already diverge from upstream's, so a v153 peer desynchronises
+/// on the tail regardless; the handshake's equality test is what stops it
+/// trying.
+pub const PROTO_VERSION: u16 = 154;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -1791,6 +1807,15 @@ pub enum ServerMsg {
     ///
     /// Appended last, for the usual reason.
     Hd(sdroxide_types::HdRadioStatus),
+
+    /// `RadioEvent::Profiles`: the names of the station's saved profiles
+    /// (issue #197), the list the settings dialog's Profiles tab offers. Sent
+    /// on connect and after every save, apply and delete — without it a remote
+    /// screen showed "no profiles saved" beside a station full of them, and a
+    /// Save it made never appeared.
+    ///
+    /// Appended last, for the usual reason.
+    Profiles(Vec<String>),
 }
 
 /// One radio in a station's roster, as a client sees it.
@@ -1861,6 +1886,10 @@ mod tests {
         let m = ServerMsg::State(RadioState::default());
         let bytes = encode(&m).unwrap();
         let back: ServerMsg = decode(&bytes).unwrap();
+        assert_eq!(back, m);
+
+        let m = ServerMsg::Profiles(vec!["Contest".into(), "DX".into()]);
+        let back: ServerMsg = decode(&encode(&m).unwrap()).unwrap();
         assert_eq!(back, m);
 
         // The station-roster edits, and the announcement that answers them.

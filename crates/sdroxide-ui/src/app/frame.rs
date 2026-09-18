@@ -238,6 +238,9 @@ impl eframe::App for SdroxideApp {
             // An open manual takes the scrolling keys before the bindings run,
             // so reading it never tunes the radio at the same time.
             self.help.grab_keys(&ctx);
+            // Likewise the CW straight key takes the Space bar, so a PTT bound
+            // to it does not key the rig under the operator's hand.
+            self.swallow_straight_key(&ctx);
             self.control_inputs(&ctx, now, &mut cmds);
         }
         // (An unfocused pane's MIDI backlog is discarded in `drain_events`,
@@ -1253,7 +1256,12 @@ impl SdroxideApp {
                 RadioEvent::Memories(m) => self.memories = m,
                 RadioEvent::MemoryFolders(f) => self.mem_folders = f,
                 RadioEvent::Scanner(c) => self.scanner = c,
-                RadioEvent::Profiles(names) => self.profiles = names,
+                RadioEvent::Profiles(names) => {
+                    self.profiles = names;
+                    if std::mem::take(&mut self.profile_apply_pending) {
+                        self.digi_cfg_seeded = false;
+                    }
+                }
                 RadioEvent::ConnectionLost(e) => {
                     if self.focused {
                         self.speech.announcer.on_error(&e, now);

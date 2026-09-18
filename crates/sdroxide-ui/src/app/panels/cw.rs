@@ -153,18 +153,14 @@ impl SdroxideApp {
         // Counted here or the row would be laid out past the bottom of the
         // panel, where it does not clip: it paints over whatever is below.
         let macro_h = 4.0 + crate::chrome::chip_height(ui, None);
-        let rx_h = if self.ui_settings.swl {
-            (content_bottom - ui.cursor().top() - bottom_pad).max(24.0)
-        } else {
-            (content_bottom
-                - ui.cursor().top()
-                - btn_h
-                - macro_h
-                - input_h
-                - 2.0 * gap
-                - bottom_pad)
-                .max(24.0)
-        };
+        let rx_h = (content_bottom
+            - ui.cursor().top()
+            - btn_h
+            - macro_h
+            - input_h
+            - 2.0 * gap
+            - bottom_pad)
+            .max(24.0);
 
         ui.allocate_ui(egui::vec2(ui.available_width(), rx_h), |ui| {
             egui::Frame::new()
@@ -201,10 +197,6 @@ impl SdroxideApp {
                 });
         });
         ui.add_space(gap);
-
-        if self.ui_settings.swl {
-            return;
-        }
 
         // Transmit box. Characters already keyed are green, and they are keyed
         // as they are typed rather than a line at a time — which is how a CW
@@ -256,10 +248,8 @@ impl SdroxideApp {
         // is the *text* keyer, and with the Space bar made a key, typing into
         // it would be the text keyer speaking over the operator's hand.
         let tx_ok = self.tx_capable();
-        let entered = tx_ok
-            && !self.cw_straight
-            && send_on_enter
-            && crate::chrome::take_return(ui, tx_id);
+        let entered =
+            tx_ok && !self.cw_straight && send_on_enter && crate::chrome::take_return(ui, tx_id);
 
         let resp = ui
             .add_enabled_ui(tx_ok && !self.cw_straight, |ui| {
@@ -328,21 +318,27 @@ impl SdroxideApp {
         // The keyboard as a straight key (issue #322): with the mode on, the
         // Space bar is the key — down while held, up on release — and the
         // box above is locked out so a stray space does not type into it.
-        if self.cw_straight && tx_ok {
+        //
+        // Only on the radio holding the keyboard. In a split view every
+        // visible radio draws this panel, and without the gate one Space bar
+        // would key each of them that has the mode on — and put the key back
+        // down on a radio the frame after losing focus had lifted it.
+        if self.cw_straight && tx_ok && self.focused {
             // The key is the operator's only when nothing on screen holds the
             // keyboard: a caret in some other field is a typist, not a keyer.
-            let free = !ui.memory(|m| m.focused().is_some()) && !ui.ctx().egui_wants_keyboard_input();
+            let free =
+                !ui.memory(|m| m.focused().is_some()) && !ui.ctx().egui_wants_keyboard_input();
             let down = free && ui.input(|i| i.key_down(egui::Key::Space));
             if down != self.cw_key_down {
                 self.cw_key_down = down;
                 cmds.push(Command::CwKey(down));
             }
-            // Swallow the press so a PTT bound to Space, or the search box's
-            // catch-all, does not fire under a keyed hand as well.
-            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Space));
+            // The press itself was taken from everything else before the key
+            // bindings ran — see `swallow_straight_key`.
         } else if self.cw_key_down {
-            // The mode went off, or the keyboard was taken — either way a key
-            // let go of the rig mid-character would hold the frequency.
+            // The mode went off, the keyboard was taken, or another radio has
+            // it now — either way a key let go of the rig mid-character would
+            // hold the frequency.
             self.cw_key_down = false;
             cmds.push(Command::CwKey(false));
         }
@@ -464,6 +460,29 @@ impl SdroxideApp {
         });
         self.cw_macro_row(ui, cmds, tx_ok, &my_call);
         ui.add_space(bottom_pad);
+    }
+
+    /// Take the Space bar away from everything else while it is the straight
+    /// key (issue #322).
+    ///
+    /// Called ahead of `control_inputs`, because the key bindings are polled
+    /// before any panel draws: swallowing the press in the panel came a frame
+    /// section too late, and a PTT bound to Space — the Controls tab offers it
+    /// in one click — keyed a carrier under the operator's hand as well. Only
+    /// the *events* go. egui keeps which keys are held apart from them, and that
+    /// is what the panel reads the key from.
+    ///
+    /// Nothing is taken while a widget holds the keyboard: a space there is
+    /// text, the straight key is not reading it, and the bindings stand down on
+    /// their own.
+    pub(in crate::app) fn swallow_straight_key(&self, ctx: &egui::Context) {
+        if !self.cw_straight || !self.tx_capable() {
+            return;
+        }
+        if ctx.egui_wants_keyboard_input() || ctx.memory(|m| m.focused()).is_some() {
+            return;
+        }
+        ctx.input_mut(|i| i.events.retain(|e| !is_straight_key_event(e)));
     }
 
     /// The operator's own message buttons, and the chip that edits them.
@@ -723,84 +742,138 @@ impl SdroxideApp {
             changed = true;
         }
 
-        if !self.ui_settings.swl {
-            // Farnsworth: elements at the sending speed, spacing stretched to this.
-            let fw = cfg.cw_farnsworth_wpm;
-            let fw_on = fw > 0.0 && fw < cfg.cw_wpm;
-            let face = if fw_on { format!("FW {fw:.0}") } else { "FW".to_string() };
-            let btn = crate::chrome::chip(ui, fw_on, RichText::new(face).size(10.5)).on_hover_text(
-                "Farnsworth: send the characters at full speed and stretch only the gaps \
+        // Farnsworth: elements at the sending speed, spacing stretched to this.
+        let fw = cfg.cw_farnsworth_wpm;
+        let fw_on = fw > 0.0 && fw < cfg.cw_wpm;
+        let face = if fw_on { format!("FW {fw:.0}") } else { "FW".to_string() };
+        let btn = crate::chrome::chip(ui, fw_on, RichText::new(face).size(10.5)).on_hover_text(
+            "Farnsworth: send the characters at full speed and stretch only the gaps \
              between them, so they are heard at the right rhythm but arrive slowly enough \
              to write down.",
-            );
-            let mut pick_fw = None;
-            let resp = egui::Popup::from_toggle_button_response(&btn)
-                .frame(crate::chrome::window_frame())
-                .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
-                .show(|ui| {
-                    crate::chrome::window_body_bg(ui);
-                    ui.set_max_width(180.0);
-                    if ui.selectable_label(!fw_on, "Off — normal spacing").clicked() {
-                        pick_fw = Some(0.0);
-                    }
-                    for w in [5.0f32, 8.0, 10.0, 13.0, 15.0, 18.0] {
-                        if w >= cfg.cw_wpm {
-                            continue; // stretching to faster than the elements is not a thing
-                        }
-                        if ui
-                            .selectable_label((fw - w).abs() < 0.5, format!("{w:.0} WPM"))
-                            .clicked()
-                        {
-                            pick_fw = Some(w);
-                        }
-                    }
-                });
-            if let Some(r) = &resp {
-                crate::chrome::paint_popup_cut_border(ui.ctx(), &r.response, 1.0);
-            }
-            if let Some(w) = pick_fw {
-                cfg.cw_farnsworth_wpm = w;
-                changed = true;
-            }
-
-            // Transmit speed.
-            let wpm = cfg.cw_wpm;
-            let btn =
-                crate::chrome::chip(ui, false, RichText::new(format!("{wpm:.0} WPM")).size(11.0))
-                    .on_hover_text("Keying speed");
-            let mut pick = None;
-            let resp = egui::Popup::from_toggle_button_response(&btn)
-                .frame(crate::chrome::window_frame())
-                .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
-                .show(|ui| {
-                    crate::chrome::window_body_bg(ui);
-                    ui.set_max_width(140.0);
-                    for w in WPM_STEPS {
-                        if ui
-                            .selectable_label((wpm - w).abs() < 0.5, format!("{w:.0} WPM"))
-                            .clicked()
-                        {
-                            pick = Some(*w);
-                        }
-                    }
-                });
-            if let Some(r) = &resp {
-                crate::chrome::paint_popup_cut_border(ui.ctx(), &r.response, 1.0);
-            }
-            if let Some(w) = pick {
-                cfg.cw_wpm = w;
-                // Farnsworth spacing slower than the elements is the only kind
-                // there is; a speed drop that inverted them would send gibberish
-                // timing.
-                if cfg.cw_farnsworth_wpm >= w {
-                    cfg.cw_farnsworth_wpm = 0.0;
+        );
+        let mut pick_fw = None;
+        let resp = egui::Popup::from_toggle_button_response(&btn)
+            .frame(crate::chrome::window_frame())
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
+            .show(|ui| {
+                crate::chrome::window_body_bg(ui);
+                ui.set_max_width(180.0);
+                if ui.selectable_label(!fw_on, "Off — normal spacing").clicked() {
+                    pick_fw = Some(0.0);
                 }
-                changed = true;
+                for w in [5.0f32, 8.0, 10.0, 13.0, 15.0, 18.0] {
+                    if w >= cfg.cw_wpm {
+                        continue; // stretching to faster than the elements is not a thing
+                    }
+                    if ui.selectable_label((fw - w).abs() < 0.5, format!("{w:.0} WPM")).clicked() {
+                        pick_fw = Some(w);
+                    }
+                }
+            });
+        if let Some(r) = &resp {
+            crate::chrome::paint_popup_cut_border(ui.ctx(), &r.response, 1.0);
+        }
+        if let Some(w) = pick_fw {
+            cfg.cw_farnsworth_wpm = w;
+            changed = true;
+        }
+
+        // Transmit speed.
+        let wpm = cfg.cw_wpm;
+        let btn = crate::chrome::chip(ui, false, RichText::new(format!("{wpm:.0} WPM")).size(11.0))
+            .on_hover_text("Keying speed");
+        let mut pick = None;
+        let resp = egui::Popup::from_toggle_button_response(&btn)
+            .frame(crate::chrome::window_frame())
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
+            .show(|ui| {
+                crate::chrome::window_body_bg(ui);
+                ui.set_max_width(140.0);
+                for w in WPM_STEPS {
+                    if ui.selectable_label((wpm - w).abs() < 0.5, format!("{w:.0} WPM")).clicked() {
+                        pick = Some(*w);
+                    }
+                }
+            });
+        if let Some(r) = &resp {
+            crate::chrome::paint_popup_cut_border(ui.ctx(), &r.response, 1.0);
+        }
+        if let Some(w) = pick {
+            cfg.cw_wpm = w;
+            // Farnsworth spacing slower than the elements is the only kind
+            // there is; a speed drop that inverted them would send gibberish
+            // timing.
+            if cfg.cw_farnsworth_wpm >= w {
+                cfg.cw_farnsworth_wpm = 0.0;
             }
+            changed = true;
         }
 
         if changed && self.digi_cfg_seeded {
             cmds.push(Command::SetDigiConfig(self.digi_cfg_edit.clone()));
         }
+    }
+}
+
+/// A Space press — auto-repeat included — or the space it types: what the
+/// straight key keeps from the rest of the screen while it is engaged. The
+/// release is left alone; a binding holds nothing it never saw pressed, so it
+/// reaches nothing.
+fn is_straight_key_event(e: &egui::Event) -> bool {
+    match e {
+        egui::Event::Key { key: egui::Key::Space, pressed: true, .. } => true,
+        egui::Event::Text(t) => t == " ",
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn space(pressed: bool) -> egui::Event {
+        egui::Event::Key {
+            key: egui::Key::Space,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// The press goes and the key stays down: a binding polled after the swallow
+    /// never sees Space pressed, and the straight key still reads it held.
+    #[test]
+    fn swallowing_the_press_leaves_the_key_held() {
+        let ctx = egui::Context::default();
+        let raw = egui::RawInput {
+            events: vec![space(true), egui::Event::Text(" ".into())],
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(raw, |ui| {
+            ui.ctx().input_mut(|i| i.events.retain(|e| !is_straight_key_event(e)));
+            ui.input(|i| {
+                assert!(!i.key_pressed(egui::Key::Space), "a binding would still fire");
+                assert!(i.key_down(egui::Key::Space), "the straight key lost its key");
+                assert!(i.events.is_empty(), "the typed space survived: {:?}", i.events);
+            });
+        });
+        // No renderer here to take the font atlas the first frame builds.
+        out.textures_delta.clear();
+    }
+
+    /// Only Space is taken. Every other key, the release, and text that merely
+    /// contains a space all pass.
+    #[test]
+    fn nothing_but_the_space_press_is_taken() {
+        assert!(!is_straight_key_event(&space(false)));
+        assert!(!is_straight_key_event(&egui::Event::Text("a b".into())));
+        assert!(!is_straight_key_event(&egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }));
     }
 }
