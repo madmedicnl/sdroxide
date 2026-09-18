@@ -5557,6 +5557,11 @@ sensitive.
 
 Almost any receiver clears the last row. What matters far more is the aerial.
 
+**And the front end's own filters.** An SDRplay RSP1's **DAB notch**, meant for
+Band III, reaches down far enough to take the AIS band with it: a receiver that
+looks deaf at 162 MHz can simply be filtered, with nothing on screen to say so.
+Turn the DAB notch off before blaming the aerial (issue #408).
+
 **Both channels, or half the shipping.** A vessel alternates between AIS 1 and
 AIS 2 slot by slot, so a receiver reaching only one hears every ship at half its
 reporting rate. That does not look like half a signal — it looks like vessels
