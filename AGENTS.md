@@ -118,6 +118,18 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     branch — after a fork merge that has to be reconciled with the fork's
     higher number. **No PR opened** — the design is the maintainer's call, and
     the reporter has not confirmed the bug yet.
+  - `dividebysandwich/sdroxide#483` — a request for a DAB/DAB+ decoder, so it
+    can be used over a SpyServer like the other decoders. Scoped on the issue:
+    the enabling find is **`dabradio`** (MIT, ~8.4k LOC) in `xoolive/desperado`
+    — the full OFDM/FIC/MSC/Viterbi/RS chain plus pure-Rust MP2
+    (`oxideav-mp2`). Three decisions before starting: it is published as a TUI
+    **binary, not a library** (`has_lib: false`), so ask the author to expose
+    one or vendor it; it decodes DAB+ with `fdk-aac`, which sdroxide does not
+    link (see `vendor/fdk-aac/PROVENANCE.md`), so swap in the already-vendored
+    **faad2** (HE-AAC v2) and `oxideav-mp2`; and DAB Mode I needs the full
+    **1.536 MHz** / ~2.048 Msps, a new wideband lane like ADS-B's rather than
+    the 12 kHz `on_rx_iq` tap. Staged proposal on the issue (decode+ensemble →
+    service audio → panel). Awaiting the maintainer's call; no code.
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
