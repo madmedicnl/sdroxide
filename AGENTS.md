@@ -56,10 +56,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     protocol bump reconciled (it claims v154, as ACARS does; whichever lands
     second moves up).
   - Open fork PRs, all branched from `upstream/main` and **not merged here**:
-    **#498 / #499** are the two (tr)uSDX profiles — take one, not both; **#500**
-    fixes WEFAX auto start/stop fragmentation (#496); **#501** fixes the Icom
-    WFM mode byte (#494). When upstream takes one, merge the result back; if it
-    is rejected, decide with the user whether to keep a fork copy.
+    **#498** is the (tr)uSDX family, with a per-radio choice of audio path;
+    **#500** fixes WEFAX auto start/stop fragmentation (#496); **#501** fixes
+    the Icom WFM mode byte (#494). When upstream takes one, merge the result
+    back; if it is rejected, decide with the user whether to keep a fork copy.
+    (#499, the sound-card-only (tr)uSDX, is closed as superseded by #498.)
   - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
@@ -127,24 +128,27 @@ its own encoder's output, which is exactly what hid both bugs (acarsdec cannot
 decode that audio either). Not ported: acarsdec's error correction, the
 syndrome search that fixes a few parity/CRC errors; only clean frames decode.
 
-### The (tr)uSDX profiles
+### The (tr)uSDX family
 
-The fork's (tr)uSDX support is two **alternative** upstream PRs, both branched
-from `upstream/main` and deliberately not merged here:
+The fork's (tr)uSDX support is one upstream PR, **#498**, branched from
+`upstream/main` and deliberately not merged here. It adds `CatFamily::TrUsdx`
+(a fourth Kenwood dialect with a thin command set) and a **per-radio choice of
+audio path**, `CatConfig::trusdx_audio` (`TrUsdxAudio`), because the radio has
+no sound card of its own and two ways to be heard:
 
-- **#498 — one cable.** Receive and transmit audio ride the CAT serial link as
-  the firmware's own 8-bit stream (`UA1;`/`US` framing: ~7812 samples/s in, the
-  host pacing 11520 out). The firmware **cannot take a CAT command while its
-  stream is running** — one kills the stream and it does not come back — so this
-  profile polls nothing and brackets every control frame `UA0; … UA1;`. DTR is
-  the radio's reset line and is held high.
-- **#499 — sound card.** The same family as a plain CAT rig, audio on the
-  3.5 mm jack via an external USB sound card. It polls normally and asserts
-  `UA0;` at open.
+- **One cable** (default) — receive and transmit audio ride the CAT serial link
+  as the firmware's own 8-bit stream (`UA1;`/`US` framing: ~7812 samples/s in,
+  the host pacing 11520 out). The firmware **cannot take a CAT command while
+  its stream is running** — one kills the stream and it does not come back — so
+  this mode polls nothing and brackets every control frame `UA0; … UA1;`.
+- **USB sound card** — audio from a card on the 3.5 mm jack; control still over
+  USB, and the rig is polled like any other CAT rig.
 
-Upstream picks one; do not merge either until it does. Both add the same
-`CatFamily::TrUsdx` (a fourth Kenwood dialect with a thin command set), so the
-one that lands supersedes the other.
+Only the in-band mode streams and only it suppresses the poll; both hold DTR
+high (the radio's reset line) and switch any leftover stream off at open.
+`PROTO_VERSION` went 156 -> 157 for the new `CatConfig` field. (#499 was the
+sound-card-only version and is closed as superseded by #498 — the modes are not
+alternatives, and the operator is the one who knows which fits.)
 
 The bench harness is `tools/trusdx-probe/` — PySerial scripts against the
 serial port, with a README of what each measures (transmit ones need a dummy
