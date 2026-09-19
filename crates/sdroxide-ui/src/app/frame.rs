@@ -1590,14 +1590,18 @@ impl SdroxideApp {
                         crate::time::now_unix(),
                     );
                 }
-                // Consumed by the controller, not here: the settings dialog
-                // asks for the interface configuration through
-                // `RadioController::radio_config` when it opens, and both
-                // controllers answer from the authority nearest them — the
-                // local one reads the file, the remote one the copy this
-                // announcement left it. There is nothing to seed on the way
-                // past.
-                RadioEvent::RadioConfig(_) => {}
+                // The interface configuration, seeded once like the station
+                // config above. It is read at construction too, but a remote
+                // client may not have had it yet, and the per-radio SWL mode
+                // (`hide_tx`) rides in it — a radio that is a listener's screen
+                // must not show transmit controls while the announcement is in
+                // flight. Later edits are the settings dialog's, so this only
+                // ever fills a gap.
+                RadioEvent::RadioConfig(c) => {
+                    if self.radio_cfg.is_none() {
+                        self.radio_cfg = Some(*c);
+                    }
+                }
             }
         }
         // A switched-off skimmer stops emitting, so its last boxes would sit on

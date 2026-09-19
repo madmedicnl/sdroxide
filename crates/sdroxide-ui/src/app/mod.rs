@@ -1307,6 +1307,13 @@ impl SdroxideApp {
         let solar3d_view = view.solar3d;
         #[cfg(target_arch = "wasm32")]
         let _ = &wgpu_render_state;
+        // This radio's interface configuration, read now rather than lazily.
+        // The per-radio SWL mode lives in it (`RadioConfig::hide_tx`), and the
+        // first frame already has to know whether this radio is a listener's
+        // screen. Read lazily it was `None` on frame one, so a SWL radio showed
+        // its transmit controls until something happened to ask for the config
+        // — which is exactly the flicker a click used to fix.
+        let radio_cfg = ctrl.radio_config();
         SdroxideApp {
             ctrl,
             display_class,
@@ -1373,7 +1380,7 @@ impl SdroxideApp {
             speech: speech::SpeechRuntime::new(load_speech_settings(storage)),
             speech_voices: Vec::new(),
             alerts: alerts::AlertRuntime::station(load_alerts_settings(storage)),
-            radio_cfg: None,
+            radio_cfg,
             converter_edit_hz: None,
             range_edit: None,
             rx_site_edit: None,
