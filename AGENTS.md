@@ -72,6 +72,17 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
     the issue; see "The HFDL core" below. Awaiting the maintainer's call on
     git-dependency vs vendored port and on scope — do not start before that.
+  - `dividebysandwich/sdroxide#503` — the fork's RADE receive-reporting fix,
+    for upstream issue **#502**. Two things: the RADE panel never drew the
+    callsign decoded from the End-of-Over frame (it was in `DigiStatus::dx_call`
+    all along), and we never sent the empty-callsign `rx_report` that says
+    "hearing something", which is what tells a transmitting station it is being
+    heard before either end has identified the other. Branched from
+    `upstream/main` (branch `upstream-pr/502-freedv-rade-rx`), so the fork's
+    copy is the same commit and drops out on the next merge. Not confirmed on
+    air — no transmit licence here, and #502's reporter was asked to retest. If
+    the empty-callsign report turns out wrong, fix it on the branch before
+    upstream takes it.
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
