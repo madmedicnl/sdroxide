@@ -83,6 +83,17 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     air — no transmit licence here, and #502's reporter was asked to retest. If
     the empty-callsign report turns out wrong, fix it on the branch before
     upstream takes it.
+  - `dividebysandwich/sdroxide#504` — an ANAN-7000DLE (OpenHPSDR) report that
+    the per-band drive matrix does nothing and the drive slider is dangerous on
+    a high-gain SDR. Diagnosed: the matrix *is* dB of output and does apply to
+    I/Q radios (`crates/sdroxide-radio/tests/tx_drive_by_band.rs` proves a
+    −20 dB row, TUNE included), and the HPSDR FPGA drive register is pinned at
+    full scale on purpose — the amplitude is scaled in software. The real gap
+    is that nothing caps the absolute drive: `Engine::calibrated` holds the
+    result under `IqSource::tx_drive_ceiling`, which only a transverter sets.
+    Proposed a per-radio operator ceiling (master TX limit) and offered to
+    implement; awaiting the maintainer and the reporter's log line
+    (`TX drive calibration: … dB on …`).
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
