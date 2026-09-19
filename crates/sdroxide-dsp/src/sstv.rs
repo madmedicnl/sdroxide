@@ -1593,6 +1593,7 @@ mod tests {
             let mut detected = None;
             let mut got = vec![0u8; w as usize * h as usize * 3];
             let mut lines = 0usize;
+            let mut complete = false;
             let mut guard = 0;
             while !tx.done() && guard < 400_000 {
                 let n = tx.next_block(&mut block);
@@ -1607,27 +1608,39 @@ mod tests {
                                 got[at..at + row.len()].copy_from_slice(&row);
                             }
                         }
+                        SstvEvent::ImageComplete => complete = true,
                         _ => {}
                     }
                 }
                 guard += 1;
             }
+            // Trailing silence, as a real receiver always has: a line is only
+            // decoded once 20 ms of audio past its end has arrived, so without
+            // this the *last* line of every picture is never emitted and the
+            // image never completes. Both are what the engine's save and the
+            // panel's "complete" state rest on, so both are asserted.
             rx.process(&vec![0.0f32; 48_000], &mut events);
             for e in events.drain(..) {
-                if let SstvEvent::Line { y, rgb: row } = e {
-                    lines += 1;
-                    let at = y as usize * w as usize * 3;
-                    if at + row.len() <= got.len() {
-                        got[at..at + row.len()].copy_from_slice(&row);
+                match e {
+                    SstvEvent::Line { y, rgb: row } => {
+                        lines += 1;
+                        let at = y as usize * w as usize * 3;
+                        if at + row.len() <= got.len() {
+                            got[at..at + row.len()].copy_from_slice(&row);
+                        }
                     }
+                    SstvEvent::ImageComplete => complete = true,
+                    _ => {}
                 }
             }
             assert_eq!(detected, Some(mode), "{} VIS not recovered", mode.label());
-            assert!(
-                lines > (h as usize) / 2,
-                "{}: only {lines} of {h} lines decoded",
+            assert_eq!(
+                lines,
+                h as usize,
+                "{}: decoded {lines} of {h} rows",
                 mode.label()
             );
+            assert!(complete, "{}: ImageComplete never fired", mode.label());
             // Sample the middle of each colour bar, a third of the way down,
             // and check the right channel is the dominant one.
             let yy = h as usize / 3;
