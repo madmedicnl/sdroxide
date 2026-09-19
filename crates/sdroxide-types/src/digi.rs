@@ -1345,6 +1345,51 @@ impl CwMacro {
     }
 }
 
+/// How the text drawn into a transmitted SSTV picture looks: the banner strip's
+/// gradient and outline, and the slot message's ink.
+///
+/// Its own struct rather than a dozen more `DigiConfig` fields, because it is
+/// one idea — "how do I want my picture to look" — and because `DigiConfig`
+/// rides the wire whole: one appended field means one protocol bump instead of
+/// six. The defaults reproduce the original look exactly (strip fades to black,
+/// banner text plain, message white on black), so an existing `digi.json` and
+/// an operator who never opens the editor both see no change.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SstvStyle {
+    /// Fade the banner strip to [`Self::banner_fill2`] at its bottom edge
+    /// instead of to black. The top colour is
+    /// [`DigiConfig::sstv_banner_fill`](DigiConfig::sstv_banner_fill).
+    pub banner_gradient: bool,
+    /// The colour the strip's gradient reaches at its bottom, when
+    /// [`Self::banner_gradient`] is on.
+    pub banner_fill2: [u8; 3],
+    /// Draw the banner text with an outline in [`Self::banner_outline_ink`].
+    pub banner_outline: bool,
+    pub banner_outline_ink: [u8; 3],
+    /// The colour the slot message is printed in.
+    pub message_ink: [u8; 3],
+    /// Draw the message text with an outline in [`Self::message_outline_ink`].
+    /// On by default, which is what the message has always been: white text
+    /// with a black edge, readable over any picture.
+    pub message_outline: bool,
+    pub message_outline_ink: [u8; 3],
+}
+
+impl Default for SstvStyle {
+    fn default() -> Self {
+        SstvStyle {
+            banner_gradient: false,
+            banner_fill2: [0, 0, 0],
+            banner_outline: false,
+            banner_outline_ink: [0, 0, 0],
+            message_ink: [255, 255, 255],
+            message_outline: true,
+            message_outline_ink: [0, 0, 0],
+        }
+    }
+}
+
 /// echoed to clients in [`DigiStatus`]. `#[serde(default)]` so an older
 /// `digi.json` without the newer fields still loads.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -2039,6 +2084,11 @@ pub struct DigiConfig {
     /// as soon as the queue drains (subject to the straight key's hold).
     #[serde(default = "cw_default_tx_idle_s")]
     pub cw_tx_idle_s: f32,
+    /// SSTV: how the text drawn into a transmitted picture looks — the banner
+    /// strip's gradient and outline, and the slot message's ink. See
+    /// [`SstvStyle`].
+    #[serde(default)]
+    pub sstv_style: SstvStyle,
 }
 
 fn cw_default_tx_idle_s() -> f32 {
@@ -2226,6 +2276,7 @@ impl Default for DigiConfig {
             wspr_upload: true,
             cw_sidetone: true,
             cw_tx_idle_s: 5.0,
+            sstv_style: SstvStyle::default(),
         }
     }
 }

@@ -1410,7 +1410,16 @@ use sdroxide_types::{
 /// `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so a
 /// v159 peer reads the extra bytes as the start of the next field and fails to
 /// decode every digital status.
-pub const PROTO_VERSION: u16 = 160;
+///
+/// v161: SSTV picture styling, `DigiConfig::sstv_style` (an
+/// `sdroxide_types::SstvStyle`) — the banner strip's gradient and outline and
+/// the slot message's ink, so a
+/// station can give its picture a look rather than one flat colour. Appended to
+/// `DigiConfig`'s tail, and `DigiConfig` rides `Command::SetDigiConfig` and
+/// `DigiStatus` whole, so a v160 peer reads the extra bytes as the start of the
+/// next field and fails to decode every digital status. A downstream (fork)
+/// addition.
+pub const PROTO_VERSION: u16 = 161;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
