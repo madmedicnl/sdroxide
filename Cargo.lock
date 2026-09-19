@@ -4927,6 +4927,7 @@ version = "1.6.15"
 dependencies = [
  "crossbeam-channel",
  "roxmltree",
+ "rtrb",
  "sdroxide-types",
  "serialport",
  "thiserror 2.0.20",

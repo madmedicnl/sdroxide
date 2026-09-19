@@ -1387,7 +1387,15 @@ use sdroxide_types::{
 /// structs that carry them ride whole, so a v156 peer handed one with a field it
 /// has no name for fails to decode the message. A downstream (fork) addition:
 /// upstream has never carried these.
-pub const PROTO_VERSION: u16 = 157;
+///
+/// v158: the (tr)uSDX family, offered upstream as #498 where it claims v157 on
+/// top of upstream's v156. Here it sits after the fork's listener identity, so
+/// it takes the next number: [`sdroxide_types::CatConfig`] gains
+/// `trusdx_audio`, which picks between audio in the CAT stream and a USB sound
+/// card. `CatConfig` rides `Command::SetRadioConfig` whole, so the field sits
+/// mid-struct on the wire even appended last in the struct, and a peer without
+/// it runs off the end.
+pub const PROTO_VERSION: u16 = 158;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
