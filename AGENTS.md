@@ -94,6 +94,14 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     Proposed a per-radio operator ceiling (master TX limit) and offered to
     implement; awaiting the maintainer and the reporter's log line
     (`TX drive calibration: … dB on …`).
+    **Prework is done** on branch `upstream-pr/504-tx-drive-ceiling` (commit
+    `c178390a`, pushed to `origin`): `RadioConfig::tx_drive_ceiling` (Option,
+    `None` = no ceiling), folded into `Engine::calibrated` after the band trim
+    and taking the lower of it and the converter's ceiling, plus a Radio-tab
+    control and a regression test. It bumps `PROTO_VERSION` to 157 on the
+    branch — after a fork merge that has to be reconciled with the fork's
+    higher number. **No PR opened** — the design is the maintainer's call, and
+    the reporter has not confirmed the bug yet.
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
