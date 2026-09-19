@@ -139,9 +139,14 @@ note and were rendered from a separate HTML source; leave them alone.)
    `Cargo.lock`; commit it. The Windows `.msi` and the macOS bundle take their
    version from `Cargo.toml`, so a re-tag on the same version installs as the
    same version rather than an upgrade.
-2. Tag `vX.Y.Z_CB` and push it, then dispatch the release by hand — a tag push
-   does **not** run the workflow:
-   `gh workflow run release.yml --ref vX.Y.Z_CB --repo madmedicnl/sdroxide`
+2. Tag `vX.Y.Z_CB` and push it — `release.yml` runs on the tag push
+   (`on: push: tags: ['v*']`) and publishes the platform builds and the GitHub
+   Release itself, so no dispatch is needed. Do **not** also run
+   `gh workflow run release.yml --ref vX.Y.Z_CB`: that dispatches a second,
+   identical full release and the two race on the asset upload (cancel the
+   dispatch if it happens). This note used to say a tag push did not run the
+   workflow and to dispatch by hand; it does, and dispatching as well is the
+   mistake.
 3. The README's top download links already point at the stable-named Windows
    assets (`.../releases/latest/download/sdroxide-windows-x86_64.msi` and
    `.zip`), which every release now carries as copies of the versioned files;
