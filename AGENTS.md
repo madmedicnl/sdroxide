@@ -55,12 +55,15 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     upstream. If it merges, drop the fork's copy in the next merge and keep the
     protocol bump reconciled (it claims v154, as ACARS does; whichever lands
     second moves up).
-  - Open fork PRs, all branched from `upstream/main` and **not merged here**:
-    **#498** is the (tr)uSDX family, with a per-radio choice of audio path;
-    **#500** fixes WEFAX auto start/stop fragmentation (#496); **#501** fixes
-    the Icom WFM mode byte (#494). When upstream takes one, merge the result
-    back; if it is rejected, decide with the user whether to keep a fork copy.
-    (#499, the sound-card-only (tr)uSDX, is closed as superseded by #498.)
+  - Upstream PRs, branched from `upstream/main` and **merged into the fork's
+    build** (the fork carries them while they are still open upstream):
+    **#498** the (tr)uSDX family with a per-radio audio path, **#500** the
+    WEFAX auto start/stop fix (#496), **#501** the Icom WFM mode byte fix
+    (#494). When upstream takes one, reconcile on the next merge — **#498** in
+    particular, which claims `PROTO_VERSION` 157 upstream while here it sits
+    after the fork's listener identity and takes 158. If one is rejected,
+    decide with the user whether to keep the fork copy. (#499, the
+    sound-card-only (tr)uSDX, is closed as superseded by #498.)
   - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
@@ -146,9 +149,10 @@ no sound card of its own and two ways to be heard:
 
 Only the in-band mode streams and only it suppresses the poll; both hold DTR
 high (the radio's reset line) and switch any leftover stream off at open.
-`PROTO_VERSION` went 156 -> 157 for the new `CatConfig` field. (#499 was the
-sound-card-only version and is closed as superseded by #498 — the modes are not
-alternatives, and the operator is the one who knows which fits.)
+`PROTO_VERSION` went 156 -> 157 upstream for the new `CatConfig` field; in the
+fork it is **158**, after the listener identity (see the watch list). (#499 was
+the sound-card-only version and is closed as superseded by #498 — the modes are
+not alternatives, and the operator is the one who knows which fits.)
 
 The bench harness is `tools/trusdx-probe/` — PySerial scripts against the
 serial port, with a README of what each measures (transmit ones need a dummy
