@@ -1419,7 +1419,15 @@ use sdroxide_types::{
 /// `DigiStatus` whole, so a v160 peer reads the extra bytes as the start of the
 /// next field and fails to decode every digital status. A downstream (fork)
 /// addition.
-pub const PROTO_VERSION: u16 = 161;
+///
+/// v162: two more SSTV text options, extending `DigiConfig::sstv_style`: a
+/// gradient across the banner text (`banner_ink_gradient`/`banner_ink2`) and a
+/// rainbow override for all the picture's text (`rainbow_text`). Appended to
+/// the tail of `SstvStyle`, which itself sits at `DigiConfig`'s tail, and
+/// `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so a
+/// v161 peer reads the extra bytes as the start of the next field and fails to
+/// decode every digital status. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 162;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

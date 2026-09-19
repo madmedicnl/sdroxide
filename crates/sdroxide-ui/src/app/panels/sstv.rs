@@ -1670,6 +1670,45 @@ impl SdroxideApp {
                                 });
                                 ui.end_row();
 
+                                ui.label("Text gradient");
+                                ui.horizontal(|ui| {
+                                    changed |= crate::chrome::checkbox(
+                                        ui,
+                                        &mut cfg.sstv_style.banner_ink_gradient,
+                                        "fade to",
+                                    )
+                                    .on_hover_text(
+                                        "Fade the banner text from its colour to a second one \
+                                         across the width of the picture.",
+                                    )
+                                    .changed();
+                                    ui.add_enabled_ui(
+                                        cfg.sstv_style.banner_ink_gradient
+                                            && !cfg.sstv_style.rainbow_text,
+                                        |ui| {
+                                            changed |= ui
+                                                .color_edit_button_srgb(
+                                                    &mut cfg.sstv_style.banner_ink2,
+                                                )
+                                                .changed();
+                                        },
+                                    );
+                                });
+                                ui.end_row();
+
+                                ui.label("Rainbow text");
+                                changed |= crate::chrome::checkbox(
+                                    ui,
+                                    &mut cfg.sstv_style.rainbow_text,
+                                    "all text, overriding the colours above",
+                                )
+                                .on_hover_text(
+                                    "Draw every text in the picture — banner and message — as a \
+                                     horizontal rainbow, ignoring the colours above.",
+                                )
+                                .changed();
+                                ui.end_row();
+
                                 ui.label("Message");
                                 ui.horizontal(|ui| {
                                     changed |= ui

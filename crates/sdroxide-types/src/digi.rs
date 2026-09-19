@@ -1367,6 +1367,14 @@ pub struct SstvStyle {
     /// Draw the banner text with an outline in [`Self::banner_outline_ink`].
     pub banner_outline: bool,
     pub banner_outline_ink: [u8; 3],
+    /// Fade the banner text from its ink to [`Self::banner_ink2`] across the
+    /// strip, left to right.
+    pub banner_ink_gradient: bool,
+    pub banner_ink2: [u8; 3],
+    /// Override every colour the picture's text would use — the banner's ink
+    /// and its gradient, and the slot message — with a horizontal rainbow.
+    /// Takes precedence over all of them.
+    pub rainbow_text: bool,
     /// The colour the slot message is printed in.
     pub message_ink: [u8; 3],
     /// Draw the message text with an outline in [`Self::message_outline_ink`].
@@ -1383,6 +1391,9 @@ impl Default for SstvStyle {
             banner_fill2: [0, 0, 0],
             banner_outline: false,
             banner_outline_ink: [0, 0, 0],
+            banner_ink_gradient: false,
+            banner_ink2: [0, 0, 0],
+            rainbow_text: false,
             message_ink: [255, 255, 255],
             message_outline: true,
             message_outline_ink: [0, 0, 0],
