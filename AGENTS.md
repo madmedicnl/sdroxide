@@ -91,6 +91,14 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     air — no transmit licence here, and #502's reporter was asked to retest. If
     the empty-callsign report turns out wrong, fix it on the branch before
     upstream takes it.
+  - `dividebysandwich/sdroxide#505` — the fork's SSTV picture styling, offered
+    upstream (branch `upstream-pr/sstv-style`, one squashed commit). One new
+    `DigiConfig::sstv_style` (`SstvStyle`): strip gradient, banner text colour,
+    gradient and outline, message ink/outline, and a rainbow override for all
+    the picture's text. Bumps `PROTO_VERSION` 156 -> 157 on the branch, which
+    **collides with #504's branch**, which also claims 157 — whichever lands
+    second must move up on the next merge. The fork's copy is the same change;
+    the styling is fork-only until upstream takes it.
   - `dividebysandwich/sdroxide#504` — an ANAN-7000DLE (OpenHPSDR) report that
     the per-band drive matrix does nothing and the drive slider is dangerous on
     a high-gain SDR. Diagnosed: the matrix *is* dB of output and does apply to
