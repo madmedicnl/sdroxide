@@ -544,6 +544,9 @@ impl DigiController {
     }
 
     pub fn stop_qso(&mut self) {
+        // Abort the burst too: STOP must silence the radio now, not at the end
+        // of whatever is already going out.
+        self.burst = None;
         self.qso.stop();
         self.status_dirty = true;
     }

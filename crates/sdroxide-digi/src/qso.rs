@@ -522,18 +522,26 @@ impl QsoMachine {
         }
     }
 
-    /// Graceful stop: no new bursts planned, revert to idle.
+    /// Graceful stop: no new bursts planned, revert to idle, and clear the
+    /// exchange from the window.
+    ///
+    /// The transcript is dropped rather than left standing: a stopped contact
+    /// whose old messages still fill the panel reads as one still in progress,
+    /// and STOP is the operator asking for the screen back. What was already
+    /// logged is unaffected — that is in the logbook, not here.
     pub fn stop(&mut self) {
         self.step = QsoStep::Idle;
+        self.dx = None;
         self.manual = None;
+        self.transcript.clear();
+        self.final_msg = None;
+        self.resend = false;
+        self.logged = false;
     }
 
     /// Hard reset.
     pub fn abort(&mut self) {
-        self.step = QsoStep::Idle;
-        self.dx = None;
-        self.manual = None;
-        self.logged = false;
+        self.stop();
         self.watchdog = false;
     }
 
@@ -1604,6 +1612,25 @@ mod tests {
         // The real caller in the next slot is taken as usual.
         assert!(q.on_rx(&[decode("AB1CD K1ABC EM48")], 115));
         assert_eq!(q.dx_call(), Some("K1ABC"));
+    }
+
+    #[test]
+    fn a_stopped_contact_clears_the_window() {
+        // STOP is the operator asking for the screen back: the exchange, the
+        // station being worked and the pending final message all go, so the
+        // panel does not keep showing a contact that is over.
+        let mut q = QsoMachine::new(Mode::Ft8, cfg());
+        q.start_qso("W9XYZ".into(), Some("EM48".into()), -10, false, 100);
+        q.record_tx("W9XYZ AB1CD FN42");
+        assert!(!q.status(false).transcript.is_empty());
+        assert_eq!(q.dx_call(), Some("W9XYZ"));
+
+        q.stop();
+        assert_eq!(q.step(), QsoStep::Idle);
+        assert_eq!(q.dx_call(), None, "the station being worked is cleared");
+        assert!(q.status(false).transcript.is_empty(), "the transcript is cleared");
+        assert_eq!(q.plan_tx(), None, "nothing is left queued to send");
+        assert!(!q.wants_tx());
     }
 
     #[test]

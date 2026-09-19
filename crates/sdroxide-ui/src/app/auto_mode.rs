@@ -53,11 +53,11 @@ impl SdroxideApp {
         if let Some(reason) =
             auto::auto_block_reason(mode, dial_hz, watchdog, sdroxide_types::cb_tx_allowed())
         {
-            self.stop_auto(format!("auto stopped: {reason}"));
+            self.stop_auto(format!("auto stopped: {reason}"), cmds);
             return;
         }
         if now - self.auto_last_activity >= auto::AUTO_IDLE_STOP_S {
-            self.stop_auto("auto stopped: 20 minutes with no operator input".into());
+            self.stop_auto("auto stopped: 20 minutes with no operator input".into(), cmds);
             return;
         }
         // Only start a contact from a state that is genuinely free. `Idle` is
@@ -121,10 +121,28 @@ impl SdroxideApp {
     }
 
     /// Disarm auto mode, leaving `note` as the reason shown on the toggle.
-    pub(in crate::app) fn stop_auto(&mut self, note: String) {
-        self.auto_mode = false;
-        self.auto_resume_at = None;
-        self.auto_note = note;
+    ///
+    /// Disarming is a kill switch, not just a stop-selecting: it also tells
+    /// the engine to stop the QSO and abort any burst in flight. An unattended
+    /// run that has gone wrong must be stoppable in one click, and leaving the
+    /// contact in hand to sequence on its own is exactly the "runs wild" this
+    /// exists to end.
+    pub(in crate::app) fn stop_auto(&mut self, note: String, cmds: &mut Vec<Command>) {
+        if self.auto_mode {
+            cmds.push(Command::DigiStopQso);
+            cmds.push(Command::DigiAbortTx);
+        }
+        self.disarm_auto(note);
+    }
+
+    /// Clear auto mode without sending anything, for the case where the stop
+    /// command is already on its way (STOP QSO, STOP TX, a bound Abort TX).
+    pub(in crate::app) fn disarm_auto(&mut self, note: String) {
+        if self.auto_mode {
+            self.auto_mode = false;
+            self.auto_resume_at = None;
+            self.auto_note = note;
+        }
     }
 
     /// Arm auto mode now. Returns `false` (doing nothing) when it may not run.

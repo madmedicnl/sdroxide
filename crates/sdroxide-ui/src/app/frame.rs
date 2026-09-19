@@ -1045,6 +1045,15 @@ impl eframe::App for SdroxideApp {
             self.ctrl.send(Command::SetAudioDuck(gain));
         }
 
+        // Any stop control — STOP QSO, STOP TX, a bound Abort TX — disarms
+        // auto mode. An unattended run must never be left sequencing after the
+        // operator has told the radio to stop, whatever route they used.
+        if self.auto_mode
+            && cmds.iter().any(|c| matches!(c, Command::DigiStopQso | Command::DigiAbortTx))
+        {
+            self.disarm_auto("auto stopped: a stop control was used".into());
+        }
+
         for c in cmds {
             // Marked here rather than at the button, because the settings panel
             // holds borrows of `self` while it draws and cannot take a mutable

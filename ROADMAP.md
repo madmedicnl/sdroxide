@@ -124,9 +124,12 @@ Both still design-stage. The reverse-engineering behind them is in
   when the app has seen no input — the safety net for an unattended rig. It arms
   only on 11 m with 11 m transmit allowed and a non-zero watchdog, forces Auto
   Seq on, and is session-only (never persisted, so a restart cannot bring up a
-  transmitting radio). Follow-ups: consult LOG11DX's `check-dupe.php` with the
-  token so "new" uses the authoritative 11 m log; a focused test for the
-  watchdog-pause and inactivity timing.
+  transmitting radio). Disarming — by the operator, by tuning away, by losing
+  11 m TX, or by the inactivity stop — is a **kill switch**: it also sends STOP
+  QSO and STOP TX rather than leaving the contact in hand to sequence on.
+  Follow-ups: consult LOG11DX's `check-dupe.php` with the token so "new" uses
+  the authoritative 11 m log; a focused test for the watchdog-pause and
+  inactivity timing.
 - **DX explorer on the 11 m map.** A source chip beside PROP / ALL BANDS / ONE
   BAND that swaps the local decodes for the 11 m community's live map, gated on
   the LOG11DX token; with no token the map keeps the present PSK/cluster spots.

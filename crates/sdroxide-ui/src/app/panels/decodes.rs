@@ -1557,7 +1557,7 @@ impl SdroxideApp {
                 .clicked()
                 {
                     if auto_armed {
-                        self.stop_auto("auto stopped by the operator".into());
+                        self.stop_auto("auto stopped by the operator".into(), cmds);
                     } else if self.arm_auto(ui.input(|i| i.time)) && !self.digi_cfg_edit.auto_seq {
                         // Auto mode is a sequencer running itself; without Auto
                         // Seq it would advance only on a button press.
