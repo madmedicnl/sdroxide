@@ -77,6 +77,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     with Space as its default. `PROTO_VERSION` 159 -> 160 (both DigiConfig
     fields appended). General-purpose enough to offer upstream once the
     reporter confirms; not verified on air here (no transmit licence).
+    The fork also reads the straight key's characters back where the text
+    keyer's box is (`CwSelfRx`, a small immediate decoder in
+    `crates/sdroxide-dsp/src/cw.rs` fed the transmit block — the classic
+    `CwRx`'s six-second window and three-second catch-up were unusable for
+    that, and the receive tap never carries our own sidetone).
   - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
     the issue; see "The HFDL core" below. Awaiting the maintainer's call on
     git-dependency vs vendored port and on scope — do not start before that.
