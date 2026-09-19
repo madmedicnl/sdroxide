@@ -1427,7 +1427,14 @@ use sdroxide_types::{
 /// `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so a
 /// v161 peer reads the extra bytes as the start of the next field and fails to
 /// decode every digital status. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 162;
+///
+/// v163: the CW straight key's self-decode, `CwStatus::sent_text` — what the
+/// operator's own keying decoded to, so the straight key shows its characters
+/// the way the text keyer shows typed ones (issue #495 follow-up). Appended to
+/// `CwStatus`'s tail; `CwStatus` rides inside `DigiStatus`, which crosses
+/// whole, so a v162 peer reads the extra bytes as the start of the next field
+/// and fails to decode every digital status. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 163;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
