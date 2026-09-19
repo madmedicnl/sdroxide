@@ -68,7 +68,15 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
     is, so the workaround is Sound card (MCW) keying. Commented and left to the
-    maintainer.
+    maintainer. The reporter came back that MCW works but he can hear no
+    sidetone, the carrier hangs too long after the last character/key, and he
+    wants the keying key to be selectable. All three are fixed in the fork:
+    `DigiConfig::cw_sidetone` (local sidetone monitor, `SIDETONE` chip),
+    `DigiConfig::cw_tx_idle_s` (configurable hold, `IDLE` chip), and the
+    straight key is now `Action::CwStraight`, assignable in Settings → Controls
+    with Space as its default. `PROTO_VERSION` 159 -> 160 (both DigiConfig
+    fields appended). General-purpose enough to offer upstream once the
+    reporter confirms; not verified on air here (no transmit licence).
   - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
     the issue; see "The HFDL core" below. Awaiting the maintainer's call on
     git-dependency vs vendored port and on scope — do not start before that.
