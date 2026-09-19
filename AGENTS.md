@@ -55,6 +55,19 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     upstream. If it merges, drop the fork's copy in the next merge and keep the
     protocol bump reconciled (it claims v154, as ACARS does; whichever lands
     second moves up).
+  - Open fork PRs, all branched from `upstream/main` and **not merged here**:
+    **#498 / #499** are the two (tr)uSDX profiles — take one, not both; **#500**
+    fixes WEFAX auto start/stop fragmentation (#496); **#501** fixes the Icom
+    WFM mode byte (#494). When upstream takes one, merge the result back; if it
+    is rejected, decide with the user whether to keep a fork copy.
+  - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
+    as **by design**, not a bug: the keyboard straight key is disabled when the
+    rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
+    is, so the workaround is Sound card (MCW) keying. Commented and left to the
+    maintainer.
+  - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
+    the issue; see "The HFDL core" below. Awaiting the maintainer's call on
+    git-dependency vs vendored port and on scope — do not start before that.
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
@@ -113,6 +126,52 @@ and 48 kHz. The synthetic end-to-end tests were removed: they fed the decoder
 its own encoder's output, which is exactly what hid both bugs (acarsdec cannot
 decode that audio either). Not ported: acarsdec's error correction, the
 syndrome search that fixes a few parity/CRC errors; only clean frames decode.
+
+### The (tr)uSDX profiles
+
+The fork's (tr)uSDX support is two **alternative** upstream PRs, both branched
+from `upstream/main` and deliberately not merged here:
+
+- **#498 — one cable.** Receive and transmit audio ride the CAT serial link as
+  the firmware's own 8-bit stream (`UA1;`/`US` framing: ~7812 samples/s in, the
+  host pacing 11520 out). The firmware **cannot take a CAT command while its
+  stream is running** — one kills the stream and it does not come back — so this
+  profile polls nothing and brackets every control frame `UA0; … UA1;`. DTR is
+  the radio's reset line and is held high.
+- **#499 — sound card.** The same family as a plain CAT rig, audio on the
+  3.5 mm jack via an external USB sound card. It polls normally and asserts
+  `UA0;` at open.
+
+Upstream picks one; do not merge either until it does. Both add the same
+`CatFamily::TrUsdx` (a fourth Kenwood dialect with a thin command set), so the
+one that lands supersedes the other.
+
+The bench harness is `tools/trusdx-probe/` — PySerial scripts against the
+serial port, with a README of what each measures (transmit ones need a dummy
+load). The findings worth not re-deriving are there: the receive rate is 7812
+samples/s and not the published 7825, `0x3B` is escaped to `0x3C`, a CAT
+command written into a live stream kills it, and DTR is the reset line.
+
+### The HFDL core (issue #497)
+
+An HFDL (ARINC 635) decoder has been requested upstream as #497 and scoped on
+the issue. The enabling find is that the hard part already exists under a
+permissive licence: **`airframesio/xng` is MIT/Apache-2.0**, and its
+`xng-mode-hfdl` crate (`HfdlChannelDecoder::process(&[Complex<f32>])`) runs at
+`CHANNEL_RATE = 12_000` with a +1440 Hz subcarrier, which is exactly the
+complex tap the engine already hands VDL2, ADS-B and AIS (`on_rx_iq`). Its
+`PROVENANCE.md` records a clean-room implementation from ICAO Annex 10 /
+ARINC 635, with dumphfdl consulted as facts only, so it is safe to depend on
+from this GPL-3 project.
+
+Route A (git-depend on the xng crates) was validated off-air in a scratch
+build: the reference 21 931 kHz capture decodes its squitter field-for-field
+(GS 4 Riverhead, frame 2397, systable 52). The dependency tree is modest
+(rustfft, num-complex, chrono, serde, crc; no protobuf). Route B is to
+vendor/port the core into a `sdroxide-hfdl` crate to keep the tree
+self-contained. **Do not start either until the maintainer answers** the two
+questions on #497: git dependency vs vendored port, and scope (decoder + log,
+then the aircraft map, then the system table).
 
 ## Regenerating the quick-start PDFs
 
