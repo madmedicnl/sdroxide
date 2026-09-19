@@ -19,9 +19,25 @@ use crate::digi::{Decode, cq_is_for_us};
 use crate::{Band, Mode};
 
 /// How long the app may go without a single input event before auto mode
-/// disarms. The backstop for an unattended transmitter: a window nobody has
-/// touched for this long is a window nobody is watching.
+/// disarms, when the operator has not chosen a figure. The backstop for an
+/// unattended transmitter: a window nobody has touched for this long is a
+/// window nobody is watching.
 pub const AUTO_IDLE_STOP_S: f64 = 20.0 * 60.0;
+
+/// The longest the inactivity stop may be set to, in minutes.
+///
+/// Deliberately a ceiling rather than a free field: auto mode is for a bathroom
+/// break, not for leaving a station to work a contest unattended. The operator
+/// chooses within it, never past it.
+pub const AUTO_IDLE_STOP_MAX_MIN: u32 = 45;
+
+/// The inactivity stop in seconds, from the operator's choice in minutes,
+/// clamped to `1..=AUTO_IDLE_STOP_MAX_MIN` (and to the default for zero, which
+/// a config written before this existed loads as).
+pub fn auto_idle_stop_s(minutes: u32) -> f64 {
+    let m = if minutes == 0 { (AUTO_IDLE_STOP_S / 60.0) as u32 } else { minutes };
+    f64::from(m.min(AUTO_IDLE_STOP_MAX_MIN)) * 60.0
+}
 
 /// How long after issuing a command the tick waits before issuing another.
 ///
@@ -42,17 +58,21 @@ pub struct AutoTarget {
     pub audio_hz: f32,
 }
 
-/// Whether auto mode may run: a slotted FT mode on 11 m, transmit permitted
-/// there, and a non-zero transmit watchdog to bound an unattended run.
+/// Whether auto mode may run: a slotted FT mode in a band this station may
+/// transmit on, with a non-zero transmit watchdog to bound an unattended run.
+///
+/// `tx_permitted` is the engine's own answer for the current dial — the same
+/// question its key-down gate asks — so auto mode never arms somewhere it could
+/// not actually key: outside an amateur allocation with `tx_ham_only` set, on a
+/// broadcast band, or on a receive-only radio. It is passed in rather than
+/// worked out here because the licence gate and the band plan live in the
+/// engine, not in this crate.
 ///
 /// The watchdog cannot be zero: it is the only thing that stops a station
 /// calling CQ into an empty band forever, and auto mode is exactly the case
 /// where nobody is watching to notice.
-pub fn auto_ready(mode: Mode, dial_hz: f64, watchdog_min: u32, cb_tx_allowed: bool) -> bool {
-    matches!(mode, Mode::Ft8 | Mode::Ft4 | Mode::Ft2)
-        && Band::containing(dial_hz) == Band::M11
-        && cb_tx_allowed
-        && watchdog_min > 0
+pub fn auto_ready(mode: Mode, watchdog_min: u32, tx_permitted: bool) -> bool {
+    matches!(mode, Mode::Ft8 | Mode::Ft4 | Mode::Ft2) && tx_permitted && watchdog_min > 0
 }
 
 /// Why auto mode may not run, as a sentence for the toggle's tooltip, or
@@ -60,18 +80,17 @@ pub fn auto_ready(mode: Mode, dial_hz: f64, watchdog_min: u32, cb_tx_allowed: bo
 /// operator can do something about them.
 pub fn auto_block_reason(
     mode: Mode,
-    dial_hz: f64,
     watchdog_min: u32,
-    cb_tx_allowed: bool,
+    tx_permitted: bool,
 ) -> Option<&'static str> {
     if !matches!(mode, Mode::Ft8 | Mode::Ft4 | Mode::Ft2) {
         return Some("Auto mode runs FT8, FT4 and FT2 only.");
     }
-    if Band::containing(dial_hz) != Band::M11 {
-        return Some("Auto mode is for the 11 m band only — tune there to arm it.");
-    }
-    if !cb_tx_allowed {
-        return Some("Enable transmit on 11 m first (Settings → General).");
+    if !tx_permitted {
+        return Some(
+            "This radio may not transmit on the current band — tune to an amateur band \
+             (or enable 11 m transmit) to arm it.",
+        );
     }
     if watchdog_min == 0 {
         return Some(
@@ -120,6 +139,17 @@ pub fn pick_cq(
         snr_db: d.snr_db,
         audio_hz: d.audio_hz,
     })
+}
+
+/// Whether the licence gate lets this band be keyed, mirroring the engine's
+/// own key-down test: every amateur allocation always, and 11 m when the
+/// operator has opened it. The broadcast services and general coverage never.
+///
+/// The engine is the authority and checks more than this (the device's range,
+/// the offset against the band plan); this is only the band-level question auto
+/// mode needs to decide whether arming is even meaningful.
+pub fn band_may_transmit(band: Band, ham_only: bool, cb_tx_allowed: bool) -> bool {
+    !ham_only || band.is_amateur() || (band == Band::M11 && cb_tx_allowed)
 }
 
 #[cfg(test)]
@@ -189,14 +219,35 @@ mod tests {
     }
 
     #[test]
-    fn readiness_needs_an_ft_mode_on_11m_with_tx_and_a_watchdog() {
-        assert!(auto_ready(Mode::Ft8, 27_245_000.0, 6, true));
-        assert!(auto_ready(Mode::Ft4, 27_185_000.0, 6, true));
-        assert!(auto_ready(Mode::Ft2, 27_245_000.0, 1, true));
-        // Wrong mode, wrong band, no 11 m transmit, no watchdog.
-        assert!(!auto_ready(Mode::Js8, 27_245_000.0, 6, true));
-        assert!(!auto_ready(Mode::Ft8, 14_074_000.0, 6, true));
-        assert!(!auto_ready(Mode::Ft8, 27_245_000.0, 6, false));
-        assert!(!auto_ready(Mode::Ft8, 27_245_000.0, 0, true));
+    fn readiness_needs_an_ft_mode_where_tx_is_permitted_and_a_watchdog() {
+        assert!(auto_ready(Mode::Ft8, 6, true));
+        assert!(auto_ready(Mode::Ft4, 6, true));
+        assert!(auto_ready(Mode::Ft2, 1, true));
+        // Wrong mode, no permission on this band, no watchdog.
+        assert!(!auto_ready(Mode::Js8, 6, true));
+        assert!(!auto_ready(Mode::Ft8, 6, false));
+        assert!(!auto_ready(Mode::Ft8, 0, true));
+    }
+
+    #[test]
+    fn the_licence_gate_opens_amateur_bands_and_11m_once_opted_in() {
+        // An amateur band is always keyable under the gate.
+        assert!(band_may_transmit(Band::M20, true, false));
+        // 11 m only once opened.
+        assert!(!band_may_transmit(Band::M11, true, false));
+        assert!(band_may_transmit(Band::M11, true, true));
+        // Broadcast and general coverage stay locked either way.
+        assert!(!band_may_transmit(Band::Sw, true, true));
+        assert!(!band_may_transmit(Band::Gen, true, true));
+        // The gate off opens everything, as `tx_ham_only = false` means.
+        assert!(band_may_transmit(Band::Gen, false, false));
+    }
+
+    #[test]
+    fn the_inactivity_stop_is_clamped_to_the_ceiling() {
+        assert_eq!(auto_idle_stop_s(0), AUTO_IDLE_STOP_S, "zero means the default");
+        assert_eq!(auto_idle_stop_s(20), 20.0 * 60.0);
+        assert_eq!(auto_idle_stop_s(45), 45.0 * 60.0);
+        assert_eq!(auto_idle_stop_s(120), 45.0 * 60.0, "never past the ceiling");
     }
 }

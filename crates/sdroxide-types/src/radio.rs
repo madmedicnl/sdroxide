@@ -7397,6 +7397,18 @@ pub struct RadioConfig {
     /// this only hides the controls. Appended last, as the wire requires.
     #[serde(default)]
     pub hide_tx: bool,
+    /// How long auto mode may run with no operator input before it disarms, in
+    /// minutes. Per radio, because a station may leave one set running longer
+    /// than another. `0` — the default, and what every `radio.json` written
+    /// before this existed loads as — means
+    /// [`AUTO_IDLE_STOP_S`](crate::auto::AUTO_IDLE_STOP_S), twenty minutes.
+    ///
+    /// Capped at [`AUTO_IDLE_STOP_MAX_MIN`](crate::auto::AUTO_IDLE_STOP_MAX_MIN)
+    /// (45): auto mode is for a bathroom break, not for leaving a station to
+    /// work a contest unattended, and the cap is where that line is drawn.
+    /// Appended last, as the wire requires.
+    #[serde(default)]
+    pub auto_idle_stop_min: u32,
 }
 
 impl RadioConfig {

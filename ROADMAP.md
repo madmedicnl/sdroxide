@@ -112,24 +112,27 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
 Both still design-stage. The reverse-engineering behind them is in
 [`AGENTS.md`](AGENTS.md) under "The LOG11DX WSJT bridge".
 
-- **Auto mode — FT8/FT4/FT2, 11 m only, default off.** **v1 landed.** An
-  unattended sequencer that answers a new station's CQ, or calls CQ when none is
-  heard, and repeats. The policy is pure (`sdroxide_types::auto`: `pick_cq`,
-  `auto_ready`, `auto_block_reason`) and the loop is `app::auto_mode`, driven
-  from the frame update so a run does not depend on which pane or tab is on
-  screen. Selection is UI-side because the log's novelty index lives there — the
-  engine never holds the logbook; "new" is `LogIndex::novelty(..).new_call`, the
-  callsign never worked. The transmit watchdog paces it: once it trips, wait one
-  `tx_watchdog_min` span and resume. A **20-minute inactivity stop** disarms it
-  when the app has seen no input — the safety net for an unattended rig. It arms
-  only on 11 m with 11 m transmit allowed and a non-zero watchdog, forces Auto
-  Seq on, and is session-only (never persisted, so a restart cannot bring up a
-  transmitting radio). Disarming — by the operator, by tuning away, by losing
-  11 m TX, or by the inactivity stop — is a **kill switch**: it also sends STOP
-  QSO and STOP TX rather than leaving the contact in hand to sequence on.
-  Follow-ups: consult LOG11DX's `check-dupe.php` with the token so "new" uses
-  the authoritative 11 m log; a focused test for the watchdog-pause and
-  inactivity timing.
+- **Auto mode — FT8/FT4/FT2, any band this radio may transmit on, default
+  off.** **v1 landed.** An unattended sequencer that answers a new station's CQ,
+  or calls CQ when none is heard, and repeats. The policy is pure
+  (`sdroxide_types::auto`: `pick_cq`, `auto_ready`, `auto_block_reason`) and the
+  loop is `app::auto_mode`, driven from the frame update so a run does not
+  depend on which pane or tab is on screen. Selection is UI-side because the
+  log's novelty index lives there — the engine never holds the logbook; "new" is
+  `LogIndex::novelty(..).new_call`, the callsign never worked. The transmit
+  watchdog paces it: once it trips, wait one `tx_watchdog_min` span and resume.
+  Arming needs an FT mode, a band the licence gate lets this radio key
+  (amateur always, 11 m once opened; broadcast and general coverage never), and
+  a non-zero watchdog; it forces Auto Seq on and is session-only (never
+  persisted, so a restart cannot bring up a transmitting radio). Disarming — by
+  the operator, by tuning to a band it may not key, by losing the watchdog, or
+  by the inactivity stop — is a **kill switch**: it also sends STOP QSO and STOP
+  TX rather than leaving the contact in hand to sequence on. The **inactivity
+  stop is per radio** (`RadioConfig::auto_idle_stop_min`, Radio tab), default
+  20 minutes, capped at 45 — auto mode is for a bathroom break, not for leaving
+  a station to work a contest unattended. Follow-ups: consult LOG11DX's
+  `check-dupe.php` with the token so "new" uses the authoritative 11 m log; a
+  focused test for the watchdog-pause and inactivity timing.
 - **DX explorer on the 11 m map.** A source chip beside PROP / ALL BANDS / ONE
   BAND that swaps the local decodes for the 11 m community's live map, gated on
   the LOG11DX token; with no token the map keeps the present PSK/cluster spots.

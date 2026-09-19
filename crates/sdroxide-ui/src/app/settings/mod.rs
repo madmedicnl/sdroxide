@@ -2098,6 +2098,42 @@ impl SdroxideApp {
                     );
                     ui.end_row();
 
+                    // Auto mode's inactivity stop. Per radio because one set
+                    // may be left running longer than another, and capped
+                    // because auto mode is for a break, not a contest.
+                    ui.label(RichText::new("Auto mode").strong());
+                    ui.horizontal(|ui| {
+                        // Zero means "the default": show the figure that is
+                        // actually in force, so the box is never sitting at a
+                        // value the DragValue's own range would snap away from.
+                        let mut mins = if cfg.auto_idle_stop_min == 0 {
+                            (sdroxide_types::auto::AUTO_IDLE_STOP_S / 60.0) as u32
+                        } else {
+                            cfg.auto_idle_stop_min
+                        };
+                        let resp = ui.add(
+                            egui::DragValue::new(&mut mins)
+                                .speed(1.0)
+                                .range(1..=sdroxide_types::auto::AUTO_IDLE_STOP_MAX_MIN)
+                                .suffix(" min"),
+                        );
+                        if resp.changed() {
+                            cfg.auto_idle_stop_min = mins;
+                        }
+                        ui.label(
+                            RichText::new("stop after no input").size(10.5).color(crate::theme::gray(140)),
+                        );
+                    })
+                    .response
+                    .on_hover_text(
+                        "How long the unattended FT8/FT4/FT2 sequencer may run with no \
+                         operator input before it disarms. Per radio: one set can be left \
+                         running longer than another.\n\nCapped at 45 minutes on purpose — \
+                         auto mode is for a bathroom break, not for leaving a station to work \
+                         a contest with nobody behind it.\n\nTakes effect on Apply.",
+                    );
+                    ui.end_row();
+
                     ui.label(RichText::new("Converter").strong());
                     let named = sdroxide_types::converter_preset_name(*converter);
                     egui::ComboBox::from_id_salt("converter-preset")

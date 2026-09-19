@@ -1519,32 +1519,28 @@ impl SdroxideApp {
         // SWL mode: hide the entire action-button row.
         let tx_ok = self.tx_capable();
         if !self.swl_mode() {
-            // Auto mode's gate: an FT mode on 11 m, with a transmitter allowed
-            // there and a non-zero watchdog to pace it. `auto_block_reason` is
-            // the same test the tick runs, so the chip and the loop agree.
+            // Auto mode's gate: an FT mode in a band this radio may key, with a
+            // non-zero watchdog to pace it. `auto_block_reason` is the same test
+            // the tick runs, so the chip and the loop agree.
             let auto_m = status.as_ref().map(|s| s.mode).unwrap_or(self.state.rx[0].mode);
-            let auto_dial = self.state.rx_freq_hz();
             let auto_watchdog = status
                 .as_ref()
                 .map(|s| s.config.tx_watchdog_min)
                 .unwrap_or(self.digi_cfg_edit.tx_watchdog_min);
-            let auto_block = sdroxide_types::auto::auto_block_reason(
-                auto_m,
-                auto_dial,
-                auto_watchdog,
-                sdroxide_types::cb_tx_allowed(),
-            );
+            let tx_permitted_band = self.auto_tx_permitted();
+            let auto_block =
+                sdroxide_types::auto::auto_block_reason(auto_m, auto_watchdog, tx_permitted_band);
             let auto_armed = self.auto_mode;
             ui.horizontal_wrapped(|ui| {
                 let auto_hover = match auto_block {
                     Some(r) => r.to_string(),
                     None if auto_armed => {
-                        format!("Auto mode is armed on 11 m. Click to stop.\n\n{}", self.auto_note)
+                        format!("Auto mode is armed. Click to stop.\n\n{}", self.auto_note)
                     }
                     None => "Answer a new station's CQ, or call CQ when none is heard, \
-                             unattended on 11 m. Only callsigns not already in the log are \
-                             answered. The transmit watchdog paces the run, and 20 minutes \
-                             with no input disarms it."
+                             unattended. Only callsigns not already in the log are answered. \
+                             The transmit watchdog paces the run, and the inactivity stop \
+                             disarms it."
                         .to_string(),
                 };
                 if crate::chrome::chip_enabled(

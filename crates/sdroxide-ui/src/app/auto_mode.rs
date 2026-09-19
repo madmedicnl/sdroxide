@@ -1,4 +1,4 @@
-//! Auto mode — the app-side half of the unattended 11 m sequencer.
+//! Auto mode — the app-side half of the unattended FT8/FT4/FT2 sequencer.
 //!
 //! The policy (which station to answer, whether the mode and band allow it) is
 //! pure and lives in [`sdroxide_types::auto`]. This is the loop that runs it
@@ -11,11 +11,30 @@
 //! does the sequencing; this only ever starts the next contact.
 
 use sdroxide_types::auto;
-use sdroxide_types::{Command, QsoStep};
+use sdroxide_types::{Band, Command, QsoStep};
 
 use super::SdroxideApp;
 
 impl SdroxideApp {
+    /// Whether this station may key the band the dial is on, by the same
+    /// band-level rule the engine's key-down gate applies: an amateur
+    /// allocation always, 11 m once the operator has opened it, and the
+    /// broadcast and general-coverage bands never.
+    ///
+    /// The engine still has the final say at key-down — the device's own range,
+    /// the offset against the band plan — but this is the question auto mode
+    /// has to answer before it offers to arm at all.
+    pub(in crate::app) fn auto_tx_permitted(&self) -> bool {
+        let band = Band::containing(self.state.rx_freq_hz());
+        auto::band_may_transmit(band, !self.state.oob_tx, sdroxide_types::cb_tx_allowed())
+    }
+
+    /// The inactivity stop for this radio, in seconds, from its own setting.
+    fn auto_idle_stop_s(&self) -> f64 {
+        let min = self.radio_cfg.as_ref().map_or(0, |c| c.auto_idle_stop_min);
+        auto::auto_idle_stop_s(min)
+    }
+
     /// Run auto mode for this frame. Cheap and a no-op unless it is armed.
     pub(in crate::app) fn tick_auto_mode(
         &mut self,
@@ -49,15 +68,15 @@ impl SdroxideApp {
         else {
             return;
         };
-        let dial_hz = self.state.rx_freq_hz();
-        if let Some(reason) =
-            auto::auto_block_reason(mode, dial_hz, watchdog, sdroxide_types::cb_tx_allowed())
-        {
+        let tx_permitted = self.auto_tx_permitted();
+        if let Some(reason) = auto::auto_block_reason(mode, watchdog, tx_permitted) {
             self.stop_auto(format!("auto stopped: {reason}"), cmds);
             return;
         }
-        if now - self.auto_last_activity >= auto::AUTO_IDLE_STOP_S {
-            self.stop_auto("auto stopped: 20 minutes with no operator input".into(), cmds);
+        let stop_s = self.auto_idle_stop_s();
+        if now - self.auto_last_activity >= stop_s {
+            let mins = (stop_s / 60.0).round() as u32;
+            self.stop_auto(format!("auto stopped: {mins} minutes with no operator input"), cmds);
             return;
         }
         // Only start a contact from a state that is genuinely free. `Idle` is
@@ -148,14 +167,8 @@ impl SdroxideApp {
     /// Arm auto mode now. Returns `false` (doing nothing) when it may not run.
     pub(in crate::app) fn arm_auto(&mut self, now: f64) -> bool {
         let Some(s) = self.digi_status.as_ref() else { return false };
-        if auto::auto_block_reason(
-            s.mode,
-            self.state.rx_freq_hz(),
-            s.config.tx_watchdog_min,
-            sdroxide_types::cb_tx_allowed(),
-        )
-        .is_some()
-        {
+        let tx_permitted = self.auto_tx_permitted();
+        if auto::auto_block_reason(s.mode, s.config.tx_watchdog_min, tx_permitted).is_some() {
             return false;
         }
         self.auto_mode = true;

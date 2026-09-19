@@ -1395,7 +1395,13 @@ use sdroxide_types::{
 /// card. `CatConfig` rides `Command::SetRadioConfig` whole, so the field sits
 /// mid-struct on the wire even appended last in the struct, and a peer without
 /// it runs off the end.
-pub const PROTO_VERSION: u16 = 158;
+///
+/// v159: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
+/// — how long the unattended FT8/FT4/FT2 sequencer may run with no operator
+/// input before it disarms. Appended to `RadioConfig`'s tail, and it rides
+/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v158 peer
+/// handed one runs off the end of the struct. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 159;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
