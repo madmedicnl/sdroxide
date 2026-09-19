@@ -9,6 +9,7 @@ mod ais;
 mod alert;
 mod aprs;
 mod atchat;
+pub mod auto;
 mod awards;
 mod band;
 mod band_segments;

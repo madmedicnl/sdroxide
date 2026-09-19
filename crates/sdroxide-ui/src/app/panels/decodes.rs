@@ -1519,7 +1519,52 @@ impl SdroxideApp {
         // SWL mode: hide the entire action-button row.
         let tx_ok = self.tx_capable();
         if !self.swl_mode() {
+            // Auto mode's gate: an FT mode on 11 m, with a transmitter allowed
+            // there and a non-zero watchdog to pace it. `auto_block_reason` is
+            // the same test the tick runs, so the chip and the loop agree.
+            let auto_m = status.as_ref().map(|s| s.mode).unwrap_or(self.state.rx[0].mode);
+            let auto_dial = self.state.rx_freq_hz();
+            let auto_watchdog = status
+                .as_ref()
+                .map(|s| s.config.tx_watchdog_min)
+                .unwrap_or(self.digi_cfg_edit.tx_watchdog_min);
+            let auto_block = sdroxide_types::auto::auto_block_reason(
+                auto_m,
+                auto_dial,
+                auto_watchdog,
+                sdroxide_types::cb_tx_allowed(),
+            );
+            let auto_armed = self.auto_mode;
             ui.horizontal_wrapped(|ui| {
+                let auto_hover = match auto_block {
+                    Some(r) => r.to_string(),
+                    None if auto_armed => {
+                        format!("Auto mode is armed on 11 m. Click to stop.\n\n{}", self.auto_note)
+                    }
+                    None => "Answer a new station's CQ, or call CQ when none is heard, \
+                             unattended on 11 m. Only callsigns not already in the log are \
+                             answered. The transmit watchdog paces the run, and 20 minutes \
+                             with no input disarms it."
+                        .to_string(),
+                };
+                if crate::chrome::chip_enabled(
+                    ui,
+                    tx_ok && auto_block.is_none(),
+                    auto_armed,
+                    "AUTO",
+                )
+                .on_hover_text(auto_hover)
+                .clicked()
+                {
+                    if auto_armed {
+                        self.stop_auto("auto stopped by the operator".into());
+                    } else if self.arm_auto(ui.input(|i| i.time)) && !self.digi_cfg_edit.auto_seq {
+                        // Auto mode is a sequencer running itself; without Auto
+                        // Seq it would advance only on a button press.
+                        self.digi_cfg_edit.auto_seq = true;
+                        cmds.push(Command::SetDigiConfig(self.digi_cfg_edit.clone()));
+                    }
+                }
                 let cq = ui.add_enabled_ui(!in_qso && tx_ok, |ui| {
                     rx_only_hint(
                         crate::chrome::chip_accent(
@@ -1551,6 +1596,13 @@ impl SdroxideApp {
                     cmds.push(Command::DigiAbortTx);
                 }
             });
+            if self.auto_mode {
+                ui.label(
+                    RichText::new(format!("● {}", self.auto_note))
+                        .size(10.5)
+                        .color(crate::theme::ALERT()),
+                );
+            }
         }
         ui.add_space(gap);
         // Message picker: choose by hand which message goes next (WSJT-X's

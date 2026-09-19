@@ -181,6 +181,47 @@ self-contained. **Do not start either until the maintainer answers** the two
 questions on #497: git dependency vs vendored port, and scope (decoder + log,
 then the aircraft map, then the system table).
 
+### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
+
+The bridge the CB side interoperates with is installed in the Wine prefix on
+this machine: the app in
+`~/.wine/drive_c/users/druid/AppData/Local/LOG11DX WSJT Bridge/`, its config and
+caches in `~/.wine/drive_c/users/druid/AppData/Roaming/LOG11DX WSJT Bridge/`.
+It is a PyInstaller one-file Python 3.14 program; `pyinstxtractor-ng` unpacks
+its two modules from the `.exe`, and this box's Python 3.14 unmarshals them.
+What the unpacking settled:
+
+- **It never fetches a spot feed.** The bridge listens to WSJT-X UDP and does
+  two things: uploads logged QSOs and dupe-checks calls. Its "DX Radar" tab is a
+  **local** map — the WSJT-X decodes it hears, placed by callsign prefix from
+  `assets/dx_radar/dxcc_prefixes.json` (id → country) against
+  `world_110m_countries.json` (GeoJSON) and `world_bitmap.png`, with alerts
+  keyed `new-call:`, `new-prefix:`, `new-grid:`, `strong:`, `opening:`. The API
+  token is not needed for the radar; it is needed for the upload and dupe calls.
+- Endpoints: `POST /api/wsjtx/upload-qso.php` (already mirrored in
+  `crates/sdroxide-net/src/upload.rs`), `GET /api/wsjtx/token-status.php`, and
+  **`GET /api/wsjtx/check-dupe.php`** — query `call` (required) plus optional
+  `mode`, `band`, `freq`; header `Authorization: Bearer <token>`,
+  `User-Agent: LOG11DX-WSJT-Bridge/0.2`; timeout `min(config, 4 s)`; JSON with
+  `ok` and either `alert {title, body, details[]}` or `last_qso
+  {mode, band, frequency, date, time}`. Update channel:
+  `/wsjt_bridge/latest.php`, `/wsjt_bridge/download.php`.
+- Its local `dxradar_recent_spots.json` entries carry `call`, `mode`, `snr`,
+  `df`, `grid`, `message`, `low_confidence`, `off_air`, `calls`, `utc`,
+  `cache_time`.
+
+`check-dupe.php` is the find that matters for auto mode: on 11 m the operator's
+authoritative log is LOG11DX, not the local `qso_log`, so "not already worked"
+can be answered server-side with the user's own token.
+
+The auto-mode code this work feeds is `sdroxide_types::auto` (the pure policy:
+`pick_cq`, `auto_ready`, `auto_block_reason`) plus
+`crates/sdroxide-ui/src/app/auto_mode.rs` (the per-frame loop, run from the app
+update rather than a panel so an unattended run survives switching pane or tab).
+It is session-only and never persisted. "New" is
+`LogIndex::novelty(..).new_call` for now; wiring in `check-dupe.php` is the
+follow-up.
+
 ## Regenerating the quick-start PDFs
 
 `docs/cb-quickstart.{en,nl,fr,it}.md` is the source; the matching `.pdf` is

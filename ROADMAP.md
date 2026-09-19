@@ -107,6 +107,34 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
   Anything further here — the **AM-band variant**, the **HD-2/HD-3 subchannel**
   chips, the **album art / PSD** — is upstream's to take; offer it there first.
 
+## 11 m operating (CB)
+
+Both still design-stage. The reverse-engineering behind them is in
+[`AGENTS.md`](AGENTS.md) under "The LOG11DX WSJT bridge".
+
+- **Auto mode — FT8/FT4/FT2, 11 m only, default off.** **v1 landed.** An
+  unattended sequencer that answers a new station's CQ, or calls CQ when none is
+  heard, and repeats. The policy is pure (`sdroxide_types::auto`: `pick_cq`,
+  `auto_ready`, `auto_block_reason`) and the loop is `app::auto_mode`, driven
+  from the frame update so a run does not depend on which pane or tab is on
+  screen. Selection is UI-side because the log's novelty index lives there — the
+  engine never holds the logbook; "new" is `LogIndex::novelty(..).new_call`, the
+  callsign never worked. The transmit watchdog paces it: once it trips, wait one
+  `tx_watchdog_min` span and resume. A **20-minute inactivity stop** disarms it
+  when the app has seen no input — the safety net for an unattended rig. It arms
+  only on 11 m with 11 m transmit allowed and a non-zero watchdog, forces Auto
+  Seq on, and is session-only (never persisted, so a restart cannot bring up a
+  transmitting radio). Follow-ups: consult LOG11DX's `check-dupe.php` with the
+  token so "new" uses the authoritative 11 m log; a focused test for the
+  watchdog-pause and inactivity timing.
+- **DX explorer on the 11 m map.** A source chip beside PROP / ALL BANDS / ONE
+  BAND that swaps the local decodes for the 11 m community's live map, gated on
+  the LOG11DX token; with no token the map keeps the present PSK/cluster spots.
+  Clicking a spot opens it on log11dx.com — the "benefits LOG11" part — and the
+  chip is branded LOG11DX. **Blocked on the feed:** the bridge uses none, so the
+  endpoint and fields have to come from the developer; whether a spot carries a
+  location decides the design.
+
 ## Not goals
 
 - **Transmitting.** SWL mode is the default; there is no push to make transmit

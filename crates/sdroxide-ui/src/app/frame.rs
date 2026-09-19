@@ -217,6 +217,9 @@ impl eframe::App for SdroxideApp {
         }
 
         let mut cmds = Vec::new();
+        // Auto mode, on its own clock: an unattended run must not depend on
+        // which pane or tab happens to be on screen.
+        self.tick_auto_mode(&ctx, now, &mut cmds);
         // A channel list chosen in the memories window: parsed here and sent
         // to the engine, which owns the list and the numbering in it.
         self.poll_chirp_import(&mut cmds);

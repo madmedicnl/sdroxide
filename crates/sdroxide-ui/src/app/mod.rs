@@ -20,6 +20,7 @@
 //! `pub(in crate::app)`, which is as wide as anything here ever gets.
 
 pub(in crate::app) mod alerts;
+pub(in crate::app) mod auto_mode;
 pub(in crate::app) mod awards;
 pub(in crate::app) mod bands;
 pub(in crate::app) mod drm;
@@ -721,6 +722,26 @@ pub struct SdroxideApp {
     /// The last decode the user clicked (not REPLY): its call and map
     /// location, shown as a faint preview marker distinct from the active DX.
     digi_preview: Option<(String, (f64, f64))>,
+    // ── Auto mode: the unattended 11 m sequencer (see `app::auto_mode`) ──
+    //
+    // The policy itself is `sdroxide_types::auto`; these are the session state
+    // and the clocks it is run against. Deliberately session-only, never
+    // persisted: a restart must not bring up a transmitting radio nobody asked
+    // for.
+    /// Whether auto mode is armed.
+    auto_mode: bool,
+    /// Frame time of the last input event, for the inactivity stop.
+    auto_last_activity: f64,
+    /// Frame time before which the tick will not queue another command — the
+    /// gap between the command leaving and the engine's status coming back.
+    auto_cooldown_until: f64,
+    /// When the transmit watchdog tripped, for the pause before auto resumes.
+    auto_resume_at: Option<f64>,
+    /// Stations auto has answered this session, so a dead CQ is not picked
+    /// again.
+    auto_tried: std::collections::HashSet<String>,
+    /// What auto mode last did, for the toggle's tooltip and the panel note.
+    auto_note: String,
     /// Animated centre/zoom of the FT8 world map (eased toward the fit target).
     map_view: crate::widgets::worldmap::MapView,
     /// Which decoded stations are currently up, and how brightly. Shared with
@@ -1516,6 +1537,12 @@ impl SdroxideApp {
             cw_key_down: false,
             digi_tx_hz_edit: String::new(),
             digi_preview: None,
+            auto_mode: false,
+            auto_last_activity: 0.0,
+            auto_cooldown_until: 0.0,
+            auto_resume_at: None,
+            auto_tried: std::collections::HashSet::new(),
+            auto_note: String::new(),
             map_view: Default::default(),
             band_conditions: None,
             band_conditions_fetch: None,
