@@ -2381,6 +2381,7 @@ impl SdroxideApp {
             band_mode_menu(
                 ui,
                 &mut self.band_menu_tab,
+                &mut self.band_filter,
                 mode,
                 state,
                 caps.as_ref(),
@@ -6383,6 +6384,60 @@ pub(in crate::app) enum BandMenuTab {
     Operate,
 }
 
+/// Which slice of the spectrum the band row is narrowed to.
+///
+/// The band list runs to thirty chips across two tabs, and reaching for "the
+/// VHF ones" should not mean reading every one. The filter only narrows what is
+/// *shown*; it never moves the dial, and clearing it (clicking the lit chip
+/// again) brings every band back.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub(in crate::app) enum BandFilter {
+    /// No narrowing — every band the tab would draw.
+    #[default]
+    All,
+    Hf,
+    Vhf,
+    Uhf,
+}
+
+impl BandFilter {
+    /// The chips, in the order they are drawn. `All` is not among them: the
+    /// lit chip toggles itself off, so a separate "ALL" would only clash with
+    /// the band called ALL (`Band::Gen`).
+    const CHIPS: [BandFilter; 3] = [BandFilter::Hf, BandFilter::Vhf, BandFilter::Uhf];
+
+    fn label(self) -> &'static str {
+        match self {
+            BandFilter::All => "ALL",
+            BandFilter::Hf => "HF",
+            BandFilter::Vhf => "VHF",
+            BandFilter::Uhf => "UHF",
+        }
+    }
+
+    /// Whether `band` belongs to this slice of the spectrum.
+    ///
+    /// Classified by the *middle* of the band's edges, not its lower one, so
+    /// the military airband (225–400 MHz) reads as UHF rather than VHF and the
+    /// FM broadcast band (87.5–108) as VHF. A band the region's plan gives no
+    /// edges — `GEN`, the absence of a band — is in every slice: hiding it
+    /// behind a filter would be the one thing an operator reaching for it
+    /// cannot find.
+    fn admits(self, band: Band) -> bool {
+        if self == BandFilter::All {
+            return true;
+        }
+        let Some((lo, hi)) = band.edges() else { return true };
+        let mid = (lo + hi) / 2.0;
+        match self {
+            BandFilter::All => true,
+            BandFilter::Hf => mid < 30_000_000.0,
+            BandFilter::Vhf => (30_000_000.0..300_000_000.0).contains(&mid),
+            BandFilter::Uhf => mid >= 300_000_000.0,
+        }
+    }
+}
+
 /// A mode chip that greys out when the mode does not apply on `band`, and says
 /// why. The rule is [`Band::accepts_mode`]; the engine refuses the same pair at
 /// the command boundary, so this is the explanation rather than the only gate.
@@ -6465,6 +6520,7 @@ fn mode_listen_chip(
 fn band_mode_menu(
     ui: &mut egui::Ui,
     tab: &mut BandMenuTab,
+    filter: &mut BandFilter,
     mode: Mode,
     state: &RadioState,
     caps: Option<&DeviceCaps>,
@@ -6491,6 +6547,16 @@ fn band_mode_menu(
 
     let band = state.band;
     crate::chrome::menu_caption(ui, "Band");
+    // The range filter, under the caption: HF, VHF and UHF narrow the band
+    // chips below, and the lit chip toggles itself back off.
+    ui.horizontal_wrapped(|ui| {
+        for f in BandFilter::CHIPS {
+            if crate::chrome::chip(ui, *filter == f, f.label()).clicked() {
+                *filter = if *filter == f { BandFilter::All } else { f };
+            }
+        }
+    });
+    ui.add_space(4.0);
     let digital = mode.is_digital();
     {
         // One band chip, drawn from the menu's state. A closure because the
@@ -6584,7 +6650,11 @@ fn band_mode_menu(
             // where the frequencies put it.
             BandMenuTab::Operate => {
                 ui.horizontal_wrapped(|ui| {
-                    for b in Band::ALL.into_iter().filter(|b| !b.is_listen_service()) {
+                    for b in Band::ALL
+                        .into_iter()
+                        .filter(|b| !b.is_listen_service())
+                        .filter(|b| filter.admits(*b))
+                    {
                         band_chip(ui, b);
                     }
                 });
@@ -6596,8 +6666,9 @@ fn band_mode_menu(
                     // The broadcast and utility services, then ALL — general
                     // coverage, which is the one that clears the band and lets
                     // the dial go anywhere.
-                    for b in
-                        [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil, Band::Gen]
+                    for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil, Band::Gen]
+                        .into_iter()
+                        .filter(|b| filter.admits(*b))
                     {
                         band_chip(ui, b);
                     }
@@ -6606,23 +6677,26 @@ fn band_mode_menu(
                 // listener plans in 49 m and 41 m, and a shortcut that lands in
                 // the middle of one is what turns the name into a place. One
                 // table with the schedule's (`broadcast::METRE_BANDS`), so the
-                // two agree.
-                ui.add_space(6.0);
-                ui.horizontal_wrapped(|ui| {
-                    let dial_khz = state.rx_freq_hz() / 1e3;
-                    let here = sdroxide_types::broadcast::metre_band(dial_khz);
-                    for &(name, lo, hi) in sdroxide_types::broadcast::METRE_BANDS {
-                        let lit = state.band == Band::Sw && here == Some(name);
-                        if crate::chrome::chip(ui, lit, name)
-                            .on_hover_text(format!("Tune to the middle of {name} broadcast"))
-                            .clicked()
-                        {
-                            let hz = (lo + hi) * 500.0;
-                            cmds.push(Command::SetVfo { vfo: state.active_vfo, hz });
-                            cmds.push(Command::SetMode { rx: RxId::Main, mode: Mode::Am });
+                // two agree. HF alone — a VHF or UHF filter is not asking for
+                // shortwave broadcast.
+                if filter.admits(Band::Sw) {
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        let dial_khz = state.rx_freq_hz() / 1e3;
+                        let here = sdroxide_types::broadcast::metre_band(dial_khz);
+                        for &(name, lo, hi) in sdroxide_types::broadcast::METRE_BANDS {
+                            let lit = state.band == Band::Sw && here == Some(name);
+                            if crate::chrome::chip(ui, lit, name)
+                                .on_hover_text(format!("Tune to the middle of {name} broadcast"))
+                                .clicked()
+                            {
+                                let hz = (lo + hi) * 500.0;
+                                cmds.push(Command::SetVfo { vfo: state.active_vfo, hz });
+                                cmds.push(Command::SetMode { rx: RxId::Main, mode: Mode::Am });
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         }
     }
@@ -8302,6 +8376,36 @@ mod tests {
     }
 
     /// Draw the band/mode menu for `state` and click the chip labelled
+    /// The range filter's three classes, and that it never hides the bandless
+    /// entry. Classified by the band's middle so the military airband reads as
+    /// UHF and the FM broadcast band as VHF.
+    #[test]
+    fn the_range_filter_classifies_bands_by_their_middle() {
+        // HF: everything below 30 MHz, longwave and medium wave included.
+        for b in [Band::Lw, Band::Mw, Band::Sw, Band::M160, Band::M20, Band::M10] {
+            assert!(BandFilter::Hf.admits(b), "{b:?} should be HF");
+            assert!(!BandFilter::Vhf.admits(b), "{b:?} should not be VHF");
+            assert!(!BandFilter::Uhf.admits(b), "{b:?} should not be UHF");
+        }
+        // VHF: 30–300 MHz, the FM broadcast band and the civil airband with it.
+        for b in [Band::M6, Band::M2, Band::Fm, Band::Air] {
+            assert!(BandFilter::Vhf.admits(b), "{b:?} should be VHF");
+            assert!(!BandFilter::Hf.admits(b), "{b:?} should not be HF");
+            assert!(!BandFilter::Uhf.admits(b), "{b:?} should not be UHF");
+        }
+        // UHF: 300 MHz and up. The military airband (225–400) is UHF by its
+        // middle, not its lower edge.
+        for b in [Band::M70, Band::Cm23, Band::Mil, Band::Cm3] {
+            assert!(BandFilter::Uhf.admits(b), "{b:?} should be UHF");
+            assert!(!BandFilter::Hf.admits(b), "{b:?} should not be HF");
+        }
+        // GEN has no edges and belongs to every slice.
+        for f in [BandFilter::All, BandFilter::Hf, BandFilter::Vhf, BandFilter::Uhf] {
+            assert!(f.admits(Band::Gen), "GEN belongs to {f:?}");
+        }
+        assert!(Band::ALL.iter().all(|b| BandFilter::All.admits(*b)));
+    }
+
     /// `label`, returning what the menu asked for. Two passes, as `press` does
     /// in the public-SDR browser: the first finds where the label was painted,
     /// the second aims at it.
@@ -8312,6 +8416,7 @@ mod tests {
                 band_mode_menu(
                     ui,
                     &mut BandMenuTab::Operate,
+                    &mut BandFilter::default(),
                     state.rx[0].mode,
                     state,
                     None,
@@ -8387,6 +8492,7 @@ mod tests {
                 band_mode_menu(
                     ui,
                     &mut BandMenuTab::Operate,
+                    &mut BandFilter::default(),
                     state.rx[0].mode,
                     &state,
                     None,
