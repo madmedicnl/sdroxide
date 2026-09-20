@@ -361,6 +361,24 @@ impl SdroxideApp {
                 if let Some(s) = &self.net_status {
                     ui.label(RichText::new(s).size(11.0).color(crate::theme::gray(150)));
                 }
+                // Upload and lookup results — the rolling `net_log`, which had
+                // no reader anywhere. Collapsed to one row by default, since the
+                // SPOTS window is about the spots; opened, it answers "did that
+                // QSO upload, and if not, why".
+                if !self.net_log.is_empty() {
+                    egui::CollapsingHeader::new(
+                        RichText::new(format!("NET LOG ({})", self.net_log.len()))
+                            .size(11.0)
+                            .color(crate::theme::CYAN_DIM()),
+                    )
+                    .id_salt("spots-net-log")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        for line in &self.net_log {
+                            ui.label(RichText::new(line).monospace().size(10.5));
+                        }
+                    });
+                }
                 ui.separator();
                 // Filter by the category chips, then rank by how well each row
                 // matched the query. With no query the natural frequency order
