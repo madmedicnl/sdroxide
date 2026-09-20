@@ -6800,7 +6800,8 @@ fn band_mode_menu(
             crate::chrome::menu_caption(ui, "Receive modes");
             ui.horizontal_wrapped(|ui| {
                 // What a listener actually selects on a service band: AM and
-                // its synchronous/ECSS variants, FM broadcast with its stereo
+                // its synchronous/ECSS variants, the two sidebands for SSB
+                // utility and freeband listening, FM broadcast with its stereo
                 // pilot and RDS, the two digital broadcast modes, and C-QUAM
                 // where it exists (medium wave alone). CW covers the beacons and
                 // utility signals. Nothing here is greyed for the band: the
@@ -6810,6 +6811,8 @@ fn band_mode_menu(
                     Mode::Am,
                     Mode::Sam,
                     Mode::Cw,
+                    Mode::Usb,
+                    Mode::Lsb,
                     Mode::Wfm,
                     Mode::Drm,
                     Mode::HdRadio,
