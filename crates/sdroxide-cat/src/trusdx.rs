@@ -156,7 +156,11 @@ impl Default for TrUsdx {
 /// on a rig with no DATA switch.
 fn mode_digit(m: Mode) -> char {
     match m {
-        Mode::Lsb => '1',
+        // A digital mode rides the sideband its name carries, the same way
+        // every other family maps it: DIGL is LSB with the audio doing the
+        // rest, and sending it to USB would put the over on the wrong
+        // sideband.
+        Mode::Lsb | Mode::Digl => '1',
         Mode::Cw => '3',
         // C-QUAM is an AM-family mode (the fork's AM stereo); the radio has no
         // position for it and its AM one is the closest thing.
@@ -180,7 +184,6 @@ fn mode_digit(m: Mode) -> char {
         | Mode::Wefax
         | Mode::Navtex
         | Mode::RfPaint
-        | Mode::Digl
         | Mode::Digu
         | Mode::Ft8
         | Mode::Js8
@@ -476,6 +479,18 @@ mod tests {
         assert_eq!(p.ptt(false), b"RX;".to_vec());
         // Never `TX0;` — that is a transmit form on this family.
         assert_ne!(p.ptt(true), b"TX0;".to_vec());
+    }
+
+    /// A digital mode goes to the sideband its name carries. There is no DATA
+    /// position on this firmware, so DIGL is plain LSB — not USB, which would
+    /// put the over on the wrong sideband.
+    #[test]
+    fn a_digital_mode_keeps_its_own_sideband() {
+        let mut p = TrUsdx::new(true);
+        assert_eq!(p.set_mode(Mode::Digl), b"MD1;".to_vec());
+        assert_eq!(p.set_mode(Mode::Lsb), b"MD1;".to_vec());
+        assert_eq!(p.set_mode(Mode::Digu), b"MD2;".to_vec());
+        assert_eq!(p.set_mode(Mode::Ft8), b"MD2;".to_vec());
     }
 
     #[test]

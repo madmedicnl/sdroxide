@@ -379,11 +379,7 @@ fn draw_message(
     let Some(font) = message_font() else {
         return;
     };
-    let ink = if style.rainbow_text {
-        Ink::Rainbow
-    } else {
-        Ink::Solid(style.message_ink)
-    };
+    let ink = if style.rainbow_text { Ink::Rainbow } else { Ink::Solid(style.message_ink) };
     let base_px = 30.0_f32;
     let mut baseline = top as f32;
     for (i, line) in message.lines().enumerate() {
@@ -464,9 +460,7 @@ impl Ink {
             Ink::Solid(c) => (c[0], c[1], c[2]),
             Ink::Gradient(a, b) => {
                 let t = (x / span).clamp(0.0, 1.0);
-                let l = |p: u8, q: u8| {
-                    (f32::from(p) + (f32::from(q) - f32::from(p)) * t) as u8
-                };
+                let l = |p: u8, q: u8| (f32::from(p) + (f32::from(q) - f32::from(p)) * t) as u8;
                 (l(a[0], b[0]), l(a[1], b[1]), l(a[2], b[2]))
             }
             Ink::Rainbow => {
@@ -680,12 +674,8 @@ mod tests {
     #[test]
     fn a_gradient_strip_runs_between_its_two_colours() {
         let mut img = vec![0u8; 8 * 8 * 3];
-        let b = Banner {
-            height: 8,
-            fill: [200, 0, 0],
-            fill2: Some([0, 0, 200]),
-            ..Banner::default()
-        };
+        let b =
+            Banner { height: 8, fill: [200, 0, 0], fill2: Some([0, 0, 200]), ..Banner::default() };
         assert_eq!(draw_banner(&mut img, 8, 8, &b), 8);
         assert_eq!(&img[0..3], &[200, 0, 0], "top row should be the first colour");
         let last = &img[7 * 8 * 3..7 * 8 * 3 + 3];
@@ -764,7 +754,8 @@ mod tests {
     fn rainbow_text_covers_the_spectrum() {
         let (w, h) = (320usize, 120usize);
         let mut img = vec![0u8; w * h * 3];
-        let style = SstvStyle { rainbow_text: true, message_outline: false, ..SstvStyle::default() };
+        let style =
+            SstvStyle { rainbow_text: true, message_outline: false, ..SstvStyle::default() };
         draw_message(&mut img, w, h, "WWWWWWWWWWWWWWWWWWWWWWWW", 0, &style);
         let (mut reds, mut greens, mut blues) = (0, 0, 0);
         for p in img.chunks_exact(3) {

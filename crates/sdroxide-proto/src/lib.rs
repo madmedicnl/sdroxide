@@ -1389,12 +1389,10 @@ use sdroxide_types::{
 /// upstream has never carried these.
 ///
 /// v158: the (tr)uSDX family, offered upstream as #498 where it claims v157 on
-/// top of upstream's v156. Here it sits after the fork's listener identity, so
-/// it takes the next number: [`sdroxide_types::CatConfig`] gains
-/// `trusdx_audio`, which picks between audio in the CAT stream and a USB sound
-/// card. `CatConfig` rides `Command::SetRadioConfig` whole, so the field sits
-/// mid-struct on the wire even appended last in the struct, and a peer without
-/// it runs off the end.
+/// top of upstream's v156 — the two registers met on this merge, which folded
+/// upstream's now-real 157/158 (SSTV styling and the (tr)uSDX family) into this
+/// higher one. Here it sits after the fork's listener identity, so
+/// [`sdroxide_types::CatConfig`] gains
 ///
 /// v159: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
 /// — how long the unattended FT8/FT4/FT2 sequencer may run with no operator
@@ -1417,8 +1415,8 @@ use sdroxide_types::{
 /// station can give its picture a look rather than one flat colour. Appended to
 /// `DigiConfig`'s tail, and `DigiConfig` rides `Command::SetDigiConfig` and
 /// `DigiStatus` whole, so a v160 peer reads the extra bytes as the start of the
-/// next field and fails to decode every digital status. A downstream (fork)
-/// addition.
+/// next field and fails to decode every digital status. Offered upstream as
+/// #505, merged there as their 156→157.
 ///
 /// v162: two more SSTV text options, extending `DigiConfig::sstv_style`: a
 /// gradient across the banner text (`banner_ink_gradient`/`banner_ink2`) and a
@@ -1426,7 +1424,9 @@ use sdroxide_types::{
 /// the tail of `SstvStyle`, which itself sits at `DigiConfig`'s tail, and
 /// `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so a
 /// v161 peer reads the extra bytes as the start of the next field and fails to
-/// decode every digital status. A downstream (fork) addition.
+/// decode every digital status. Fork-only wording until this merge thought it
+/// worth noting: it rode upstream in with #505 and is not a surviving fork
+/// addition.
 ///
 /// v163: the CW straight key's self-decode, `CwStatus::sent_text` — what the
 /// operator's own keying decoded to, so the straight key shows its characters
