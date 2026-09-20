@@ -57,7 +57,7 @@ rest.
    sdroxide --connect host:4950   # desktop UI driving a remote server
    ```
 4. **Tune.** The band/mode menu leads with a **Primary modes** row
-   (**AM · FM · USB · LSB**) and an **HF / VHF / UHF / ALL** band row, and lists
+   (**AM · FM · USB · LSB**) and an **LW / HF / VHF / UHF / ALL** band row, and lists
    the broadcast bands (LW / MW / SW / FM) and the CB band by name. The
    **LISTEN** tab offers every decoder on every band; **OPERATE** enforces the
    band/mode rule. A band comes up on its own memory of mode, filter and
@@ -96,7 +96,7 @@ rest.
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. A receive-only radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning banner, which switches it to this screen. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
 | **Per-radio identity** | one station callsign | a **callsign per radio** (Settings → Radio), falling back to the station callsign on the General tab — a CB callsign on the 11 m set and an amateur callsign on the HF rig at the same time |
 | **Simple interface** | — | hides the advanced chips |
-| **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and an **HF / VHF / UHF / ALL** band row. OPERATE greys out (and the engine refuses) a mode that does not apply on the band — AM on the FM broadcast band, WFM on 11 m; LISTEN offers **every mode on every band** |
+| **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and an **LW / HF / VHF / UHF / ALL** band row. OPERATE greys out (and the engine refuses) a mode that does not apply on the band — AM on the FM broadcast band, WFM on 11 m; LISTEN offers **every mode on every band** |
 | **Propagation columns** | propagation heat map | measured **WSPR** and **PSK Reporter** activity in the **BANDS** window |
 | **Waterfall levels** | a popup behind a chip | a vertical level slider beside the waterfall, plus the popup |
 
