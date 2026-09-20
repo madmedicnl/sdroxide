@@ -121,6 +121,19 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     dependency, which is done (`vendor/xng`, a pinned submodule).
     PROTO_VERSION 158 -> 159 on that branch. (Related, still open: #512 the
     frequency type-in, #514 the HD-on-AM wiring.)
+  - `dividebysandwich/sdroxide#518` — a Hermes/ANAN reporter's PureSignal log.
+    The HPSDR PureSignal startup warning fired on any board whenever
+    `io_rx_input` was not the IO board's PureSignal jack, but that input is
+    Hermes-Lite 2 only — the value is applied only on a Protocol 1 board with
+    an LNA gain register, DDC 0 — so a Hermes/ANAN operator is told to change
+    a setting the radio has no input for and the UI does not offer. **Offered
+    upstream as draft PR #519** (branch `upstream-pr/518-puresignal-io-warn`,
+    one file, no PROTO_VERSION change). **Upstream only: not merged into the
+    fork**, deliberately, until the maintainer takes it — the fork's
+    `src/hpsdr_source.rs` still has the unconditional warning. Replied asking
+    which radio is really on the air (the title says Red Pitaya, the log says
+    ANAN-10) and what is wired back from the amplifier; nothing further until
+    that is answered.
   - `dividebysandwich/sdroxide#503` — the fork's RADE receive-reporting fix,
     for upstream issue **#502**. Two things: the RADE panel never drew the
     callsign decoded from the End-of-Over frame (it was in `DigiStatus::dx_call`
