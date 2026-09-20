@@ -443,6 +443,7 @@ impl SdroxideApp {
         let stations = self.digi_stations.stations(now_t);
         let heat = self.prop_texture(ui.ctx(), self.state.rx_freq_hz());
         self.prop_map_controls(ui);
+        let reporters = self.heard_me_reporters();
         crate::widgets::worldmap::show(
             ui,
             &mut self.map_view,
@@ -452,6 +453,7 @@ impl SdroxideApp {
             None,
             &stations,
             &[],
+            &reporters,
             heat,
             false,
             avail_h,

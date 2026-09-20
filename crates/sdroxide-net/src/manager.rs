@@ -45,6 +45,10 @@ pub struct SpotManager {
     pota: Option<PollHandle>,
     sota: Option<PollHandle>,
     psk: Option<PollHandle>,
+    /// The "who heard me" poll: reports where *we* are the sender, drawn as
+    /// reporter rings. Separate from `psk` above, which is the band-activity
+    /// feed, and polled hourly rather than every few minutes.
+    psk_heard_me: Option<PollHandle>,
     /// The operator's callsign and grid, pushed in from the digi config by the
     /// engine. Not part of [`NetworkConfig`]: there is one operator identity in
     /// the app and it is set on the General tab. The callsign is the *station*
@@ -104,6 +108,7 @@ impl SpotManager {
             pota: None,
             sota: None,
             psk: None,
+            psk_heard_me: None,
             psk_upload: None,
             wspr_upload: None,
             wspr_heard_us: None,
@@ -146,6 +151,7 @@ impl SpotManager {
         }
         if old.psk != self.cfg.psk {
             self.rebuild_psk();
+            self.rebuild_psk_heard_me();
         }
         // A changed SWL identity restarts the uploads but not the fetch feed:
         // the reporter is who the decodes are credited to, the fetch feed is
@@ -202,6 +208,8 @@ impl SpotManager {
         // The callsign and grid (or the SWL identity, if one is set) *are* the
         // PSK Reporter receiver record.
         self.rebuild_psk_upload();
+        // The callsign is also the key the "who heard me" query asks about.
+        self.rebuild_psk_heard_me();
         // And they are the whole of WSPRnet's report identity: the callsign in
         // the query is the account.
         self.rebuild_wspr();
@@ -442,7 +450,11 @@ impl SpotManager {
         let mut v: Vec<Spot> = Vec::new();
         for spots in self.by_kind.values() {
             for s in spots {
-                if now - s.when_utc > max_age {
+                // HeardMe is replaced wholesale on its own hourly poll and
+                // describes the last hour, so the spot max-age (minutes) does
+                // not apply: aging it out would blank the overlay for the last
+                // three quarters of every hour.
+                if s.kind != SpotKind::HeardMe && now - s.when_utc > max_age {
                     continue;
                 }
                 let mut s = s.clone();
@@ -571,6 +583,41 @@ impl SpotManager {
         }
     }
 
+    /// (Re)start the "who heard me" poll: reception reports where *this*
+    /// station is the sender, on the current band, over the last hour. It runs
+    /// whenever the PSK feed is on and a callsign is known, and on its own
+    /// hour-long interval — it is a picture of the last hour, not of the last
+    /// slot, and the client decides whether to draw it.
+    ///
+    /// Needs a callsign to ask about: a listener with only an SWL identity has
+    /// nothing to look up and gets no poll.
+    fn rebuild_psk_heard_me(&mut self) {
+        if !self.station {
+            return;
+        }
+        self.psk_heard_me = None;
+        self.by_kind.remove(&SpotKind::HeardMe);
+        let call = self.op_call.trim();
+        if self.cfg.psk.enabled && !call.is_empty() {
+            let dial = Arc::clone(&self.dial_bits);
+            let call = call.to_string();
+            self.psk_heard_me = Some(poll::spawn(
+                "sdroxide-pskreporter-heardme",
+                SpotKind::HeardMe,
+                Duration::from_secs(3600),
+                self.feed_tx.clone(),
+                self.event_tx.clone(),
+                move || {
+                    pskreporter::fetch_heard_me(
+                        f64::from_bits(dial.load(Ordering::Relaxed)),
+                        &call,
+                        now_utc(),
+                    )
+                },
+            ));
+        }
+    }
+
     /// The identity to report *receptions* under: the listener's SWL number
     /// when one is set, else the operator's callsign.
     ///
@@ -659,15 +706,10 @@ impl SpotManager {
         if !self.cfg.wsjtcb.report || self.op_call.is_empty() {
             return;
         }
-        let station = crate::wsjtcb::Station {
-            call: self.op_call.clone(),
-            grid: self.op_grid.clone(),
-        };
-        self.wsjtcb = Some(crate::wsjtcb::spawn(
-            self.cfg.wsjtcb.url.clone(),
-            station,
-            self.event_tx.clone(),
-        ));
+        let station =
+            crate::wsjtcb::Station { call: self.op_call.clone(), grid: self.op_grid.clone() };
+        self.wsjtcb =
+            Some(crate::wsjtcb::spawn(self.cfg.wsjtcb.url.clone(), station, self.event_tx.clone()));
     }
 
     fn rebuild_freedv(&mut self) {

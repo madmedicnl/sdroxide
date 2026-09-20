@@ -65,6 +65,78 @@ fn parse(body: &str, now: i64) -> Result<Vec<Spot>, String> {
     Ok(out)
 }
 
+/// Fetch the reception reports where `my_call` is the sender over the last
+/// hour — every reporter that heard *us* on the band containing `dial_hz` — as
+/// [`SpotKind::HeardMe`] spots placed at the **reporter's** grid.
+///
+/// The inverse of [`fetch`]: that one asks who is being heard on the band and
+/// draws the senders; this asks who heard us and draws the receivers. Polled
+/// hourly by the caller — a picture of the last hour, not of the last slot.
+pub fn fetch_heard_me(dial_hz: f64, my_call: &str, now_utc: i64) -> Result<Vec<Spot>, String> {
+    let call = my_call.trim();
+    if call.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (lo, hi) = band_edges(dial_hz);
+    let url = format!(
+        "https://retrieve.pskreporter.info/query?flowStartSeconds=-3600&rronly=1&frange={}-{}&senderCallsign={}",
+        lo as i64, hi as i64, call
+    );
+    let body = http::get(&url)?;
+    parse_heard_me(&body, now_utc)
+}
+
+fn parse_heard_me(body: &str, now: i64) -> Result<Vec<Spot>, String> {
+    let doc = roxmltree::Document::parse(body).map_err(|e| e.to_string())?;
+    let mut out: Vec<Spot> = Vec::new();
+    for node in doc.descendants().filter(|n| n.has_tag_name("receptionReport")) {
+        let attr = |k: &str| node.attribute(k).unwrap_or("").trim();
+        let freq_hz: f64 = match attr("frequency").parse() {
+            Ok(f) if f > 0.0 => f,
+            _ => continue,
+        };
+        let reporter = attr("receiverCallsign").to_ascii_uppercase();
+        if reporter.is_empty() {
+            continue;
+        }
+        let grid = {
+            let g = attr("receiverLocator");
+            (!g.is_empty()).then(|| g.to_ascii_uppercase())
+        };
+        // A report whose reporter gave no locator cannot be placed: drop it
+        // rather than plot a dot at a guessed position.
+        let loc = grid.as_deref().and_then(sdroxide_types::grid_to_latlon);
+        if loc.is_none() {
+            continue;
+        }
+        let snr_db = attr("sNR").parse::<i16>().ok();
+        let spot = Spot {
+            id: Spot::make_id(SpotKind::HeardMe, &reporter, freq_hz),
+            kind: SpotKind::HeardMe,
+            freq_hz,
+            call: reporter,
+            spotter: attr("senderCallsign").to_ascii_uppercase(),
+            mode: attr("mode").to_ascii_uppercase(),
+            comment: String::new(),
+            reference: None,
+            grid,
+            loc,
+            when_utc: now,
+            snr_db,
+        };
+        // One dot per reporter per frequency, at the strongest report they
+        // gave: the same reporter appears several times across the hour.
+        if let Some(existing) = out.iter_mut().find(|s| s.id == spot.id) {
+            if spot.snr_db.unwrap_or(-99) > existing.snr_db.unwrap_or(-99) {
+                *existing = spot;
+            }
+        } else {
+            out.push(spot);
+        }
+    }
+    Ok(out)
+}
+
 /// Amateur-band edges (Hz) for the band containing `hz`, else a ±100 kHz window.
 fn band_edges(hz: f64) -> (f64, f64) {
     const BANDS: &[(f64, f64)] = &[
@@ -113,5 +185,27 @@ mod tests {
     #[test]
     fn band_edges_for_20m() {
         assert_eq!(band_edges(14_074_000.0), (14_000_000.0, 14_350_000.0));
+    }
+
+    #[test]
+    fn parses_reports_where_we_were_heard() {
+        let body = r#"<?xml version="1.0"?>
+        <receptionReports>
+          <receptionReport senderCallsign="19DCG373" senderLocator="JO22"
+            frequency="27075000" mode="FT8" sNR="-12"
+            receiverCallsign="DL1ABC" receiverLocator="JO31"/>
+          <receptionReport senderCallsign="19DCG373" senderLocator="JO22"
+            frequency="27075000" mode="FT8" sNR="-4"
+            receiverCallsign="DL1ABC" receiverLocator="JO31"/>
+          <receptionReport senderCallsign="19DCG373"
+            frequency="27075000" mode="FT8" sNR="-1"
+            receiverCallsign="NOGRID"/>
+        </receptionReports>"#;
+        let spots = parse_heard_me(body, 42).unwrap();
+        assert_eq!(spots.len(), 1, "one reporter, strongest kept, no-grid dropped");
+        assert_eq!(spots[0].kind, SpotKind::HeardMe);
+        assert_eq!(spots[0].call, "DL1ABC");
+        assert_eq!(spots[0].snr_db, Some(-4));
+        assert!(spots[0].loc.is_some());
     }
 }

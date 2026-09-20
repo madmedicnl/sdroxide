@@ -1154,6 +1154,7 @@ impl SdroxideApp {
                 .collect();
             let heat = self.prop_texture(ui.ctx(), self.state.rx_freq_hz());
             self.prop_map_controls(ui);
+            let reporters = self.heard_me_reporters();
             crate::widgets::worldmap::show(
                 ui,
                 &mut self.map_view,
@@ -1163,6 +1164,7 @@ impl SdroxideApp {
                 hover_ll,
                 &stations,
                 &spot_dots,
+                &reporters,
                 heat,
                 tx_active,
                 map_budget,

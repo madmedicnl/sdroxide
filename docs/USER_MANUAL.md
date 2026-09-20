@@ -4774,6 +4774,17 @@ actually getting through; pressing it reveals the rest of the controls —
 cell stands for. [§7.8](#78-the-propagation-heat-map) explains what the
 shading means. The same picture, with more control over it, is on the 3D globe.
 
+Beside PROP is **HEARD ME**, which rings every station that reported *hearing
+this station* on the current band, from PSK Reporter, at the reporter's own
+grid. It is the inverse of the coloured PSK spots: those are stations this radio
+is hearing, while these heard us. The query behind it is refetched **hourly**
+and covers the last hour, so it needs the PSK feed switched on under
+**Settings → Spots** and a callsign set on the General tab; the chip only
+decides whether the rings are drawn. Hover a ring for the reporter's callsign,
+frequency, mode and the SNR they gave. Deliberately its own control rather than
+another spot colour: a dot at the *receiver* is a marker at the wrong end of a
+report, so these never appear in the SPOTS list or on the panadapter.
+
 Drag the strip under the map to resize it against the status pane.
 
 #### Transmitting

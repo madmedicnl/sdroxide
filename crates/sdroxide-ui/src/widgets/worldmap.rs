@@ -19,7 +19,8 @@
 //! back to the auto-fit.
 
 use eframe::egui::{
-    Align2, Color32, CursorIcon, FontId, PointerButton, Pos2, Response, Sense, Ui, Vec2, pos2, vec2,
+    Align2, Color32, CursorIcon, FontId, PointerButton, Pos2, Response, Sense, Stroke, Ui, Vec2,
+    pos2, vec2,
 };
 use sdroxide_types::great_circle_points;
 
@@ -520,6 +521,11 @@ pub fn show(
     stations: &[crate::digi_map::DigiStation],
     // Network spots with a known location: (lat, lon, rgb tint by kind).
     spots: &[(f64, f64, (u8, u8, u8))],
+    // "Who heard me": PSK Reporter reports where *we* were the sender, placed
+    // at the reporter's own grid. Drawn as open rings, with the reporter's
+    // callsign and report on hover — a different shape from the filled dots so
+    // the two directions are never read as one.
+    reporters: &[sdroxide_types::Spot],
     // Propagation heat, as an equirectangular RGBA image of the whole world
     // (see `crate::prop_map::PropHeat`). Painted under the continents, so the
     // coastline stays readable on top of it.
@@ -689,6 +695,28 @@ pub fn show(
         let kind = theme::data_ink(rgb);
         p.circle_filled(c, dot_r + 2.0, alpha(kind, 55.0));
         p.circle_filled(c, 2.2, kind);
+    }
+
+    // "Who heard me": open rings at the reporters' grids. A ring, not a filled
+    // dot, because it is the inverse of everything else here — the reporter
+    // heard *us*, rather than being a station we hear or a spot the network
+    // announced. The callsign and report show on hover.
+    if !reporters.is_empty() {
+        let ink = theme::data_ink(crate::theme::spot_color(sdroxide_types::SpotKind::HeardMe));
+        for (i, s) in reporters.iter().enumerate() {
+            let Some((lat, lon)) = s.loc else { continue };
+            let c = project(lat, lon);
+            p.circle_stroke(c, 3.4, Stroke::new(1.6, alpha(ink, 70.0)));
+            p.circle_stroke(c, 3.4, Stroke::new(1.1, ink));
+            let hit = eframe::egui::Rect::from_center_size(c, vec2(12.0, 12.0));
+            ui.interact(hit, ui.id().with(("heard_me", i)), Sense::hover()).on_hover_text(format!(
+                "{} heard you on {:.3} MHz · {}{}",
+                s.call,
+                s.freq_hz / 1e6,
+                if s.mode.trim().is_empty() { String::new() } else { format!("{} · ", s.mode) },
+                s.snr_db.map(|d| format!("{d:+} dB")).unwrap_or_else(|| "no SNR".into()),
+            ));
+        }
     }
 
     // Great-circle path as a dotted cyan trail (dots avoid antimeridian wrap).

@@ -189,6 +189,23 @@ impl SdroxideApp {
                  switched on under Settings → Spots — what the world's skimmers are \
                  hearing, which covers the bands this radio is not on.",
             );
+            // "Who heard me": the reporters that heard this callsign on the
+            // current band, from PSK Reporter, drawn as rings at their own
+            // grids. Its own chip, independent of the heat above — it stays
+            // useful with PROP off, and it is the inverse of the PSK spots
+            // (which are what *we* are hearing, not who heard us).
+            if crate::chrome::chip(ui, self.view.psk_heard_me, RichText::new("HEARD ME").size(9.5))
+                .on_hover_text(
+                    "Ring every station that reported hearing this callsign on the current band, \
+                 from PSK Reporter, placed at the reporter's own grid. The inverse of the PSK \
+                 spots: those are stations this radio is hearing. Refreshed hourly, covering \
+                 the last hour; needs the PSK feed on under Settings → Spots and a callsign \
+                 set on the General tab.",
+                )
+                .clicked()
+            {
+                self.view.psk_heard_me = !self.view.psk_heard_me;
+            }
             if !on {
                 return;
             }

@@ -146,6 +146,13 @@ pub struct ViewState {
     /// `Band::ALL`.
     #[serde(default = "prop_map_band_default")]
     pub prop_map_band: u8,
+    /// Draw the "who heard me" overlay: the reporters that heard this station
+    /// on the current band, from PSK Reporter, as rings. Off by default — a
+    /// look-at-the-band aid rather than something to leave on. The query behind
+    /// it runs whenever the PSK feed is on, so this only decides whether the
+    /// rings are drawn.
+    #[serde(default)]
+    pub psk_heard_me: bool,
     /// Which spot kinds are shown in the SPOTS list, on the panadapter and on
     /// the world map — indexed by `SpotKind::index`, so the chip order in the
     /// SPOTS window and this array have to stay in lockstep.
@@ -557,6 +564,7 @@ impl Default for ViewState {
             prop_on_map: false,
             prop_map_mode: prop_map_mode_default(),
             prop_map_band: prop_map_band_default(),
+            psk_heard_me: false,
             spot_kinds_shown: spot_kinds_default(),
             digi_panel_fraction: 0.46,
             digi_split_fraction: 0.52,
@@ -884,7 +892,7 @@ mod tests {
         let mut v = ViewState { wide_waterfall: false, ..ViewState::default() };
         v.spot_kinds_shown[3] = false; // PSK off
         let back: ViewState = ron::from_str(&ron::to_string(&v).unwrap()).unwrap();
-        assert_eq!(back.spot_kinds_shown, [true, true, true, false, true, true]);
+        assert_eq!(back.spot_kinds_shown, [true, true, true, false, true, true, true]);
         assert!(!back.wide_waterfall);
     }
 

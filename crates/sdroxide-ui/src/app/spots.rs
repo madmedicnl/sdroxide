@@ -143,6 +143,12 @@ impl SdroxideApp {
     /// The search query is deliberately *not* part of this: it narrows the list
     /// in the SPOTS window only. See [`App::spot_search`].
     pub(in crate::app) fn spot_visible(&self, s: &Spot) -> bool {
+        // "Who heard me" is a map overlay, not a station to tune: it never
+        // belongs in the spot list or on the panadapter, where a dot placed at
+        // the *reporter* would be a marker at the wrong end of the report.
+        if s.kind == SpotKind::HeardMe {
+            return false;
+        }
         // SWL mode drops the ham feeds that need a licence to be useful — the
         // DX cluster, POTA and SOTA — but keeps the receive-only networks
         // (PSK Reporter, FreeDV Reporter) and the broadcast stations, which are
@@ -226,6 +232,16 @@ impl SdroxideApp {
         self.spots.iter().chain(self.broadcast_spots.iter())
     }
 
+    /// The "who heard me" reporters to draw, when the overlay is on: the
+    /// [`SpotKind::HeardMe`] spots from the snapshot, cloned out. Empty when
+    /// the overlay is off, so the map draws nothing.
+    pub(in crate::app) fn heard_me_reporters(&self) -> Vec<Spot> {
+        if !self.view.psk_heard_me {
+            return Vec::new();
+        }
+        self.all_spots().filter(|s| s.kind == SpotKind::HeardMe).cloned().collect()
+    }
+
     /// The same two sets as one owned list in frequency order, for the SPOTS
     /// window. `self.spots` arrives sorted from the feed manager, but the
     /// broadcast stations have to be merged into that order.
@@ -290,7 +306,9 @@ impl SdroxideApp {
         // Cloned out of `self` because the window closure needs `&mut self`.
         let spots = self.merged_spots();
         // Chip order has to match `SpotKind::index`: the loop below indexes
-        // `spot_kinds_shown` positionally.
+        // `spot_kinds_shown` positionally. HeardMe has no chip: it is the map
+        // overlay toggled from the map's own row, not a spot category — see
+        // `spot_visible`, which always hides it from the list.
         let labels = [
             (SpotKind::DxCluster, "DX"),
             (SpotKind::Pota, "POTA"),

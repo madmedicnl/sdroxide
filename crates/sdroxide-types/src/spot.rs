@@ -29,19 +29,31 @@ pub enum SpotKind {
     /// the wire — but it shares `Spot` so the overlay, the list and the map
     /// render it through one path. Appended last, as above.
     Broadcast,
+    /// A PSK Reporter reception report where *this* station was the sender —
+    /// one reporter that heard us, placed at the **reporter's** own grid.
+    ///
+    /// Deliberately its own kind rather than folded into
+    /// [`SpotKind::PskReporter`], which is the stations being heard: the two
+    /// are opposite ends of the same reports, and a "who heard me" dot drawn
+    /// or listed as if it were a station to tune would be a different thing
+    /// wearing the same face. Kept out of the SPOTS list and the propagation
+    /// field (see `spot_visible` and the snapshot in `sdroxide-net`); it is a
+    /// map overlay only. Appended last, as above.
+    HeardMe,
 }
 
 impl SpotKind {
     /// Every kind, in the order the SPOTS window's filter chips, the settings
     /// colour pickers and [`SpotKind::index`] all use. Anything indexed by kind
     /// — the filter array, [`crate::UiSettings::spot_colors`] — is this wide.
-    pub const ALL: [SpotKind; 6] = [
+    pub const ALL: [SpotKind; 7] = [
         SpotKind::DxCluster,
         SpotKind::Pota,
         SpotKind::Sota,
         SpotKind::PskReporter,
         SpotKind::FreeDv,
         SpotKind::Broadcast,
+        SpotKind::HeardMe,
     ];
 
     /// How many kinds there are, i.e. the width of every per-kind array.
@@ -56,6 +68,7 @@ impl SpotKind {
             SpotKind::PskReporter => 3,
             SpotKind::FreeDv => 4,
             SpotKind::Broadcast => 5,
+            SpotKind::HeardMe => 6,
         }
     }
 
@@ -67,6 +80,7 @@ impl SpotKind {
             SpotKind::PskReporter => "PSK",
             SpotKind::FreeDv => "FREEDV",
             SpotKind::Broadcast => "BC",
+            SpotKind::HeardMe => "HEARD ME",
         }
     }
 
@@ -90,6 +104,10 @@ impl SpotKind {
             // the label takes the brightest hue the other five leave free, which
             // is the gap between SOTA's amber and POTA's green.
             SpotKind::Broadcast => (190, 240, 120),
+            // Magenta: the hue the other six leave free, and far enough from
+            // PSK Reporter's violet that a reporter ring is not read as a band
+            // spot when both are on the map at once.
+            SpotKind::HeardMe => (255, 100, 220),
         }
     }
 }

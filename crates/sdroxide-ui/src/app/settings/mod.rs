@@ -2919,6 +2919,11 @@ impl SdroxideApp {
                     ui,
                     &mut io.net_edit.psk.enabled,
                     "PSK Reporter (current band)",
+                )
+                .on_hover_text(
+                    "The band-activity feed: stations being heard on the current band, drawn \
+                     as coloured dots. Also enables the \"who heard me\" query behind the map's \
+                     HEARD ME chip — refetched hourly, too.",
                 );
                 crate::chrome::checkbox(
                     ui,

@@ -1442,7 +1442,14 @@ use sdroxide_types::{
 /// caused, and the same fix (the two sides must run in lockstep). The live
 /// decode log is engine-side only (`RadioEvent::HfdlStatus`), bridged nowhere.
 /// A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 164;
+///
+/// v165: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
+/// appended to that enum, so the `Spot` sets in `RadioEvent::Spots` shift — a
+/// v164 peer misreads them, and the two sides run in lockstep as always. The
+/// overlay itself is a client view toggle, not a config field: the engine
+/// polls the reports whenever the PSK feed is on, and the client decides
+/// whether to draw them. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 165;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
