@@ -293,6 +293,24 @@ decode log first, then the aircraft map, then the system table. Work is in
   the Riverhead squitter in 0.10 s. **Not pushed/offered upstream yet.** The
   operator tests the local build before anything is pushed or offered upstream.
 
+  The second stage — the **aircraft map** — is in, on top of the decode log:
+  xng already lifts a normalized `details.position {lat, lon, aircraft_id,
+  icao, flight}` out of a performance-data (0xD1) or frequency-data (0xD5)
+  HFNPDU and drops the all-zero not-yet-acquired fix, so the worker parses that
+  into the typed `HfdlFix` a decode now carries (`HfdlDecode::position`). The
+  UI keeps its own latest-fix-per-identity table (`crate::hfdl_map`, keyed by
+  `HfdlFix::key()` — ICAO, then GS-local alias, then flight, then position) so
+  an aircraft stays plotted after its earliest decodes scroll out of the log's
+  rolling window; a plot is retired after 30 minutes of silence. The window is
+  now a draggable split — log left, map right, fraction in
+  `ViewState::hfdl_split_fraction` — and the log row shows the fix rather than
+  the JSON it arrived in. Only unit-tested here: the off-air capture carries a
+  squitter and no aircraft positions, so the map has **not** been seen on real
+  HFDL traffic. The still-open question for the third stage (the system table)
+  is what it adds over the squitter's frequency list. Note the HFDL chip now
+  lives in the System box's *bottom* row, not the top: an eighth top-row chip
+  pushed the desktop strip to a third row, and the bottom row had the slack.
+
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
 The bridge the CB side interoperates with is installed in the Wine prefix on

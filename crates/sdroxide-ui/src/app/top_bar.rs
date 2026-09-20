@@ -5202,7 +5202,7 @@ impl SdroxideApp {
     /// The first five window chips — the condensed System box's top row.
     /// `extra` stretches each chip past its label; the popup passes 0.
     fn system_chips_top(&mut self, ui: &mut egui::Ui, extra: f32) {
-        let [log, spots, awards, bands, sat_label, ism, public_sdrs, hfdl_label] = SYSTEM_CHIPS_TOP;
+        let [log, spots, awards, bands, sat_label, ism, public_sdrs] = SYSTEM_CHIPS_TOP;
         let simple = self.ui_settings.simple_ui;
         // SWL mode is the listener's screen, and it takes the row the way the
         // listener uses it: award tracking is a ham receive extra they never
@@ -5256,33 +5256,6 @@ impl SdroxideApp {
             .clicked()
         {
             self.show_bands = !self.show_bands;
-        }
-        // HFDL: shortwave aircraft ground network — a listener's tool, so show
-        // it in simple mode (the listener's UI) alongside SCHEDULE and LISTEN.
-        let hfdl_running = self.state.hfdl.enabled;
-        let hfdl_chip = if hfdl_running {
-            accent_chip_stretched(
-                ui,
-                true,
-                "HFDL",
-                crate::theme::GREEN(),
-                crate::theme::INK_ON_BRIGHT(),
-                extra,
-            )
-        } else {
-            chip_stretched(ui, self.show_hfdl, "HFDL", extra)
-        };
-        if hfdl_chip
-            .on_hover_text(if hfdl_running {
-                "HFDL ground network — decoding now, whether or not this window \
-                 is open. Switch it off with LISTEN inside the window."
-            } else {
-                "HFDL ground network — the aircraft shortwave data link, one \
-                 listening channel at a time"
-            })
-            .clicked()
-        {
-            self.show_hfdl = !self.show_hfdl;
         }
         // Accented while a satellite lock *or* the QO-100 beacon hunt is
         // running, like the scanner: both spend the receiver whether or not the
@@ -5372,7 +5345,7 @@ impl SdroxideApp {
 
     /// The remaining window chips — the condensed System box's bottom row.
     fn system_chips_bottom(&mut self, ui: &mut egui::Ui, extra: f32) {
-        let [mail, mem, scan_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
+        let [mail, mem, scan_label, hfdl_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
         let simple = self.ui_settings.simple_ui;
         if !simple
             && chip_stretched(ui, self.mail.open, mail, extra)
@@ -5413,6 +5386,36 @@ impl SdroxideApp {
             .clicked()
         {
             self.show_scanner = !self.show_scanner;
+        }
+        // HFDL: shortwave aircraft ground network — a listener's tool, so it
+        // sits in the row an operator reaches for the decoder windows from,
+        // in both interfaces. Accented while the decoder runs, like the ISM
+        // chip: it spends a downconverter and a worker thread whether or not
+        // the window is open.
+        let hfdl_running = self.state.hfdl.enabled;
+        let hfdl_chip = if hfdl_running {
+            accent_chip_stretched(
+                ui,
+                true,
+                hfdl_label,
+                crate::theme::GREEN(),
+                crate::theme::INK_ON_BRIGHT(),
+                extra,
+            )
+        } else {
+            chip_stretched(ui, self.show_hfdl, hfdl_label, extra)
+        };
+        if hfdl_chip
+            .on_hover_text(if hfdl_running {
+                "HFDL ground network — decoding now, whether or not this window \
+                 is open. Switch it off with LISTEN inside the window."
+            } else {
+                "HFDL ground network — the aircraft shortwave data link, one \
+                 listening channel at a time"
+            })
+            .clicked()
+        {
+            self.show_hfdl = !self.show_hfdl;
         }
         if chip_stretched(ui, self.show_settings, settings, extra)
             .on_hover_text("Settings — device gains, antennas, audio devices")
@@ -5555,10 +5558,10 @@ impl PttPress {
 /// put this box near the end of a row — and, later, how the public-SDR chip
 /// did, drawn in the top row while a single split index still counted it in the
 /// bottom one.
-const SYSTEM_CHIPS_TOP: [&str; 8] = ["LOG", "SPOTS", "AWARDS", "BANDS", "SAT", "ISM", "PUBLIC SDR", "HFDL"];
+const SYSTEM_CHIPS_TOP: [&str; 7] = ["LOG", "SPOTS", "AWARDS", "BANDS", "SAT", "ISM", "PUBLIC SDR"];
 
 /// The rest of them. See [`SYSTEM_CHIPS_TOP`].
-const SYSTEM_CHIPS_BOTTOM: [&str; 5] = ["MAIL", "MEM", "SCAN", "⚙ SETTINGS", "? HELP"];
+const SYSTEM_CHIPS_BOTTOM: [&str; 6] = ["MAIL", "MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"];
 
 /// The Display box's top row: the solar view, then the chips that choose what
 /// the panadapter draws — the last of those only on a front end with a
@@ -7366,15 +7369,17 @@ mod tests {
     fn the_simple_interface_drops_the_advanced_system_chips() {
         assert_eq!(system_top_row(false, false), SYSTEM_CHIPS_TOP.to_vec());
         assert_eq!(system_bottom_row(false), SYSTEM_CHIPS_BOTTOM.to_vec());
-        assert_eq!(system_top_row(true, false), vec!["LOG", "SPOTS", "BANDS", "PUBLIC SDR", "HFDL"]);
+        assert_eq!(system_top_row(true, false), vec!["LOG", "SPOTS", "BANDS", "PUBLIC SDR"]);
         // SWL mode keeps the SPOTS chip (the receive-only networks are a
         // listener's tool) and drops only award tracking, the ham feed being
         // filtered inside the window instead.
         assert_eq!(
             system_top_row(false, true),
-            vec!["LOG", "SCHEDULE", "LISTEN", "SPOTS", "BANDS", "SAT", "ISM", "PUBLIC SDR", "HFDL"]
+            vec!["LOG", "SCHEDULE", "LISTEN", "SPOTS", "BANDS", "SAT", "ISM", "PUBLIC SDR"]
         );
-        assert_eq!(system_bottom_row(true), vec!["MEM", "SCAN", "⚙ SETTINGS", "? HELP"]);
+        // HFDL is a decode window, so it sits with the others in the bottom
+        // row — where the simple interface keeps it, unlike radio email.
+        assert_eq!(system_bottom_row(true), vec!["MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]);
     }
 
     fn system_box_and_chips() -> (f32, Vec<(&'static str, f32)>) {
