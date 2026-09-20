@@ -49,15 +49,23 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46
     accumulated commits made one merge twenty conflicted files.
-  - `jl1nie/mfsk-core#373` — the fork's CB (11 m) grammar, reworked per the
-    maintainer's review: the `cb-callsigns` Cargo feature is dropped, and the
-    PR now offers `wsjt77::is_cb_callsign` (plus the 25-case WSJT-CB table) as
-    a plain, always-on `pub fn` that nothing in the decode path calls. The
-    maintainer wants the *widening* as a caller-supplied predicate on
-    `DecodeRequest` (`.also_accept(&cb_ok)`, design in their #383), not a
-    build-wide flag. The fork's decoder keeps its pin (see below) until #383
-    lands upstream; then rework `sdroxide-digi` to compose the CB predicate
-    itself and let the pin go.
+  - `jl1nie/mfsk-core#373` — the fork's CB (11 m) grammar. **Declined and
+    closed 2026-09-20.** The maintainer first asked for the feature to become a
+    caller-supplied predicate, wrote that design up as #383, then withdrew even
+    the "plain `pub fn` here" offer: a dialect's grammar is application policy
+    and mfsk-core is a port of WSJT-X, so they will not carry it, inert or not.
+    The grammar therefore lives in this fork as
+    `sdroxide_types::is_cb_callsign` (`crates/sdroxide-types/src/cb_callsign.rs`,
+    with the 25-case WSJT-CB table), and `sdroxide-digi` calls it directly.
+    The field-based hook — `DecodeRequest::also_accept(|m|
+    m.callsigns().all(is_cb_callsign))`, which yields only callsign *fields*, so
+    a grid or a report cannot be fed to the grammar — is their **#386**, in
+    0.11.0, not yet merged. When it lands: switch `sdroxide-digi` to the hook,
+    then drop the `madmedicnl/mfsk-core` pin. #386 also replaced the text-based
+    plausibility filter that had been silently dropping whole message types.
+    (Their earlier `cb_ok(&str)` sketch was their own retracted error: unpack77
+    discards the fields, so tokenising the rendered text runs grids and
+    exchanges through the grammar.)
   - Upstream PRs, branched from `upstream/main` and **merged into the fork's
     build** (the fork carries them while they are still open upstream):
     **#500** the WEFAX auto start/stop fix (#496) — reviewed 2026-09-20: the
@@ -168,30 +176,30 @@ faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
 build time and `madmedicnl/faad2-hdc` is gone. See "The HD Radio capture
 harness" below.)
 
-### When `jl1nie/mfsk-core#373` merges
+### When `jl1nie/mfsk-core#386` lands (the CB decode hook)
 
-The PR is now grammar-only (see the watch list): `wsjt77::is_cb_callsign` as a
-plain `pub fn`, no decode-path widening, no feature. Nothing downstream needs to
-change when it merges — the fork's decoder is already working through the pin.
-
-### When `jl1nie/mfsk-core#383` lands upstream
+#373 was declined and closed (see the watch list); the grammar is ours now, in
+`sdroxide_types::is_cb_callsign`. #386 adds the field-based hook it was waiting
+for — `DecodeRequest::also_accept(|m| m.callsigns().all(f))`, where `callsigns()`
+yields only callsign *fields*, so a grid or an exchange cannot be fed to the
+grammar (their first `cb_ok(&str)` sketch could not do that). When 0.11.0 is on
+crates.io:
 
 1. In `crates/sdroxide-digi/Cargo.toml`, replace the
    `git = "https://github.com/madmedicnl/mfsk-core.git"` pin with upstream
-   `mfsk-core`, moving `cb-callsigns` out of the features list (it no longer
-   exists) and onto the dependency's resolved `main`.
-2. Rework the MFSK-CB decode path to pass the CB predicate through
-   `DecodeRequest`'s `.also_accept(...)` hook instead of relying on widened
-   validators: the predicate is the 11 m identity/ghost checks that
-   `modem.rs`, the CCW loop and the conversations around issue #396 already
-   enforce, composed `or` with `is_plausible_callsign`.
+   `mfsk-core` on the tag carrying #386.
+2. Point the FT8/FT4 decode request at
+   `.also_accept(|m| m.callsigns().all(sdroxide_types::is_cb_callsign))`, so the
+   CB grammar widens the plausibility gate per call rather than through the
+   pinned fork's validators.
 3. Refresh `Cargo.lock`; the `madmedicnl/mfsk-core` source should disappear.
 4. Confirm the 11 m CB decodes still pass (WSJT-CB callsigns, hashed pairs,
    country flags) — the predicate must not change anything else.
 5. Note it in the README/commit as "mfsk fork retired".
 
-If #383 or #373 is **rejected or closed unmerged**, decide with the user
-between a runtime strict/loose policy upstream or keeping the fork pin — do
+The hook names may still move: #386 was not merged and 0.11.0 not tagged when
+this was written (2026-09-20). If #386 is **rejected or closed unmerged**, decide
+with the user between a runtime strict/loose policy or keeping the fork pin — do
 not silently drop CB validation.
 
 ### The HD Radio capture harness

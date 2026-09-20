@@ -680,7 +680,7 @@ impl QsoMachine {
                 && !d.is_cq
                 && matches!(self.step, QsoStep::CallingCq | QsoStep::WaitCq)
                 && d.message.split_whitespace().count() == 1
-                && mfsk_core::msg::wsjt77::is_cb_callsign(&d.message)
+                && sdroxide_types::is_cb_callsign(&d.message)
                 && d.message != my_call
             {
                 let call = d.message.clone();

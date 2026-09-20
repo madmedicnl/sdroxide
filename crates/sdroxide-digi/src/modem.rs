@@ -421,8 +421,8 @@ fn pack_message(text: &str) -> Option<([u8; 77], String)> {
         && c1.starts_with('<')
         && c1.ends_with('>')
         && dx != c2
-        && wsjt77::is_cb_callsign(dx)
-        && wsjt77::is_cb_callsign(c2)
+        && sdroxide_types::is_cb_callsign(dx)
+        && sdroxide_types::is_cb_callsign(c2)
     {
         if let Some(mut m) = wsjt77::pack77_type4(c2, dx, "", false) {
             m[70] = 0; // iflip=0: the DX's hash reads first, "<DX> MYCALL"
@@ -448,7 +448,7 @@ fn pack_message(text: &str) -> Option<([u8; 77], String)> {
     //     *pair* in the same two tokens ("26AT715 25TT304") is not this shape
     //     and stays on the two-hash ladder above.
     if !c1.is_empty()
-        && wsjt77::is_cb_callsign(c1)
+        && sdroxide_types::is_cb_callsign(c1)
         && matches!(toks.len(), 1 | 2)
         && (toks.len() == 1 || is_cb_payload_tok(c2))
     {
