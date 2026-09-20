@@ -6561,6 +6561,10 @@ fn band_mode_menu(
             .on_hover_text("General coverage — clear the band and let the dial go anywhere")
             .clicked()
         {
+            // ALL is the "everything" choice, so it lets the range filter go
+            // too: whatever the row was narrowed to is cleared, the HF/VHF/UHF
+            // chips uncheck, and every band comes back.
+            *filter = BandFilter::All;
             cmds.push(Command::SetBand(Band::Gen));
         }
     });
@@ -8412,17 +8416,44 @@ mod tests {
         assert!(Band::ALL.iter().all(|b| BandFilter::All.admits(*b)));
     }
 
+    /// ALL is the "everything" choice: clicking it lets the range filter go as
+    /// well as clearing the band, so the HF/VHF/UHF chips uncheck and every
+    /// band comes back. It used to clear only the band, leaving the list
+    /// narrowed with a lit chip that could not be mistaken for anything else.
+    #[test]
+    fn all_clears_the_range_filter_too() {
+        let state = RadioState::default();
+        let mut filter = BandFilter::Hf;
+        let cmds = click_in_band_mode_menu_filtered(&state, "ALL", &mut filter);
+        assert_eq!(filter, BandFilter::All, "ALL must let the range filter go");
+        assert!(
+            cmds.contains(&Command::SetBand(Band::Gen)),
+            "ALL must still clear the band: {cmds:?}"
+        );
+    }
+
     /// `label`, returning what the menu asked for. Two passes, as `press` does
     /// in the public-SDR browser: the first finds where the label was painted,
     /// the second aims at it.
     fn click_in_band_mode_menu(state: &RadioState, label: &str) -> Vec<Command> {
+        let mut filter = BandFilter::default();
+        click_in_band_mode_menu_filtered(state, label, &mut filter)
+    }
+
+    /// The same, with the range filter carried in and out, so a test can see
+    /// what a click did to it as well as what the menu asked for.
+    fn click_in_band_mode_menu_filtered(
+        state: &RadioState,
+        label: &str,
+        filter: &mut BandFilter,
+    ) -> Vec<Command> {
         let (ctx, input) = desktop_ctx();
-        let draw = |input: egui::RawInput, cmds: &mut Vec<Command>| {
+        let mut draw = |input: egui::RawInput, cmds: &mut Vec<Command>| {
             ctx.run_ui(input, |ui| {
                 band_mode_menu(
                     ui,
                     &mut BandMenuTab::Operate,
-                    &mut BandFilter::default(),
+                    filter,
                     state.rx[0].mode,
                     state,
                     None,
