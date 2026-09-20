@@ -277,7 +277,22 @@ impl eframe::App for SdroxideApp {
         // A persistent radio-audio warning (input unavailable / mono-for-IQ)
         // rides above the panadapter with a dismiss button, so a silent RX
         // failure is explained rather than reading as "waiting for spectrum".
-        if let Some(notice) = self.radio_notice.clone() {
+        //
+        // A receive-only radio also gets a nudge here — most public SDRs are
+        // somebody else's antenna and have no transmitter at all, and the full
+        // transmit UI is clutter for them. The offer is the per-radio listening
+        // screen (`hide_tx`), which is exactly "hide the transmit controls";
+        // like the SWR latch, an operator who has said no is not asked again.
+        let rx_only = !self.swl_mode()
+            && self.caps.as_ref().is_some_and(|c| !c.is_transmit_capable());
+        let notice = self.radio_notice.clone().or_else(|| {
+            (rx_only && !self.rx_only_nudge_dismissed).then(|| {
+                "This radio is receive-only — it has no transmitter. Hide the transmit \
+                 controls and use the listening screen?"
+                    .to_string()
+            })
+        });
+        if let Some(notice) = notice {
             let (wash, rule, mark, ink) = notice_banner_colors();
             egui::Frame::new()
                 .fill(wash)
@@ -309,8 +324,42 @@ impl eframe::App for SdroxideApp {
                                     cmds.push(Command::ClearSwrTrip);
                                     self.radio_notice = None;
                                 }
-                            } else if ui.small_button("Dismiss").clicked() {
-                                self.radio_notice = None;
+                            } else {
+                                if ui.small_button("Dismiss").clicked() {
+                                    self.radio_notice = None;
+                                    if rx_only {
+                                        self.rx_only_nudge_dismissed = true;
+                                    }
+                                }
+                                // Only for a radio that truly cannot transmit:
+                                // the listening screen is the right shape for
+                                // it, and nothing is retuned.
+                                if rx_only
+                                    && ui
+                                        .button(RichText::new("Listening controls").size(13.0))
+                                        .on_hover_text(
+                                            "Hide the transmit controls and switch this radio to \
+                                             the listening screen (Settings → Radio). Nothing is \
+                                             retuned and the decoder keeps running.",
+                                        )
+                                        .clicked()
+                                {
+                                    if let Some(cfg) = self.radio_cfg.clone() {
+                                        let mut cfg = cfg;
+                                        cfg.hide_tx = true;
+                                        cmds.push(Command::SetRadioConfig {
+                                            cfg: Box::new(cfg.clone()),
+                                            reopen: false,
+                                        });
+                                        self.radio_cfg = Some(cfg);
+                                    }
+                                    // An explicit per-radio choice supersedes
+                                    // the start-in-SWL seed, the same way the
+                                    // Settings switch does.
+                                    self.swl_start = false;
+                                    self.radio_notice = None;
+                                    self.rx_only_nudge_dismissed = true;
+                                }
                             }
                         });
                     });

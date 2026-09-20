@@ -179,6 +179,10 @@ pub struct SdroxideApp {
     /// Persistent, non-fatal operator notice (e.g. radio audio input
     /// unavailable / mono card selected for IQ). Shown as a warning banner.
     radio_notice: Option<String>,
+    /// Dismissed the receive-only nudge this session. The nudge offers a
+    /// receive-only radio the per-radio listening screen; an operator who has
+    /// already said no must not be asked on every retune.
+    rx_only_nudge_dismissed: bool,
     sent_cfg: Option<SpectrumConfig>,
     desired_cfg: Option<SpectrumConfig>,
     desired_at: f64,
@@ -1350,6 +1354,7 @@ impl SdroxideApp {
             retry_at: None,
             retry_backoff: RETRY_MIN_S,
             radio_notice: None,
+            rx_only_nudge_dismissed: false,
             sent_cfg: None,
             desired_cfg: None,
             desired_at: 0.0,
