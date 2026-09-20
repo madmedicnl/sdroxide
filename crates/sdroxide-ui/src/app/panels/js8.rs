@@ -188,6 +188,7 @@ impl SdroxideApp {
         let audio_hz = status.as_ref().map(|s| s.audio_hz).unwrap_or(1500.0);
         let transmitting = status.as_ref().map(|s| s.transmitting).unwrap_or(false);
         let js8 = status.as_ref().and_then(|s| s.js8.clone()).unwrap_or_default();
+        let swl = self.swl_mode();
 
         // ── Header: speed, tuning, queue depth ──────────────────────────────
         ui.horizontal_wrapped(|ui| {
@@ -355,6 +356,8 @@ impl SdroxideApp {
         if let Some(pane) = self.phone_pane(ui, self.state.rx[0].mode) {
             if pane == 0 {
                 self.js8_heard_list(ui, &js8, avail_h, total_w);
+            } else if swl {
+                self.js8_map(ui, &js8, avail_h);
             } else {
                 self.js8_chat(ui, cmds, &js8, avail_h);
             }
@@ -381,10 +384,14 @@ impl SdroxideApp {
                 self.view.js8_split_fraction = ((left_w + dx) / total_w).clamp(0.22, 0.72);
             }
 
-            // ── Right: the conversation ─────────────────────────────────────
+            // ── Right: the conversation, or the map in listen mode ─────────
             ui.vertical(|ui| {
                 ui.set_height(avail_h);
-                self.js8_chat(ui, cmds, &js8, avail_h);
+                if swl {
+                    self.js8_map(ui, &js8, avail_h);
+                } else {
+                    self.js8_chat(ui, cmds, &js8, avail_h);
+                }
             });
         });
     }
@@ -416,6 +423,39 @@ impl SdroxideApp {
                 });
             });
         });
+    }
+
+    /// The world map, in the right column when there is no QSO to have.
+    ///
+    /// JS8's stations already feed the same `DigiStations` the FT8 map draws
+    /// (`js8_observe`), so in listen mode — where transmit is hidden and the
+    /// conversation below would be an empty "— no messages —" box — the column
+    /// shows where the stations are instead. The same map the FT8/FT4/FT2 QSO
+    /// pane has, with the selected station, if it sent a locator, marked.
+    fn js8_map(&mut self, ui: &mut egui::Ui, js8: &sdroxide_types::Js8Status, avail_h: f32) {
+        let my_grid = self.my_grid();
+        let home_ll = sdroxide_types::grid_to_latlon(&my_grid);
+        let dx_ll = self
+            .js8_grid_for(&self.js8_target, &js8.heard)
+            .as_deref()
+            .and_then(sdroxide_types::grid_to_latlon);
+        let now_t = ui.input(|i| i.time);
+        let stations = self.digi_stations.stations(now_t);
+        let heat = self.prop_texture(ui.ctx(), self.state.rx_freq_hz());
+        self.prop_map_controls(ui);
+        crate::widgets::worldmap::show(
+            ui,
+            &mut self.map_view,
+            home_ll,
+            dx_ll,
+            None,
+            None,
+            &stations,
+            &[],
+            heat,
+            false,
+            avail_h,
+        );
     }
 
     // ── JS8: locating stations ──────────────────────────────────────────────

@@ -977,6 +977,7 @@ impl SdroxideApp {
         let tier = crate::layout::tier(ui.ctx());
         let compact = tier.compact();
         let phone = tier == crate::layout::Tier::Phone;
+        let swl = self.swl_mode();
 
         // Header: QSO left, session log + downloads centered, SETUP right.
         // The count is this run's; the export buttons still save the whole
@@ -1065,7 +1066,7 @@ impl SdroxideApp {
         // here is either the state of the QSO or a control that changes it, and
         // on a tablet the map was taking the room they needed. The same
         // stations are still on the panadapter and in the 3D view.
-        let show_map = !compact;
+        let show_map = !compact || swl;
         let gap = 8.0;
         // Only the map budget needs this: the rows below the transcript place
         // themselves (see the bottom-up layout further down). Measured rather
@@ -1093,9 +1094,24 @@ impl SdroxideApp {
         // left the box a few points tall — and before the box learned to be
         // squeezed (see [`Self::transcript`]) it overflowed downward onto the
         // message row instead, which is how that row went missing (issue #231).
-        let below_map = map_handle_h + CARD_RESERVE + 5.0 + gap + 2.0 * btn_h + TRANSCRIPT_MIN;
+        // The listener's column ends at the map — the station card, the
+        // transcript and the action rows below it are all QSO furniture, and
+        // `qso_area` returns before drawing any of it — so nothing is reserved
+        // underneath and the map takes the whole column.
+        let below_map = if swl {
+            0.0
+        } else {
+            map_handle_h + CARD_RESERVE + 5.0 + gap + 2.0 * btn_h + TRANSCRIPT_MIN
+        };
         let map_hi = (full_h - below_map).min(avail_w).max(map_lo);
-        let map_budget = map_lo + (map_hi - map_lo) * self.view.digi_map_fraction;
+        // The listener gets the whole range rather than a dragged share: there
+        // is no QSO form below to leave room for, and a fraction of the range
+        // would just leave the rest of the column empty.
+        let map_budget = if swl {
+            map_hi
+        } else {
+            map_lo + (map_hi - map_lo) * self.view.digi_map_fraction
+        };
         let my_grid = status.as_ref().map(|s| s.config.my_grid.clone()).unwrap_or_default();
         // Feed the shared station store every frame, whether or not the flat map
         // is drawn: the 3D globe's time-lapse replays this same history, and
@@ -1152,16 +1168,27 @@ impl SdroxideApp {
                 map_budget,
             );
             // Draggable border between the map and the QSO form below it.
-            let hresp = crate::chrome::split_handle(
-                ui,
-                egui::vec2(ui.available_width(), map_handle_h),
-                None,
-            );
-            if hresp.dragged() {
-                // 1:1 with the cursor: a drag of `dy` px moves the map edge `dy` px.
-                let df = hresp.drag_delta().y / (map_hi - map_lo).max(1.0);
-                self.view.digi_map_fraction = (self.view.digi_map_fraction + df).clamp(0.0, 1.0);
+            // Nothing is below it in a listener's column, so there is no border
+            // to drag either.
+            if !swl {
+                let hresp = crate::chrome::split_handle(
+                    ui,
+                    egui::vec2(ui.available_width(), map_handle_h),
+                    None,
+                );
+                if hresp.dragged() {
+                    // 1:1 with the cursor: a drag of `dy` px moves the map edge `dy` px.
+                    let df = hresp.drag_delta().y / (map_hi - map_lo).max(1.0);
+                    self.view.digi_map_fraction =
+                        (self.view.digi_map_fraction + df).clamp(0.0, 1.0);
+                }
             }
+        }
+        // The listener's column stops at the map: no station card, no
+        // conversation, no message or action rows — with transmit hidden there
+        // is no QSO to show, and the map keeps the room they took.
+        if swl {
+            return;
         }
         // Station card.
         crate::chrome::red_panel(ui, |ui| {
