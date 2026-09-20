@@ -6502,8 +6502,8 @@ fn band_mode_menu(
             // Americas', and offering an operator a button that tunes outside
             // their own allocation — out of band, and with `tx_ham_only` set,
             // straight into a transmit lockout — would be offering them
-            // something their licence has not got. GEN is the one bandless entry
-            // that stays: it is the absence of a band.
+            // something their licence has not got. ALL (`Band::Gen`) is the one
+            // bandless entry that stays: it is the absence of a band.
             if b != Band::Gen && b.edges().is_none() {
                 return;
             }
@@ -6593,7 +6593,12 @@ fn band_mode_menu(
             // frequency the way a radio face orders them.
             BandMenuTab::Listen => {
                 ui.horizontal_wrapped(|ui| {
-                    for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil] {
+                    // The broadcast and utility services, then ALL — general
+                    // coverage, which is the one that clears the band and lets
+                    // the dial go anywhere.
+                    for b in
+                        [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil, Band::Gen]
+                    {
                         band_chip(ui, b);
                     }
                 });

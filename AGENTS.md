@@ -349,6 +349,11 @@ leave the radio. The station's own limits still grey a chip (HD Radio with no
 refused on the FM broadcast band via `SetMode`, and applied there via
 `SetModeListen`.
 
+The LISTEN band row also carries **ALL** — `Band::Gen`, general coverage,
+which clears the band so the dial goes anywhere. Its label is "ALL" in
+`Band::label()` (it reads "GEN" nowhere the operator sees now; the bandplan
+overlay was updated too, and the wire/JSON name stays `Gen`).
+
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
 The bridge the CB side interoperates with is installed in the Wine prefix on

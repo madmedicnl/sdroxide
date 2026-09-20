@@ -17,6 +17,9 @@ pub enum Band {
     M10,
     M6,
     M2,
+    /// General coverage: no band at all, just the whole tuning range the radio
+    /// publishes. Drawn on the band bar as **ALL**, because choosing it puts no
+    /// band restriction on the dial.
     Gen,
     /// 70 cm. Appended rather than placed after [`Band::M2`] because `Band` is
     /// postcard-encoded by declaration index and stored in band stacks and
@@ -315,7 +318,10 @@ impl Band {
             Band::Fm => "FM",
             Band::Air => "AIR",
             Band::Mil => "MIL",
-            Band::Gen => "GEN",
+            // General coverage — the absence of a band: the dial is wherever
+            // the operator puts it. Read as "ALL" on the band bar, because
+            // that is what pressing it gives you: no band restriction at all.
+            Band::Gen => "ALL",
         }
     }
 
