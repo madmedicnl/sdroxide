@@ -142,7 +142,7 @@ The full interface: the radio, receiver, display and system controls along the t
   **RADE** digital voice, **packet/APRS**, **AtCHAT NET**, **Winlink** email.
   Details and setup are in the [manual's digital-modes chapter](docs/USER_MANUAL.md#3-digital-modes).
 - **Receiver** — hang AGC, draggable filter edges, noise blanker, auto-notch,
-  four noise-reduction engines, squelch, a sub-receiver, RIT/XIT, VFO A/B with
+  five noise-reduction engines, squelch, a sub-receiver, RIT/XIT, VFO A/B with
   split, band stacks and memories.
 - **Spots, awards, QSL** — DX cluster / POTA / SOTA / PSK Reporter spots as
   clickable panadapter markers, callsign lookup, one-click upload to

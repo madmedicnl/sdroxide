@@ -228,7 +228,7 @@ impl<'a> Speaker<'a> {
     /// Noise reduction, engine and strength.
     ///
     /// The engine name matters: an operator who has picked DeepFilterNet wants
-    /// to know that is what came on, and the four engines sound nothing alike.
+    /// to know that is what came on, and the five engines sound nothing alike.
     pub fn nr(&self, n: NrLevel) -> String {
         let s = match n {
             NrLevel::Off => "noise reduction off".to_string(),
@@ -241,6 +241,9 @@ impl<'a> Speaker<'a> {
             NrLevel::SpecLow => "spectral noise reduction low".into(),
             NrLevel::SpecMed => "spectral noise reduction medium".into(),
             NrLevel::SpecHigh => "spectral noise reduction high".into(),
+            NrLevel::Nr2Low => "N R 2 low".into(),
+            NrLevel::Nr2Med => "N R 2 medium".into(),
+            NrLevel::Nr2High => "N R 2 high".into(),
             NrLevel::DfLow => "deep filter low".into(),
             NrLevel::DfMed => "deep filter medium".into(),
             NrLevel::DfHigh => "deep filter high".into(),

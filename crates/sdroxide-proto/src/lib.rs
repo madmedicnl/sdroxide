@@ -1388,68 +1388,84 @@ use sdroxide_types::{
 /// has no name for fails to decode the message. A downstream (fork) addition:
 /// upstream has never carried these.
 ///
-/// v158: the (tr)uSDX family, offered upstream as #498 where it claims v157 on
-/// top of upstream's v156 — the two registers met on this merge, which folded
-/// upstream's now-real 157/158 (SSTV styling and the (tr)uSDX family) into this
-/// higher one. Here it sits after the fork's listener identity, so
-/// [`sdroxide_types::CatConfig`] gains
+/// v158: the (tr)uSDX family. [`sdroxide_types::CatConfig`] gains
+/// `trusdx_audio`, which picks between audio in the CAT stream and a USB sound
+/// card. `CatConfig` rides `Command::SetRadioConfig` whole, so the field sits
+/// mid-struct on the wire even appended last in the struct, and a peer without
+/// it runs off the end. Upstream took this as #498; the fork's own (tr)uSDX
+/// copy dropped out on the merge that carried it.
 ///
-/// v159: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
+/// v159: NR2, the fifth noise-reduction engine — WDSP's Ephraim-Malah denoiser
+/// ported to `sdroxide-dsp` (upstream #515). [`sdroxide_types::NrLevel`] gains
+/// `Nr2Low`, `Nr2Med` and `Nr2High`, appended last so no surviving discriminant
+/// moved. `NrLevel` rides `RadioState::noise_reduction` and
+/// `Command::SetNoiseReduction`, so a v158 peer has no name for the three and
+/// fails to decode the state or the command carrying one — but only once NR2 is
+/// actually selected, since nothing else emits them.
+///
+/// v160: the CW panel is told whether the radio keys itself
+/// ([`sdroxide_types::CwStatus::rig_keys_itself`], issue #495). Appended last,
+/// so the panel can grey the straight key out with a reason instead of lighting
+/// it on a rig that will never hand-key. `CwStatus` rides `DigiStatus::cw`,
+/// sent whenever a CW engine is running, so a v159 peer reads the extra byte as
+/// the start of the next field and fails to decode every digital status.
+///
+/// v161: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
 /// — how long the unattended FT8/FT4/FT2 sequencer may run with no operator
 /// input before it disarms. Appended to `RadioConfig`'s tail, and it rides
-/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v158 peer
+/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v160 peer
 /// handed one runs off the end of the struct. A downstream (fork) addition.
 ///
-/// v160: two CW conveniences from the same report (issue #495).
+/// v162: two CW conveniences from the same report (issue #495).
 /// `DigiConfig::cw_sidetone` plays the keyed tone through the local speakers so
 /// a `Sound card (MCW)` operator hears what they are sending, and
 /// `DigiConfig::cw_tx_idle_s` makes the transmit-hold after the last character
 /// or key release configurable. Both appended to `DigiConfig`'s tail, and
 /// `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so a
-/// v159 peer reads the extra bytes as the start of the next field and fails to
+/// v161 peer reads the extra bytes as the start of the next field and fails to
 /// decode every digital status.
 ///
-/// v161: SSTV picture styling, `DigiConfig::sstv_style` (an
+/// v163: SSTV picture styling, `DigiConfig::sstv_style` (an
 /// `sdroxide_types::SstvStyle`) — the banner strip's gradient and outline and
 /// the slot message's ink, so a
 /// station can give its picture a look rather than one flat colour. Appended to
 /// `DigiConfig`'s tail, and `DigiConfig` rides `Command::SetDigiConfig` and
-/// `DigiStatus` whole, so a v160 peer reads the extra bytes as the start of the
+/// `DigiStatus` whole, so a v162 peer reads the extra bytes as the start of the
 /// next field and fails to decode every digital status. Offered upstream as
 /// #505, merged there as their 156→157.
 ///
-/// v162: two more SSTV text options, extending `DigiConfig::sstv_style`: a
+/// v164: two more SSTV text options, extending `DigiConfig::sstv_style`: a
 /// gradient across the banner text (`banner_ink_gradient`/`banner_ink2`) and a
 /// rainbow override for all the picture's text (`rainbow_text`). Appended to
 /// the tail of `SstvStyle`, which itself sits at `DigiConfig`'s tail, and
 /// `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so a
-/// v161 peer reads the extra bytes as the start of the next field and fails to
+/// v163 peer reads the extra bytes as the start of the next field and fails to
 /// decode every digital status. Fork-only wording until this merge thought it
 /// worth noting: it rode upstream in with #505 and is not a surviving fork
 /// addition.
 ///
-/// v163: the CW straight key's self-decode, `CwStatus::sent_text` — what the
+/// v165: the CW straight key's self-decode, `CwStatus::sent_text` — what the
 /// operator's own keying decoded to, so the straight key shows its characters
 /// the way the text keyer shows typed ones (issue #495 follow-up). Appended to
 /// `CwStatus`'s tail; `CwStatus` rides inside `DigiStatus`, which crosses
-/// whole, so a v162 peer reads the extra bytes as the start of the next field
+/// whole, so a v164 peer reads the extra bytes as the start of the next field
 /// and fails to decode every digital status. A downstream (fork) addition.
 ///
-/// v164: the HFDL ground-network decoder's settings, `RadioState::hfdl` (issue
+/// v166: the HFDL ground-network decoder's settings, `RadioState::hfdl` (issue
 /// #497). Appended to `RadioState`'s tail, and `RadioState` crosses whole, so a
-/// v163 peer reads the extra bytes as the start of the next field and fails to
+/// v165 peer reads the extra bytes as the start of the next field and fails to
 /// decode every state — the same break `RadioState`'s other appended decoders
 /// caused, and the same fix (the two sides must run in lockstep). The live
 /// decode log is engine-side only (`RadioEvent::HfdlStatus`), bridged nowhere.
 /// A downstream (fork) addition.
 ///
-/// v165: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
+/// v167: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
 /// appended to that enum, so the `Spot` sets in `RadioEvent::Spots` shift — a
-/// v164 peer misreads them, and the two sides run in lockstep as always. The
+/// v166 peer misreads them, and the two sides run in lockstep as always. The
 /// overlay itself is a client view toggle, not a config field: the engine
 /// polls the reports whenever the PSK feed is on, and the client decides
 /// whether to draw them. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 165;
+pub const PROTO_VERSION: u16 = 167;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

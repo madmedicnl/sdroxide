@@ -659,6 +659,7 @@ fn cw_status(text: &str) -> DigiStatus {
         snr_db: 10.0,
         tone_hz: 700.0,
         sent_text: String::new(),
+        ..Default::default()
     });
     st
 }
@@ -722,6 +723,7 @@ fn unlocked_cw_is_not_read() {
         snr_db: 0.0,
         tone_hz: 700.0,
         sent_text: String::new(),
+        ..Default::default()
     });
     a.on_digi(&st, &s, 1.0);
     a.tick(&s, None, 1.0);
