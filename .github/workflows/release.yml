@@ -25,7 +25,13 @@ jobs:
     name: web client (wasm)
     runs-on: ubuntu-latest
     steps:
+      # The submodules matter even here: `vendor/xng` is a path dependency of a
+      # workspace member (`sdroxide-hfdl`), and `cargo metadata` reads every
+      # member's manifest before it builds anything, wasm target or not — an
+      # uninitialised submodule is a missing manifest and the whole build stops.
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
