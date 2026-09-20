@@ -8075,6 +8075,18 @@ impl Engine {
                     self.tune_to_conventional_dial(hz);
                 }
             }
+            SetModeListen { rx, mode } => {
+                // The listener's screen may put any mode on any band. The band
+                // rule exists to save an operator from a pair that can only be
+                // silence, not to stop a listener trying a decoder where it
+                // does not belong — exploring the dial is the exercise. The
+                // dial push is the same one `SetMode` makes.
+                let convention = self.conventional_dial_for(rx, mode);
+                self.set_rx_mode(rx, mode);
+                if let Some(hz) = convention {
+                    self.tune_to_conventional_dial(hz);
+                }
+            }
             SetFilter { rx, lo, hi } => {
                 let (lo, hi) = (lo.min(hi), lo.max(hi));
                 let r = &mut self.state.rx[rx.index()];

@@ -1154,4 +1154,19 @@ pub enum Command {
         program: u8,
     },
 
+    /// Set a receiver's mode without the band's own rule (`Command::SetMode`),
+    /// for the listener's screen.
+    ///
+    /// The OPERATE tab greys out the mode/band pairs that make no sense and the
+    /// engine refuses them for a remote client too. A listener exploring the
+    /// dial wants to try any decoder on any band regardless — that is the whole
+    /// exercise — so the LISTEN tab sends this instead. Transmit legality is
+    /// untouched: the band lockout and the rails still decide what leaves the
+    /// radio, and this only chooses what is received.
+    ///
+    /// Appended for the usual reason — postcard numbers variants by position.
+    SetModeListen {
+        rx: RxId,
+        mode: Mode,
+    },
 }

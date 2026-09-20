@@ -330,6 +330,25 @@ decode log first, then the aircraft map, then the system table. Work is in
   same switch as Settings → Radio), retuning nothing. Dismissing it holds for
   the session.
 
+### The LISTEN tab offers every mode on every band
+
+The band/mode menu's OPERATE tab greys out a mode the current band does not
+carry (`Band::accepts_mode`, whose service-band table says an FM broadcast is
+not amplitude modulated and so on), and the engine refuses the same pair at
+`Command::SetMode` so a remote client cannot pick it either. The **LISTEN**
+tab deliberately does neither: its mode chips never grey for the band, and
+they send **`Command::SetModeListen`** — appended after `SetHdProgram`, same
+mode change without the band rule. The point of the listener's screen is to
+explore the dial, and trying a decoder where the table would not put it is
+the exercise. Transmit legality is untouched: `SetModeListen` only chooses
+what is received, and the band lockout and the TX rails still decide what may
+leave the radio. The station's own limits still grey a chip (HD Radio with no
+`libnrsc5`, issue #488), because those are not a band opinion.
+
+`crates/sdroxide-radio/tests/listen_mode_unlocks.rs` pins both halves: AM is
+refused on the FM broadcast band via `SetMode`, and applied there via
+`SetModeListen`.
+
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
 The bridge the CB side interoperates with is installed in the Wine prefix on

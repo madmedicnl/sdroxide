@@ -6423,6 +6423,39 @@ fn mode_band_chip(
     }
 }
 
+/// A mode chip for the listener's screen, which never greys out for the band.
+///
+/// The LISTEN tab is where the dial is explored, and a listener may want to try
+/// a decoder on a band the mode/band table would not put it on — that the pair
+/// is unusual is the interesting part, not a reason to refuse. The station's
+/// own limits still apply (HD Radio without a `libnrsc5`), and the engine's
+/// band rule is bypassed with [`Command::SetModeListen`]. Transmit legality is
+/// untouched: this chooses what is received, not what may be keyed.
+fn mode_listen_chip(
+    ui: &mut egui::Ui,
+    cur: Mode,
+    m: Mode,
+    state: &RadioState,
+    cmds: &mut Vec<Command>,
+) {
+    let station_why = state.mode_unavailable(m);
+    let resp = crate::chrome::chip_enabled_tinted(
+        ui,
+        station_why.is_none(),
+        cur == m,
+        m.label(),
+        None,
+        false,
+    );
+    let resp = match station_why {
+        Some(why) => resp.on_disabled_hover_text(why),
+        None => resp,
+    };
+    if resp.clicked() {
+        cmds.push(Command::SetModeListen { rx: RxId::Main, mode: m });
+    }
+}
+
 /// The band + mode + digital chip rows: the body of the band/mode popup.
 ///
 /// A free function taking the state it draws from, rather than a method, so a
@@ -6681,7 +6714,9 @@ fn band_mode_menu(
                 // its synchronous/ECSS variants, FM broadcast with its stereo
                 // pilot and RDS, the two digital broadcast modes, and C-QUAM
                 // where it exists (medium wave alone). CW covers the beacons and
-                // utility signals.
+                // utility signals. Nothing here is greyed for the band: the
+                // listener's screen is where the dial is explored, so a mode
+                // the band table would not put here is still offered.
                 for m in [
                     Mode::Am,
                     Mode::Sam,
@@ -6691,7 +6726,7 @@ fn band_mode_menu(
                     Mode::HdRadio,
                     Mode::Cquam,
                 ] {
-                    mode_band_chip(ui, mode, m, band, state, cmds);
+                    mode_listen_chip(ui, mode, m, state, cmds);
                 }
             });
             // Every digimode decode, on the listener's side too: a listener
@@ -6699,8 +6734,8 @@ fn band_mode_menu(
             // and PSK bulletins, NAVTEX and weather fax, APRS, the aircraft
             // datalinks — and meets them across the whole dial, not only in an
             // amateur band. The same list the OPERATE tab uses, so the two
-            // cannot drift; the band rule still greys a mode out on a service
-            // band that cannot carry it (WFM on the airband, say).
+            // cannot drift, and the same "every band" rule: exploring is the
+            // point, so the band does not grey a decoder out here.
             ui.add_space(6.0);
             crate::chrome::menu_caption(ui, "Digital");
             ui.horizontal_wrapped(|ui| {
@@ -6708,7 +6743,7 @@ fn band_mode_menu(
                     .into_iter()
                     .chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
                 {
-                    mode_band_chip(ui, mode, m, band, state, cmds);
+                    mode_listen_chip(ui, mode, m, state, cmds);
                 }
             });
         }
