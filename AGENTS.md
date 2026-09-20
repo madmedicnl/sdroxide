@@ -37,14 +37,17 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   lineages of one feature until the next merge, and each merge is bigger for
   it.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at 158, the fork at 164. The fork's extras are the listener
+  upstream is at **160**, the fork at **167**. The fork's extras are the listener
   identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
-  additions through v164 — the register's full story is documented in
+  additions through v167 — the register's full story is documented in
   `crates/sdroxide-proto/src/lib.rs`. Upstream's v157/158 (SSTV styling and
-  the (tr)uSDX family) landed on the 2026-09 merge, which is where this
-  register caught up with upstream's. When merging, keep the number ahead of
-  upstream's and fold its new entries in rather than dropping them.
+  the (tr)uSDX family), **v159 (NR2's three `NrLevel` variants)** and **v160
+  (`CwStatus::rig_keys_itself`)** are folded in; taking them shifted the fork's
+  own entries above to 161–167. When merging, keep the number ahead of
+  upstream's and fold its new entries in rather than dropping them — the
+  2026-09-20 merge is the worked example (NR2 and `rig_keys_itself` inserted
+  under the fork's register and everything above renumbered).
 - Watch list:
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46
@@ -80,8 +83,15 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     offset. A narrow, clean, *static* stripe is indistinguishable from a
     phasing pulse from line data alone; the shape and the eight-line run are
     what carry it. **#498** (the (tr)uSDX family) and **#501** (the Icom WFM
-    mode byte fix, #494) were taken earlier. (#499 is closed as superseded by
-    #498.)
+     mode byte fix, #494) were taken earlier. (#499 is closed as superseded by
+    #498.) **Taken upstream on the 2026-09-20 merge from `upstream/main`:**
+    **#519** (the PureSignal IO-board warning gate, as `29ed7539`), **#512**
+    (the frequency type-in, `43ce0543`), **#522** (the auto-upload master/target
+    trap, `e6ffbe4b`), and the **rig-keys-itself half of #507** (`bcef7787`) —
+    all four landed as direct commits rather than merged PRs, so the fork's
+    branches for them are done and their fork copies dropped out. #507's other
+    half (the sidetone and the straight-key read-back) is still fork-only;
+    check whether upstream wants it before re-offering #507 whole.
   - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
@@ -110,7 +120,12 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     three-second catch-up were unusable for that, and the receive tap never
     carries our own sidetone). Both CLEAR controls empty it, and the message
     editor's `MSG` chip moved up beside SIDETONE and SEND ON RETURN. Not
-    verified on air here (no transmit licence).
+    verified on air here (no transmit licence). The maintainer took the
+    **rig-keys-itself** half upstream on the 2026-09-20 merge (`bcef7787`,
+    `CwStatus::rig_keys_itself`, upstream's 160) — the CW panel keeps both that
+    and the fork's sidetone/read-back, since `CwStatus` carries both fields.
+    What remains fork-only is the sidetone, the configurable idle hold and the
+    `sent_text` read-back; #507 is still open for those.
   - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
     the issue; see "The HFDL core" below. The requester answered the two
     questions (2026-09-19): he defers to our judgment on git-dependency vs
@@ -119,8 +134,8 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     **Offered upstream as draft PR #509** (branch `upstream-pr/497-hfdl`); the
     maintainer asked for `xng` to be vendored rather than a cargo git
     dependency, which is done (`vendor/xng`, a pinned submodule).
-    PROTO_VERSION 158 -> 159 on that branch. (Related, still open: #512 the
-    frequency type-in, #514 the HD-on-AM wiring.)
+    PROTO_VERSION 158 -> 159 on that branch. (Related: #512 the frequency
+    type-in is now **taken upstream**; #514 the HD-on-AM wiring is still open.)
   - `dividebysandwich/sdroxide#518` — a Hermes/ANAN reporter's PureSignal log.
     The HPSDR PureSignal startup warning fired on any board whenever
     `io_rx_input` was not the IO board's PureSignal jack, but that input is
@@ -488,19 +503,16 @@ tagged release rather than at last week's build.
 
 ## Explore later
 
-- **NR2 (WDSP's Ephraim-Malah denoiser)** — the fork wants a noise reducer in
-  this family, so revisit it as a fifth `NrEngine`. Not carried as of
-  2026-09-20, and not just because it is a large DSP addition: upstream **PR
-  #515** (`joscandreu`) ports WDSP's `emnr.c` (NR0V, GPL-2.0-or-later, so
-  GPL-3-compatible) and is the thing to read first, but two things need
-  settling before it could land here. It **does not bump `PROTO_VERSION`**,
-  though the engine rides the wire as appended `NrLevel` variants (which cross
-  in `RadioState`/`DigiConfig` whole); and its **454 KiB `nr2_tables.bin`**
-  (`include_bytes!` in `sdroxide-dsp`, a wasm dependency of the UI) would ship
-  into the browser client whether or not NR2 is used, with no gating. If
-  upstream takes it, prefer upstream's shape; if they don't, decide with the
-  user whether to carry a gated, version-bumped copy. The fork's current four
-  engines are RNN, DeepFilter, SpecBleach and Spectral.
+- **NR2 (WDSP's Ephraim-Malah denoiser)** — **landed upstream on the 2026-09-20
+  merge** (`0d03b507`, plus #515's review commits) as the fifth `NrEngine`, so
+  the fork carries it now and this watch item is closed. Two things that were
+  open when it was queued are settled: upstream **did** bump `PROTO_VERSION`
+  for the appended `NrLevel` variants (their 159, folded into the fork's
+  register), and the **454 KiB `nr2_tables.bin`** does **not** reach the
+  browser — `sdroxide-ui` depends on `sdroxide-types`, not `-dsp`/`-radio`, and
+  those are native-only under `cfg(not(target_arch = "wasm32"))`, so
+  `cargo tree -p sdroxide-ui --target wasm32-unknown-unknown` carries neither.
+  The five engines are RNN, DeepFilter, SpecBleach, **NR2** and Spectral.
 
 ## Build and test
 
