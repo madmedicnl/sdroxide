@@ -47,8 +47,15 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46
     accumulated commits made one merge twenty conflicted files.
-  - `jl1nie/mfsk-core#373` — the opt-in `cb-callsigns` feature; when it merges,
-    the `mfsk-core` fork pin in `crates/sdroxide-digi/Cargo.toml` can go.
+  - `jl1nie/mfsk-core#373` — the fork's CB (11 m) grammar, reworked per the
+    maintainer's review: the `cb-callsigns` Cargo feature is dropped, and the
+    PR now offers `wsjt77::is_cb_callsign` (plus the 25-case WSJT-CB table) as
+    a plain, always-on `pub fn` that nothing in the decode path calls. The
+    maintainer wants the *widening* as a caller-supplied predicate on
+    `DecodeRequest` (`.also_accept(&cb_ok)`, design in their #383), not a
+    build-wide flag. The fork's decoder keeps its pin (see below) until #383
+    lands upstream; then rework `sdroxide-digi` to compose the CB predicate
+    itself and let the pin go.
   - `dividebysandwich/sdroxide#465` — the fork's ACARS mode, open upstream.
     See "The ACARS decoder" below before touching it.
   - `dividebysandwich/sdroxide#485` — the fork's per-mode settings, offered
@@ -154,18 +161,29 @@ harness" below.)
 
 ### When `jl1nie/mfsk-core#373` merges
 
+The PR is now grammar-only (see the watch list): `wsjt77::is_cb_callsign` as a
+plain `pub fn`, no decode-path widening, no feature. Nothing downstream needs to
+change when it merges — the fork's decoder is already working through the pin.
+
+### When `jl1nie/mfsk-core#383` lands upstream
+
 1. In `crates/sdroxide-digi/Cargo.toml`, replace the
    `git = "https://github.com/madmedicnl/mfsk-core.git"` pin with upstream
-   `mfsk-core` and add `"cb-callsigns"` to its `features` list.
-2. Refresh `Cargo.lock`; the `madmedicnl/mfsk-core` source should disappear.
-3. Confirm the 11 m CB decodes still pass (WSJT-CB callsigns, hashed pairs,
-   country flags) — the feature only widens validation, it must not change
-   anything else.
-4. Note it in the README/commit as "mfsk fork retired".
+   `mfsk-core`, moving `cb-callsigns` out of the features list (it no longer
+   exists) and onto the dependency's resolved `main`.
+2. Rework the MFSK-CB decode path to pass the CB predicate through
+   `DecodeRequest`'s `.also_accept(...)` hook instead of relying on widened
+   validators: the predicate is the 11 m identity/ghost checks that
+   `modem.rs`, the CCW loop and the conversations around issue #396 already
+   enforce, composed `or` with `is_plausible_callsign`.
+3. Refresh `Cargo.lock`; the `madmedicnl/mfsk-core` source should disappear.
+4. Confirm the 11 m CB decodes still pass (WSJT-CB callsigns, hashed pairs,
+   country flags) — the predicate must not change anything else.
+5. Note it in the README/commit as "mfsk fork retired".
 
-If #373 is **rejected or closed unmerged**, decide with the user between a
-runtime strict/loose policy upstream or keeping the fork pin — do not silently
-drop CB validation.
+If #383 or #373 is **rejected or closed unmerged**, decide with the user
+between a runtime strict/loose policy upstream or keeping the fork pin — do
+not silently drop CB validation.
 
 ### The HD Radio capture harness
 
