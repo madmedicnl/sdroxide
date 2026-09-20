@@ -66,22 +66,22 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     (Their earlier `cb_ok(&str)` sketch was their own retracted error: unpack77
     discards the fields, so tokenising the rendered text runs grids and
     exchanges through the grammar.)
-  - Upstream PRs, branched from `upstream/main` and **merged into the fork's
-    build** (the fork carries them while they are still open upstream):
-    **#500** the WEFAX auto start/stop fix (#496) — reviewed 2026-09-20: the
-    maintainer caught that the strict mid-picture rephase test (pulse in the
-    last 10 % of the line) regressed #276, because mid-picture the buffer is
-    cut on the *old* transmission's clock so the new pulse lands at an
-    arbitrary offset. Fixed on the branch: the positional test is dropped and
-    the pair that carries the fix is the shape (line nearly black, narrow
-    near-white pulse) plus `note_phasing_line`'s cross-line consistency. Worth
-    remembering: a narrow, clean, *static* stripe is indistinguishable from a
-    phasing pulse from line data alone, so #496's mid-picture protection rests
-    on shape + the eight-line run, not position. **#498** (the (tr)uSDX
-    family) and **#501** (the Icom WFM mode byte fix, #494) were taken by
-    upstream and dropped out on the 2026-09 merge. If one is rejected, decide
-    with the user whether to keep the fork copy. (#499, the sound-card-only
-    (tr)uSDX, is closed as superseded by #498.)
+  - Upstream PRs, branched from `upstream/main` and merged into the fork's
+    build: **none currently carried.** **#500** (the WEFAX auto start/stop fix,
+    #496) and **#508** (the LimeSDR Mini board-name fold) were **taken
+    upstream** on the 2026-09-20 merge, so the fork's copies dropped out (a
+    follow-up comment tweak of the maintainer's on the WEFAX shape test came
+    with it). #500's review is the part worth keeping: the maintainer caught
+    that its strict mid-picture rephase test (pulse in the last 10 % of the
+    line) regressed #276, and the fix now rests on the shape (line nearly
+    black, narrow near-white pulse) plus `note_phasing_line`'s cross-line
+    consistency, never on the pulse's position — mid-picture the buffer is cut
+    on the old transmission's clock, so a new pulse lands at an arbitrary
+    offset. A narrow, clean, *static* stripe is indistinguishable from a
+    phasing pulse from line data alone; the shape and the eight-line run are
+    what carry it. **#498** (the (tr)uSDX family) and **#501** (the Icom WFM
+    mode byte fix, #494) were taken earlier. (#499 is closed as superseded by
+    #498.)
   - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
@@ -114,10 +114,13 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
     the issue; see "The HFDL core" below. The requester answered the two
     questions (2026-09-19): he defers to our judgment on git-dependency vs
-    vendored port and on scope, so Route A (git-depend on the `xng` crates)
-    with **decoder + decode log first, aircraft map second** is green-lit.
-    In the fork as `crates/sdroxide-hfdl`; **not pushed/offered upstream yet** —
-    the operator tests the local build first, then the PR goes up as a draft.
+    vendored port and on scope, so Route A with **decoder + decode log first,
+    aircraft map second** is green-lit. In the fork as `crates/sdroxide-hfdl`.
+    **Offered upstream as draft PR #509** (branch `upstream-pr/497-hfdl`); the
+    maintainer asked for `xng` to be vendored rather than a cargo git
+    dependency, which is done (`vendor/xng`, a pinned submodule).
+    PROTO_VERSION 158 -> 159 on that branch. (Related, still open: #512 the
+    frequency type-in, #514 the HD-on-AM wiring.)
   - `dividebysandwich/sdroxide#503` — the fork's RADE receive-reporting fix,
     for upstream issue **#502**. Two things: the RADE panel never drew the
     callsign decoded from the End-of-Over frame (it was in `DigiStatus::dx_call`
@@ -144,20 +147,14 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     I/Q radios (`crates/sdroxide-radio/tests/tx_drive_by_band.rs` proves a
     −20 dB row, TUNE included), and the HPSDR FPGA drive register is pinned at
     full scale on purpose — the amplitude is scaled in software. The real gap
-    is that nothing caps the absolute drive: `Engine::calibrated` holds the
-    result under `IqSource::tx_drive_ceiling`, which only a transverter sets.
-    Proposed a per-radio operator ceiling (master TX limit) and offered to
-    implement; awaiting the maintainer and the reporter's log line
-    (`TX drive calibration: … dB on …`).
-    **Prework is done** on branch `upstream-pr/504-tx-drive-ceiling` (commit
-    `c178390a`, pushed to `origin`): `RadioConfig::tx_drive_ceiling` (Option,
-    `None` = no ceiling), folded into `Engine::calibrated` after the band trim
-    and taking the lower of it and the converter's ceiling, plus a Radio-tab
-    control and a regression test. It bumps `PROTO_VERSION` to 157 on the
-    branch — since the 2026-09 sync upstream is at 158 and the fork at 164, the
-    branch's 157 is moot; when it closes it renumbers against the higher
-    register. **No PR opened** — the design is the maintainer's call, and the
-    reporter has not confirmed the bug yet.
+    was that nothing capped the absolute drive.
+    **Taken upstream on the 2026-09-20 merge** (commit `ffba2cea`):
+    `RadioConfig::tx_drive_max`, an operator ceiling applied after the band
+    calibration. The fork carries upstream's version now, appended *after* the
+    fork's own `RadioConfig` tail fields (`callsign`, `hide_tx`,
+    `auto_idle_stop_min`) to keep the positional layout; our own prework on
+    `upstream-pr/504-tx-drive-ceiling` (`c178390a`) is superseded and can be
+    dropped.
   - `dividebysandwich/sdroxide#483` — a request for a DAB/DAB+ decoder, so it
     can be used over a SpyServer like the other decoders. Scoped on the issue:
     the enabling find is **`dabradio`** (MIT, ~8.4k LOC) in `xoolive/desperado`
