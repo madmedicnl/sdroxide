@@ -57,9 +57,11 @@ rest.
    sdroxide --connect host:4950   # desktop UI driving a remote server
    ```
 4. **Tune.** The band/mode menu leads with a **Primary modes** row
-   (**AM · FM · USB · LSB**) and lists the broadcast bands (LW / MW / SW / FM)
-   and the CB band by name. A band comes up on its own memory of mode, filter
-   and frequency, so switching back and forth is one click.
+   (**AM · FM · USB · LSB**) and an **HF / VHF / UHF / ALL** band row, and lists
+   the broadcast bands (LW / MW / SW / FM) and the CB band by name. The
+   **LISTEN** tab offers every decoder on every band; **OPERATE** enforces the
+   band/mode rule. A band comes up on its own memory of mode, filter and
+   frequency, so switching back and forth is one click.
 5. **On CB.** Pick the **11 m** band: the channelised dial reads `CH nn`, the
    per-country channel plans are on the General tab, and the WSJT-CB digital
    exchange (with country flags) works like FT8 does. Transmitting on 11 m is a
@@ -72,7 +74,7 @@ rest.
    **SINPO/SIO** and send a **reception report**; replay the last two minutes
    with **REPLAY**; record a band on a timer; or scan 49 m and stop on carriers.
 7. **Everything else** — FT8/FT4/FT2, WSPR, PSK/RTTY, Olivia, SSTV, RIFP,
-   weather fax, DRM, HD Radio, ADS-B/VDL2/ACARS, the logbook, awards, QSL
+   weather fax, DRM, HD Radio, ADS-B/VDL2/ACARS/HFDL, the logbook, awards, QSL
    upload, MIDI control — is in the **[User Manual](docs/USER_MANUAL.md)**.
 
 ## How this fork differs from upstream
@@ -88,12 +90,13 @@ rest.
 | **Listening log** | QSO logbook | a separate **SWL log** — station, frequency, UTC, **SINPO/SIO**, S-meter, notes — with a **reception report** signed with the listener's own **SWL number** (a **Report as (SWL)** box on the Spots tab, separate from the transmitting callsign: it also signs the PSK Reporter/WSPR uploads, but is never keyed, logged or spotted) |
 | **C-QUAM AM stereo** | — | decoded on MW, with a stereo lamp and a mono blend (not yet verified against a real signal) |
 | **ACARS** | — | the VHF airband airline datalink (131.550, 131.725 MHz and friends), with a message panel; the demodulator has carrier and bit-clock recovery and is checked against an off-air recording |
+| **HFDL** | — | the shortwave aircraft datalink (ARINC 635): ground stations across 2.8–22 MHz talking to aircraft over the ocean, with a decode log and an **aircraft map** drawn from the positions the aircraft downlink |
 | **MW/SW DX tools** | SAM and the ham audio chain | **ECSS-U / ECSS-L** presets on SAM and a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
-| **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
+| **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. A receive-only radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning banner, which switches it to this screen. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
 | **Per-radio identity** | one station callsign | a **callsign per radio** (Settings → Radio), falling back to the station callsign on the General tab — a CB callsign on the 11 m set and an amateur callsign on the HF rig at the same time |
 | **Simple interface** | — | hides the advanced chips |
-| **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and modes that do not apply on the current band (AM on the FM broadcast band, WFM on 11 m) greyed out and refused engine-side |
+| **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and an **HF / VHF / UHF / ALL** band row. OPERATE greys out (and the engine refuses) a mode that does not apply on the band — AM on the FM broadcast band, WFM on 11 m; LISTEN offers **every mode on every band** |
 | **Propagation columns** | propagation heat map | measured **WSPR** and **PSK Reporter** activity in the **BANDS** window |
 | **Waterfall levels** | a popup behind a chip | a vertical level slider beside the waterfall, plus the popup |
 
@@ -133,7 +136,7 @@ The full interface: the radio, receiver, display and system controls along the t
 - **Modes** — SSB, CW, AM, SAM, **C-QUAM** AM stereo, NFM (CTCSS/DCS),
   WFM (stereo + **RDS/RBDS**), DSB, **ISB**, DIGU/DIGL, SPEC, **DRM**,
   **HD Radio** (FM, stereo), and the receive-only utility decoders **ADS-B**,
-  **VDL2**, **ACARS**, **NAVTEX**, **weather fax**.
+  **VDL2**, **ACARS**, **HFDL**, **NAVTEX**, **weather fax**.
 - **Digital modes** — **FT8/FT4/FT2**, **JS8**, **WSPR**, **PSK31/RTTY**,
   **Olivia/THOR/FSQ**, **Hellschreiber**, **SSTV**, **RIFP**, **RF Paint**,
   **RADE** digital voice, **packet/APRS**, **AtCHAT NET**, **Winlink** email.

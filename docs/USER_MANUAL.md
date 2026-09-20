@@ -18,9 +18,10 @@ or connects to a remote sdroxide server.
 2. [Basic operation](#2-basic-operation)
     - [2.20 HD Radio (NRSC-5)](#220-hd-radio-nrsc-5)
     - [2.22 QO-100 beacon plugin](#222-qo-100-beacon-plugin)
-3. [Digital modes (FT8, FT4, FT2, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, packet, APRS, ADS-B, NAVTEX, ACARS, VDL2, AIS, AtCHAT NET)](#3-digital-modes)
+3. [Digital modes (FT8, FT4, FT2, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, packet, APRS, ADS-B, NAVTEX, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
     - [3.17 AtCHAT NET](#317-atchat-net)
     - [3.18 ACARS](#318-acars-airline-datalink-on-airband)
+    - [3.19 HFDL](#319-hfdl-aircraft-on-the-shortwave-band)
 4. [Skimmers (CW, PSK, RTTY)](#4-skimmers)
 5. [ISM band decoder (315 / 345 / 433 / 868 / 915 MHz devices)](#5-ism-band-decoder)
 6. [Settings](#6-settings)
@@ -62,7 +63,10 @@ or connects to a remote sdroxide server.
   ([§3.16](#316-ais-ships-on-162-mhz)). **AtCHAT NET** is a multi-station
   keyboard and file mode with dynamic master election, a shared roster, and
   block-CRC-ARQ file/image transfer alongside the chat
-  ([§3.17](#317-atchat-net)).
+  ([§3.17](#317-atchat-net)). **HFDL** decodes the HF aircraft datalink —
+  ground stations across the shortwave band talking to aircraft over the ocean
+  — into a decode log with an aircraft map
+  ([§3.19](#319-hfdl-aircraft-on-the-shortwave-band)).
 - **Receive controls:** AGC (Off/Slow/Med/Fast), volume, mute, squelch, an
   impulse noise blanker, an adaptive auto-notch (constant-tone canceller),
   noise reduction (four engines, three strengths each), front-end decimation
@@ -305,25 +309,40 @@ the band/mode popup. One list of every band and mode had grown past a screenful,
 so it is split into two halves, chosen by the **LISTEN** and **OPERATE** tabs at
 its top:
 
-- **LISTEN** — the broadcast and utility bands, the metre bands, and the receive
-  modes.
+- **LISTEN** — the broadcast and utility bands, the metre bands, and every
+  receive and digital mode. Nothing here is greyed for the band: a listener may
+  want to try a decoder where the table would not put it, so the LISTEN tab
+  offers every mode on every band.
 - **OPERATE** — the amateur allocations, the CB plan, and the primary, analog and
-  digital modes.
+  digital modes, with the band/mode rule enforced.
 
-A pair that cannot work is not offered: **a mode that does not apply on the
-current band is greyed**, with the reason on hover. FM broadcast is WFM alone,
-both airbands are AM, and 11 m is AM, NFM, SSB, CW and the WSJT-CB digital
-exchange — so `AM` is dead on the FM broadcast band and `WFM` is dead on 11 m.
-The engine refuses the same pair if a remote client sends it directly. The
-amateur allocations and general coverage take any mode; there, a band plan's own
-segments are the only thing narrowing the choice. Selecting a *band* is never
-blocked this way — it is how you leave a service mode — and the band you pick
-adopts a mode that fits it, as the FM broadcast band has always come up WFM.
+The band row of both tabs leads with **HF · VHF · UHF · ALL**. HF, VHF and UHF
+narrow which band buttons are shown — HF is everything below 30 MHz (longwave
+and medium wave included), VHF 30–300 MHz, UHF above that — and the lit chip
+toggles itself back to all. **ALL** is general coverage: it clears the band so
+the dial can go anywhere. The filter only hides buttons and never moves the
+dial.
+
+In the **OPERATE** tab a pair that cannot work is not offered: **a mode that
+does not apply on the current band is greyed**, with the reason on hover. FM
+broadcast is WFM alone, both airbands are AM, and 11 m is AM, NFM, SSB, CW and
+the WSJT-CB digital exchange — so `AM` is dead on the FM broadcast band and
+`WFM` is dead on 11 m. The engine refuses the same pair if a remote client
+sends it directly. The amateur allocations and general coverage take any mode;
+there, a band plan's own segments are the only thing narrowing the choice.
+Selecting a *band* is never blocked this way — it is how you leave a service
+mode — and the band you pick adopts a mode that fits it, as the FM broadcast
+band has always come up WFM. The **LISTEN** tab is deliberately exempt from the
+rule: it offers every mode on every band, and the mode change goes through a
+command that skips the band check, because exploring is what that screen is
+for. Transmit legality is untouched — the band lockout and the TX rails still
+decide what may be keyed, and a mode that cannot transmit simply does not.
 
 The **OPERATE** tab's rows:
 
 - **BAND:** `LW MW 160M 80M 60M 40M 30M 20M 17M 15M 12M 10M 11M 6M 4M FM 2M 1.25M 70CM
-  33CM 23CM 13CM 9CM 6CM SW GEN`. Each
+  33CM 23CM 13CM 9CM 6CM SW`. (**ALL**, the general-coverage entry, is not in this
+  run — it rides with the HF/VHF/UHF chips above.) Each
   band remembers your last frequency, mode, and filter. A band your region's
   band plan does not have gets no button at all — `4M` (70 MHz) is an amateur
   allocation in IARU Region 1 only, so it is absent in Regions 2 and 3, and
@@ -374,7 +393,7 @@ The **OPERATE** tab's rows:
   than a hunt through the digital modes. `FM` here is **NFM** (narrow); the
   broadcast band's own button comes up **WFM** (see below).
 - **MODE:** `LSB USB CW AM SAM C-QUAM NFM WFM DRM HD DIGU DIGL DSB ISB SPEC`.
-- **DIGITAL:** `FT8 FT4 FT2 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS` (see
+- **DIGITAL:** `FT8 FT4 FT2 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
   [Digital modes](#3-digital-modes)).
 
 ![The band and mode selector popup](images/04-band-mode-popup.jpg)
@@ -5800,6 +5819,18 @@ ACARS (Aircraft Communications Addressing and Reporting System) is the text data
 **Receive only.** ACARS is an airline service shared with air traffic control — there is nothing here for an amateur licence to do. The mode does not transmit, and its channel chips tune the dial without touching the transmit side.
 
 ACARS is also carried over VDL2 on higher frequencies — see [3.15](#315-vdl2-what-the-aircraft-are-saying) for the datalink version.
+
+### 3.19 HFDL (aircraft on the shortwave band)
+
+HFDL (High Frequency Data Link, ARINC 635) is the shortwave aircraft datalink: ground stations spread across the world on assigned frequencies between 2.8 and 22 MHz exchange position, performance, frequency and ACARS traffic with aircraft out over the ocean, where there is no VHF coverage. Each ground station sends a *squitter* — a status burst naming itself and the frequencies it is using — about every thirty seconds; the aircraft answer with logons, position fixes and housekeeping reports.
+
+**Where to listen.** Choose **HFDL** from the digital row, in either tab. It is a receive-only lane like ADS-B, VDL2 and AIS — an engine-owned 24 kHz channel decoded from the raw I/Q, with no audio and no transmitter — but its channel is not one worldwide frequency. HFDL ground stations sit on a published plan of assigned frequencies, so the **panel chooses the channel**: the chips and the frequency field list the plan (21 931 kHz Riverhead is the default), and the dial follows the chosen frequency so the panadapter shows the signal. The panel's **LISTEN** switch turns the decoder on and off; it costs a 24 kHz lane and a worker thread whether or not the panel is on screen, so it stays off until you ask for it. HFDL is shortwave, so a receiver that reaches 2.8–22 MHz (any HF front end, or an RTL-SDR with an upconverter) and an antenna for those bands are what it needs.
+
+**The decode log.** Every burst the channel yields is listed newest first: the UTC time, the kind of record (a *squitter*, a *logon*, a *position*, *performance-data*, *frequency-data*, or an ACARS message), the ground station it names, the channel, the burst's SNR and how many symbols the FEC corrected, and the payload's own fields. The header counts the bursts heard and the ones that decoded, and shows the channel level — a low level with no decodes says plainly that the lane is up and nothing is in the channel, rather than looking merely idle.
+
+**The aircraft map.** A *performance-data* or *frequency-data* record carries a position, and those are plotted on the world map beside the log: a square per aircraft, labelled with the flight, the ICAO address or the ground-station alias, refreshed as later fixes for the same aircraft arrive, and retired after half an hour of silence. Click a target to select it and hover for its position, channel, SNR, how many fixes it has sent and their age; the range and bearing appear when you have a grid set in Settings → General. Positions arrive only when an aircraft *downlinks* one, so a channel can run for a while showing squitters and no map traffic — that is the ground station idling, not a fault.
+
+**Receive only.** HFDL is an airline and air traffic service. Nothing here transmits, and the lane is fed from the raw I/Q like the other aircraft lanes. `--mode HFDL` starts on it and `--record-iq` captures it, as for ADS-B ([§3.13](#313-ads-b-aircraft-on-1090-mhz)); a minute of `--record-iq` on a busy channel is the most useful thing to attach to a report.
 
 ## 4. Skimmers
 
@@ -14296,7 +14327,7 @@ sends them.
 | `--freq <HZ>` | Center frequency in Hz (default: where the last session was left, or 14,200,000 on a first run). |
 | `--rate <HZ>` | Sample rate in Hz (default: from config). |
 | `--gain <DB>` | Overall RX gain in dB (default: hardware AGC or a moderate value). |
-| `--mode <MODE>` | Initial mode (USB, LSB, CW, AM, SAM, C-QUAM, NFM, WFM, DIGU, DIGL, DSB, ISB, SPEC, FT8, FT4, FT2, PSK, RTTY, OLIVIA, THOR, FSQ, SSTV, RIFP, WEFAX, RFPAINT, RADE, DRM, ADS-B, VDL2, AIS). Default: the mode the last session was left in. |
+| `--mode <MODE>` | Initial mode (USB, LSB, CW, AM, SAM, C-QUAM, NFM, WFM, DIGU, DIGL, DSB, ISB, SPEC, FT8, FT4, FT2, PSK, RTTY, OLIVIA, THOR, FSQ, SSTV, RIFP, WEFAX, RFPAINT, RADE, DRM, ADS-B, VDL2, AIS, HFDL). Default: the mode the last session was left in. |
 | `--antenna <NAME>` | RX antenna port, as the device names it (LNAH, TX/RX — `--probe` lists them). Default: the port the last session was left on, and failing that whatever the driver selects. |
 | `--tx-antenna <NAME>` | TX antenna port, likewise (BAND1, BAND2). |
 | `--server` | Run as a server (web client + WebSocket streaming backend). |
@@ -15975,14 +16006,15 @@ using. Bind them under **Speech** on the Controls tab:
 | VDL2 | The VHF datalink aircraft exchange ACARS over, on fourteen channels between 136.650 and 136.975 MHz at once: a message log and the stations sending them. Receive only. See [3.15](#315-vdl2-what-the-aircraft-are-saying). |
 | AIS | Ship reporting on the two channels either side of 162.000 MHz at once: a vessel list and a marine chart with hulls drawn to their heading, time-based trails and speed vectors. Receive only. See [3.16](#316-ais-ships-on-162-mhz). |
 | ACARS | Airline datalink on VHF airband, decoded off the AM carrier: aircraft registrations, labels and message text, every message block-checked. Receive only. See [3.18](#318-acars-airline-datalink-on-airband). |
+| HFDL | The shortwave aircraft datalink (ARINC 635): ground stations across 2.8–22 MHz talking to aircraft over the ocean, with a decode log and an aircraft map drawn from the positions the aircraft downlink. Receive only, on an HF receiver. See [3.19](#319-hfdl-aircraft-on-the-shortwave-band). |
 | ATCHAT | AtCHAT NET — a 2.7 kHz COFDM multi-station keyboard and file mode: dynamic master election, a shared roster, common and directed chat, and block-CRC-ARQ file/image transfer. See [3.17](#317-atchat-net). |
 
 ### Bands
 
 `160M`, `80M`, `60M`, `40M`, `30M`, `20M`, `17M`, `15M`, `12M`, `10M`, `6M`,
 `4M` (Region 1 only), `2M`, `1.25M` (Region 2 only), `70CM`, `33CM` (Region 2
-only), `23CM`, `13CM`, `9CM`, `6CM` — read as `5CM` outside Region 1 — and `GEN`
-(general coverage). Bands your
+only), `23CM`, `13CM`, `9CM`, `6CM` — read as `5CM` outside Region 1 — and
+`ALL` (general coverage, formerly `GEN`). Bands your
 device cannot receive are disabled in the selector; bands your region does not
 have are not offered.
 
