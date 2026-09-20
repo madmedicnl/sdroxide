@@ -275,23 +275,27 @@ complex tap the engine already hands VDL2, ADS-B and AIS (`on_rx_iq`). Its
 ARINC 635, with dumphfdl consulted as facts only, so it is safe to depend on
 from this GPL-3 project.
 
-Route A (git-depend on the xng crates) was validated off-air in a scratch
-build: the reference 21 931 kHz capture decodes its squitter field-for-field
-(GS 4 Riverhead, frame 2397, systable 52). The dependency tree is modest
-(rustfft, num-complex, chrono, serde, crc; no protobuf). Route B is to
-vendor/port the core into a `sdroxide-hfdl` crate to keep the tree
-self-contained. The requester answered both questions on #497 (2026-09-19):
-he defers to our judgment, so **Route A is taken**, staged as decoder +
-decode log first, then the aircraft map, then the system table. Work is in
-`crates/sdroxide-hfdl` (types in `sdroxide-types/src/hfdl.rs`, lane in
-`sdroxide-radio`'s engine, panel in `sdroxide-ui`'s app). The demod's own
-  receive chain expects a 24 kHz lane centred on the channel (the validated
-  off-air input), USB subcarrier +1440 Hz handled inside xng's
-  `HfdlChannelDecoder`. **Committed locally as** "HFDL: the ARINC 635
-  ground-network decoder (issue #497)" (in the `ffac2116` merge-era history)
-  — engine, worker, panel, PROTO_Version 164 and an off-air test that decodes
-  the Riverhead squitter in 0.10 s. **Not pushed/offered upstream yet.** The
-  operator tests the local build before anything is pushed or offered upstream.
+Route A (using the xng crates) was validated off-air in a scratch build: the
+reference 21 931 kHz capture decodes its squitter field-for-field (GS 4
+Riverhead, frame 2397, systable 52). The dependency tree is modest (rustfft,
+num-complex, chrono, serde, crc; no protobuf). The requester answered both
+questions on #497 (2026-09-19): he defers to our judgment, so **Route A is
+taken**, staged as decoder + decode log first, then the aircraft map, then the
+system table. It began as a cargo git dependency; the maintainer asked on the
+PR review to vendor it, so **xng is now a pinned submodule at `vendor/xng`**
+(rev `096c805`), reached by path like `vendor/rade_c` — the build takes no
+network dependency of its own. One knock-on: `cargo metadata` reads every
+workspace member's manifest, so the path dependency means even the *wasm* CI
+job needs the submodules checked out (fixed in `release.yml`/`windows-msi.yml`).
+Work is in `crates/sdroxide-hfdl` (types in `sdroxide-types/src/hfdl.rs`, lane
+in `sdroxide-radio`'s engine, panel in `sdroxide-ui`'s app). The demod's own
+receive chain expects a 24 kHz lane centred on the channel (the validated
+off-air input), USB subcarrier +1440 Hz handled inside xng's
+`HfdlChannelDecoder`.
+
+  Offered upstream as draft **PR #509** (branch `upstream-pr/497-hfdl`, based
+  on `upstream/main`, PROTO_VERSION 158 -> 159 there). The fork's copy is on
+  `main` with PROTO_VERSION 164.
 
   The second stage — the **aircraft map** — is in, on top of the decode log:
   xng already lifts a normalized `details.position {lat, lon, aircraft_id,
@@ -466,8 +470,8 @@ tagged release rather than at last week's build.
 
 ## Build and test
 
-- `cargo build --release` — the full binary (needs the vendored submodules; see
-  the README's Building section).
+- `cargo build --release` — the full binary (needs the vendored submodules,
+  `vendor/xng` among them now; see the README's Building section).
 - `cargo test --release --workspace` — everything. The `sdroxide` bin's
   `icomnet_source` tests flake now and then when the whole workspace runs at
   once and pass when that binary is run alone; re-run
