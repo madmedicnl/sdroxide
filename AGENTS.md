@@ -60,7 +60,16 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     itself and let the pin go.
   - Upstream PRs, branched from `upstream/main` and **merged into the fork's
     build** (the fork carries them while they are still open upstream):
-    **#500** the WEFAX auto start/stop fix (#496). **#498** (the (tr)uSDX
+    **#500** the WEFAX auto start/stop fix (#496) — reviewed 2026-09-20: the
+    maintainer caught that the strict mid-picture rephase test (pulse in the
+    last 10 % of the line) regressed #276, because mid-picture the buffer is
+    cut on the *old* transmission's clock so the new pulse lands at an
+    arbitrary offset. Fixed on the branch: the positional test is dropped and
+    the pair that carries the fix is the shape (line nearly black, narrow
+    near-white pulse) plus `note_phasing_line`'s cross-line consistency. Worth
+    remembering: a narrow, clean, *static* stripe is indistinguishable from a
+    phasing pulse from line data alone, so #496's mid-picture protection rests
+    on shape + the eight-line run, not position. **#498** (the (tr)uSDX
     family) and **#501** (the Icom WFM mode byte fix, #494) were taken by
     upstream and dropped out on the 2026-09 merge. If one is rejected, decide
     with the user whether to keep the fork copy. (#499, the sound-card-only
