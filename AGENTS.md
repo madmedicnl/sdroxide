@@ -74,14 +74,25 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     `DigiConfig::cw_sidetone` (local sidetone monitor, `SIDETONE` chip),
     `DigiConfig::cw_tx_idle_s` (configurable hold, `IDLE` chip), and the
     straight key is now `Action::CwStraight`, assignable in Settings → Controls
-    with Space as its default. `PROTO_VERSION` 159 -> 160 (both DigiConfig
-    fields appended). General-purpose enough to offer upstream once the
-    reporter confirms; not verified on air here (no transmit licence).
-    The fork also reads the straight key's characters back where the text
-    keyer's box is (`CwSelfRx`, a small immediate decoder in
-    `crates/sdroxide-dsp/src/cw.rs` fed the transmit block — the classic
-    `CwRx`'s six-second window and three-second catch-up were unusable for
-    that, and the receive tap never carries our own sidetone).
+    with Space as its default. `PROTO_VERSION` 159 -> 160 in the fork (both
+    DigiConfig fields appended). **Offered upstream as PR #507** (branch
+    `upstream-pr/495-cw-followups`, nine commits based on `upstream/main`),
+    where the two fields take 156 -> 157 and the read-back below 157 -> 158;
+    the fork's copy is the same change, so it drops out on the next merge.
+    The sidetone needed two fixes after first shipping: gate the monitor on the
+    digi engine's mode rather than the rig's (MCW commands a sideband, so the
+    gate could close mid-key), and play each block live from the TX loop, since
+    on a half-duplex rig the receiver is never read during transmit and a queue
+    drained only on the RX speaker path starved — the tone arrived as one beep
+    after PTT dropped.
+    The operator also could not see what he was keying, so the straight key now
+    reads back where the text keyer's box is (`CwSelfRx`, a small immediate
+    decoder in `crates/sdroxide-dsp/src/cw.rs` fed the transmit block —
+    `CwStatus::sent_text`; the classic `CwRx`'s six-second window and
+    three-second catch-up were unusable for that, and the receive tap never
+    carries our own sidetone). Both CLEAR controls empty it, and the message
+    editor's `MSG` chip moved up beside SIDETONE and SEND ON RETURN. Not
+    verified on air here (no transmit licence).
   - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
     the issue; see "The HFDL core" below. Awaiting the maintainer's call on
     git-dependency vs vendored port and on scope — do not start before that.
