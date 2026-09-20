@@ -473,6 +473,22 @@ publishes a `nightly` ref as a **pre-release** with a dated title, so
 `/releases/latest` and the README's stable download links keep pointing at a
 tagged release rather than at last week's build.
 
+## Explore later
+
+- **NR2 (WDSP's Ephraim-Malah denoiser)** — the fork wants a noise reducer in
+  this family, so revisit it as a fifth `NrEngine`. Not carried as of
+  2026-09-20, and not just because it is a large DSP addition: upstream **PR
+  #515** (`joscandreu`) ports WDSP's `emnr.c` (NR0V, GPL-2.0-or-later, so
+  GPL-3-compatible) and is the thing to read first, but two things need
+  settling before it could land here. It **does not bump `PROTO_VERSION`**,
+  though the engine rides the wire as appended `NrLevel` variants (which cross
+  in `RadioState`/`DigiConfig` whole); and its **454 KiB `nr2_tables.bin`**
+  (`include_bytes!` in `sdroxide-dsp`, a wasm dependency of the UI) would ship
+  into the browser client whether or not NR2 is used, with no gating. If
+  upstream takes it, prefer upstream's shape; if they don't, decide with the
+  user whether to carry a gated, version-bumped copy. The fork's current four
+  engines are RNN, DeepFilter, SpecBleach and Spectral.
+
 ## Build and test
 
 - `cargo build --release` — the full binary (needs the vendored submodules,
