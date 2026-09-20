@@ -6395,9 +6395,6 @@ pub(in crate::app) enum BandFilter {
     /// No narrowing — every band the tab would draw.
     #[default]
     All,
-    /// Longwave: below the medium-wave broadcast band — the longwave
-    /// broadcasters and the NDB beacons a listener hunts once the sun is down.
-    Lw,
     Hf,
     Vhf,
     Uhf,
@@ -6407,13 +6404,11 @@ impl BandFilter {
     /// The chips, in the order they are drawn. `All` is not among them: the
     /// lit chip toggles itself off, so a separate "ALL" would only clash with
     /// the band called ALL (`Band::Gen`).
-    const CHIPS: [BandFilter; 4] =
-        [BandFilter::Lw, BandFilter::Hf, BandFilter::Vhf, BandFilter::Uhf];
+    const CHIPS: [BandFilter; 3] = [BandFilter::Hf, BandFilter::Vhf, BandFilter::Uhf];
 
     fn label(self) -> &'static str {
         match self {
             BandFilter::All => "ALL",
-            BandFilter::Lw => "LW",
             BandFilter::Hf => "HF",
             BandFilter::Vhf => "VHF",
             BandFilter::Uhf => "UHF",
@@ -6436,12 +6431,7 @@ impl BandFilter {
         let mid = (lo + hi) / 2.0;
         match self {
             BandFilter::All => true,
-            // The LF/MF divide at 300 kHz — where the ITU puts it, and above
-            // the longwave broadcast allocation. `Band::Lw` (148.5–283.5 kHz)
-            // is the only band below it, so medium wave and everything above
-            // stays in HF where a listener looks for it.
-            BandFilter::Lw => mid < 300_000.0,
-            BandFilter::Hf => (300_000.0..30_000_000.0).contains(&mid),
+            BandFilter::Hf => mid < 30_000_000.0,
             BandFilter::Vhf => (30_000_000.0..300_000_000.0).contains(&mid),
             BandFilter::Uhf => mid >= 300_000_000.0,
         }
@@ -6557,10 +6547,10 @@ fn band_mode_menu(
 
     let band = state.band;
     crate::chrome::menu_caption(ui, "Band");
-    // The coarse choices, under the caption: LW, HF, VHF and UHF narrow the
-    // band chips below (the lit chip toggles itself back off), and ALL is the
-    // bandless entry that clears the band altogether — the same "where in the
-    // spectrum" decision, so it rides here rather than in the band list.
+    // The coarse choices, under the caption: HF, VHF and UHF narrow the band
+    // chips below (the lit chip toggles itself back off), and ALL is the bandless
+    // entry that clears the band altogether — the same "where in the spectrum"
+    // decision, so it rides here rather than in the band list.
     ui.horizontal_wrapped(|ui| {
         for f in BandFilter::CHIPS {
             if crate::chrome::chip(ui, *filter == f, f.label()).clicked() {
@@ -6572,7 +6562,7 @@ fn band_mode_menu(
             .clicked()
         {
             // ALL is the "everything" choice, so it lets the range filter go
-            // too: whatever the row was narrowed to is cleared, the range
+            // too: whatever the row was narrowed to is cleared, the HF/VHF/UHF
             // chips uncheck, and every band comes back.
             *filter = BandFilter::All;
             cmds.push(Command::SetBand(Band::Gen));
@@ -8399,31 +8389,20 @@ mod tests {
     }
 
     /// Draw the band/mode menu for `state` and click the chip labelled
-    /// The range filter's four classes, and that it never hides the bandless
+    /// The range filter's three classes, and that it never hides the bandless
     /// entry. Classified by the band's middle so the military airband reads as
     /// UHF and the FM broadcast band as VHF.
     #[test]
     fn the_range_filter_classifies_bands_by_their_middle() {
-        // LW: below the LF/MF divide, longwave broadcast and the beacons with
-        // it — and nothing else.
-        for b in [Band::Lw] {
-            assert!(BandFilter::Lw.admits(b), "{b:?} should be LW");
-            assert!(!BandFilter::Hf.admits(b), "{b:?} should not be HF");
-            assert!(!BandFilter::Vhf.admits(b), "{b:?} should not be VHF");
-            assert!(!BandFilter::Uhf.admits(b), "{b:?} should not be UHF");
-        }
-        // HF: 300 kHz to 30 MHz — medium wave and shortwave, but no longer
-        // longwave, which has a slice of its own.
-        for b in [Band::Mw, Band::Sw, Band::M160, Band::M20, Band::M10] {
+        // HF: everything below 30 MHz, longwave and medium wave included.
+        for b in [Band::Lw, Band::Mw, Band::Sw, Band::M160, Band::M20, Band::M10] {
             assert!(BandFilter::Hf.admits(b), "{b:?} should be HF");
-            assert!(!BandFilter::Lw.admits(b), "{b:?} should not be LW");
             assert!(!BandFilter::Vhf.admits(b), "{b:?} should not be VHF");
             assert!(!BandFilter::Uhf.admits(b), "{b:?} should not be UHF");
         }
         // VHF: 30–300 MHz, the FM broadcast band and the civil airband with it.
         for b in [Band::M6, Band::M2, Band::Fm, Band::Air] {
             assert!(BandFilter::Vhf.admits(b), "{b:?} should be VHF");
-            assert!(!BandFilter::Lw.admits(b), "{b:?} should not be LW");
             assert!(!BandFilter::Hf.admits(b), "{b:?} should not be HF");
             assert!(!BandFilter::Uhf.admits(b), "{b:?} should not be UHF");
         }
@@ -8431,12 +8410,10 @@ mod tests {
         // middle, not its lower edge.
         for b in [Band::M70, Band::Cm23, Band::Mil, Band::Cm3] {
             assert!(BandFilter::Uhf.admits(b), "{b:?} should be UHF");
-            assert!(!BandFilter::Lw.admits(b), "{b:?} should not be LW");
             assert!(!BandFilter::Hf.admits(b), "{b:?} should not be HF");
         }
         // GEN has no edges and belongs to every slice.
-        for f in [BandFilter::All, BandFilter::Lw, BandFilter::Hf, BandFilter::Vhf, BandFilter::Uhf]
-        {
+        for f in [BandFilter::All, BandFilter::Hf, BandFilter::Vhf, BandFilter::Uhf] {
             assert!(f.admits(Band::Gen), "GEN belongs to {f:?}");
         }
         assert!(Band::ALL.iter().all(|b| BandFilter::All.admits(*b)));

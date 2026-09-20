@@ -316,12 +316,12 @@ its top:
 - **OPERATE** — the amateur allocations, the CB plan, and the primary, analog and
   digital modes, with the band/mode rule enforced.
 
-The band row of both tabs leads with **LW · HF · VHF · UHF · ALL**. LW, HF, VHF
-and UHF narrow which band buttons are shown — LW is below 300 kHz (the longwave
-broadcasters and the NDB beacons), HF 300 kHz–30 MHz, VHF 30–300 MHz, UHF above
-that — and the lit chip toggles itself back to all. **ALL** is general coverage:
-it clears the band so the dial can go anywhere. The filter only hides buttons
-and never moves the dial.
+The band row of both tabs leads with **HF · VHF · UHF · ALL**. HF, VHF and UHF
+narrow which band buttons are shown — HF is everything below 30 MHz (longwave
+and medium wave included), VHF 30–300 MHz, UHF above that — and the lit chip
+toggles itself back to all. **ALL** is general coverage: it clears the band so
+the dial can go anywhere. The filter only hides buttons and never moves the
+dial.
 
 In the **OPERATE** tab a pair that cannot work is not offered: **a mode that
 does not apply on the current band is greyed**, with the reason on hover. FM
@@ -342,7 +342,7 @@ The **OPERATE** tab's rows:
 
 - **BAND:** `LW MW 160M 80M 60M 40M 30M 20M 17M 15M 12M 10M 11M 6M 4M FM 2M 1.25M 70CM
   33CM 23CM 13CM 9CM 6CM SW`. (**ALL**, the general-coverage entry, is not in this
-  run — it rides with the LW/HF/VHF/UHF chips above.) Each
+  run — it rides with the HF/VHF/UHF chips above.) Each
   band remembers your last frequency, mode, and filter. A band your region's
   band plan does not have gets no button at all — `4M` (70 MHz) is an amateur
   allocation in IARU Region 1 only, so it is absent in Regions 2 and 3, and
