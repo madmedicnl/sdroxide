@@ -107,6 +107,25 @@ fn notice_banner_colors() -> (Color32, Color32, Color32, Color32) {
     }
 }
 
+/// The panadapter's chrome: the pink cut-corner border and corner brackets,
+/// drawn around the whole block rather than the picture alone.
+///
+/// The level slider's gutter is part of that block, so the frame has to take
+/// the gutter in — drawn around the picture only (as `spectrum_view` used to),
+/// the border stops short of the block's right edge while the control floats
+/// outside it, and the whole box reads as jumped. The picture is still handed
+/// its own rect; this is only the frame around the two of them.
+fn paint_panadapter_chrome(ui: &egui::Ui, area: egui::Rect) {
+    let painter = ui.painter();
+    crate::chrome::paint_cut_border(
+        painter,
+        area.shrink(0.8),
+        crate::theme::scope().chrome,
+        crate::theme::scope().shell,
+    );
+    crate::chrome::corner_brackets(painter, area, crate::theme::scope().chrome);
+}
+
 impl eframe::App for SdroxideApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
@@ -714,6 +733,7 @@ impl eframe::App for SdroxideApp {
                         // automatic fit would otherwise walk it back.
                         self.view.auto_fit = false;
                     }
+                    paint_panadapter_chrome(ui, area);
                 });
             }
             // Only between two things: with the panadapter switched off there
@@ -931,6 +951,7 @@ impl eframe::App for SdroxideApp {
                     {
                         self.view.auto_fit = false;
                     }
+                    paint_panadapter_chrome(ui, area);
                 });
             }
             if show_panel {

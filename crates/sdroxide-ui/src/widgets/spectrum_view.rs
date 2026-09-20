@@ -2787,14 +2787,10 @@ pub fn show_ext(
         }
     }
 
-    // Chrome: pink cut-corner border + corner accents around the panadapter.
-    crate::chrome::paint_cut_border(
-        &painter,
-        rect.shrink(0.8),
-        crate::theme::scope().chrome,
-        crate::theme::scope().shell,
-    );
-    crate::chrome::corner_brackets(&painter, rect, crate::theme::scope().chrome);
+    // The panadapter's cut-corner chrome is *not* drawn here: it belongs to the
+    // whole block, level slider's gutter included, and this widget only ever
+    // sees the picture's rect. `crate::app::frame` paints it around the outer
+    // area once the slider is down, so the control sits inside the box.
 }
 
 /// How long the released bandwidth measurement lingers while fading out.
