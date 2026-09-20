@@ -37,11 +37,13 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   lineages of one feature until the next merge, and each merge is bigger for
   it.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at 153, the fork at 155, the extras being the fork's per-mode
-  `Command::ResetModeDefaults`, the ACARS `DigiStatus` field (both v154) and
-  the v155 listener identity: `NetworkConfig::swl_id` (reception-report
-  identity) plus `RadioConfig::callsign` and `RadioConfig::hide_tx` (per-radio
-  callsign and per-radio SWL mode). When merging, keep the number ahead of
+  upstream is at 158, the fork at 164. The fork's extras are the listener
+  identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
+  `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
+  additions through v164 — the register's full story is documented in
+  `crates/sdroxide-proto/src/lib.rs`. Upstream's v157/158 (SSTV styling and
+  the (tr)uSDX family) landed on the 2026-09 merge, which is where this
+  register caught up with upstream's. When merging, keep the number ahead of
   upstream's and fold its new entries in rather than dropping them.
 - Watch list:
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
@@ -58,13 +60,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     itself and let the pin go.
   - Upstream PRs, branched from `upstream/main` and **merged into the fork's
     build** (the fork carries them while they are still open upstream):
-    **#498** the (tr)uSDX family with a per-radio audio path, **#500** the
-    WEFAX auto start/stop fix (#496), **#501** the Icom WFM mode byte fix
-    (#494). When upstream takes one, reconcile on the next merge — **#498** in
-    particular, which claims `PROTO_VERSION` 157 upstream while here it sits
-    after the fork's listener identity and takes 158. If one is rejected,
-    decide with the user whether to keep the fork copy. (#499, the
-    sound-card-only (tr)uSDX, is closed as superseded by #498.)
+    **#500** the WEFAX auto start/stop fix (#496). **#498** (the (tr)uSDX
+    family) and **#501** (the Icom WFM mode byte fix, #494) were taken by
+    upstream and dropped out on the 2026-09 merge. If one is rejected, decide
+    with the user whether to keep the fork copy. (#499, the sound-card-only
+    (tr)uSDX, is closed as superseded by #498.)
   - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
@@ -108,18 +108,19 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     "hearing something", which is what tells a transmitting station it is being
     heard before either end has identified the other. Branched from
     `upstream/main` (branch `upstream-pr/502-freedv-rade-rx`), so the fork's
-    copy is the same commit and drops out on the next merge. Not confirmed on
-    air — no transmit licence here, and #502's reporter was asked to retest. If
-    the empty-callsign report turns out wrong, fix it on the branch before
-    upstream takes it.
+    copy is the same commit and drops out on the next merge. **Taken upstream;
+    reconciled to its canonical form on the 2026-09 merge.** The DX_CALL_HOLD
+    hold-off and the "hearing something" report are confirmed in the merged
+    code; not confirmed on air — no transmit licence here.
   - `dividebysandwich/sdroxide#505` — the fork's SSTV picture styling, offered
     upstream (branch `upstream-pr/sstv-style`, one squashed commit). One new
     `DigiConfig::sstv_style` (`SstvStyle`): strip gradient, banner text colour,
     gradient and outline, message ink/outline, and a rainbow override for all
     the picture's text. Bumps `PROTO_VERSION` 156 -> 157 on the branch, which
-    **collides with #504's branch**, which also claims 157 — whichever lands
-    second must move up on the next merge. The fork's copy is the same change;
-    the styling is fork-only until upstream takes it.
+    **collided with #504's branch**, which also claimed 157 — whoever landed
+    second had to move up. **Taken upstream; reconciled on the 2026-09 merge**
+    (both #505's 157 and #498's 158 now upstream registers), so the fork's copy
+    is upstream's canonical form.
   - `dividebysandwich/sdroxide#504` — an ANAN-7000DLE (OpenHPSDR) report that
     the per-band drive matrix does nothing and the drive slider is dangerous on
     a high-gain SDR. Diagnosed: the matrix *is* dB of output and does apply to
@@ -136,9 +137,10 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     `None` = no ceiling), folded into `Engine::calibrated` after the band trim
     and taking the lower of it and the converter's ceiling, plus a Radio-tab
     control and a regression test. It bumps `PROTO_VERSION` to 157 on the
-    branch — after a fork merge that has to be reconciled with the fork's
-    higher number. **No PR opened** — the design is the maintainer's call, and
-    the reporter has not confirmed the bug yet.
+    branch — since the 2026-09 sync upstream is at 158 and the fork at 164, the
+    branch's 157 is moot; when it closes it renumbers against the higher
+    register. **No PR opened** — the design is the maintainer's call, and the
+    reporter has not confirmed the bug yet.
   - `dividebysandwich/sdroxide#483` — a request for a DAB/DAB+ decoder, so it
     can be used over a SpyServer like the other decoders. Scoped on the issue:
     the enabling find is **`dabradio`** (MIT, ~8.4k LOC) in `xoolive/desperado`
@@ -239,9 +241,11 @@ no sound card of its own and two ways to be heard:
 
 Only the in-band mode streams and only it suppresses the poll; both hold DTR
 high (the radio's reset line) and switch any leftover stream off at open.
-`PROTO_VERSION` went 156 -> 157 upstream for the new `CatConfig` field; in the
-fork it is **158**, after the listener identity (see the watch list). (#499 was
-the sound-card-only version and is closed as superseded by #498 — the modes are
+`PROTO_VERSION` went 156 -> 157 upstream for the new `CatConfig` field; on the
+2026-09 merge upstream moved on to **158** (SSTV styling also took 157, and
+#498's (tr)uSDX took 158, both now upstream) while the fork counts on to
+**164** — see the register in `crates/sdroxide-proto/src/lib.rs`. (#499 was the
+sound-card-only version and is closed as superseded by #498 — the modes are
 not alternatives, and the operator is the one who knows which fits.)
 
 The bench harness is `tools/trusdx-probe/` — PySerial scripts against the
@@ -272,10 +276,13 @@ he defers to our judgment, so **Route A is taken**, staged as decoder +
 decode log first, then the aircraft map, then the system table. Work is in
 `crates/sdroxide-hfdl` (types in `sdroxide-types/src/hfdl.rs`, lane in
 `sdroxide-radio`'s engine, panel in `sdroxide-ui`'s app). The demod's own
-receive chain expects a 24 kHz lane centred on the channel (the validated
-off-air input), USB subcarrier +1440 Hz handled inside xng's
-`HfdlChannelDecoder`. The operator tests the local build before anything is
-pushed or offered upstream.
+  receive chain expects a 24 kHz lane centred on the channel (the validated
+  off-air input), USB subcarrier +1440 Hz handled inside xng's
+  `HfdlChannelDecoder`. **Committed locally as** "HFDL: the ARINC 635
+  ground-network decoder (issue #497)" (in the `ffac2116` merge-era history)
+  — engine, worker, panel, PROTO_Version 164 and an off-air test that decodes
+  the Riverhead squitter in 0.10 s. **Not pushed/offered upstream yet.** The
+  operator tests the local build before anything is pushed or offered upstream.
 
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
