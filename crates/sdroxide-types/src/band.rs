@@ -380,10 +380,18 @@ impl Band {
             // Medium wave: AM and C-QUAM stereo, DRM, and SAM for ECSS.
             Band::Mw => Some(&[Mode::Am, Mode::Sam, Mode::Cquam, Mode::Drm, Mode::Cw]),
             // Shortwave: broadcast AM and DRM, and the utility services on
-            // SSB/CW alongside them.
-            Band::Sw => {
-                Some(&[Mode::Am, Mode::Sam, Mode::Usb, Mode::Lsb, Mode::Cw, Mode::Drm])
-            }
+            // SSB/CW alongside them — including HFDL, the aircraft datalink
+            // whose ground stations sit on assigned frequencies across the
+            // band.
+            Band::Sw => Some(&[
+                Mode::Am,
+                Mode::Sam,
+                Mode::Usb,
+                Mode::Lsb,
+                Mode::Cw,
+                Mode::Drm,
+                Mode::Hfdl,
+            ]),
             // FM broadcast: WFM, with the stereo pilot and RDS its own business.
             Band::Fm => Some(&[Mode::Wfm]),
             // The civil airband is amplitude modulated, and carries the two

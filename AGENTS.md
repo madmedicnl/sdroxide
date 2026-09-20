@@ -307,9 +307,28 @@ decode log first, then the aircraft map, then the system table. Work is in
   the JSON it arrived in. Only unit-tested here: the off-air capture carries a
   squitter and no aircraft positions, so the map has **not** been seen on real
   HFDL traffic. The still-open question for the third stage (the system table)
-  is what it adds over the squitter's frequency list. Note the HFDL chip now
-  lives in the System box's *bottom* row, not the top: an eighth top-row chip
-  pushed the desktop strip to a third row, and the bottom row had the slack.
+  is what it adds over the squitter's frequency list.
+
+  **HFDL is now a `Mode`** (`Mode::Hfdl`), not a floating window, so its panel
+  docks under the waterfall like ADS-B/AIS: the System box's HFDL chip (bottom
+  row — an eighth *top*-row chip pushed the desktop strip to a third row) now
+  *selects the mode* rather than toggling a window, and the band menu's Digital
+  row offers it too. It is a panel-owning lane (`has_bottom_panel`) but not
+  `is_digital` and not a `is_wideband_lane`; entering it brings the dial onto
+  `HfdlSettings::frequency_hz` (chip and panel both push `SetVfo`), and the
+  channel choices live in the panel because HFDL is a plan of assigned
+  frequencies, not one worldwide channel. On a phone the panes are DECODES and
+  MAP. `Band::Sw` now accepts `Mode::Hfdl` (amateur bands and Gen already
+  accepted anything). Adding the variant rippled through the CAT/TCI/smartsdr/
+  rigctld/speech mode tables — all map it with the other receive-only lanes,
+  since no rig has an HFDL position and the lane is fed raw I/Q.
+
+  Separately, the ⚠ banner above the spectrum now offers a receive-only radio a
+  **Listening controls** button: public SDRs and any other source that answers
+  `is_transmit_capable()` false get the full transmit UI otherwise, and the
+  button switches this radio to its listening screen (per-radio `hide_tx`, the
+  same switch as Settings → Radio), retuning nothing. Dismissing it holds for
+  the session.
 
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 

@@ -825,7 +825,7 @@ impl SdroxideApp {
                         Kind::Rig => self.rig_module(ui, cmds, w),
                         Kind::Tx => self.tx_condensed(ui, cmds, w),
                         Kind::Display => self.display_condensed(ui, cmds, w),
-                        Kind::System => self.windows_condensed(ui, w),
+                        Kind::System => self.windows_condensed(ui, w, cmds),
                     }
                 }
             });
@@ -1358,13 +1358,13 @@ impl SdroxideApp {
     }
 
     /// The SYS menu: the window buttons.
-    fn sys_menu(&mut self, ui: &mut egui::Ui, btn: egui::Response, _cmds: &mut Vec<Command>) {
+    fn sys_menu(&mut self, ui: &mut egui::Ui, btn: egui::Response, cmds: &mut Vec<Command>) {
         let btn = btn.on_hover_text(
             "Logbook, spots, awards, memories, the scanner, settings and the manual",
         );
         crate::chrome::menu_popup(ui, &btn, |ui| {
             crate::chrome::menu_caption(ui, "System");
-            self.windows_controls(ui, true);
+            self.windows_controls(ui, true, cmds);
         });
     }
 
@@ -5344,7 +5344,12 @@ impl SdroxideApp {
     }
 
     /// The remaining window chips — the condensed System box's bottom row.
-    fn system_chips_bottom(&mut self, ui: &mut egui::Ui, extra: f32) {
+    fn system_chips_bottom(
+        &mut self,
+        ui: &mut egui::Ui,
+        extra: f32,
+        cmds: &mut Vec<Command>,
+    ) {
         let [mail, mem, scan_label, hfdl_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
         let simple = self.ui_settings.simple_ui;
         if !simple
@@ -5388,10 +5393,12 @@ impl SdroxideApp {
             self.show_scanner = !self.show_scanner;
         }
         // HFDL: shortwave aircraft ground network — a listener's tool, so it
-        // sits in the row an operator reaches for the decoder windows from,
-        // in both interfaces. Accented while the decoder runs, like the ISM
-        // chip: it spends a downconverter and a worker thread whether or not
-        // the window is open.
+        // sits in the row an operator reaches for the decoder windows from, in
+        // both interfaces. It opens HFDL's own mode, whose panel docks under
+        // the waterfall; accented while the decoder runs, like the ISM chip,
+        // because it spends a downconverter and a worker thread whether or not
+        // the panel is on screen.
+        let hfdl_mode = self.state.rx[0].mode.is_hfdl();
         let hfdl_running = self.state.hfdl.enabled;
         let hfdl_chip = if hfdl_running {
             accent_chip_stretched(
@@ -5403,19 +5410,27 @@ impl SdroxideApp {
                 extra,
             )
         } else {
-            chip_stretched(ui, self.show_hfdl, hfdl_label, extra)
+            chip_stretched(ui, hfdl_mode, hfdl_label, extra)
         };
         if hfdl_chip
-            .on_hover_text(if hfdl_running {
-                "HFDL ground network — decoding now, whether or not this window \
-                 is open. Switch it off with LISTEN inside the window."
+            .on_hover_text(if hfdl_mode {
+                "HFDL ground network — the decode log and aircraft map, below the \
+                 waterfall. Switch the decoder on with LISTEN inside the panel."
+            } else if hfdl_running {
+                "HFDL ground network — decoding now. Open the panel."
             } else {
                 "HFDL ground network — the aircraft shortwave data link, one \
                  listening channel at a time"
             })
             .clicked()
         {
-            self.show_hfdl = !self.show_hfdl;
+            // The lane follows its own chosen frequency; bring the dial with it
+            // so the panadapter shows the signal being decoded.
+            cmds.push(Command::SetMode { rx: RxId::Main, mode: Mode::Hfdl });
+            cmds.push(Command::SetVfo {
+                vfo: self.state.active_vfo,
+                hz: self.state.hfdl.frequency_hz,
+            });
         }
         if chip_stretched(ui, self.show_settings, settings, extra)
             .on_hover_text("Settings — device gains, antennas, audio devices")
@@ -5433,16 +5448,16 @@ impl SdroxideApp {
 
     /// The window buttons — the body of the SYS menu. See
     /// [`crate::chrome::control_row`] for `narrow`.
-    fn windows_controls(&mut self, ui: &mut egui::Ui, narrow: bool) {
+    fn windows_controls(&mut self, ui: &mut egui::Ui, narrow: bool, cmds: &mut Vec<Command>) {
         crate::chrome::control_row(ui, narrow, |ui| {
             self.system_chips_top(ui, 0.0);
-            self.system_chips_bottom(ui, 0.0);
+            self.system_chips_bottom(ui, 0.0, cmds);
         });
     }
 
     /// The condensed System box: the window chips over two rows, each row's
     /// chips splitting its share of the packer's stretch evenly.
-    fn windows_condensed(&mut self, ui: &mut egui::Ui, w: f32) {
+    fn windows_condensed(&mut self, ui: &mut egui::Ui, w: f32, cmds: &mut Vec<Command>) {
         let inner = w - 2.0 * crate::chrome::MODULE_MARGIN_X;
         let simple = self.ui_settings.simple_ui;
         let top = system_top_row(simple, self.swl_mode());
@@ -5453,7 +5468,7 @@ impl SdroxideApp {
             ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(MODULE_ROW_SPACING, MODULE_ROW_SPACING);
                 ui.horizontal(|ui| self.system_chips_top(ui, extra1));
-                ui.horizontal(|ui| self.system_chips_bottom(ui, extra2));
+                ui.horizontal(|ui| self.system_chips_bottom(ui, extra2, cmds));
             });
         });
     }
@@ -6644,13 +6659,16 @@ fn band_mode_menu(
             ui.add_space(6.0);
             crate::chrome::menu_caption(ui, "Digital");
             ui.horizontal_wrapped(|ui| {
-                // ADS-B, VDL2 and AIS ride along at the end of this row rather
-                // than in [`Mode::DIGITAL`] itself: that list is what the digi
-                // engine decodes and transmits, and neither of these is — each
+                // ADS-B, VDL2, AIS and HFDL ride along at the end of this row
+                // rather than in [`Mode::DIGITAL`] itself: that list is what the
+                // digi engine decodes and transmits, and none of these is — each
                 // has its own lane, no QSO and no transmitter. They are digital
                 // signals all the same, and this is where an operator looks for
                 // one.
-                for m in Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais]) {
+                for m in Mode::DIGITAL
+                    .into_iter()
+                    .chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
+                {
                     mode_band_chip(ui, mode, m, band, state, cmds);
                 }
             });
@@ -6686,7 +6704,10 @@ fn band_mode_menu(
             ui.add_space(6.0);
             crate::chrome::menu_caption(ui, "Digital");
             ui.horizontal_wrapped(|ui| {
-                for m in Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais]) {
+                for m in Mode::DIGITAL
+                    .into_iter()
+                    .chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
+                {
                     mode_band_chip(ui, mode, m, band, state, cmds);
                 }
             });
