@@ -5325,6 +5325,35 @@ impl SdroxideApp {
             {
                 self.show_ism = !self.show_ism;
             }
+            // HFDL, accented while the decoder is actually running for the same
+            // reason the ISM chip above is: it spends a downconverter and a
+            // worker thread whether or not the window is open. Left out of the
+            // simple interface, like the other aircraft-lane chips.
+            let hfdl_running = self.state.hfdl.enabled;
+            let hfdl_chip = if hfdl_running {
+                accent_chip_stretched(
+                    ui,
+                    true,
+                    "HFDL",
+                    crate::theme::GREEN(),
+                    crate::theme::INK_ON_BRIGHT(),
+                    extra,
+                )
+            } else {
+                chip_stretched(ui, self.show_hfdl, "HFDL", extra)
+            };
+            if hfdl_chip
+                .on_hover_text(if hfdl_running {
+                    "HFDL ground network — decoding now, whether or not this window \
+                     is open. Switch it off with LISTEN inside the window."
+                } else {
+                    "HFDL ground network — the aircraft shortwave data link, one \
+                     listening channel at a time"
+                })
+                .clicked()
+            {
+                self.show_hfdl = !self.show_hfdl;
+            }
         }
         // Named for what it lists rather than for the WebSDR network, which is
         // the one thing it does *not* list: PA3FWM's receivers speak a

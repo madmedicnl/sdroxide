@@ -581,6 +581,13 @@ pub struct RadioState {
     /// shown as it is. Appended last: postcard numbers fields by position.
     #[serde(default)]
     pub hd_radio_unavailable: Option<String>,
+    /// The HFDL ground-network decoder: whether it runs, and which channel it
+    /// listens on. Live status (level, decode log) is [`crate::HfdlStatus`],
+    /// sent separately like [`crate::Qo100Status`] — this field is settings,
+    /// sent whole on every change like [`Self::qo100`]. Appended last:
+    /// postcard numbers fields by position.
+    #[serde(default)]
+    pub hfdl: crate::HfdlSettings,
 }
 
 impl Default for RadioState {
@@ -632,6 +639,7 @@ impl Default for RadioState {
             // Available until the engine says otherwise: it is the one that
             // knows, and it says so in the first state it sends.
             hd_radio_unavailable: None,
+            hfdl: crate::HfdlSettings::default(),
         }
     }
 }

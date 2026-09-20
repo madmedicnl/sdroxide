@@ -56,12 +56,6 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     build-wide flag. The fork's decoder keeps its pin (see below) until #383
     lands upstream; then rework `sdroxide-digi` to compose the CB predicate
     itself and let the pin go.
-  - `dividebysandwich/sdroxide#465` — the fork's ACARS mode, open upstream.
-    See "The ACARS decoder" below before touching it.
-  - `dividebysandwich/sdroxide#485` — the fork's per-mode settings, offered
-    upstream. If it merges, drop the fork's copy in the next merge and keep the
-    protocol bump reconciled (it claims v154, as ACARS does; whichever lands
-    second moves up).
   - Upstream PRs, branched from `upstream/main` and **merged into the fork's
     build** (the fork carries them while they are still open upstream):
     **#498** the (tr)uSDX family with a per-radio audio path, **#500** the
@@ -101,8 +95,12 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     editor's `MSG` chip moved up beside SIDETONE and SEND ON RETURN. Not
     verified on air here (no transmit licence).
   - `dividebysandwich/sdroxide#497` — a request for an HFDL decoder. Scoped on
-    the issue; see "The HFDL core" below. Awaiting the maintainer's call on
-    git-dependency vs vendored port and on scope — do not start before that.
+    the issue; see "The HFDL core" below. The requester answered the two
+    questions (2026-09-19): he defers to our judgment on git-dependency vs
+    vendored port and on scope, so Route A (git-depend on the `xng` crates)
+    with **decoder + decode log first, aircraft map second** is green-lit.
+    In the fork as `crates/sdroxide-hfdl`; **not pushed/offered upstream yet** —
+    the operator tests the local build first, then the PR goes up as a draft.
   - `dividebysandwich/sdroxide#503` — the fork's RADE receive-reporting fix,
     for upstream issue **#502**. Two things: the RADE panel never drew the
     callsign decoded from the End-of-Over frame (it was in `DigiStatus::dx_call`
@@ -269,9 +267,15 @@ build: the reference 21 931 kHz capture decodes its squitter field-for-field
 (GS 4 Riverhead, frame 2397, systable 52). The dependency tree is modest
 (rustfft, num-complex, chrono, serde, crc; no protobuf). Route B is to
 vendor/port the core into a `sdroxide-hfdl` crate to keep the tree
-self-contained. **Do not start either until the maintainer answers** the two
-questions on #497: git dependency vs vendored port, and scope (decoder + log,
-then the aircraft map, then the system table).
+self-contained. The requester answered both questions on #497 (2026-09-19):
+he defers to our judgment, so **Route A is taken**, staged as decoder +
+decode log first, then the aircraft map, then the system table. Work is in
+`crates/sdroxide-hfdl` (types in `sdroxide-types/src/hfdl.rs`, lane in
+`sdroxide-radio`'s engine, panel in `sdroxide-ui`'s app). The demod's own
+receive chain expects a 24 kHz lane centred on the channel (the validated
+off-air input), USB subcarrier +1440 Hz handled inside xng's
+`HfdlChannelDecoder`. The operator tests the local build before anything is
+pushed or offered upstream.
 
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
