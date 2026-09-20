@@ -6547,13 +6547,21 @@ fn band_mode_menu(
 
     let band = state.band;
     crate::chrome::menu_caption(ui, "Band");
-    // The range filter, under the caption: HF, VHF and UHF narrow the band
-    // chips below, and the lit chip toggles itself back off.
+    // The coarse choices, under the caption: HF, VHF and UHF narrow the band
+    // chips below (the lit chip toggles itself back off), and ALL is the bandless
+    // entry that clears the band altogether — the same "where in the spectrum"
+    // decision, so it rides here rather than in the band list.
     ui.horizontal_wrapped(|ui| {
         for f in BandFilter::CHIPS {
             if crate::chrome::chip(ui, *filter == f, f.label()).clicked() {
                 *filter = if *filter == f { BandFilter::All } else { f };
             }
+        }
+        if crate::chrome::chip(ui, state.band == Band::Gen, Band::Gen.label())
+            .on_hover_text("General coverage — clear the band and let the dial go anywhere")
+            .clicked()
+        {
+            cmds.push(Command::SetBand(Band::Gen));
         }
     });
     ui.add_space(4.0);
@@ -6568,9 +6576,9 @@ fn band_mode_menu(
             // Americas', and offering an operator a button that tunes outside
             // their own allocation — out of band, and with `tx_ham_only` set,
             // straight into a transmit lockout — would be offering them
-            // something their licence has not got. ALL (`Band::Gen`) is the one
-            // bandless entry that stays: it is the absence of a band.
-            if b != Band::Gen && b.edges().is_none() {
+            // something their licence has not got. (ALL, the bandless entry, is
+            // not drawn from here — it rides with the range chips above.)
+            if b.edges().is_none() {
                 return;
             }
             let std_hz = if digital { digi_freq_for_band(mode, b) } else { None };
@@ -6652,7 +6660,7 @@ fn band_mode_menu(
                 ui.horizontal_wrapped(|ui| {
                     for b in Band::ALL
                         .into_iter()
-                        .filter(|b| !b.is_listen_service())
+                        .filter(|b| !b.is_listen_service() && *b != Band::Gen)
                         .filter(|b| filter.admits(*b))
                     {
                         band_chip(ui, b);
@@ -6660,13 +6668,11 @@ fn band_mode_menu(
                 });
             }
             // The listener's side: the broadcast and utility services, by
-            // frequency the way a radio face orders them.
+            // frequency the way a radio face orders them. ALL is not here: it
+            // rides with the range chips above.
             BandMenuTab::Listen => {
                 ui.horizontal_wrapped(|ui| {
-                    // The broadcast and utility services, then ALL — general
-                    // coverage, which is the one that clears the band and lets
-                    // the dial go anywhere.
-                    for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil, Band::Gen]
+                    for b in [Band::Lw, Band::Mw, Band::Sw, Band::Fm, Band::Air, Band::Mil]
                         .into_iter()
                         .filter(|b| filter.admits(*b))
                     {

@@ -349,18 +349,19 @@ leave the radio. The station's own limits still grey a chip (HD Radio with no
 refused on the FM broadcast band via `SetMode`, and applied there via
 `SetModeListen`.
 
-The LISTEN band row also carries **ALL** — `Band::Gen`, general coverage,
-which clears the band so the dial goes anywhere. Its label is "ALL" in
-`Band::label()` (it reads "GEN" nowhere the operator sees now; the bandplan
-overlay was updated too, and the wire/JSON name stays `Gen`).
-
-The Band row of the band/mode menu has an **HF / VHF / UHF filter**
-(`BandFilter`, session-only on the app, not persisted): it narrows the band
-chips that are shown, and the lit chip toggles itself back to all. There is no
-separate "ALL" chip because the band called ALL would clash; the toggle is the
-clear. Classification is by the *middle* of `Band::edges()`, so the military
-airband (225–400) reads UHF and FM broadcast (87.5–108) VHF, and a band with
-no edges (`Gen`) is in every slice. It never moves the dial.
+The band/mode menu's **Band** row leads with **HF / VHF / UHF** and **ALL**
+together, as the coarse choices. HF/VHF/UHF are a filter (`BandFilter`,
+session-only on the app, not persisted) that narrows the band chips shown;
+the lit chip toggles itself back to all, so there is no separate "show
+everything" chip. ALL is the band `Band::Gen` — general coverage, which
+clears the band so the dial goes anywhere — and it rides with them rather
+than in the band list, which is why `band_chip` no longer special-cases it.
+Its label is "ALL" in `Band::label()` (it reads "GEN" nowhere the operator
+sees now; the bandplan overlay was updated too, and the wire/JSON name stays
+`Gen`). The filter classifies by the *middle* of `Band::edges()`, so the
+military airband (225–400) reads UHF and FM broadcast (87.5–108) VHF, and a
+band with no edges (`Gen`) is in every slice. Neither the filter nor ALL
+moves the dial (ALL clears the band; the filter only hides chips).
 
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
