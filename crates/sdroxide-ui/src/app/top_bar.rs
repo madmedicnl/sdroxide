@@ -5202,7 +5202,7 @@ impl SdroxideApp {
     /// The first five window chips — the condensed System box's top row.
     /// `extra` stretches each chip past its label; the popup passes 0.
     fn system_chips_top(&mut self, ui: &mut egui::Ui, extra: f32) {
-        let [log, spots, awards, bands, sat_label, ism, public_sdrs] = SYSTEM_CHIPS_TOP;
+        let [log, spots, awards, bands, sat_label, ism, public_sdrs, hfdl_label] = SYSTEM_CHIPS_TOP;
         let simple = self.ui_settings.simple_ui;
         // SWL mode is the listener's screen, and it takes the row the way the
         // listener uses it: award tracking is a ham receive extra they never
@@ -5256,6 +5256,33 @@ impl SdroxideApp {
             .clicked()
         {
             self.show_bands = !self.show_bands;
+        }
+        // HFDL: shortwave aircraft ground network — a listener's tool, so show
+        // it in simple mode (the listener's UI) alongside SCHEDULE and LISTEN.
+        let hfdl_running = self.state.hfdl.enabled;
+        let hfdl_chip = if hfdl_running {
+            accent_chip_stretched(
+                ui,
+                true,
+                "HFDL",
+                crate::theme::GREEN(),
+                crate::theme::INK_ON_BRIGHT(),
+                extra,
+            )
+        } else {
+            chip_stretched(ui, self.show_hfdl, "HFDL", extra)
+        };
+        if hfdl_chip
+            .on_hover_text(if hfdl_running {
+                "HFDL ground network — decoding now, whether or not this window \
+                 is open. Switch it off with LISTEN inside the window."
+            } else {
+                "HFDL ground network — the aircraft shortwave data link, one \
+                 listening channel at a time"
+            })
+            .clicked()
+        {
+            self.show_hfdl = !self.show_hfdl;
         }
         // Accented while a satellite lock *or* the QO-100 beacon hunt is
         // running, like the scanner: both spend the receiver whether or not the
@@ -5324,35 +5351,6 @@ impl SdroxideApp {
                 .clicked()
             {
                 self.show_ism = !self.show_ism;
-            }
-            // HFDL, accented while the decoder is actually running for the same
-            // reason the ISM chip above is: it spends a downconverter and a
-            // worker thread whether or not the window is open. Left out of the
-            // simple interface, like the other aircraft-lane chips.
-            let hfdl_running = self.state.hfdl.enabled;
-            let hfdl_chip = if hfdl_running {
-                accent_chip_stretched(
-                    ui,
-                    true,
-                    "HFDL",
-                    crate::theme::GREEN(),
-                    crate::theme::INK_ON_BRIGHT(),
-                    extra,
-                )
-            } else {
-                chip_stretched(ui, self.show_hfdl, "HFDL", extra)
-            };
-            if hfdl_chip
-                .on_hover_text(if hfdl_running {
-                    "HFDL ground network — decoding now, whether or not this window \
-                     is open. Switch it off with LISTEN inside the window."
-                } else {
-                    "HFDL ground network — the aircraft shortwave data link, one \
-                     listening channel at a time"
-                })
-                .clicked()
-            {
-                self.show_hfdl = !self.show_hfdl;
             }
         }
         // Named for what it lists rather than for the WebSDR network, which is
@@ -5557,7 +5555,7 @@ impl PttPress {
 /// put this box near the end of a row — and, later, how the public-SDR chip
 /// did, drawn in the top row while a single split index still counted it in the
 /// bottom one.
-const SYSTEM_CHIPS_TOP: [&str; 7] = ["LOG", "SPOTS", "AWARDS", "BANDS", "SAT", "ISM", "PUBLIC SDR"];
+const SYSTEM_CHIPS_TOP: [&str; 8] = ["LOG", "SPOTS", "AWARDS", "BANDS", "SAT", "ISM", "PUBLIC SDR", "HFDL"];
 
 /// The rest of them. See [`SYSTEM_CHIPS_TOP`].
 const SYSTEM_CHIPS_BOTTOM: [&str; 5] = ["MAIL", "MEM", "SCAN", "⚙ SETTINGS", "? HELP"];
@@ -7368,13 +7366,13 @@ mod tests {
     fn the_simple_interface_drops_the_advanced_system_chips() {
         assert_eq!(system_top_row(false, false), SYSTEM_CHIPS_TOP.to_vec());
         assert_eq!(system_bottom_row(false), SYSTEM_CHIPS_BOTTOM.to_vec());
-        assert_eq!(system_top_row(true, false), vec!["LOG", "SPOTS", "BANDS", "PUBLIC SDR"]);
+        assert_eq!(system_top_row(true, false), vec!["LOG", "SPOTS", "BANDS", "PUBLIC SDR", "HFDL"]);
         // SWL mode keeps the SPOTS chip (the receive-only networks are a
         // listener's tool) and drops only award tracking, the ham feed being
         // filtered inside the window instead.
         assert_eq!(
             system_top_row(false, true),
-            vec!["LOG", "SCHEDULE", "LISTEN", "SPOTS", "BANDS", "SAT", "ISM", "PUBLIC SDR"]
+            vec!["LOG", "SCHEDULE", "LISTEN", "SPOTS", "BANDS", "SAT", "ISM", "PUBLIC SDR", "HFDL"]
         );
         assert_eq!(system_bottom_row(true), vec!["MEM", "SCAN", "⚙ SETTINGS", "? HELP"]);
     }
