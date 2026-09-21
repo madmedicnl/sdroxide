@@ -111,8 +111,8 @@ impl SdroxideApp {
                         .color(ink),
                 );
             });
+            ui.add_space(4.0);
         }
-        ui.add_space(4.0);
 
         ui.separator();
 
@@ -245,9 +245,12 @@ fn hfdl_status_strip(ui: &mut egui::Ui, status: Option<&HfdlStatus>, aircraft: u
 /// names, the channel and the burst's signal report — then the payload, which
 /// for a position record is the fix itself, and otherwise the parser's fields.
 fn hfdl_log_row(ui: &mut egui::Ui, d: &HfdlDecode) {
+    let (_, _, _, h, mi, s) = sdroxide_types::utc_ymd_hms(d.unix);
     ui.horizontal_wrapped(|ui| {
         ui.label(
-            RichText::new(crate::time::utc_clock(d.unix)).size(10.5).color(crate::theme::gray(120)),
+            RichText::new(format!("{h:02}:{mi:02}:{s:02}"))
+                .size(10.5)
+                .color(crate::theme::gray(120)),
         );
         ui.label(RichText::new(&d.kind).size(10.5).color(crate::theme::CYAN()));
         if let Some(gs) = &d.gs {

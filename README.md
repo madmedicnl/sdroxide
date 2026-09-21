@@ -265,15 +265,16 @@ one core. `WGPU_BACKEND=vulkan sdroxide` takes Vulkan back where it is steady.
 | `--console` | Terminal (ASCII) waterfall mode, no GUI. |
 | `--siggen` | Use the built-in signal generator instead of hardware. |
 | `--file <FILE>` | Play a raw interleaved CF32 IQ file instead of hardware. |
-| `--freq <HZ>` | Center frequency in Hz (default: last session; `14200000` on a first run). |
-| `--rate <HZ>` | Sample rate in Hz. |
-| `--gain <DB>` | Overall RX gain in dB. |
-| `--mode <MODE>` | Initial mode by name — `USB`, `LSB`, `CW`, `AM`, `SAM`, `C-QUAM`, `NFM`, `WFM`, `DRM`, `HD RADIO`, `FT8`, `RADE`, … (case-insensitive; default: last session). |
-| `--antenna <NAME>` / `--tx-antenna <NAME>` | RX / TX antenna port (see `--probe`). |
-| `--server` | Run as a server: HTTP web client + WebSocket backend. |
-| `--connect <HOST[:PORT]>` | Connect as a native remote client. |
-| `--port <PORT>` | Server port (default `4950`). |
-| `--web-root <DIR>` | Directory with the Trunk-built web client. |
+| `--freq <HZ>` | Center frequency in Hz (default: where the last session was left; `14200000` on a first run). |
+| `--rate <HZ>` | Sample rate in Hz (default: from config). |
+| `--gain <DB>` | Overall RX gain in dB (default: hardware AGC / moderate). |
+| `--mode <MODE>` | Initial mode, case-insensitive: `LSB USB CW AM SAM NFM WFM DRM ADS-B VDL2 AIS DIGU DIGL DSB ISB SPEC FT8 FT4 FT2 JS8 WSPR PSK RTTY RTTY-FM PACKET PACKET-HF APRS SSTV SSTV-FM RIFP WEFAX NAVTEX ACARS OLIVIA THOR FSQ ATCHAT HELL RFPAINT RADE HFDL`, and `"HD RADIO"` (the one name with a space in it, so it needs the quotes). Default: the mode the last session was left in. |
+| `--antenna <NAME>` | RX antenna port, as the device names it (`LNAH`, `TX/RX`; see `--probe`). Default: the port the last session was left on. |
+| `--tx-antenna <NAME>` | TX antenna port, likewise (`BAND1`, `BAND2`). |
+| `--server` | Run as a server: HTTP web client + WebSocket streaming backend. |
+| `--connect <HOST[:PORT]>` | Connect as a native remote client to a running server. |
+| `--port <PORT>` | Server port (default: from config, `4950`). |
+| `--web-root <DIR>` | Directory with the Trunk-built web client, e.g. `crates/sdroxide-web/dist` (default: embedded assets with `--features embed-web`). |
 | `--fft <N>` | Spectrum FFT size (default `4096`). |
 | `--swl` | Start in SWL mode. |
 | `--oob-tx` | Lift the amateur-band transmit lockout for this run (licensed out-of-band use; not persisted). |

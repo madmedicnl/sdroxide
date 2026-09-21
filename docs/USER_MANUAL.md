@@ -60,7 +60,10 @@ or connects to a remote sdroxide server.
   a radar display — see [§3.13](#313-ads-b-aircraft-on-1090-mhz) — and **AIS**
   does the same for the ships on 162 MHz, onto a marine chart with the vessels
   drawn as hulls pointed the way they are heading
-  ([§3.16](#316-ais-ships-on-162-mhz)). **AtCHAT NET** is a multi-station
+  ([§3.16](#316-ais-ships-on-162-mhz)). **HFDL** reaches the aircraft that no
+  VHF receiver can — the shortwave ground network airliners use over the oceans
+  and the poles, one assigned channel at a time, with a decode log and a map of
+  the positions it carries ([§3.19](#319-hfdl-aircraft-on-the-shortwave-band)). **AtCHAT NET** is a multi-station
   keyboard and file mode with dynamic master election, a shared roster, and
   block-CRC-ARQ file/image transfer alongside the chat
   ([§3.17](#317-atchat-net)). **HFDL** decodes the HF aircraft datalink —
@@ -1962,8 +1965,9 @@ you pause you can watch the sending catch up.
 
 - Typing keys the transmitter by itself; you do not have to press **TX** first.
 - **TX** holds the key down between characters so nothing you type waits. It
-  releases itself after five seconds with nothing left to send, so a transmitter
-  is never left holding the frequency.
+  releases itself once there has been nothing left to send for as long as
+  **IDLE** says — five seconds out of the box — so a transmitter is never left
+  holding the frequency.
 - **CALL CQ** loads and sends a CQ built from your callsign; **CLEAR** stops and
   drops whatever has not gone out.
 
@@ -1973,7 +1977,7 @@ pace, correct what you like, and commit it when it reads right. The line break
 is keyed as a word space; Shift+Return breaks a line without sending it; and
 **TX** commits the box the same way if you would rather press it than reach for
 Return. Transmit then releases **as soon as the line has gone out**, rather than
-after the five-second hang above — that hang is there to bridge the gaps between
+after the **IDLE** hang above — that hang is there to bridge the gaps between
 typed characters, and there are none to bridge when the line was composed before
 it was sent. The setting is shared with the keyboard modes
 ([3.3](#33-psk31-and-rtty)).
@@ -2025,6 +2029,18 @@ characters as well, or it will drop out between them however the text arrives.
 - **LOCK** — decode at your own speed instead of reading the speed off the
   signal. Worth turning on for a signal too weak for the speed search to settle
   when you already know how fast the other station sends.
+- **IDLE** — how long transmit is held after the last character, or after the
+  straight key comes up, before the carrier drops: **Off** (drop at once)
+  through 10 s, five seconds out of the box. The hang is what makes typing feel
+  like sending and what a hand key rests on between elements, but five seconds
+  is a long time to sit on a frequency that is otherwise quiet, so it is yours
+  to set.
+- **SIDETONE** — play the keyed tone through your own speakers as well as
+  sending it. On out of the box. It matters most on **Sound card (MCW)**
+  ([6.2.2](#622-cat-radios-serial-control--usb-audio)), where the tone goes to
+  the rig's sound card and nowhere else and you would otherwise send in
+  silence. Turn it off where the rig's own monitor already does the job, or the
+  two will double.
 - **NEURAL / TIMING** — which decoder copies the receive window. **NEURAL** is
   DeepCW, the default: it reads several dB further down and copes with hand
   sending that a timing fit will not accept. **TIMING** reads the keying
@@ -2036,21 +2052,35 @@ characters as well, or it will drop out between them however the text arrives.
   Esperanto letters that share their codes) and the keyer sends the code.
 
 **The keyboard as a straight key.** **KEY**, beside **TX** in the sending row,
-turns the Space bar into a hand key: the carrier is on while you hold it and off
-when you let go, and the timing is entirely yours — **WPM** and Farnsworth do
-not apply. Switching it on drops whatever the keyer still had queued, so a
-half-sent message never surfaces between your elements, and locks the transmit
-box so a space cannot type into it.
+turns a key on your keyboard into a hand key: the carrier is on while you hold
+it and off when you let go, and the timing is entirely yours — **WPM** and
+Farnsworth do not apply. Switching it on drops whatever the keyer still had
+queued, so a half-sent message never surfaces between your elements, and locks
+the transmit box so a space cannot type into it.
+
+**Which key.** The space bar, unless you say otherwise: it is the **CW straight
+key** action in Settings → Controls ([6.4.1](#641-keyboard)), so you can put it
+on any key you like. A space bar's travel is long for keying, and a key with a
+shorter throw is easier to send a decent fist on.
 
 - The first press keys the transmitter; there is no need to press **TX**. Between
   elements the transmitter holds the frequency the way **TX** does, and releases
-  itself after five seconds with the key up.
-- The Space bar is only the key while nothing on screen has the keyboard — a
+  itself once the key has been up for as long as **IDLE** says.
+- **What you send is read back to you.** The characters your hand produces are
+  decoded from the keying itself and printed where a typist sees their typed
+  text, so the straight key is not sent blind. It is a separate decoder from the
+  one copying the band — it follows *your* fist rather than the speed the
+  receive decoder is tracking — and it prints a character as soon as the gap
+  after it says the character has ended, rather than waiting to be sure. An
+  element run with no letter in the Morse table prints as `�`. **CLEAR RX**
+  empties it along with the receive window, and **CLEAR** in the sending row
+  does the same while the key is on.
+- The bound key is only the key while nothing on screen has the keyboard — a
   caret in any text field means you are typing — and only on the radio that
   holds the keyboard, so in a split view the key never reaches the radio beside
-  it. While **KEY** is on, Space is also taken from the key bindings: a
-  hold-to-talk bound to Space ([6.4.1](#641-keyboard)) does not key a carrier
-  under your hand as well.
+  it. While **KEY** is on, that key is also taken from the key bindings: a
+  hold-to-talk bound to the same key ([6.4.1](#641-keyboard)) does not key a
+  carrier under your hand as well.
 - **A key held down for 30 seconds is taken as a lost key-up** — a stuck key, a
   client that went away — rather than a hand: the carrier drops, transmit
   switches off, and a yellow **WATCHDOG** chip says why. Press the key again to
@@ -2064,7 +2094,8 @@ box so a space cannot type into it.
 
 It works wherever sdroxide makes the CW signal itself: an IQ radio, or a CAT
 radio keyed as MCW audio. A CAT radio sending text through its own keyer has
-nothing a hand key can drive, and **KEY** does nothing there.
+nothing a hand key can drive: **KEY** is greyed out there, and says so on hover
+along with the setting that changes it.
 
 > **Transmitting** on an IQ radio (SoapySDR, HPSDR, TCI, SmartSDR) is the
 > keyer building its own sideband signal. On a CAT radio the keyer transmits by
@@ -14348,7 +14379,7 @@ sends them.
 | `--freq <HZ>` | Center frequency in Hz (default: where the last session was left, or 14,200,000 on a first run). |
 | `--rate <HZ>` | Sample rate in Hz (default: from config). |
 | `--gain <DB>` | Overall RX gain in dB (default: hardware AGC or a moderate value). |
-| `--mode <MODE>` | Initial mode (USB, LSB, CW, AM, SAM, C-QUAM, NFM, WFM, DIGU, DIGL, DSB, ISB, SPEC, FT8, FT4, FT2, PSK, RTTY, OLIVIA, THOR, FSQ, SSTV, RIFP, WEFAX, RFPAINT, RADE, DRM, ADS-B, VDL2, AIS, HFDL). Default: the mode the last session was left in. |
+| `--mode <MODE>` | Initial mode, matched without regard to case: LSB, USB, CW, AM, SAM, NFM, WFM, DRM, HD RADIO, ADS-B, VDL2, AIS, DIGU, DIGL, DSB, ISB, SPEC, FT8, FT4, FT2, JS8, WSPR, PSK, RTTY, RTTY-FM, PACKET, PACKET-HF, APRS, SSTV, SSTV-FM, RIFP, WEFAX, NAVTEX, ACARS, OLIVIA, THOR, FSQ, ATCHAT, HELL, RFPAINT, RADE, HFDL. `HD RADIO` is the one name with a space in it, so it needs quoting on the command line: `--mode "HD RADIO"`. Default: the mode the last session was left in. |
 | `--antenna <NAME>` | RX antenna port, as the device names it (LNAH, TX/RX — `--probe` lists them). Default: the port the last session was left on, and failing that whatever the driver selects. |
 | `--tx-antenna <NAME>` | TX antenna port, likewise (BAND1, BAND2). |
 | `--server` | Run as a server (web client + WebSocket streaming backend). |
@@ -15942,7 +15973,7 @@ floating RTS is the *receive* state, and test it.
 | V | Flip the waterfall (scroll upwards). |
 | 1 – 9, 0 (numpad) | Transmit voice-keyer slots 1–10 (nothing if the slot is empty). |
 | − (numpad) | Stop a voice-keyer message. |
-| Space (CW, with **KEY** on) | The straight key: carrier while held ([2.14](#214-cw-decoding-and-keyboard-sending)). |
+| Space (CW, with **KEY** on) | The straight key: carrier while held, and re-bindable as **CW straight key** in Settings → Controls ([2.14](#214-cw-decoding-and-keyboard-sending)). |
 | F1 | Open this manual (works even while typing). |
 
 Shortcuts are ignored while typing in a text field.

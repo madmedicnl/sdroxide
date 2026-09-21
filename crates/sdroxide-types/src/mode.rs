@@ -2007,8 +2007,7 @@ mod tests {
         // checking is that it is a permutation of the enum, with nothing
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
-        // recently — not the one that reads last in the picker. Hfdl in this
-        // fork: upstream appends ACARS last, the fork keeps HD Radio after it.
+        // recently — not the one that reads last in the picker.
         let last = Mode::Hfdl as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
@@ -2049,7 +2048,8 @@ mod tests {
     }
 
     #[test]
-    fn rtty_on_fm_is_a_channel_not_a_sideband() {        assert!(Mode::RttyFm.is_text_modem(), "it is the RTTY modem and wants the RTTY panel");
+    fn rtty_on_fm_is_a_channel_not_a_sideband() {
+        assert!(Mode::RttyFm.is_text_modem(), "it is the RTTY modem and wants the RTTY panel");
         assert!(Mode::RttyFm.is_digital());
         assert!(Mode::RttyFm.is_fm_carrier(), "the level is deviation, not drive");
         assert!(Mode::RttyFm.is_carrier_centered(), "the dial is the channel centre");

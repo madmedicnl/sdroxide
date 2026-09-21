@@ -306,7 +306,10 @@ impl SdroxideApp {
                                         };
                                         ui.add(
                                             egui::Label::new(
-                                                RichText::new(text).monospace().size(13.0).color(color),
+                                                RichText::new(text)
+                                                    .monospace()
+                                                    .size(13.0)
+                                                    .color(color),
                                             )
                                             .wrap(),
                                         )
@@ -410,18 +413,19 @@ impl SdroxideApp {
                     RichText::new(if on { " KEY ● " } else { " KEY " }).size(12.0).strong(),
                 )
                 .on_hover_text(if hand_key_ok {
-                    "Hold the Space bar as a straight key — down while it is held, up on \
-                     release — instead of typing text. The transmit box is locked while it \
-                     is on, and the whole keyer is handed to the key: whatever text was \
-                     queued is dropped."
+                    "Hold the key bound to CW straight key — Space by default, and any key \
+                     you like in Settings → Controls — as a straight key: down while \
+                     it is held, up on release, instead of typing text. The transmit box is \
+                     locked while it is on, and the whole keyer is handed to the key: \
+                     whatever text was queued is dropped."
                 } else {
                     "This radio sends from its own keyer: the text goes over the control \
                      port and the rig times the elements, so there is nothing between the \
-                     Space bar and the air for a hand to drive.\n\n\
+                     straight key and the air for a hand to drive.\n\n\
                      To hand-key it, set CW keying to \"Sound card (MCW)\" in \
-                     Settings → Radio. The rig is then held on a sideband and the keyer's \
-                     own sidetone is transmitted as audio, which is the route the straight \
-                     key drives."
+                     Settings → Radio. The rig is then held on a sideband and the \
+                     keyer's own sidetone is transmitted as audio, which is the route the \
+                     straight key drives."
                 })
             })
             .clicked()

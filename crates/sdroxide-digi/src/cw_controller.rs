@@ -1294,7 +1294,7 @@ mod tests {
         // The engine's next poll is what marks us on the air.
         c.poll(SystemTime::now(), 14_030_000.0);
         let mut peak = 0.0f32;
-        let mut feed = |c: &mut CwController, ms: f32, peak: &mut f32| {
+        let feed = |c: &mut CwController, ms: f32, peak: &mut f32| {
             let mut blk = [0.0f32; 480];
             for _ in 0..(ms / 10.0).round().max(0.0) as usize {
                 c.fill_tx_block(&mut blk);
@@ -1345,16 +1345,19 @@ mod tests {
         c.poll(SystemTime::now(), 14_030_000.0);
         let unit_ms = 1200.0 / 18.0;
         let jit = [0.85f32, 1.1, 0.95, 1.05, 0.9, 1.15, 1.0, 0.8, 1.2, 0.92, 1.08, 0.97];
+        // One line per letter, which is the only way to read it: each pair is
+        // (mark, gap) in units, and the gaps that end a letter are the 3s.
+        #[rustfmt::skip]
         let seq: &[(u32, u32)] = &[
-            (1, 1), (3, 1), (3, 1), (1, 3), // P .-.
-            (1, 1), (3, 3), // A .-
-            (1, 1), (3, 1), (1, 3), // R .-.
-            (1, 1), (1, 3), // I ..
-            (1, 1), (1, 1), (1, 20), // S ...
+            (1, 1), (3, 1), (3, 1), (1, 3), // P .--.
+            (1, 1), (3, 3),                 // A .-
+            (1, 1), (3, 1), (1, 3),         // R .-.
+            (1, 1), (1, 3),                 // I ..
+            (1, 1), (1, 1), (1, 20),        // S ...
         ];
         let mut ji = 0usize;
         let mut peak = 0.0f32;
-        let mut feed = |c: &mut CwController, ms: f32, peak: &mut f32| {
+        let feed = |c: &mut CwController, ms: f32, peak: &mut f32| {
             let mut blk = [0.0f32; 480];
             for _ in 0..(ms / 10.0).round().max(0.0) as usize {
                 c.fill_tx_block(&mut blk);
