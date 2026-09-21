@@ -936,7 +936,9 @@ jobs:
           # pointing at a tagged release rather than at last night's build.
           title="sdroxide $GITHUB_REF_NAME"
           extra=()
+          nightly=0
           if [ "$GITHUB_REF_NAME" = "nightly" ]; then
+            nightly=1
             title="sdroxide nightly $(date -u +%Y-%m-%d)"
             extra+=(--prerelease)
             {
@@ -947,6 +949,25 @@ jobs:
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
               --title "$title" --notes-file notes.md --generate-notes "${extra[@]}"
+          elif [ "$nightly" = "1" ]; then
+            # A nightly keeps the *same* asset names every night, so the
+            # already-present skip below would leave yesterday's binaries in
+            # place and silently publish nothing new — the tag moves and the
+            # workflow re-runs, but the download never changes. Retitle and
+            # delete the old assets, so a nightly really is last night's build.
+            # (The title gains today's date but the body is left alone: an edit
+            # cannot regenerate notes the way `create` does, and the blurb
+            # already there says the same thing.)
+            # Versioned tags are untouched: their names carry the version, so a
+            # same-named asset there really is the same build and the skip is
+            # what makes a resumed upload cheap.
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$title"
+            for name in $(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --json assets -q '.assets[].name'); do
+              echo "replacing stale nightly asset: $name"
+              gh release delete-asset "$GITHUB_REF_NAME" "$name" \
+                --repo "$GITHUB_REPOSITORY" --yes || true
+            done
           fi
           # One asset at a time, with its own retries, rather than one
           # `gh release upload dist/*`: the uploads endpoint returns HTTP 500
