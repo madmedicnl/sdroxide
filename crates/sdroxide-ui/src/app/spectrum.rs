@@ -477,15 +477,19 @@ impl SdroxideApp {
         // "Freeze the waterfall while transmitting": the same mechanism as a
         // stalled stream — no rows, and the clock pinned (see `wf_now_pin`
         // below), so the over leaves no gap and no block of the transmitter's
-        // own signal in the received history. The spectrum line is untouched.
+        // own signal in the received history. Deliberately the waterfall only:
+        // the 3D surface below is a *spectrum* feature and stays gated on the
+        // stream alone, so this option cannot surprise an operator who was not
+        // looking at the waterfall when they set it.
         let tx = self.state.tx.ptt || self.state.tx.tune;
-        let live = live && !(tx && self.ui_settings.waterfall_freeze_on_tx);
+        let freeze_wf = tx && self.ui_settings.waterfall_freeze_on_tx;
         let rows_per_sec = self.ui_settings.waterfall_rows_per_sec() * self.wf_row_scale;
         // Clamp dt so a hitch/tab-away can't dump a huge run of rows at once.
         let dt =
             if self.wf_last_now > 0.0 { (now - self.wf_last_now).clamp(0.0, 0.3) } else { 0.0 };
         self.wf_last_now = now;
-        let rows_to_write = if live {
+        let rows_live = live && !freeze_wf;
+        let rows_to_write = if rows_live {
             self.wf_row_accum += dt as f32 * rows_per_sec;
             let n = self.wf_row_accum.floor();
             self.wf_row_accum -= n;
@@ -496,8 +500,11 @@ impl SdroxideApp {
         // The time axis belongs to the rows. While they scroll, the newest row
         // is "now" and the gridlines ride the wall clock; frozen, the clock is
         // pinned where the rows stopped, or the timestamps would slide over
-        // history that is not moving.
-        if live || self.wf_now_pin == 0.0 {
+        // history that is not moving. A TX freeze is a *delay*, not a stall, so
+        // the pin is lifted again the moment rows resume and the gridlines
+        // return to the wall clock — the frozen block reads as the times those
+        // rows were received, which is what it is.
+        if rows_live || self.wf_now_pin == 0.0 {
             self.wf_now_pin = now;
         }
         // Spectrum-line smoothing: convert the time constant to a per-frame EMA
