@@ -474,6 +474,12 @@ impl SdroxideApp {
     ) -> spectrum_view::WfTuning {
         let now = now_unix_f64();
         self.wf_row_scale = row_scale.max(1.0);
+        // "Freeze the waterfall while transmitting": the same mechanism as a
+        // stalled stream — no rows, and the clock pinned (see `wf_now_pin`
+        // below), so the over leaves no gap and no block of the transmitter's
+        // own signal in the received history. The spectrum line is untouched.
+        let tx = self.state.tx.ptt || self.state.tx.tune;
+        let live = live && !(tx && self.ui_settings.waterfall_freeze_on_tx);
         let rows_per_sec = self.ui_settings.waterfall_rows_per_sec() * self.wf_row_scale;
         // Clamp dt so a hitch/tab-away can't dump a huge run of rows at once.
         let dt =

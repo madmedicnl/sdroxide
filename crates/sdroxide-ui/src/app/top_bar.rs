@@ -4857,6 +4857,20 @@ impl SdroxideApp {
             {
                 self.view.decode_labels = !self.view.decode_labels;
             }
+            if crate::chrome::chip(ui, cfg.waterfall_freeze_on_tx, "FREEZE ON TX")
+                .on_hover_text(
+                    "Stop the waterfall scrolling for the length of your own transmission, \
+                     and pick it up where it left off — so the picture is continuous \
+                     received history rather than a block of rows showing your carrier (or, \
+                     on a radio that mutes its receiver while keyed, rows of noise that \
+                     never happened). The spectrum line is untouched. Useful when watching \
+                     a mode where you transmit often, so the other station's over is not \
+                     pushed off the screen by your own.",
+                )
+                .clicked()
+            {
+                cfg.waterfall_freeze_on_tx = !cfg.waterfall_freeze_on_tx;
+            }
             if !picks_layers {
                 self.detail_row(ui, &mut cfg);
             }

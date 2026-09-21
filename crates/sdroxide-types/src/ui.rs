@@ -561,6 +561,19 @@ pub struct UiSettings {
     /// interpolated picture cannot be told apart from a genuinely wider signal
     /// (issue #375).
     pub waterfall_smooth: bool,
+    /// Freeze the waterfall while this station is transmitting.
+    ///
+    /// Off by default. On, the waterfall stops scrolling for the length of an
+    /// over and resumes where it left off, so the picture is continuous
+    /// received history rather than a block of rows showing the transmitter's
+    /// own signal (or, on a radio that mutes its receiver during transmit, rows
+    /// of noise that never happened). The spectrum line is untouched — it still
+    /// follows the receiver.
+    ///
+    /// For a listener who leaves a recording running this keeps the two halves
+    /// of a QSO together: the other station's transmission, then your reply,
+    /// then theirs again with no gap where your own over sat.
+    pub waterfall_freeze_on_tx: bool,
     /// How many columns the panadapter and its waterfall are drawn with.
     ///
     /// This screen's preference, like the frame rate above it and for the same
@@ -799,6 +812,7 @@ impl Default for UiSettings {
             spectrum_3d_speed: Speed::Medium,
             waterfall_palette: 0,
             waterfall_smooth: true,
+            waterfall_freeze_on_tx: false,
             tune_step_buttons: true,
             // 1 kHz: the round step the operators who asked for this tune in,
             // on a band where the stations sit 3 kHz apart.
