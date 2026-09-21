@@ -98,6 +98,13 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
      it and carve the core out. Vendoring means carrying code we do not
      maintain — the same question the HFDL `xng` work answered with a pinned
      submodule, and the maintainer's stated preference there.
+     **This is answered, 2026-09-21:** the author (`xoolive`) replied on #483
+     that he does not mind splitting `dabradio` into library + executable, and
+     is himself experimenting with HD Radio decoding and sees a shared lib for
+     both DAB and NRSC-5. So the largest unknown is gone — the work is now the
+     ordinary kind (feed it our I/Q, take audio, a panel), not a port of an
+     app. It is still not started and still not costed, and it depends on the
+     author doing the split; nothing here commits him or us.
   2. **`fdk-aac` is a hard, non-optional dependency** for DAB+ audio, and we do
      not link it. The fork already vendors **faad2** (HE-AAC v2) via
      `crates/sdroxide-faad2`, so the swap is faad2 in place of fdk-aac — a real
