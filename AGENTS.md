@@ -528,6 +528,19 @@ tagged release rather than at last week's build.
   `icomnet_source` tests flake now and then when the whole workspace runs at
   once and pass when that binary is run alone; re-run
   `cargo test --release --bin sdroxide` before chasing a failure there.
+  Likewise `sdroxide-pluto`'s `iiod_loopback` (a scheduling flake under the
+  parallel workspace run, passes alone).
+- **After a merge, test the packages you touched rather than the whole
+  workspace**, e.g. `cargo test -p sdroxide-types -p sdroxide-proto -p
+  sdroxide-ui -p sdroxide-radio -p sdroxide-dsp -p sdroxide-hfdl`. A merge
+  rarely reaches the audio/USB crates, and the whole-workspace run spends most
+  of its time in the two flakes above. Reserve `--workspace` for cutting a
+  release. Do not skip the merge-time run: the invariants it holds are
+  `help::anchor_links_resolve_to_headings` (a manual cross-reference broken by
+  a heading choice), `mode_discriminants_are_stable` / `nr_discriminants_are_
+  stable` (a variant inserted rather than appended), the PROTO register, and
+  the mode/band tables — every one of which has caught a careless merge edit,
+  and none of which a reviewer would have found by eye.
 - `cargo check --release --target wasm32-unknown-unknown -p sdroxide-ui` — the
   browser client, which shares the same UI code.
 - `cargo test -p sdroxide-digi --release -- --ignored --nocapture sensitivity`
