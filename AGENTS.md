@@ -89,9 +89,33 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     (the frequency type-in, `43ce0543`), **#522** (the auto-upload master/target
     trap, `e6ffbe4b`), and the **rig-keys-itself half of #507** (`bcef7787`) —
     all four landed as direct commits rather than merged PRs, so the fork's
-    branches for them are done and their fork copies dropped out. #507's other
-    half (the sidetone and the straight-key read-back) is still fork-only;
-    check whether upstream wants it before re-offering #507 whole.
+    branches for them are done and their fork copies dropped out.
+  - **The 2026-09-21 merge took the rest of #507 and all of #509 upstream.**
+    **#507** (the CW sidetone, `cw_tx_idle_s`, and the straight-key read-back)
+    merged as PR `1948e656`, with the maintainer's own fixes on top: the
+    P-glyph read-back correction, the sidetone's resampled remainder, a
+    bindings migration for the straight key's default, and rustfmt. **#509**
+    (HFDL) merged as `bbc47e0a`, likewise with review work: a manual section,
+    README/mode-table entries, rustfmt and doc corrections. Both PRs show OPEN
+    on GitHub because the changes landed as commits from a rebased branch
+    rather than via the merge button — #509 has a comment saying so. The
+    fork's copies of both dropped out on the 2026-09-21 merge.
+    **Two HFDL follow-ups upstream did not take** are the fork's to offer:
+    the **lane-rate fix** (the decoder decodes only a 24 000 Hz lane, and the
+    DDC reaches it only for some sample rates — 2.0 Msps gives 25 000 and
+    decodes nothing) and the **DECODING OFF** status wording. Both are in the
+    fork (rate fix `6809a68f`, wording `847423c3`) and offered as **PR #524**
+    (branch `upstream-pr/497-hfdl-rate`, rebased on `upstream/main`). The rate
+    fix is confirmed on real hardware (an RSP1A at 2.000 Msps, 47 decodes, 2
+    aircraft) — do not drop it from the fork while #524 is open, and if he
+    merges it, drop the fork's copy on the next merge.
+  - **#514** (HD-on-AM, `upstream-pr/489-hd-am`) was **rebased on current
+    `upstream/main` on 2026-09-21 and marked ready for review**. The earlier
+    draft carried stray vendored gitlinks (`vendor/nrsc5`, `vendor/xng`), which
+    the rebase dropped — `vendor/xng` in particular belongs upstream now (from
+    #509) and deleting it would have broken the build. Read "no `libnrsc5` on
+    this machine, no decodable HD-on-AM station" as the standing caveat: the
+    pure parts are unit-tested, nothing end-to-end is.
   - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
