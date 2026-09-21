@@ -80,6 +80,48 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
   the demodulated audio, in front of the speakers, edited in the LISTEN window.
   Noise reduction aimed at broadcast rather than speech is still open; the
   bandwidth side is the existing filter.
+- **DAB / DAB+ (Digital Audio Broadcasting).** Wanted by a listener (upstream
+  issue #483) and a natural fit for this fork — it is broadcast radio, European
+  VHF Band III (174–240 MHz) and L-band, which is where a listener already is.
+  **Not started; this is a plan, not a commitment, and it is not costed.**
+  Nothing here has been attempted and it could be considerably larger than it
+  reads — the crate question alone (below) decides whether this is a small
+  integration or a port. Treat it as "here is what is known" rather than "here
+  is a job of known size". The enabling find is
+  **`dabradio`** (MIT, ~8.4k LOC, `xoolive/desperado`), the full
+  OFDM/FIC/MSC/Viterbi/Reed-Solomon chain. Four things stand between it and us,
+  established from the 0.5.0 crate (checked 2026-09-21 — the scoping note in
+  [`AGENTS.md`](AGENTS.md) predates the current dependency list and this
+  supersedes it):
+  1. **It is a binary, not a library** (`has_lib: false`, 0.5.0). So either ask
+     the author to expose a library (the cheap, upstream-first route) or vendor
+     it and carve the core out. Vendoring means carrying code we do not
+     maintain — the same question the HFDL `xng` work answered with a pinned
+     submodule, and the maintainer's stated preference there.
+  2. **`fdk-aac` is a hard, non-optional dependency** for DAB+ audio, and we do
+     not link it. The fork already vendors **faad2** (HE-AAC v2) via
+     `crates/sdroxide-faad2`, so the swap is faad2 in place of fdk-aac — a real
+     port of the AAC glue, not a feature flag. DAB (not DAB+) is MP2, which the
+     crate already does in pure Rust with `oxideav-mp2`; keep that.
+  3. **Strip the application scaffolding.** The crate is a TUI app: `ratatui`,
+     `crossterm`, `viuer`, `tinyaudio`, `clap`, `desperado` (which pulls
+     rtlsdr/airspy/hackrf front ends we do not want — we feed our own I/Q) and
+     `tokio` in full. None of that belongs in a decoder. The reusable part is
+     the DSP + FIC/MSC state machine; the work is extracting it from an async
+     binary that owns its own radio and its own terminal.
+  4. **Bandwidth.** DAB Mode I is **1.536 MHz** of occupied spectrum and wants
+     ~2.048 Msps, which is a wideband lane like ADS-B's (`is_wideband_lane`,
+     `on_rx_iq` at a high rate) rather than the 12 kHz tap the other decoders
+     use. The engine already has the pattern and the rates (`1_536_000.0` is a
+     supported rate); a DAB lane centres on the ensemble, not on a dial.
+  **Staged, once the crate question is settled:** (a) decode an ensemble in a
+  bare test — sync, FIC, the service list — against a capture; (b) audio for
+  one service, faad2 in place of fdk-aac; (c) a `Mode::Dab` panel — the
+  ensemble/service list and the programme label, like the DRM panel's. **(a) is
+  the only part worth starting before the library/binary question is answered,
+  and it needs a real off-air capture** (DAB is not decodable from a synthetic
+  signal in any useful way), so the first move is a capture and a scratch
+  harness, not a crate dependency.
 
 ## Phase 4 — polish
 
