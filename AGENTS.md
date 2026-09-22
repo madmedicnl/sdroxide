@@ -99,7 +99,9 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     their own retracted error: unpack77 discards the fields, so tokenising the
     rendered text runs grids and exchanges through the grammar.)
   - Upstream PRs, branched from `upstream/main` and merged into the fork's
-    build: **none currently carried.** **#500** (the WEFAX auto start/stop fix,
+    build: **#514** (HD-on-AM), **#524** (the HFDL lane-rate fix and the
+    DECODING OFF wording) and **#532** (the REC auto-stop timer). **#500**
+    (the WEFAX auto start/stop fix,
     #496) and **#508** (the LimeSDR Mini board-name fold) were **taken
     upstream** on the 2026-09-20 merge, so the fork's copies dropped out (a
     follow-up comment tweak of the maintainer's on the WEFAX shape test came
@@ -207,6 +209,18 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     RX2/ADC2-as-feedback feature scoped on #510 (Protocol 1 streams one ADC;
     the backend would need a two-ADC mode and a feedback-source choice), no
     hardware here to verify against.
+  - `dividebysandwich/sdroxide#520` — a request for a stop timer on the
+    on-air MP3 recording with preset durations. Offered as **PR #532**
+    (branch `upstream-pr/520-rec-timer`, based on `upstream/main`). The
+    deadline is UI-owned, not engine state: an `Option<i64>` on
+    `SdroxideApp` ticked once a frame, which sends `SetRecording(false)`
+    when it passes. The REC popup's "Stop after" row has 15/30/45/60/90
+    minute presets, a "no stop" cancel and a live mm:ss countdown. It is
+    cleared the moment the recording stops any other way, so an armed
+    stop cannot leak into the next recording — that contract is what
+    `rec_timer_tick`'s unit tests pin; no engine or `RadioState` change.
+    Already merged into the fork's `main`, so it drops out here on the
+    next upstream merge if #532 lands.
   - `dividebysandwich/sdroxide#503` — the fork's RADE receive-reporting fix,
     for upstream issue **#502**. Two things: the RADE panel never drew the
     callsign decoded from the End-of-Over frame (it was in `DigiStatus::dx_call`
