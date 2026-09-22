@@ -53,6 +53,7 @@ impl SdroxideApp {
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new("WEFAX").size(12.0).strong().color(theme::CYAN()));
             self.wefax_station_chip(ui, cmds);
+            self.wefax_carrier_note(ui);
 
             // START / STOP. Starting by hand is the normal way in: a chart runs
             // for a quarter of an hour and you will almost always have tuned to
@@ -654,6 +655,33 @@ impl SdroxideApp {
         if let Some(hz) = pick {
             cmds.push(Command::SetVfo { vfo: self.state.active_vfo, hz });
         }
+    }
+
+    /// Why the dial does not read the frequency on the station chip.
+    ///
+    /// A radiofax carrier is upper-sideband, so the dial sits 1.9 kHz *below*
+    /// the published carrier — pick GYA at 4610.0 and the dial lands on 4608.1.
+    /// That is correct and the popup says so, but the only number the operator
+    /// watches is the dial, and a dial that disagrees with the chip they just
+    /// clicked reads as a fault (issue #527). Show both together, with the
+    /// subtraction spelled out, while a station is under the dial.
+    fn wefax_carrier_note(&self, ui: &mut egui::Ui) {
+        use sdroxide_types::WefaxStation;
+        let dial = self.state.active_freq_hz();
+        let Some((_, carrier_khz)) = WefaxStation::at_dial(dial) else { return };
+        ui.label(
+            RichText::new(format!(
+                "carrier {carrier_khz:.1} · dial {:.1} kHz (USB −1.9k)",
+                dial / 1000.0
+            ))
+            .size(10.0)
+            .color(crate::theme::CYAN_DIM()),
+        )
+        .on_hover_text(
+            "The station chip names the published carrier; the radiofax subcarrier sits \
+             1900 Hz above it, so the dial is deliberately 1.9 kHz lower. Tune the dial to \
+             the carrier itself and the signal falls outside the passband.",
+        );
     }
 
     /// A saved chart, full size, in its own window.
