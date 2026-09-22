@@ -422,6 +422,48 @@ load). The findings worth not re-deriving are there: the receive rate is 7812
 samples/s and not the published 7825, `0x3B` is escaped to `0x3C`, a CAT
 command written into a live stream kills it, and DTR is the reset line.
 
+### The (tr)uSDX nG family (fork, untested on air)
+
+DL2MAN's rewritten **nG** firmware ([dl2man.de/ng](https://dl2man.de/ng),
+operating guide §9) keeps 2.00x's `UA`/`US` audio-in-the-CAT-link framing but
+changes the transmit side and adds a level extension. It is a **separate
+`CatFamily::TrUsdxNg`** ("(tr)uSDX nG"), on branch `fork/trusdx-ng` (based on
+fork `main`), `PROTO_VERSION` **166 -> 167** on the fork. The profile is the
+same `trusdx.rs`, parameterized by generation (`TrUsdx::new_ng`), so the
+receive demultiplexer and the `UA`/`US` framing are shared code. Three transmit
+differences, each a silent failure if got wrong:
+
+- **Transmit rate 4807.69 B/s** (`TRUSDX_NG_TX_RATE_HZ = 4808`), not 2.00x's
+  11520 — the transmit slot is `20 MHz / (64 × 65)`, and 2.00x's surplus is
+  thrown away. The serial thread's `TxPace` now takes the rate from
+  `Protocol::tx_audio_rate_hz()` rather than the old constant.
+- **Transmit delimiter escape `0x3B → 0x3A`** (`TRUSDX_NG_TX_ESCAPE_TO`), where
+  2.00x shifts up to `0x3C`.
+- **The stream opens on the first byte ≥ `0x80`**; bytes below it are commands,
+  so a leading `0x80` (silence) is emitted when the first sample is low
+  (`Protocol::on_tx_stream_start` + `TRUSDX_NG_TX_START_BYTE`).
+
+Level control (the user asked for it): `AG0nn;` volume 00–31
+(`CatConfig::trusdx_ng_volume`), `GTn;` gain 0 off / 1 on / 2 DIGI
+(`CatConfig::trusdx_ng_agc`, `TrUsdxNgAgc`; `Auto` follows the mode on the mode
+frame), and `UA2;` to switch the radio's own speaker off
+(`CatConfig::trusdx_ng_speaker`). nG answers neither command and stores neither,
+so they go out in `open_requests`.
+
+`PROTO_VERSION` **166 -> 167** on this branch collides with the band-openings
+branch (`upstream-pr/band-openings` / `fork/live-band-openings`), which also
+claims 167 — both are fork branches awaiting an upstream PR, so whichever lands
+on fork `main` first keeps 167 and the other renumbers (the band-openings copy
+drops entirely once #537 merges upstream).
+
+**Not tested on air here** — the fork's radio is not calibrated for nG, so the
+firmware could not be flashed. It is unit-tested structurally (16 tests in
+`trusdx.rs`, including the rate, both escapes, the opening byte and the level
+frames); the on-air checks are named in `tools/trusdx-probe/README.md`, and
+forum testers are willing. Confirm on a real nG radio before offering it
+upstream. It is a new family + `PROTO_VERSION` bump, so it is an "isolate it"
+PR from `upstream/main` when the time comes.
+
 ### The HFDL core (issue #497)
 
 An HFDL (ARINC 635) decoder has been requested upstream as #497 and scoped on

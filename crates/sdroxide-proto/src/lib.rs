@@ -1457,7 +1457,14 @@ use sdroxide_types::{
 /// overlay itself is a client view toggle, not a config field: the engine
 /// polls the reports whenever the PSK feed is on, and the client decides
 /// whether to draw them. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 166;
+///
+/// v167: the (tr)uSDX nG CAT family. `CatFamily::TrUsdxNg` is appended to that
+/// enum, so no surviving family moves; `CatConfig` gains the nG level fields
+/// (`trusdx_ng_volume`, `trusdx_ng_agc`, `trusdx_ng_speaker`) on its tail, and
+/// `CatConfig` rides `Command::SetCatConfig` and `ServerMsg::CatConfig` whole,
+/// so a v166 peer handed one runs off the end of the struct. A downstream
+/// (fork) addition.
+pub const PROTO_VERSION: u16 = 167;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

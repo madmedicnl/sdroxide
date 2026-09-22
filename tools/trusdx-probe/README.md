@@ -63,3 +63,30 @@ the transmit-audio path.
 - The only reads the firmware answers are `FA`, `MD`, `IF`, `ID`, `PS`, `AG0`,
   `FL0`, `RS`, `AI`. Everything else (`SM`, `RM`, `PC`, `FB`, `FR`, `FT`, `RT`,
   `XT`, `RA`, `SQ`, `SL`, `SH`, …) answers `?;`.
+
+## nG (the second-generation firmware)
+
+DL2MAN's **nG** firmware ([dl2man.de/ng](https://dl2man.de/ng), section 9 of
+the operating guide) keeps the `UA`/`US` framing above but changes the transmit
+side, and adds a level extension. The driver selects it with
+`CatFamily::TrUsdxNg` ("(tr)uSDX nG"). What to establish on a real nG radio,
+none of which was measurable here (the firmware was not on this bench):
+
+- **Transmit rate is 4807.69 B/s**, not 11520 and not 7812. The transmit slot is
+  `20 MHz / (64 × 65)`; 2.00x's surplus is thrown away. Pace a known ramp at
+  4808 B/s and confirm it plays at the right pitch/speed rather than starved
+  (gaps) or flooded (dropped).
+- **The transmit delimiter escape is `0x3B → 0x3A`**, where 2.00x uses `0x3C`.
+  A `0x3B` left in the stream ends it early; the wrong substitute is one LSB.
+- **The transmit stream opens on the first byte ≥ `0x80`.** Bytes below it are
+  read as commands, so the host emits a leading `0x80` (silence) when the first
+  sample is low. Send a block that starts low and confirm nothing is parsed as
+  a command.
+- **`AG0nn;` (volume 00–31) and `GTn;` (gain 0 off / 1 on / 2 DIGI) are
+  accepted, unanswered and unstored** — check the radio does not answer `?;`
+  and that the level/AGC actually changes. `GT2` is the DIGI setting nG's notes
+  ask for on FT8.
+- **`UA2;` switches the radio's own speaker off** while streaming (`UA1;` keeps
+  it on); 2.00x had only `UA1;`.
+
+If a script is added for these, keep the dummy load on: they key the radio.
