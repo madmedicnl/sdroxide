@@ -136,6 +136,53 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
    `xoolive` is adding filename-inferred `--center-freq`. pvanderp can record
    a dozen other Dutch ensembles if 12C does not exercise what comes next.
 
+**Eight more listening tools, audited from OpenHamClock 2026-09-22.** A
+pass over [`accius/openhamclock`](https://github.com/accius/openhamclock)
+(MIT) found that the two projects have largely converged — cluster/POTA/SOTA/
+PSKReporter/RBN/WSPR/FreeDV spots, the broadcast table, the full space-weather
+shelf (N0NBH band conditions, ionosonde MUF, Kp forecast, aurora, CME/flare
+impact), SGP4 satellites, `cty.dat`, public-SDR directories and audible alerts
+are all already ours. The remainder worth adapting, ranked for a listener and
+noted for 11 m:
+
+1. **Band-opening detector** (OpenHamClock `bandOpenings.js` — pure analysis:
+   short 15-min vs 3-h baseline rates per band × continent-pair, ≥3× surge,
+   ≥5 distinct calls, opening→active→closing hysteresis). Feed it the spot
+   streams we already hold and a listener gets "20 m into VK just opened"; feed
+   it our own FT8/WSJT-CB decodes and the CB skip-watcher gets "11 m into
+   Southern Europe opening" **— relevant to both halves.** General-purpose:
+   upstream-first. **Started.**
+2. **Gray line on the flat maps.** The terminator lives only inside the 3D
+   solar scene today; the world/prop maps should shade night and twilight from
+   the `ephem` we already have (their `terminator.js` is Leaflet glue, not
+   portable; their feature, our implementation). Grey-line windows on the low
+   bands; 11 m grey-line and trans-equatorial skip are real.
+3. **Meteor-shower calendar** (their `meteorShowers.js`): IMO list + radiant
+   alt/az (RA/Dec vs GMST — we already compute both). When to listen for
+   meteor scatter; 11 m does MS and long-delay echoes for real. Cheap static
+   data.
+4. **Space-weather trends + solar-cycle chart** (their `swpc-trends.js` /
+   `solarCycle.js`): we keep current values only, no history series anywhere.
+   Binned 24-h sparklines of solar wind/Bz/protons and an observed-SSN vs
+   prediction "where are we in the cycle" chart. 11 m skip follows flux the
+   same way 10 m does.
+5. **Local time at the target** (their `geo-time.js`): the schedule and SWL
+   log show UTC only; listeners plan in the broadcaster's evening. Needs a
+   small timezone table keyed by lat/lon.
+6. **D-RAP absorption map** (SWPC's D-region grid, their `useDRAP.js` layer):
+   why the low bands are dead at noon, and X-ray events. Lower 11 m value (a
+   skip band), but daytime local absorption is real.
+7. **IBP beacon checker** (their `ibp.js`): the NCDXF/IARU 18-beacon, 5-band
+   (14.100/18.110/21.150/24.930/28.200) 3-minute deterministic sequence,
+   hears → path open. **10 m included** — and 28.2 MHz is the closest beacon
+   proxy for 11 m conditions the amateur bands offer, which makes this more
+   than a ham curiosity. Same pattern can later carry an 11 m beacon watch
+   table.
+8. **Azimuthal map** (their `azimuthalCRS.js`): a QTH-centred equidistant
+   projection, with the bearing math we already have, for directional and
+   portable listening — and it pairs with #1 to show which *azimuth* is
+   opening.
+
 ## Phase 4 — polish
 
 - **Say why the dial is not the frequency you picked.** Several modes tune
