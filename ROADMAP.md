@@ -128,7 +128,9 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
   the only part worth starting before the library/binary question is answered,
   and it needs a real off-air capture** (DAB is not decodable from a synthetic
   signal in any useful way), so the first move is a capture and a scratch
-  harness, not a crate dependency.
+  harness, not a crate dependency. A listener (**pvanderp** on #483,
+  2026-09-22) offered to record off-air I/Q for this — he records via
+  SDRconnect and Qt-DAB — which is exactly the input (a) starts from.
 
 ## Phase 4 — polish
 

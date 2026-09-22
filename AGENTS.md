@@ -194,14 +194,19 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     `io_rx_input` was not the IO board's PureSignal jack, but that input is
     Hermes-Lite 2 only — the value is applied only on a Protocol 1 board with
     an LNA gain register, DDC 0 — so a Hermes/ANAN operator is told to change
-    a setting the radio has no input for and the UI does not offer. **Offered
-    upstream as draft PR #519** (branch `upstream-pr/518-puresignal-io-warn`,
-    one file, no PROTO_VERSION change). **Upstream only: not merged into the
-    fork**, deliberately, until the maintainer takes it — the fork's
-    `src/hpsdr_source.rs` still has the unconditional warning. Replied asking
-    which radio is really on the air (the title says Red Pitaya, the log says
-    ANAN-10) and what is wired back from the amplifier; nothing further until
-    that is answered.
+    a setting the radio has no input for and the UI does not offer. **Taken
+    upstream on the 2026-09-20 merge** (`29ed7539`, direct commit — the fork
+    had offered it as draft PR #519, branch
+    `upstream-pr/518-puresignal-io-warn`), so the fork's copy is upstream's
+    canonical form: the warning is now gated on `board.has_io_board()`, and
+    the info line carries the real guidance — the first receiver is the
+    feedback path, a coupler into RX2/ADC2 cannot lock the loop (issue #510).
+    **2026-09-22:** the reporter (it is a Red Pitaya, not an ANAN) bridged
+    the coupler into RX1 and the loop now locks (~0.9 dB, 75 % correction) —
+    confirming the model; he floated "make RX2 work for PS", which is the
+    RX2/ADC2-as-feedback feature scoped on #510 (Protocol 1 streams one ADC;
+    the backend would need a two-ADC mode and a feedback-source choice), no
+    hardware here to verify against.
   - `dividebysandwich/sdroxide#503` — the fork's RADE receive-reporting fix,
     for upstream issue **#502**. Two things: the RADE panel never drew the
     callsign decoded from the End-of-Over frame (it was in `DigiStatus::dx_call`
@@ -248,12 +253,17 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     `viuer`/`tinyaudio`/`clap`/**`desperado`** (rtlsdr/airspy/hackrf front ends
     we do not want) and `tokio` in full. The reusable part is the DSP + FIC/MSC
     state machine; extracting it from an async app that owns its own radio and
-    terminal is the work, and it is **not costed** — the crate question decides
-    whether this is a small integration or a port. DAB Mode I needs the full
-    **1.536 MHz** / ~2.048 Msps, a wideband lane like ADS-B's rather than the
-    12 kHz `on_rx_iq` tap. No code, no commitment; still the maintainer's call.
-    Interest re-confirmed 2026-09-21 (a `+1` and a comment on the issue), so
-    the demand is real but the size is unknown.
+    terminal is the work. **The crate question is largely answered: the author
+    (`xoolive`) said on the issue (2026-09-21) he does not mind splitting
+    `dabradio` into a library plus a thin executable, and is himself decoding
+    HD Radio with an eye to a shared lib for both DAB and NRSC-5.** The work is
+    still **not started and not costed** (the split is the author's to do;
+    nothing commits him). DAB Mode I needs the full **1.536 MHz** /
+    ~2.048 Msps, a wideband lane like ADS-B's rather than the 12 kHz `on_rx_iq`
+    tap. No code, no commitment; still the maintainer's call. Interest
+    re-confirmed 2026-09-21/22 — a `+1`, and **pvanderp offered to record
+    off-air I/Q for validation** (unknown size, but the demand and now the test
+    material are real).
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
