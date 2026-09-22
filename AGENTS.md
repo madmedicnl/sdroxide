@@ -582,6 +582,22 @@ tagged release rather than at last week's build.
 
 - Keep changes listener-first: when a choice is between a ham workflow and a
   listening one, this fork takes the listening one.
+- **Assume a beginner, and never leave them guessing why nothing happened.**
+  The fork's listeners include people who will not know what an option does or
+  why a number looks wrong, and the freedom to explore is the point — so the
+  target is not to *remove* options but to make each one impossible to
+  misread. A control that can silently do nothing, or a displayed value that
+  disagrees with what the operator just chose, is a bug in this fork even when
+  the underlying behaviour is correct. Make the state say itself: name *which*
+  thing is off (`DECODING` / `DECODING OFF`, not `RUNNING` / `OFF`), explain a
+  deliberate offset where the two numbers are (`carrier 4610.0 · dial 4608.1
+  kHz (USB −1.9k)`), and put the fix next to the symptom (the amber "press
+  LISTEN above" line). The worked examples, all from issue reports, are the
+  HFDL off-state and dial-vs-channel fixes and the WEFAX carrier note (all
+  2026-09-21/22); the general form of the last is scoped in `ROADMAP.md` under
+  Phase 4. "Simple UI" *hides* advanced chips and SWL mode *hides transmit*;
+  neither is a substitute for this — error-proofing is what lets a beginner
+  explore in either.
 - Do not touch the vendored subtrees (`vendor/`) except to update a submodule.
 - Native-only crates (`-drm`, `-nrsc5`, `-faad2`, the USB drivers, …) must never
   become dependencies of a wasm-targeted crate.
