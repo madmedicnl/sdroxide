@@ -132,6 +132,19 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
 
 ## Phase 4 — polish
 
+- **Say why the dial is not the frequency you picked.** Several modes tune
+  *off* the dial on purpose — radiofax 1.9 kHz below a published carrier (USB),
+  CW a sidetone-pitch up, RTTY its tone pair — and the dial is the only number
+  an operator watches, so it reads as a fault when it disagrees with the chip
+  they just clicked. #527 is the radiofax case ("GYA 4610 → dial 4608.1"); #497
+  was the opposite (the dial never followed at all). **Partly done:** the WEFAX
+  panel now pairs the two numbers in its header (`carrier 4610.0 · dial 4608.1
+  kHz (USB −1.9k)`), which fixes the reported case. **Still open, and general:**
+  a short offset annotation at the frequency readout itself, fed by each mode's
+  existing `Mode::on_air_hz` / `tunes_off_dial`, so every mode gets it from one
+  mechanism rather than a per-panel fix. The readout is a shared widget, so this
+  is an **upstream** offer, not a fork one — the fork's per-panel note is a stop
+  until upstream carries the general form.
 - **UTC first**: **UTC clock** in the SCHEDULE and LISTEN windows, where a
   listener works. A general "UTC everywhere" pass is still open.
 - **Utility labels**: **Done** — a built-in table (time signals WWV/WWVH, CHU,
