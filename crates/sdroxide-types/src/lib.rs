@@ -12,6 +12,7 @@ mod atchat;
 pub mod auto;
 mod awards;
 mod band;
+pub mod band_openings;
 mod band_segments;
 mod bandplan;
 pub mod broadcast;
@@ -103,6 +104,9 @@ pub use awards::{
     compute_awards, counts, coverage_counts, entity_coverage, entity_name,
 };
 pub use band::Band;
+pub use band_openings::{
+    BandOpening, BandOpeningTracker, BandOpeningStats, BandPath, OpenOptions, OpeningState,
+};
 pub use band_segments::{
     APRS_DIALS, DigiChannel, DigiPreset, FSQ_DIALS, FT2_DIALS, FT4_DIALS, FT8_DIALS,
     FT8_DXPED_DIALS, FT8_VHF_DIALS, JS8_DIALS, PSK_DIALS, PSK_RANGES_R1, PSK_RANGES_R23,

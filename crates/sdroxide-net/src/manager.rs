@@ -10,7 +10,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crossbeam_channel::Receiver;
 use sdroxide_types::{
-    NetworkConfig, Spot, SpotKind, UploadResult, UploadTarget, WsprSpot, grid_to_latlon,
+    Band, BandOpening, BandOpeningTracker, BandPath, NetworkConfig, Spot, SpotKind, UploadResult,
+    UploadTarget, WsprSpot, grid_to_latlon, resolve_callsign,
 };
 
 use crate::cluster::ClusterHandle;
@@ -35,6 +36,17 @@ pub struct SpotManager {
     /// Latest spots per feed kind (each feed replaces its own set).
     by_kind: HashMap<SpotKind, Vec<Spot>>,
     last_snapshot: Vec<Spot>,
+    /// Band-opening analysis over the feeds' raw spots (the 3-hour baseline is
+    /// longer than the display age, so this ingests the un-pruned sets), plus
+    /// any evidence pushed in by [`SpotManager::feed_openings`].
+    band_openings: BandOpeningTracker,
+    last_band_openings: Vec<BandOpening>,
+    /// Set when evidence arrived outside a feed cycle, so the next poll runs
+    /// the analysis even when no feed spoke.
+    feed_dirty: bool,
+    /// Callsign → continent memo, so the per-poll continent lookup over a few
+    /// thousand spots stays cheap.
+    continent_memo: HashMap<String, Option<&'static str>>,
     /// Current dial frequency (Hz) as bits, shared with the PSK feed.
     dial_bits: Arc<AtomicU64>,
 
@@ -102,6 +114,10 @@ impl SpotManager {
             event_rx,
             by_kind: HashMap::new(),
             last_snapshot: Vec::new(),
+            band_openings: BandOpeningTracker::new(),
+            last_band_openings: Vec::new(),
+            feed_dirty: false,
+            continent_memo: HashMap::new(),
             dial_bits: Arc::new(AtomicU64::new(14_074_000f64.to_bits())),
             cluster: None,
             rbn: None,
@@ -431,9 +447,42 @@ impl SpotManager {
             got_feed = true;
         }
         let mut out: Vec<NetEvent> = self.event_rx.try_iter().collect();
-        // Recompute the snapshot when feeds changed (also catches age-outs on
-        // the periodic polls, since feeds re-send their full set on each cycle).
-        if got_feed || out.iter().any(|e| matches!(e, NetEvent::Status(_))) {
+        if got_feed || self.feed_dirty || out.iter().any(|e| matches!(e, NetEvent::Status(_))) {
+            self.feed_dirty = false;
+            let now = now_utc();
+            // The band-opening analysis ingests the feeds' own sets — not the
+            // age-pruned snapshot — because its 3-hour baseline outlives the
+            // display age. Ids are stable, so re-sending the full set each
+            // cycle is a no-op for everything already seen.
+            let mut paths: Vec<BandPath> = Vec::new();
+            let kinds: Vec<Vec<Spot>> = self.by_kind.values().cloned().collect();
+            for spots in &kinds {
+                for s in spots {
+                    let band = Band::containing(s.freq_hz);
+                    if !band.is_amateur() || s.call.is_empty() || s.spotter.is_empty() {
+                        continue;
+                    }
+                    let from = self.continent(&s.call);
+                    let to = self.continent(&s.spotter);
+                    let (Some(from), Some(to)) = (from, to) else { continue };
+                    paths.push(BandPath {
+                        call: s.call.clone(),
+                        band,
+                        from_continent: from,
+                        to_continent: to,
+                        timestamp: s.when_utc,
+                        id: Some(s.id.to_string()),
+                    });
+                }
+            }
+            self.band_openings.ingest(&paths, now);
+            let openings = self.band_openings.analyze(now);
+            if openings != self.last_band_openings {
+                self.last_band_openings = openings.clone();
+                out.push(NetEvent::BandOpenings(openings));
+            }
+            // Recompute the snapshot when feeds changed (also catches age-outs on
+            // the periodic polls, since feeds re-send their full set on each cycle).
             let snap = self.snapshot();
             if snap != self.last_snapshot {
                 self.last_snapshot = snap.clone();
@@ -441,6 +490,25 @@ impl SpotManager {
             }
         }
         out
+    }
+
+    /// Continent code for a callsign, memoised.
+    fn continent(&mut self, call: &str) -> Option<&'static str> {
+        if let Some(c) = self.continent_memo.get(call) {
+            return *c;
+        }
+        let c = resolve_callsign(call).map(|i| i.continent);
+        self.continent_memo.insert(call.to_string(), c);
+        c
+    }
+
+    /// Push path evidence that did not come from a spot feed — today the 11 m
+    /// WSJT-CB decodes, which reach the engine directly rather than through
+    /// [`SpotManager::set_config`]. The evidence is ingested and the analysis
+    /// runs on the next [`SpotManager::poll`].
+    pub fn feed_openings(&mut self, paths: Vec<BandPath>, now: i64) {
+        self.band_openings.ingest(&paths, now);
+        self.feed_dirty = true;
     }
 
     /// Force a fresh snapshot emit on the next poll (e.g. after age-out).
@@ -833,7 +901,7 @@ mod tests {
         assert_eq!(m.report_call(), "19DCG373", "cleared again: back to the callsign");
     }
 
-    /// A receive-only listener has no callsign at all; the number alone is
+/// A receive-only listener has no callsign at all; the number alone is
     /// enough to be a receiver in the reporting networks.
     #[test]
     fn a_listener_with_no_callsign_still_has_a_report_identity() {
@@ -845,5 +913,34 @@ mod tests {
         cfg.swl_id = "19SWL001".into();
         m.set_config(cfg);
         assert_eq!(m.report_call(), "19SWL001");
+    }
+
+    /// 11 m WSJT-CB decodes reach the detector directly — there is no cluster
+    /// or PSK-Reporter feed on the citizens' band — and a burst of them must
+    /// surface on the very next poll as an `M11` opening.
+    #[test]
+    fn fed_eleven_metre_paths_surge_the_detector_on_the_next_poll() {
+        let mut m = SpotManager::new();
+        let now = now_utc();
+        let paths: Vec<BandPath> = (0..8)
+            .map(|i| BandPath {
+                call: format!("JA{}ABCD", i % 10),
+                band: Band::M11,
+                from_continent: "AS",
+                to_continent: "EU",
+                timestamp: now - 60 - (i % 10) * 60,
+                id: Some(format!("11m|JA{}ABCD|{i}", i % 10)),
+            })
+            .collect();
+        m.feed_openings(paths, now);
+        let openings = m.poll().into_iter().find_map(|e| match e {
+            NetEvent::BandOpenings(o) => Some(o),
+            _ => None,
+        });
+        let openings = openings.expect("fed evidence must be analysed on the next poll");
+        assert_eq!(openings.len(), 1);
+        assert_eq!(openings[0].band, Band::M11);
+        assert_eq!(openings[0].to_continent, "EU");
+        assert_eq!(openings[0].state, sdroxide_types::OpeningState::Opening);
     }
 }

@@ -848,6 +848,8 @@ pub struct SdroxideApp {
     // ── Network cockpit (spots / lookup / uploads) ──
     /// Latest merged network spots (DX cluster / POTA / SOTA / PSK Reporter).
     spots: Vec<Spot>,
+    /// Live band-opening detections (band × continent path surges).
+    band_openings: Vec<sdroxide_types::BandOpening>,
     /// Latest feed/connection status line (cluster state, feed errors).
     net_status: Option<String>,
     /// Bumped whenever `spots` or `net_status` changes, so the multi-radio
@@ -1613,7 +1615,8 @@ impl SdroxideApp {
             show_logbook: false,
             mail: winlink::MailUi::default(),
             log_edit: None,
-            spots: Vec::new(),
+spots: Vec::new(),
+            band_openings: Vec::new(),
             net_status: None,
             spots_gen: 0,
             adopted_spots_gen: None,

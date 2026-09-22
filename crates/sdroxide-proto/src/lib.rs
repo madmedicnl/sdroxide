@@ -1457,7 +1457,13 @@ use sdroxide_types::{
 /// overlay itself is a client view toggle, not a config field: the engine
 /// polls the reports whenever the PSK feed is on, and the client decides
 /// whether to draw them. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 166;
+///
+/// v167: live band-opening detections, `ServerMsg::BandOpenings` on
+/// `ServerMsg::Spots`'s tail (no surviving discriminant moves). Like every
+/// network update it is relay, not handshake, so a v166 peer simply never
+/// learns about openings — but the added variant shifts the message stream's
+/// encoding, hence the bump. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 167;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -1658,6 +1664,9 @@ pub enum ServerMsg {
     VoiceStatus(VoiceStatus),
     // Network cockpit.
     Spots(Vec<Spot>),
+    /// Live band-opening detections, appended on `Spots`'s tail like the
+    /// network updates it accompanies.
+    BandOpenings(Vec<sdroxide_types::BandOpening>),
     NetStatus(Option<String>),
     CallsignResult(CallsignInfo),
     Upload(UploadResult),
