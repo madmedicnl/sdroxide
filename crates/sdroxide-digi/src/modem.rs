@@ -10,6 +10,28 @@ use sdroxide_types::{Decode, Mode};
 
 use crate::params::{AUDIO_MAX_HZ, AUDIO_MIN_HZ};
 
+/// Whether a callsign field in a decoded 77-bit message is acceptable to
+/// the whole gate — an 11 m identifier ([`sdroxide_types::is_cb_callsign`])
+/// or a call the codec's own per-field verdict already passes ([`wsjt77::is_plausible_call`],
+/// the `CQ`/`DE`/`QRZ` and `<...>` tags included).
+///
+/// Handed to mfsk-core's field-based decode hook
+/// (`DecodeRequest::also_accept`, jl1nie/mfsk-core#386): the stock FT8
+/// per-field gate refuses a CB-shaped call such as "26AT715", which
+/// drops the whole line, so we widen it. The hook yields only the
+/// callsign fields, so a grid or a report never reaches the grammar.
+fn is_cb_compatible_call(call: &str) -> bool {
+    wsjt77::is_plausible_call(call) || sdroxide_types::is_cb_callsign(call)
+}
+
+/// Whether a callsign may be packed or hashed — an 11 m identifier or a
+/// call the codec's validator accepts. The mfsk-core fork used to widen
+/// `is_valid_callsign` itself for CB identifiers; the union is that same
+/// widening, kept at the call sites that have to decide.
+fn is_packable_call(call: &str) -> bool {
+    wsjt77::is_valid_callsign(call) || sdroxide_types::is_cb_callsign(call)
+}
+
 const SYNC_MIN: f32 = 1.5;
 /// How many sync candidates a slot's decode is allowed to try.
 ///
@@ -199,6 +221,9 @@ impl Ft8Modem {
                 MAX_CAND,
             )
             .osd(true)
+            // Same CB widening as the FT8 pass below (mfsk-core#386): FT4
+            // carries a message policy through the generic pipeline too.
+            .also_accept(|m| m.callsigns().all(is_cb_compatible_call))
             .decode()
             .results
             .into_iter()
@@ -237,7 +262,11 @@ impl Ft8Modem {
                     SYNC_MIN,
                     MAX_CAND,
                 )
-                .osd(true);
+                .osd(true)
+                // Widen the per-call plausibility gate to the 11 m callsign
+                // grammar (see is_cb_compatible_call) — upstream's FT8 decoder
+                // has no allowlist entry for a CB-shaped call.
+                .also_accept(|m| m.callsigns().all(is_cb_compatible_call));
                 let req = match hint.as_ref() {
                     Some(h) => req.ap_hint(h),
                     None => req,
@@ -257,17 +286,26 @@ impl Ft8Modem {
         // describes — and keep whatever it finds that the wide pass missed.
         if mode == Mode::Ft4 {
             if let Some(hint) = ap.ft4() {
-                let extra =
-                    DecodeRequest::<mfsk_core::Ft4>::sniper(audio_12k, listening_hz, MAX_CAND)
-                        // The threshold the old `decode_sniper_ap` entry point applied
-                        // for us, and looser than the sniper default: with the hint's
-                        // bits locked the FEC can carry a candidate whose coarse sync
-                        // would never qualify on its own.
-                        .sync_min(0.5)
-                        .osd(true)
-                        .eq_mode(mfsk_core::engine::equalize::EqMode::Off)
-                        .ap_hint(&hint)
-                        .decode()
+                let extra = DecodeRequest::<mfsk_core::Ft4>::new(
+                    audio_12k,
+                    // mfsk-core 0.11 made the sniper FT8-only (FT4's
+                    // `decode_sniper_ap` is gone), so the targeted pass is
+                    // rebuilt on the wide-band request with the sniper's
+                    // ±250 Hz aperture.
+                    listening_hz - 250.0,
+                    listening_hz + 250.0,
+                    // The threshold the old `decode_sniper_ap` entry point applied
+                    // for us, and looser than the wide pass's: with the hint's
+                    // bits locked the FEC can carry a candidate whose coarse sync
+                    // would never qualify on its own.
+                    0.5,
+                    MAX_CAND,
+                )
+                .osd(true)
+                .eq_mode(mfsk_core::engine::equalize::EqMode::Off)
+                .ap_hint(&hint)
+                .also_accept(|m| m.callsigns().all(is_cb_compatible_call))
+                .decode()
                         .results
                         .into_iter()
                         .filter_map(|r| {
@@ -277,33 +315,6 @@ impl Ft8Modem {
                         .filter(|d| !decodes.iter().any(|o| same_signal(o, d)))
                         .collect::<Vec<_>>();
                 decodes.extend(extra);
-            }
-        }
-        // The EU VHF contest exchange, which mfsk-core's FT8 decoder drops
-        // inside itself — see [`crate::ft8_eu`] for why there is nothing to
-        // filter and no hook to catch it with (issue #223). A second pass over
-        // the same slot, run only with the contest selected because it costs
-        // about what the first one does, and one that can only ever return the
-        // `i3 = 5` layout the first pass is structurally unable to produce.
-        //
-        // FT8 alone. FT4 and FT2 go through a pipeline that never unpacks and
-        // so never drops the layout; that is exactly why the exchange was
-        // reported working there and nowhere else.
-        if ap.eu_vhf && !matches!(mode, Mode::Ft4 | Mode::Ft2) {
-            let rescued = crate::ft8_eu::decode_slot(
-                audio_12k,
-                AUDIO_MIN_HZ,
-                AUDIO_MAX_HZ,
-                SYNC_MIN,
-                MAX_CAND,
-            );
-            for r in rescued {
-                if let Some(d) =
-                    build_decode(&r.msg77, r.snr_db, r.dt_sec, r.freq_hz, slot_utc, ht, eu)
-                    && !decodes.iter().any(|o| same_signal(o, &d))
-                {
-                    decodes.push(d);
-                }
             }
         }
         // Remember who we heard, for the next slot's hashed messages.
@@ -473,7 +484,7 @@ fn pack_message(text: &str) -> Option<([u8; 77], String)> {
     let nonstd_second = !c2.is_empty() && !wsjt77::is_standard_callsign(c2);
     if nonstd_first != nonstd_second {
         let (nonstd, std_call) = if nonstd_first { (c1, c2) } else { (c2, c1) };
-        if wsjt77::is_valid_callsign(nonstd) && wsjt77::is_standard_callsign(std_call) {
+        if is_packable_call(nonstd) && wsjt77::is_standard_callsign(std_call) {
             if let Some(mut m) = wsjt77::pack77_type4(nonstd, std_call, rpt, false) {
                 // Bit 70 (`iflip`) decides which call is read first. mfsk-core
                 // always hashes-first, which is the layout for *being* the
@@ -557,7 +568,7 @@ fn pack77_hashed(c1: &str, c2: &str, payload: &str) -> Option<([u8; 77], String)
     // payloads ride too: those are all a pair of hashes leaves room for anyway,
     // and no third amateur station is listening to prefer a spelled form.
     if h1 && h2 {
-        if !wsjt77::is_valid_callsign(b1) || !wsjt77::is_valid_callsign(b2) {
+        if !is_packable_call(b1) || !is_packable_call(b2) {
             return None;
         }
         const STAND_IN: &str = "K1ABC";
@@ -585,7 +596,7 @@ fn pack77_hashed(c1: &str, c2: &str, payload: &str) -> Option<([u8; 77], String)
         return None;
     }
     let (hashed, spelled) = if h1 { (b1, b2) } else { (b2, b1) };
-    if !wsjt77::is_valid_callsign(hashed) || !wsjt77::is_standard_callsign(spelled) {
+    if !is_packable_call(hashed) || !wsjt77::is_standard_callsign(spelled) {
         return None;
     }
     // Packed with a stand-in where the hash goes and then overwritten, rather
@@ -1392,13 +1403,12 @@ mod tests {
     /// The exchange has to survive the air in FT8, not merely a round trip
     /// through the packer (issue #223).
     ///
-    /// This is the regression the reporter found on room audio: mfsk-core's FT8
-    /// decoder finishes every candidate with an `unpack77` that has no `i3 = 5`
-    /// arm, so a contest exchange that decoded perfectly well was thrown away
-    /// *inside* the decoder and no exchange ever reached the QSO machine. FT4
-    /// and FT2 go through a pipeline that never unpacks, which is why they
-    /// worked. So the assertion is specifically about FT8, and specifically
-    /// about a modulated slot rather than a bitstream.
+    /// Issue #223 was mfsk-core's FT8 decoder finishing every candidate with an
+    /// `unpack77` that had no `i3 = 5` arm, so a contest exchange was thrown
+    /// away inside the decoder. mfsk-core 0.11's field-based plausibility
+    /// filter (jl1nie/mfsk-core#386) replaced the text-based one that did the
+    /// dropping, so the layout decodes natively now and the `ft8_eu` rescue
+    /// pass is gone; the test lives on as the regression pin.
     #[test]
     fn an_ft8_contest_exchange_survives_being_transmitted() {
         let modem = Ft8Modem::new(Mode::Ft8);
@@ -1416,31 +1426,24 @@ mod tests {
         let mut rx = Ft8Modem::new(Mode::Ft8);
         rx.seed_hashes(&["PA9XYZ".into(), "G4ABC/P".into()]);
 
-        // Without the contest selected, this is what the report describes:
-        // nothing at all comes back, because the decoder discards the layout.
+        // The exchange arrives, whole, straight from the FT8 decoder. mfsk-core
+        // 0.11's field-based plausibility filter no longer drops the `i3 = 5`
+        // layout (jl1nie/mfsk-core#386 replaced the text-based filter that did);
+        // the dedicated `ft8_eu` rescue pass this test used to rely on is gone.
         let off = rx.decode_slot(&buf, 0, &ApHints::default(), 1500.0);
-        assert!(
-            !off.iter().any(|d| d.message.contains("590003")),
-            "mfsk-core's FT8 decoder is expected to drop i3 = 5 — if this ever \
-             stops being true the rescue pass can go",
-        );
-
-        // With it, the exchange arrives, whole.
-        let ap = ApHints { eu_vhf: true, ..Default::default() };
-        let got = rx.decode_slot(&buf, 0, &ap, 1500.0);
-        let d = got
+        let d = off
             .iter()
             .find(|d| d.message.contains("590003"))
-            .unwrap_or_else(|| panic!("the exchange did not decode; got {got:?}"));
+            .unwrap_or_else(|| panic!("the exchange did not decode; got {off:?}"));
         assert_eq!(d.message, "<PA9XYZ> <G4ABC/P> R 590003 IO91NP");
         assert_eq!(d.to.as_deref(), Some("PA9XYZ"), "and it is addressed to the right station");
         assert_eq!(d.from.as_deref(), Some("G4ABC/P"));
         assert!((d.audio_hz - 1500.0).abs() < 5.0, "at the offset it was sent on");
     }
 
-    /// The rescue pass may only ever *add* the one layout the primary decode
-    /// cannot return. An ordinary message must come back exactly once, and
-    /// come back whether or not the contest is selected.
+    /// The EU VHF contest flag must not change what an ordinary slot returns.
+    /// An ordinary message comes back exactly once, whether or not the contest
+    /// is selected.
     #[test]
     fn the_contest_pass_does_not_disturb_ordinary_decodes() {
         let modem = Ft8Modem::new(Mode::Ft8);
@@ -1724,18 +1727,76 @@ mod tests {
         assert_eq!(d.from.as_deref(), Some("26AT715"));
     }
 
-    /// A CB callsign is a valid, plausible callsign to the validator the whole
-    /// FT8 decoder gates on (now true in the mfsk-core fork); without that the
-    /// free-text report "25TT304 -07" and spelled CQ are silently dropped by
-    /// the CRC-14 filter, as the nonstandard *layout* messages already were
-    /// before the fork.
+    /// A CB callsign is refused by upstream's stock validators, which is
+    /// what this crate's mfsk-core fork pin used to patch. Since 0.11 the
+    /// CB grammar lives here and widens the FT8/FT4 decode gate per call
+    /// through the field-based hook (`DecodeRequest::also_accept`,
+    /// mfsk-core#386): a message passes when every callsign field is
+    /// acceptable to the codec's own per-field verdict or is CB-shaped.
+    /// A grid or a report never reaches the grammar, because the hook
+    /// yields callsign fields only.
     #[test]
-    fn cb_calls_pass_the_plausibility_gate() {
-        assert!(wsjt77::is_valid_callsign("26AT715"));
-        assert!(wsjt77::is_plausible_callsign("26AT715"));
-        assert!(wsjt77::is_valid_callsign("1AT106"));
-        assert!(wsjt77::is_valid_callsign("999ZZ/ZZ"));
-        assert!(!wsjt77::is_standard_callsign("26AT715"));
+    fn cb_calls_pass_the_decode_gate() {
+        // 26AT715 has no ITU-amateur prefix number, so the stock validators
+        // have no opinion that the fork used to supply.
+        assert!(!wsjt77::is_valid_callsign("26AT715"));
+        assert!(!wsjt77::is_plausible_callsign("26AT715"));
+        // The union: 11 m identifiers pass, and so do everything the codec's
+        // own per-field verdict already passes — the CQ/DE/QRZ and `<...>`
+        // tags that ride in the callsign fields, and ordinary amateur calls.
+        assert!(is_cb_compatible_call("26AT715"));
+        assert!(is_cb_compatible_call("1AT106"));
+        assert!(is_cb_compatible_call("999ZZ/ZZ"));
+        assert!(is_cb_compatible_call("CQ"));
+        assert!(is_cb_compatible_call("CQ DX"));
+        assert!(is_cb_compatible_call("<25TT304>"));
+        assert!(is_cb_compatible_call("PA3XYZ"));
+        // A callsign the ITU allowlist rejects and CB grammar refuses — the
+        // crate's own documented CRC survivor "CQ G47OXF RD84" — still can't
+        // get through the union.
+        assert!(!is_cb_compatible_call("G47OXF"));
+        assert!(!sdroxide_types::is_cb_callsign("G47OXF"));
+        assert!(wsjt77::is_plausible_call("PA3XYZ"));
+        assert!(!wsjt77::is_plausible_call("G47OXF"));
+        assert!(!wsjt77::is_plausible_call("26AT715"));
+
+        use mfsk_core::msg::wsjt77::Wsjt77Fields;
+        // The whole gate, base verdict or our widening — the same
+        // `base || predicate` the hook and the codec combine into.
+        let accept = |m: &Wsjt77Fields| m.is_plausible() || m.callsigns().all(is_cb_compatible_call);
+        // A CQ to a CB call, and a CB-only pair, both hashed when sent.
+        assert!(accept(&Wsjt77Fields::Standard {
+            call1: "CQ".into(),
+            call2: "26AT715".into(),
+            exchange: String::new(),
+        }));
+        assert!(accept(&Wsjt77Fields::Standard {
+            call1: "26AT715".into(),
+            call2: "25TT304".into(),
+            exchange: "R-07".into(),
+        }));
+        assert!(accept(&Wsjt77Fields::Nonstandard {
+            call1: "26AT715".into(),
+            call2: Some("25TT304".into()),
+            exchange: "RR73",
+        }));
+        assert!(accept(&Wsjt77Fields::Nonstandard {
+            call1: "CQ".into(),
+            call2: Some("<25TT304>".into()),
+            exchange: "RR73",
+        }));
+        // A stock call in the pair is the codec's own verdict, not ours.
+        assert!(accept(&Wsjt77Fields::Standard {
+            call1: "PA3XYZ".into(),
+            call2: "26AT715".into(),
+            exchange: "RR73".into(),
+        }));
+        // The phantom the crate's allowlist exists to catch still lands.
+        assert!(!accept(&Wsjt77Fields::Standard {
+            call1: "CQ".into(),
+            call2: "G47OXF".into(),
+            exchange: "RD84".into(),
+        }));
     }
 
     // ── the sensitivity sweep ───────────────────────────────────────────────
