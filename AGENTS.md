@@ -57,17 +57,21 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   ourselves saves the round trip. Anything with a `PROTO_VERSION` bump, a new
   decoder, a resampler or a transmit-path change is in the "isolate it" group.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at **160**, the fork at **167**. The fork's extras are the listener
-  identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
+  upstream is at **164**, the fork's `main` at **166** (the band-openings
+  branch, awaiting an upstream PR, is one ahead at **167**). The fork's extras
+  are the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
-  additions through v167 — the register's full story is documented in
+  additions through v166 — the register's full story is documented in
   `crates/sdroxide-proto/src/lib.rs`. Upstream's v157/158 (SSTV styling and
   the (tr)uSDX family), **v159 (NR2's three `NrLevel` variants)** and **v160
   (`CwStatus::rig_keys_itself`)** are folded in; taking them shifted the fork's
-  own entries above to 161–167. When merging, keep the number ahead of
-  upstream's and fold its new entries in rather than dropping them — the
-  2026-09-20 merge is the worked example (NR2 and `rig_keys_itself` inserted
-  under the fork's register and everything above renumbered).
+  own entries above them. Fork-only on top of that: **v165**
+  (`RadioConfig::auto_idle_stop_min`, the auto-mode inactivity stop) and
+  **v166** (`SpotKind::HeardMe`, the "who heard me" overlay), both appended.
+  When merging, keep the number ahead of upstream's and fold its new entries in
+  rather than dropping them — the 2026-09-20 merge is the worked example (NR2
+  and `rig_keys_itself` inserted under the fork's register and everything above
+  renumbered).
 - Watch list:
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46
@@ -138,8 +142,31 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     fork (rate fix `6809a68f`, wording `847423c3`) and offered as **PR #524**
     (branch `upstream-pr/497-hfdl-rate`, rebased on `upstream/main`). The rate
     fix is confirmed on real hardware (an RSP1A at 2.000 Msps, 47 decodes, 2
-    aircraft) — do not drop it from the fork while #524 is open, and if he
-    merges it, drop the fork's copy on the next merge.
+    aircraft) — it was merged upstream on 2026-09-22, so the fork's copies
+    dropped out with no net change on that merge.
+  - **The 2026-09-22 merge (`0a417ab8`) took #524 and #532 upstream, and
+    brought the nightly builds.** Ten upstream commits since `661bd0ab`: the
+    **REC preset-lit refinement** (`8293d05a`, on the `recording_stop_at`
+    deadline the fork had already merged as #532) and **#524**'s HFDL rate fix
+    and DECODING OFF wording — the latter two were already the fork's own
+    code, so `engine.rs` merged byte-identically and nothing dropped. New to
+    the fork: **nightly builds and the `sdroxide-version` stamp crate**
+    (`762eca62`, `02fa526f`) and dielectric-coder's **#531 worldmap
+    seam-streak fix**. The fork's own **"Remove the sdroxide.com update
+    check"** (`c01d27bc`) is **kept**: the merge base and upstream both carry
+    the update banner, so the resolution had to drop upstream's newer wording
+    rather than reintroduce it — the one file where "take upstream" is wrong.
+  - `dividebysandwich/sdroxide#537` — **the band-opening detector**, opened
+    2026-09-22 from `upstream/main` (branch `upstream-pr/band-openings`, based
+    on the current `upstream/main`, no 11 m feed). A pure
+    `sdroxide_types::band_openings` tracker (ported from OpenHamClock) over the
+    existing spot feeds, shown in the SPOTS window behind an `OPENINGS` chip
+    with a draggable split, relayed as `ServerMsg::BandOpenings` (v165 on that
+    branch). The **fork's C.B. side feeds the same detector its own 11 m
+    WSJT-CB decodes**, and adds the WSPRnet 403 wording — both fork-only and
+    deliberately not in the PR; they live on `fork/live-band-openings` until
+    #537's detector lands, then the fork's copy drops out and only the 11 m
+    feed and the WSPRnet wording remain.
   - **#514** (HD-on-AM, `upstream-pr/489-hd-am`) was **rebased on current
     `upstream/main` on 2026-09-21 and marked ready for review**. The earlier
     draft carried stray vendored gitlinks (`vendor/nrsc5`, `vendor/xng`), which
