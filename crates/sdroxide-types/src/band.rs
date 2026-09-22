@@ -383,8 +383,11 @@ impl Band {
             Band::Gen => None,
             // Longwave: broadcast AM, and the NDB beacons. SAM carries ECSS.
             Band::Lw => Some(&[Mode::Am, Mode::Sam, Mode::Cw]),
-            // Medium wave: AM and C-QUAM stereo, DRM, and SAM for ECSS.
-            Band::Mw => Some(&[Mode::Am, Mode::Sam, Mode::Cquam, Mode::Drm, Mode::Cw]),
+            // Medium wave: AM and C-QUAM stereo, DRM, and SAM for ECSS — plus
+            // HD Radio's AM hybrid, which shares these channels in the Americas.
+            Band::Mw => {
+                Some(&[Mode::Am, Mode::Sam, Mode::Cquam, Mode::Drm, Mode::Cw, Mode::HdRadio])
+            }
             // Shortwave: broadcast AM and DRM, and the utility services on
             // SSB/CW alongside them — including HFDL, the aircraft datalink
             // whose ground stations sit on assigned frequencies across the
@@ -398,8 +401,9 @@ impl Band {
                 Mode::Drm,
                 Mode::Hfdl,
             ]),
-            // FM broadcast: WFM, with the stereo pilot and RDS its own business.
-            Band::Fm => Some(&[Mode::Wfm]),
+            // FM broadcast: WFM, with the stereo pilot and RDS its own business
+            // — and HD Radio's FM hybrid, which shares these channels.
+            Band::Fm => Some(&[Mode::Wfm, Mode::HdRadio]),
             // The civil airband is amplitude modulated, and carries the two
             // aircraft datalinks this build decodes: VDL Mode 2 around
             // 136.8 MHz and ACARS on the 131 and 136 MHz channels.
@@ -1092,6 +1096,10 @@ mod tests {
         assert!(!Band::Fm.accepts_mode(Mode::Am));
         assert!(!Band::Fm.accepts_mode(Mode::Nfm));
         assert!(Band::Fm.accepts_mode(Mode::Wfm));
+        // HD Radio rides the broadcast channels: the FM hybrid on FM, the AM
+        // hybrid (HD-on-AM) on medium wave.
+        assert!(Band::Fm.accepts_mode(Mode::HdRadio));
+        assert!(Band::Mw.accepts_mode(Mode::HdRadio));
         assert!(Band::Air.accepts_mode(Mode::Am));
         assert!(!Band::Air.accepts_mode(Mode::Wfm));
         assert!(!Band::Mil.accepts_mode(Mode::Nfm));
