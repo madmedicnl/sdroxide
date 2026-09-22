@@ -1066,11 +1066,11 @@ them all at once.
   the level slider beside the waterfall — see
   [Waterfall level](#waterfall-level)).
 - **CTR** — keep the tuned frequency in the **middle** of the panadapter. Lit,
-  the window slides under the dial every time you tune, so the marker stays put
-  and the band scrolls past it. It is **on** for a new station, and a radio keeps
-  whichever way you leave it. With it off the window holds still and the marker
-  travels across it until the dial leaves the span, at which point the picture
-  jumps a whole window at once.
+  the window slides under the dial every time you tune **and every time you
+  zoom**, so the marker stays put and the band scrolls past it. It is **off**
+  for a new station, and a radio keeps whichever way you leave it. With it off
+  the window holds still and the marker travels across it until the dial leaves
+  the span, at which point the picture jumps a whole window at once.
 
   Zoomed in this costs nothing: the window is a viewport onto a wider captured
   span, and the receiver is never disturbed. Zoomed all the way out there is
@@ -1081,7 +1081,8 @@ them all at once.
 
   Switching CTR **on** centres at once, which is also how to ask for a one-off
   "put me back in the middle": click it on, and off again if you would rather
-  pan and zoom where you like.
+  pan and zoom where you like. A **pan** is still left where you put it — only
+  tuning and zooming bring the marker home.
 - **SKIM** — opens the skimmer popup (per-skimmer on/off and squelch); lit while
   any skimmer runs. See [Skimmers](#4-skimmers).
 - **SCAN** — opens the scanner window; lit while a scan is running, green while
