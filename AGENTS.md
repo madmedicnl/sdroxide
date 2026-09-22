@@ -36,6 +36,26 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   Building here and porting afterwards costs twice — the fork ends up with two
   lineages of one feature until the next merge, and each merge is bigger for
   it.
+- **Open upstream PRs as one idea each, split before opening.** The maintainer
+  has twice asked for a PR of ours to be split (**#507** and **#524**), and the
+  pattern is consistent: he keeps the half whose correctness he can verify by
+  reading and sets aside the half he would have to reason about or trust. In
+  #507 that was the rig-keys-itself flag versus the sidetone; in #524 the
+  `DECODING OFF`/dial UX versus a DSP resampler. So split **before** opening,
+  into:
+  - the **UX/behavioural** change (obvious-correctness) — he takes these fast;
+  - the **DSP / protocol / transmit-path** change (needs trust, or a test he
+    cannot see) — open separately, and lead with the *evidence*, not the
+    symptom: "feeding the reference capture straight into the decoder gives 1
+    event at 24 000 Hz and 0 at 25 000, deterministically" belongs in the
+    opening body, not in a reply after he pushes back.
+  Put the contested change last, or in its own PR. When a fix rests on a
+  diagnosis that is not fully proven, say so and name the experiment that would
+  settle it, rather than bundling it as settled. This is not a request to do
+  less — he merges tidy contributions quickly — and it is not a style mismatch;
+  he applies our commits verbatim. He just wants them decomposed, and doing it
+  ourselves saves the round trip. Anything with a `PROTO_VERSION` bump, a new
+  decoder, a resampler or a transmit-path change is in the "isolate it" group.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
   upstream is at **160**, the fork at **167**. The fork's extras are the listener
   identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
