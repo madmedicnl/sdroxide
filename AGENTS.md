@@ -277,7 +277,13 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     tap. No code, no commitment; still the maintainer's call. Interest
     re-confirmed 2026-09-21/22 — a `+1`, and **pvanderp offered to record
     off-air I/Q for validation** (unknown size, but the demand and now the test
-    material are real).
+    material are real). **The capture landed 2026-09-22** in
+    reply `5778225835`: a 7z-compressed raw `.cs16` of channel **12C** at a
+    **227.360 MHz** centre (SDRconnect put the rate at 2048 ksps and left a
+    ~40 kHz tune offset that the decoder has to absorb), readable by dabradio;
+    `xoolive` noted dabradio reads `.zst` directly (smaller fixture than a
+    `7z`) and is adding filename-inferred `--center-freq`. pvanderp runs a
+    dozen other Dutch ensembles if 12C does not exercise whatever comes next.
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at

@@ -121,16 +121,20 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
      `on_rx_iq` at a high rate) rather than the 12 kHz tap the other decoders
      use. The engine already has the pattern and the rates (`1_536_000.0` is a
      supported rate); a DAB lane centres on the ensemble, not on a dial.
-  **Staged, once the crate question is settled:** (a) decode an ensemble in a
-  bare test — sync, FIC, the service list — against a capture; (b) audio for
-  one service, faad2 in place of fdk-aac; (c) a `Mode::Dab` panel — the
-  ensemble/service list and the programme label, like the DRM panel's. **(a) is
-  the only part worth starting before the library/binary question is answered,
-  and it needs a real off-air capture** (DAB is not decodable from a synthetic
-  signal in any useful way), so the first move is a capture and a scratch
-  harness, not a crate dependency. A listener (**pvanderp** on #483,
-  2026-09-22) offered to record off-air I/Q for this — he records via
-  SDRconnect and Qt-DAB — which is exactly the input (a) starts from.
+**Staged, once the crate question is settled:** (a) decode an ensemble in a
+   bare test — sync, FIC, the service list — against a capture; (b) audio for
+   one service, faad2 in place of fdk-aac; (c) a `Mode::Dab` panel — the
+   ensemble/service list and the programme label, like the DRM panel's. **(a) is
+   the only part worth starting before the library/binary question is answered,
+   and it needs a real off-air capture** (DAB is not decodable from a synthetic
+   signal in any useful way), so the first move is a capture and a scratch
+   harness, not a crate dependency. **The capture exists now:** **pvanderp**
+   (on #483, 2026-09-22) recorded channel **12C** at a **227.360 MHz** centre,
+   2048 ksps, raw `.cs16` (dabradio-readable), 7z-compressed, via SDRconnect —
+   which left a ~40 kHz tune offset the decoder must absorb, a detail in its
+   own right. dabradio reads `.zst` rather than `.7z` (smaller fixture) and
+   `xoolive` is adding filename-inferred `--center-freq`. pvanderp can record
+   a dozen other Dutch ensembles if 12C does not exercise what comes next.
 
 ## Phase 4 — polish
 
