@@ -427,8 +427,10 @@ command written into a live stream kills it, and DTR is the reset line.
 DL2MAN's rewritten **nG** firmware ([dl2man.de/ng](https://dl2man.de/ng),
 operating guide §9) keeps 2.00x's `UA`/`US` audio-in-the-CAT-link framing but
 changes the transmit side and adds a level extension. It is a **separate
-`CatFamily::TrUsdxNg`** ("(tr)uSDX nG"), on branch `fork/trusdx-ng` (based on
-fork `main`), `PROTO_VERSION` **166 -> 167** on the fork. The profile is the
+`CatFamily::TrUsdxNg`** ("(tr)uSDX nG"), on branch `fork/trusdx-ng` and merged
+to fork `main` on 2026-09-22 (before any on-air confirmation — the user's call,
+it is niche and fixable after release), `PROTO_VERSION` **166 -> 167** on the
+fork. The profile is the
 same `trusdx.rs`, parameterized by generation (`TrUsdx::new_ng`), so the
 receive demultiplexer and the `UA`/`US` framing are shared code. Three transmit
 differences, each a silent failure if got wrong:
@@ -450,11 +452,11 @@ frame), and `UA2;` to switch the radio's own speaker off
 (`CatConfig::trusdx_ng_speaker`). nG answers neither command and stores neither,
 so they go out in `open_requests`.
 
-`PROTO_VERSION` **166 -> 167** on this branch collides with the band-openings
-branch (`upstream-pr/band-openings` / `fork/live-band-openings`), which also
-claims 167 — both are fork branches awaiting an upstream PR, so whichever lands
-on fork `main` first keeps 167 and the other renumbers (the band-openings copy
-drops entirely once #537 merges upstream).
+`PROTO_VERSION` **166 -> 167** on this branch now stands on fork `main`, so it
+collides with the band-openings branch (`upstream-pr/band-openings` /
+`fork/live-band-openings`), which also claims 167 — the band-openings copy
+renumbers if it lands on fork `main`, and drops entirely once #537 merges
+upstream.
 
 **Not tested on air here** — the fork's radio is not calibrated for nG, so the
 firmware could not be flashed. It is unit-tested structurally (16 tests in
