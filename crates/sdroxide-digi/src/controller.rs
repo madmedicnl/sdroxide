@@ -405,6 +405,24 @@ impl DigiController {
         self.status_dirty = true;
     }
 
+    /// Apply a QSY the QSO machine armed — its automated move onto its
+    /// counterpart's tone.
+    ///
+    /// Two things arm one, and the Hold gate treats them differently. A Hound
+    /// following the Fox that answered it rides without the gate: the Fox owns
+    /// the frequency the contact finishes on and it is not the operator's to
+    /// pin. The 11 m CQ run moving onto whoever answered it is a courtesy move
+    /// on top of "the contact sits on one tone" (issue #396) — a caller
+    /// adapting because a locked reply station cannot — and that one is exactly
+    /// what a pinned transmit tone exists to refuse.
+    fn apply_armed_qsy(&mut self) {
+        if let Some(hz) = self.qso.take_qsy() {
+            if self.is_hound() || !self.tx_held() {
+                self.tune_audio_hz(hz);
+            }
+        }
+    }
+
     pub fn audio_hz(&self) -> f32 {
         self.audio_hz
     }
@@ -834,12 +852,10 @@ impl DigiController {
                         if self.qso.on_rx(&decodes, slot_utc) {
                             self.status_dirty = true;
                         }
-                        // Hound: the Fox answered, so finish the contact on its
-                        // frequency instead of up in the calling zone. The one
-                        // move into the Fox's half that is not a mistake.
-                        if let Some(hz) = self.qso.take_qsy() {
-                            self.tune_audio_hz(hz);
-                        }
+                        // A QSY armed while handling the batch — the Hound onto the Fox, or
+                        // the 11 m CQ run onto whoever answered it (Hold TX
+                        // permitting) — is applied before the TX slot comes due.
+                        self.apply_armed_qsy();
                         // Keep our transmit slot opposite to the DX's most recent
                         // transmission, so replies stay out of their slot even if
                         // they shift the even/odd sequence mid-QSO.
@@ -1046,6 +1062,29 @@ mod tests {
             my_grid: "FN42".into(),
             tx_even: true,
             ..Default::default()
+        }
+    }
+
+    /// The qso.rs stand-in for a decoded message, copied here because nothing
+    /// needs the real FT8 chain to test how a QSO machine reacts — the
+    /// addressing fields are what matter.
+    fn decode(msg: &str) -> Decode {
+        let call = |t: &str| {
+            t.strip_prefix('<').and_then(|x| x.strip_suffix('>')).unwrap_or(t).to_string()
+        };
+        Decode {
+            slot_utc: 0,
+            snr_db: -10,
+            dt: 0.1,
+            audio_hz: 1500.0,
+            message: msg.to_string(),
+            to: msg.split_whitespace().next().filter(|t| *t != "CQ").map(call),
+            from: msg.split_whitespace().nth(1).map(call),
+            grid: None,
+            is_cq: msg.starts_with("CQ"),
+            cq_to: msg.split_whitespace().nth(1).filter(|t| *t == "DX").map(str::to_string),
+            free_text: false,
+            rr73_to: None,
         }
     }
 
@@ -1372,6 +1411,47 @@ mod tests {
         c.tune_audio_hz(820.0);
         c.start_qso("11M213".into(), None, -10, 700.0, false);
         assert_eq!(c.audio_hz(), 820.0, "an explicit hold outranks the 11 m follow");
+    }
+
+    #[test]
+    fn on_11m_an_answered_cq_moves_onto_the_answerer() {
+        // The 11 m CQ run, answered from its own locked tone, moves the whole
+        // exchange onto the answerer: the reply arms the move in the QSO
+        // machine, and `apply_armed_qsy` — the call the decode-drain makes
+        // after every batch — applies it before the next transmit slot.
+        let mut c = DigiController::new(Mode::Ft8, cfg(), 12_000.0);
+        c.dial_hz = 27_123_000.0; // 11 m (issue #396)
+        c.tune_audio_hz(1500.0);
+        c.qso.set_cb(true);
+        c.qso.call_cq();
+        let mut d = decode("AB1CD 11M213");
+        d.audio_hz = 2100.0;
+        assert!(c.qso.on_rx(&[d], 100));
+        c.apply_armed_qsy();
+        assert_eq!(
+            c.audio_hz(),
+            2100.0,
+            "the exchange should finish on the answerer's tone"
+        );
+    }
+
+    #[test]
+    fn a_pinned_tone_refuses_the_11m_cq_follow() {
+        // "Held means held": an operator who has pinned the transmit tone wants
+        // no move at all — not even the courteous 11 m one, since a licence
+        // edge can make a moved tone an out-of-band transmission. Only the
+        // Hound's own QSY rides past the gate.
+        let mut c =
+            DigiController::new(Mode::Ft8, DigiConfig { hold_tx_freq: true, ..cfg() }, 12_000.0);
+        c.dial_hz = 27_123_000.0;
+        c.tune_audio_hz(820.0);
+        c.qso.set_cb(true);
+        c.qso.call_cq();
+        let mut d = decode("AB1CD 11M213");
+        d.audio_hz = 2100.0;
+        assert!(c.qso.on_rx(&[d], 100));
+        c.apply_armed_qsy();
+        assert_eq!(c.audio_hz(), 820.0, "a pinned tone outranks the 11 m follow");
     }
 
     #[test]

@@ -695,6 +695,11 @@ impl QsoMachine {
                     last_utc: now_utc,
                 });
                 self.logged = false; // a new contact, whatever the last one did
+                // The reply came in from its own locked tone and the contact
+                // sits there: the caller adapts because the answerer cannot
+                // (see `apply_armed_qsy` — deliberately 11 m only, and Hold TX
+                // still refuses it).
+                self.qsy_hz = Some(d.audio_hz);
                 self.transcript.push(TranscriptLine::rcvd(d.message.clone()));
                 // Somebody came back to us: the CQ run is over and a fresh
                 // contact starts here, so the calls we spent finding them must
@@ -853,6 +858,15 @@ impl QsoMachine {
                     last_utc: now_utc,
                 });
                 self.logged = false; // a new contact, whatever the last one did
+                // 11 m: the answerer stepped in from its own locked tone and
+                // the exchange moves onto it — WSJT-CB's "the contact sits on
+                // one tone" applied to a CQ caller, the same rule the answering
+                // path already follows (issue #396). Off 11 m we keep the CQ's
+                // tone: following a station that will not tail a CQer must not
+                // become the general norm, and Hold TX refuses even this one.
+                if self.cb {
+                    self.qsy_hz = Some(d.audio_hz);
+                }
                 self.transcript.push(TranscriptLine::rcvd(d.message.clone()));
                 // Somebody came back to us: the CQ run is over and a fresh
                 // contact starts here. Without this the CQs we sent waiting for
@@ -1459,6 +1473,52 @@ mod tests {
         assert!(q.on_rx(&[decode("<G4ABC/P> <PA9XYZ> 590003 JO22DB")], 115));
         assert_eq!(q.step(), QsoStep::TxRReport);
         assert_eq!(q.plan_tx().as_deref(), Some("<PA9XYZ> <G4ABC/P> R 540003 IO91NP"));
+    }
+
+    /// 11 m: a station answers our CQ from its own fixed tone — WSJT-CB
+    /// operators lock their transmit frequency — and the contact has to sit on
+    /// that tone, or our reply goes out where they are not listening. The pair
+    /// form of the answer ("<us> them", which carries both calls) is the one
+    /// that names itself.
+    #[test]
+    fn on_11m_a_pair_answer_arms_a_move_onto_the_answerer() {
+        let mut q = QsoMachine::new(Mode::Ft8, cfg());
+        q.set_cb(true);
+        q.call_cq();
+        assert_eq!(q.take_qsy(), None, "no move is armed before anything answers");
+        let mut d = decode("AB1CD 11M213");
+        d.audio_hz = 2100.0;
+        assert!(q.on_rx(&[d], 100));
+        assert_eq!(q.take_qsy(), Some(2100.0), "the contact should move onto the answerer");
+        assert_eq!(q.take_qsy(), None, "the move is armed once, and consumed");
+    }
+
+    /// 11 m: the single-call free-text answer (WSJT-CB's bare identity, the
+    /// other way a locked station can come back at us) arms the same move.
+    #[test]
+    fn on_11m_a_bare_call_answer_arms_a_move_onto_the_answerer() {
+        let mut q = QsoMachine::new(Mode::Ft8, cfg());
+        q.set_cb(true);
+        q.call_cq();
+        let mut d = decode("11M213");
+        d.free_text = true;
+        d.audio_hz = 1900.0;
+        assert!(q.on_rx(&[d], 100));
+        assert_eq!(q.take_qsy(), Some(1900.0));
+    }
+
+    /// Off 11 m the answerer's frequency is not where the exchange goes: the
+    /// CQ's own tone is kept, because a station that will not tail a CQer must
+    /// not be followed into the general norm — only the Hound (and 11 m) move
+    /// onto the DX.
+    #[test]
+    fn off_11m_a_cq_answer_does_not_arm_a_move() {
+        let mut q = QsoMachine::new(Mode::Ft8, cfg());
+        q.call_cq();
+        let mut d = decode("AB1CD W9XYZ JO22");
+        d.audio_hz = 2100.0;
+        assert!(q.on_rx(&[d], 100));
+        assert_eq!(q.take_qsy(), None, "off 11 m the CQ keeps its own tone");
     }
 
     /// The serial is fixed when the first exchange goes on the air and does
