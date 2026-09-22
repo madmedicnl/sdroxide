@@ -79,16 +79,25 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     and mfsk-core is a port of WSJT-X, so they will not carry it, inert or not.
     The grammar therefore lives in this fork as
     `sdroxide_types::is_cb_callsign` (`crates/sdroxide-types/src/cb_callsign.rs`,
-    with the 25-case WSJT-CB table), and `sdroxide-digi` calls it directly.
-    The field-based hook — `DecodeRequest::also_accept(|m|
-    m.callsigns().all(is_cb_callsign))`, which yields only callsign *fields*, so
-    a grid or a report cannot be fed to the grammar — is their **#386**, in
-    0.11.0, not yet merged. When it lands: switch `sdroxide-digi` to the hook,
-    then drop the `madmedicnl/mfsk-core` pin. #386 also replaced the text-based
-    plausibility filter that had been silently dropping whole message types.
-    (Their earlier `cb_ok(&str)` sketch was their own retracted error: unpack77
-    discards the fields, so tokenising the rendered text runs grids and
-    exchanges through the grammar.)
+    with the 25-case WSJT-CB table). The field-based hook it was waiting for —
+    `DecodeRequest::also_accept(|m| m.callsigns().all(f))`, which yields only
+    callsign *fields*, so a grid or a report cannot be fed to the grammar — is
+    their **#386**, merged on 2026-09-20 and released as **mfsk-core 0.11.0**.
+    **The fork is retired: `madmedicnl/mfsk-core` is gone from the build.**
+    `sdroxide-digi` pins `mfsk-core = "0.11"` and calls the hook with
+    `is_cb_compatible_call(call) = wsjt77::is_plausible_call(call) ||
+    sdroxide_types::is_cb_callsign(call)` on the FT8 and FT4 decode requests,
+    and `is_packable_call(call) = wsjt77::is_valid_callsign(call) ||
+    sdroxide_types::is_cb_callsign(call)` on the encode side (stock 0.11
+    `is_valid_callsign` refuses CB calls, so both the decode gate and the pack
+    ladder needed the union — the fork's widening of the validator itself was
+    the thing the pin supplied). 0.11 also removed the FT4 `sniper` (the FT4
+    targeted pass is now a ±250 Hz wide-band request with an a-priori hint) and
+    #386 dropped the text-based plausibility filter that had been silently
+    discarding the FT8 EU-VHF contest exchange (`i3 = 5`) — which is why the
+    `ft8_eu` rescue pass is gone too. (Their earlier `cb_ok(&str)` sketch was
+    their own retracted error: unpack77 discards the fields, so tokenising the
+    rendered text runs grids and exchanges through the grammar.)
   - Upstream PRs, branched from `upstream/main` and merged into the fork's
     build: **none currently carried.** **#500** (the WEFAX auto start/stop fix,
     #496) and **#508** (the LimeSDR Mini board-name fold) were **taken
@@ -251,31 +260,41 @@ faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
 build time and `madmedicnl/faad2-hdc` is gone. See "The HD Radio capture
 harness" below.)
 
-### When `jl1nie/mfsk-core#386` lands (the CB decode hook)
+### `jl1nie/mfsk-core#386` landed (the CB decode hook)
 
 #373 was declined and closed (see the watch list); the grammar is ours now, in
-`sdroxide_types::is_cb_callsign`. #386 adds the field-based hook it was waiting
-for — `DecodeRequest::also_accept(|m| m.callsigns().all(f))`, where `callsigns()`
+`sdroxide_types::is_cb_callsign`. #386 added the field-based hook —
+`DecodeRequest::also_accept(|m| m.callsigns().all(f))` — where `callsigns()`
 yields only callsign *fields*, so a grid or an exchange cannot be fed to the
-grammar (their first `cb_ok(&str)` sketch could not do that). When 0.11.0 is on
-crates.io:
+grammar (their first `cb_ok(&str)` sketch could not do that). It merged on
+2026-09-20 and is in **mfsk-core 0.11.0**. The migration is done
+(2026-09-22):
 
-1. In `crates/sdroxide-digi/Cargo.toml`, replace the
-   `git = "https://github.com/madmedicnl/mfsk-core.git"` pin with upstream
-   `mfsk-core` on the tag carrying #386.
-2. Point the FT8/FT4 decode request at
-   `.also_accept(|m| m.callsigns().all(sdroxide_types::is_cb_callsign))`, so the
-   CB grammar widens the plausibility gate per call rather than through the
-   pinned fork's validators.
-3. Refresh `Cargo.lock`; the `madmedicnl/mfsk-core` source should disappear.
-4. Confirm the 11 m CB decodes still pass (WSJT-CB callsigns, hashed pairs,
-   country flags) — the predicate must not change anything else.
-5. Note it in the README/commit as "mfsk fork retired".
-
-The hook names may still move: #386 was not merged and 0.11.0 not tagged when
-this was written (2026-09-20). If #386 is **rejected or closed unmerged**, decide
-with the user between a runtime strict/loose policy or keeping the fork pin — do
-not silently drop CB validation.
+1. `crates/sdroxide-digi/Cargo.toml` pins `mfsk-core = "0.11"`; the
+   `madmedicnl/mfsk-core` git pin is gone.
+2. The FT8 and FT4 decode requests carry
+   `.also_accept(|m| m.callsigns().all(is_cb_compatible_call))`, where
+   `is_cb_compatible_call(c) = wsjt77::is_plausible_call(c) ||
+   sdroxide_types::is_cb_callsign(c)`. The union matters: the hook bridges
+   `base || predicate`, and a message only lands when *every* callsign field
+   passes, so a mixed "standard + CB" pair needs the coexist gate, not the CB
+   grammar alone. The encode ladder instead uses
+   `is_packable_call(c) = wsjt77::is_valid_callsign(c) ||
+   sdroxide_types::is_cb_callsign(c)` at the three `rung4`/hashing gates,
+   because stock `is_valid_callsign` refuses CB calls (the fork pin used to
+   widen the validator itself).
+3. `Cargo.lock` carries mfsk-core 0.11.0 from crates.io; the
+   `madmedicnl/mfsk-core` source is gone.
+4. The 11 m CB decodes still pass — the `cb_calls_pass_the_decode_gate`,
+   hashed-pair pack and sensitivity tests cover them.
+5. Two knock-ons of 0.11.0 worth remembering: the FT4 `sniper` is gone (the
+   targeted FT4 pass is now a ±250 Hz wide-band `DecodeRequest` with an
+   `ap_hint`), and #386's field-based filter no longer drops the FT8 EU-VHF
+   contest exchange (`i3 = 5`), so the dedicated `ft8_eu` rescue pass over the
+   FT8 slot was removed and `ApHints::eu_vhf` no longer gates the decoder —
+   `contest_selected()` still feeds it, but decode_slot ignores it.
+   The `ft8_eu` module itself stays: packing, the eu hash table and the
+   exchange parsing (`eu_vhf` in modem.rs) are all still live.
 
 ### The HD Radio capture harness
 
