@@ -185,6 +185,7 @@ pub fn make_demod(mode: Mode, channel_rate: f64) -> Option<Box<dyn Demodulator>>
         | Mode::Ft8
         | Mode::Js8
         | Mode::Wspr
+        | Mode::Pi4
         | Mode::Ft4
         | Mode::Ft2
         | Mode::Psk
@@ -1616,7 +1617,7 @@ mod cquam_tests {
 }
 
 #[cfg(test)]
-mod hd_radio_tests {
+mod tests {
     use super::*;
 
     /// HD Radio is the one mode whose channel follows the dial: the FM hybrid

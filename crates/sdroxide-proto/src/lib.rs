@@ -1438,19 +1438,26 @@ use sdroxide_types::{
 /// `DigiStatus`, which crosses whole, so a v162 peer reads the extra bytes as
 /// the start of the next field and fails to decode every digital status.
 ///
-/// v164: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
+/// v164: PI4, the "Next Generation Beacon" propagation-beacon mode.
+/// `Mode::Pi4` is appended, as is `ServerMsg::Pi4Spots`, so no surviving
+/// discriminant moves; `DigiStatus` gained `pi4: Option<Pi4Status>` on its
+/// tail, the same shape `wspr` already has, and `DigiStatus` rides whole, so
+/// a v163 peer reads the extra bytes as the start of the next field and
+/// fails to decode every digital status.
+///
+/// v165: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
 /// — how long the unattended FT8/FT4/FT2 sequencer may run with no operator
 /// input before it disarms. Appended to `RadioConfig`'s tail, and it rides
-/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v163 peer
+/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v164 peer
 /// handed one runs off the end of the struct. A downstream (fork) addition.
 ///
-/// v165: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
+/// v166: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
 /// appended to that enum, so the `Spot` sets in `RadioEvent::Spots` shift — a
-/// v164 peer misreads them, and the two sides run in lockstep as always. The
+/// v165 peer misreads them, and the two sides run in lockstep as always. The
 /// overlay itself is a client view toggle, not a config field: the engine
 /// polls the reports whenever the PSK feed is on, and the client decides
 /// whether to draw them. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 165;
+pub const PROTO_VERSION: u16 = 166;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -1903,6 +1910,12 @@ pub enum ServerMsg {
     ///
     /// Appended last, for the usual reason.
     Profiles(Vec<String>),
+    /// `RadioEvent::Pi4Spots`: what a PI4 slot decoded — the same shape of
+    /// thing [`ServerMsg::WsprSpots`] is, for the same reason: a beacon
+    /// reception is a measurement, not a message addressed to anyone.
+    ///
+    /// Appended last, for the usual reason.
+    Pi4Spots(Vec<sdroxide_types::Pi4Spot>),
 }
 
 /// One radio in a station's roster, as a client sees it.

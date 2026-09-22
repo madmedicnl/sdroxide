@@ -1359,6 +1359,7 @@ impl QsoMachine {
             clock_offset_s: None,
             cw: None,
             wspr: None,
+            pi4: None,
             qso: self.dx.as_ref().map(|d| sdroxide_types::QsoLive {
                 started_utc: d.started_utc,
                 rpt_sent: d.rpt_sent,

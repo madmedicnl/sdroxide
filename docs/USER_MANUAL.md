@@ -18,10 +18,11 @@ or connects to a remote sdroxide server.
 2. [Basic operation](#2-basic-operation)
     - [2.20 HD Radio (NRSC-5)](#220-hd-radio-nrsc-5)
     - [2.22 QO-100 beacon plugin](#222-qo-100-beacon-plugin)
-3. [Digital modes (FT8, FT4, FT2, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, packet, APRS, ADS-B, NAVTEX, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
+3. [Digital modes (FT8, FT4, FT2, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
     - [3.17 AtCHAT NET](#317-atchat-net)
     - [3.18 ACARS](#318-acars-airline-datalink-on-airband)
     - [3.19 HFDL](#319-hfdl-aircraft-on-the-shortwave-band)
+    - [3.20 PI4](#320-pi4-next-generation-beacon)
 4. [Skimmers (CW, PSK, RTTY)](#4-skimmers)
 5. [ISM band decoder (315 / 345 / 433 / 868 / 915 MHz devices)](#5-ism-band-decoder)
 6. [Settings](#6-settings)
@@ -5883,6 +5884,72 @@ HFDL (High Frequency Data Link, ARINC 635) is the shortwave aircraft datalink: g
 **The aircraft map.** A *performance-data* or *frequency-data* record carries a position, and those are plotted on the world map beside the log: a square per aircraft, labelled with the flight, the ICAO address or the ground-station alias, refreshed as later fixes for the same aircraft arrive, and retired after half an hour of silence. Click a target to select it and hover for its position, channel, SNR, how many fixes it has sent and their age; the range and bearing appear when you have a grid set in Settings → General. Positions arrive only when an aircraft *downlinks* one, so a channel can run for a while showing squitters and no map traffic — that is the ground station idling, not a fault.
 
 **Receive only.** HFDL is an airline and air traffic service. Nothing here transmits, and the lane is fed from the raw I/Q like the other aircraft lanes. `--mode HFDL` starts on it and `--record-iq` captures it, as for ADS-B ([§3.13](#313-ads-b-aircraft-on-1090-mhz)); a minute of `--record-iq` on a busy channel is the most useful thing to attach to a report.
+
+### 3.20 PI4 (Next Generation Beacon)
+
+Choose **PI4** from the DIGITAL row. Like WSPR this is not a QSO mode — a PI4
+transmission carries a callsign (occasionally a status string instead) and
+nothing else — but unlike WSPR it is **receive only** here: this is a decoder
+for the "Next Generation Beacon" propagation-beacon network
+([rudius.net/oz2m/ngnb](https://rudius.net/oz2m/ngnb/pi4_.htm)), not a beacon
+implementation.
+
+A PI4 transmission is 146 symbols of four-tone FSK, 24.333 seconds long, sent
+once a minute as the first act of the IARU Region 1 VHF Committee's
+one-minute mixed-mode beacon cycle — PI4, then a CW identification, then an
+unmodulated carrier. The error correction is the same rate-1/2, constraint-32
+convolutional code WSPR and JT9 use, just with a shorter, eight-character
+message.
+
+The panel has two panes: **SPOTS**, the reception list, and **STATUS**, the
+beacon's one-minute cycle. There is no **MAP** — a PI4 message carries no
+grid square, so there is nowhere to place one.
+
+#### Tuning
+
+Tune so the beacon's CW identification and the unmodulated carrier that
+follows it sit at **800 Hz audio** — the beacon network's own listening
+convention. The lowest two PI4 tones straddle that point, half a tone-spacing
+either side of it, and the other two climb above it — for the standard
+variant, tones at roughly 683, 917, 1152 and 1386 Hz. The decoder's frequency
+search is centred on exactly where the convention puts them. A beacon on a
+wider channel (PI4-80, PI4-96, PI4-120 — 2 or 3 kHz spacing rather than the
+standard 1 kHz) needs a wider receive passband to keep its top tone inside
+it; the panel's default covers the standard variant with room to spare.
+
+#### Receiving
+
+The **SPOTS** pane lists receptions, newest first:
+
+| Column | What it is |
+| --- | --- |
+| Message | Up to eight characters — ordinarily the beacon's callsign |
+| Variant | Which beacon-spacing variant matched: PI4, PI4-80, PI4-96, PI4-120 |
+| dB | A per-6-Hz-bin signal estimate — not the 2500 Hz-referenced figure WSPR reports, because there is no equivalent convention for this mode to be consistent with |
+| fit | How much of the received tone energy the decoded message accounts for |
+
+**Fit is the important column.** PI4's error correction carries no checksum,
+so a sequential decode that converges is not automatically a real one — at
+the noise floor it can converge on a well-formed codeword built out of
+nothing but noise. Fit is what tells the two apart: it re-encodes the
+message and asks whether the tones it predicts are the tones that actually
+arrived. Every row shown here already cleared the decoder's floor for it, so
+the colour says how much margin it cleared by, not whether it did.
+
+Once a minute, the decoder searches a window of audio spanning a few seconds
+either side of the nominal boundary — for a beacon's clock, or this
+station's, running a little fast or slow — across all four beacon-spacing
+variants and a band of frequencies either side of the listening convention
+above. The **STATUS** pane's slot bar shows where in the one-minute cycle the
+beacon is, turning yellow while that search is running.
+
+#### What you need
+
+Nothing beyond an SSB receiver and a station tuned to a real "Next
+Generation Beacon" transmission — there are beacons on 6 m through 23 cm and
+higher. Receive only: there is no transmit half of this panel, and there
+never will be — this decoder exists to listen to the network, not to join
+it.
 
 ## 4. Skimmers
 
@@ -16039,6 +16106,7 @@ using. Bind them under **Speech** on the Controls tab:
 | FT8 / FT4 | Automatic digital modes with decoding, QSO sequencing, and logging. |
 | JS8 | JS8 — conversational messaging on FT8's waveform. Four speeds (Normal 15 s / Fast 10 s / Turbo 6 s / Slow 30 s); directed queries, heartbeats and multi-frame free text. |
 | WSPR | Weak Signal Propagation Reporter — a two-minute beacon carrying a callsign, grid and power. Not a QSO mode: it measures paths, uploads them to WSPRnet, and feeds the propagation heat map. See [3.11](#311-wspr-weak-signal-propagation-reporter). |
+| PI4 | "Next Generation Beacon" — a one-minute four-tone FSK beacon carrying a callsign. Receive only. Not a QSO mode: it measures paths, and carries no grid to feed the propagation heat map with. See [3.20](#320-pi4-next-generation-beacon). |
 | PSK | PSK31 keyboard mode (BPSK31 / varicode). |
 | RTTY | RTTY keyboard mode (Baudot; selectable shift and baud), on a sideband. |
 | RTTY-FM | The same modem on an FM carrier, the way a club bulletin is still sent on VHF. |
