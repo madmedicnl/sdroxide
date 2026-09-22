@@ -330,7 +330,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 43] = [
+    pub const ALL: [Mode; 44] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
