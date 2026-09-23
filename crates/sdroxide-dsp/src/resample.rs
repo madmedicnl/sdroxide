@@ -41,6 +41,21 @@ impl MonoResampler {
             self.pending.drain(..CHUNK);
         }
     }
+
+    /// Release the input held in `pending` below a whole chunk.
+    ///
+    /// `push` only resamples whole [`CHUNK`]s, so a stream that ends leaves up
+    /// to `CHUNK - 1` input samples unprocessed — around 15 DSC bits at 48 kHz,
+    /// enough to lose the end-of-sequence character. Pad to a chunk with
+    /// silence and run it through.
+    pub fn flush(&mut self, out: &mut Vec<f32>) {
+        let rem = self.pending.len() % CHUNK;
+        if rem == 0 {
+            return;
+        }
+        self.pending.extend(std::iter::repeat_n(0.0f32, CHUNK - rem));
+        self.push(&[], out);
+    }
 }
 
 /// Stereo audio resampler: L/R as a 2-channel interleaved stream so both

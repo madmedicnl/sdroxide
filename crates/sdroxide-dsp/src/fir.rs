@@ -106,6 +106,16 @@ impl ComplexFir {
         // Keep history; length mismatch just causes one transient block.
     }
 
+    /// Samples the filter holds back — `taps.len() - 1`, its group delay.
+    ///
+    /// `process` only emits an output once it has a full window, so this many
+    /// input samples sit in the buffer at the end of a stream. A caller that
+    /// reaches end-of-burst pushes this much silence to release them.
+    #[must_use]
+    pub fn group_delay(&self) -> usize {
+        self.taps.len().saturating_sub(1)
+    }
+
     pub fn process(&mut self, input: &[Complex32], out: &mut Vec<Complex32>) {
         self.buf.extend_from_slice(input);
         let n = self.taps.len();

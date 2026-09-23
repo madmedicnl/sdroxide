@@ -91,7 +91,28 @@ impl DscRx {
 
         self.bits.clear();
         self.fsk.process(block, &mut self.bits);
+        self.feed_framer(out);
+    }
 
+    /// Flush the resampler and detector at the end of a burst, so the sequence
+    /// tail reaches the framer.
+    ///
+    /// A live stream never needs this — the audio that follows a burst pushes
+    /// the tail out — but a file or batch decode ends with the audio, and the
+    /// withheld tail holds the end-of-sequence character the framer needs to
+    /// close a sequence.
+    pub fn flush(&mut self, out: &mut Vec<DscMessage>) {
+        self.bits.clear();
+        if let Some(rs) = &mut self.rs {
+            let mut tail = Vec::new();
+            rs.flush(&mut tail);
+            self.fsk.process(&tail, &mut self.bits);
+        }
+        self.fsk.flush(&mut self.bits);
+        self.feed_framer(out);
+    }
+
+    fn feed_framer(&mut self, out: &mut Vec<DscMessage>) {
         for &bit in &self.bits {
             let before = self.framer.sequences();
             self.framer.push(u8::from(bit), out);
@@ -150,13 +171,14 @@ mod tests {
     fn diag_drift_and_framer() {
         let body = [112u8, 36, 61, 23, 45, 60, 105, 0, 51, 30, 0, 7, 12, 34];
         let bits = sequence_bits(&body);
-        // Trailing silence to flush the FSK front end's FIR group delay, which
-        // otherwise holds back the last ~16 samples (two DSC bits).
-        let mut audio = modulate(&bits, DEMOD_RATE);
-        audio.extend(std::iter::repeat_n(0.0f32, 9600));
+        // No trailing silence: `flush` releases the FIR group delay's tail,
+        // which otherwise holds back the last ~16 bits (the end-of-sequence
+        // character).
+        let audio = modulate(&bits, DEMOD_RATE);
         let mut fsk = AfskRx::new(DEMOD_RATE, AfskProfile::Dsc);
         let mut got = Vec::new();
         fsk.process(&audio, &mut got);
+        fsk.flush(&mut got);
         let mut best = (0usize, usize::MAX);
         for o in 0..30 {
             let w: usize = (0..got.len().min(bits.len().saturating_sub(o)))
@@ -205,7 +227,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "DSC detector drops the sequence tail; see diag_drift_and_framer"]
     fn a_distress_alert_round_trips_through_audio() {
         let mut body = vec![112u8];
         body.extend([36, 61, 23, 45, 60]);
@@ -219,6 +240,7 @@ mod tests {
         for chunk in audio.chunks(2048) {
             rx.process(chunk, &mut out);
         }
+        rx.flush(&mut out);
         assert!(!out.is_empty(), "no sequence decoded");
         let m = out.iter().find(|m| m.format == DscFormat::Distress).expect("a distress alert");
         assert_eq!(m.self_mmsi, 366_123_456);
@@ -226,7 +248,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "DSC detector drops the sequence tail; see diag_drift_and_framer"]
     fn a_routine_call_round_trips_at_the_demod_rate() {
         let body = [120u8, 24, 41, 23, 45, 60, 100, 36, 61, 23, 45, 60];
         let bits = sequence_bits(&body);
@@ -234,6 +255,7 @@ mod tests {
         let mut rx = DscRx::new(DEMOD_RATE);
         let mut out = Vec::new();
         rx.process(&audio, &mut out);
+        rx.flush(&mut out);
         assert_eq!(out.len(), 1, "expected one sequence");
         assert_eq!(out[0].format, DscFormat::Individual);
         assert_eq!(out[0].target_mmsi, 244_123_456);

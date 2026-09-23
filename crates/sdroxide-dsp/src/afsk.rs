@@ -437,6 +437,24 @@ impl AfskRx {
         self.bb = bb;
     }
 
+    /// Release the band-pass filter's withheld tail, so a burst's last bits are
+    /// not lost.
+    ///
+    /// [`ComplexFir`] buffers `taps.len() - 1` samples and only emits them once
+    /// more input arrives. On a continuous stream that is invisible — the audio
+    /// keeps coming and the tail falls out on its own — but a file or batch
+    /// decode ends with the audio, and the withheld tail is exactly where a DSC
+    /// sequence's end-of-sequence character sits. Pushing one group delay of
+    /// silence runs the buffer dry and emits those last bits.
+    pub fn flush(&mut self, out: &mut Vec<bool>) {
+        let n = self.lpf.group_delay();
+        if n == 0 {
+            return;
+        }
+        let zeros = vec![0.0f32; n];
+        self.process(&zeros, out);
+    }
+
     /// Free-running bit clock, pulled towards the middle of the eye by every
     /// transition.
     ///
