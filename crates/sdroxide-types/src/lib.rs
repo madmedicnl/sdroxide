@@ -27,6 +27,7 @@ mod contacts;
 mod controller;
 mod digi;
 mod drm;
+mod dsc;
 mod entity;
 mod entity_flags;
 mod geo;
@@ -144,6 +145,10 @@ pub use digi::{
 pub use drm::{
     DrmChannel, DrmCodec, DrmConstellation, DrmRobustness, DrmService, DrmStatus, DrmSync, DrmTime,
     spectrum_occupancy_khz,
+};
+pub use dsc::{
+    DscCategory, DscFormat, DscMessage, DscNature, bch as dsc_bch, decode_mmsi, decode_position,
+    parse as parse_dsc,
 };
 pub use entity::{
     EntityInfo, EntityPlace, all_entities, resolve_callsign, resolve_place, resolve_prefix,
