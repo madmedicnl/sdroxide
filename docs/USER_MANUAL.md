@@ -4887,6 +4887,11 @@ and HFDL maps — the last four carry their own **NIGHT** chip above the chart.
 Where a map has no chip row of its own (the four decoder maps), the chip sits
 just above it. Switching it on anywhere lights the same terminator everywhere.
 
+The terminator itself is drawn as a **thin solid line** on the day/night
+boundary, not only a wash of shade: the shading alone reads poorly over some
+themes' land colours, so the edge is stroked in a bright neutral that stands out
+on a pale day map and a dark night one alike.
+
 Drag the strip under the map to resize it against the status pane.
 
 #### Transmitting
@@ -13270,6 +13275,15 @@ inherits the heat map's memory exactly, because it is read off the same decayed
 field: whatever the half-life is set to is how long a band lingers here after it
 shuts. The same caveat applies as to the map itself — a band nobody has listened
 to has no evidence and no bar, which the footer says out loud.
+
+**The `BANDS` table.** Under the `BANDS OPEN` chart is the same table the main
+window's [BANDS window](#215-band-conditions) shows — the published `CONDX`
+verdict beside the measured `WSPR`, `PSK`, `PATHS` and `REACH`, one row per band
+with anything to say. It is there so conditions can be read from the globe
+without opening the BANDS window over the main view. The footer names the three
+sources and whether it is day or night at your QTH. It appears once any of the
+three feeds has landed, and only on a desktop or tablet layout — a phone puts
+the space weather behind the `WEATHER` chip, and this table with it.
 
 The heat map is also relayed to the [browser's 3D tab](#9-web-operation), unlike
 the awards layer: it is live data about the station's own conditions, which is

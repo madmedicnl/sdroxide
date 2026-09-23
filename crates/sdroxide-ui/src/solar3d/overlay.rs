@@ -858,7 +858,9 @@ fn scene(ui: &mut egui::Ui, st: &mut SolarUi, data: Option<&SolarData>) {
         let weather =
             weather_panel(ui, st, data, Place::Corner { scene: rect, top: below }, sim_now as i64);
         let below = weather.map_or(below, |r| r.bottom() + 8.0);
-        let _ = bands_panel(ui, st, Place::Corner { scene: rect, top: below });
+        let bands_open = bands_panel(ui, st, Place::Corner { scene: rect, top: below });
+        let below = bands_open.map_or(below, |r| r.bottom() + 8.0);
+        let _ = bands_info_panel(ui, st, Place::Corner { scene: rect, top: below }, sim_now as i64);
     }
     // The bottom-right stack, from the corner up: the date, then the award key
     // above whatever the date left.
@@ -2477,6 +2479,166 @@ fn bands_panel(ui: &mut egui::Ui, st: &SolarUi, place: Place) -> Option<egui::Re
         p.galley(egui::pos2(panel.left() + pad, y), n, theme::LINE_LIT());
         y += h;
     }
+    Some(panel)
+}
+
+/// The BANDS table from the main window's BANDS window, in the 3D scene: the
+/// published CONDX verdict beside the measured WSPR, PSK, PATHS and REACH, one
+/// row per band. The point is not to replace that window but to let the
+/// operator read conditions without opening it over the main view — the same
+/// numbers, beside the globe they are about.
+///
+/// Compact on purpose: bands with nothing to say are left out, and the units
+/// are the table's own headings. `Place::Inline` on a phone puts it behind the
+/// WEATHER chip instead of down the edge, like the two panels above it.
+fn bands_info_panel(
+    ui: &mut egui::Ui,
+    st: &SolarUi,
+    place: Place,
+    now: i64,
+) -> Option<egui::Rect> {
+    use sdroxide_types::Band;
+
+    let daylight = st
+        .qth
+        .map(|(lat, lon)| sdroxide_solar::is_daylight_at(lat, lon, now))
+        .unwrap_or(true);
+    let conditions = st.band_conditions.as_ref();
+    if conditions.is_none() && st.band_activity.is_none() && st.psk_activity.is_none() {
+        return None;
+    }
+
+    // Only the bands with a verdict or a measurement. A row of dashes for
+    // fourteen bands nobody is on is the table the operator did not want.
+    let rows: Vec<Band> = Band::ALL
+        .iter()
+        .copied()
+        .filter(|b| *b != Band::Gen)
+        .filter(|b| {
+            conditions.and_then(|c| c.verdict_for(*b, daylight)).is_some()
+                || st.band_activity.as_ref().and_then(|a| a.for_band(*b)).is_some()
+                || st.psk_activity.as_ref().and_then(|a| a.for_band(*b)).is_some()
+                || st.prop.plane(*b).is_some_and(|p| !p.is_empty())
+        })
+        .collect();
+    if rows.is_empty() {
+        return None;
+    }
+
+    let font = egui::FontId::proportional(11.0);
+    let small = egui::FontId::proportional(9.5);
+    let p = ui.painter().clone();
+    let dim = theme::LINE_LIT();
+
+    let fmt_paths = |n: u64| {
+        if n >= 10_000 {
+            format!("{:.0}k", n as f64 / 1000.0)
+        } else {
+            n.to_string()
+        }
+    };
+
+    // Headings, and one gellery of cells per band.
+    let head = ["BAND", "CONDX", "WSPR", "PSK", "PATHS", "REACH"]
+        .map(|t| p.layout_no_wrap(t.to_string(), small.clone(), theme::CYAN_DIM()));
+    let mut body: Vec<[std::sync::Arc<egui::Galley>; 6]> = Vec::new();
+    for b in &rows {
+        let verdict = conditions
+            .and_then(|c| c.verdict_for(*b, daylight))
+            .map(|v| {
+                let color = match sdroxide_solar::BandRating::of(v.verdict) {
+                    sdroxide_solar::BandRating::Good => theme::GREEN(),
+                    sdroxide_solar::BandRating::Fair => theme::YELLOW(),
+                    sdroxide_solar::BandRating::Poor => theme::PINK(),
+                    _ => theme::CYAN(),
+                };
+                p.layout_no_wrap(v.verdict.to_string(), font.clone(), color)
+            })
+            .unwrap_or_else(|| p.layout_no_wrap("—".into(), font.clone(), dim));
+        let act = |table: Option<&sdroxide_solar::BandActivityTable>| {
+            table
+                .and_then(|a| a.for_band(*b))
+                .map(|a| p.layout_no_wrap(fmt_paths(a.paths), font.clone(), theme::CYAN()))
+                .unwrap_or_else(|| p.layout_no_wrap("—".into(), font.clone(), dim))
+        };
+        let (paths, reach) = match st.prop.plane(*b).filter(|p| !p.is_empty()) {
+            Some(pl) => (
+                p.layout_no_wrap(format!("{:.0}", pl.total_paths()), font.clone(), theme::CYAN()),
+                p.layout_no_wrap(
+                    format!("{:.0}%", pl.reach() * 100.0),
+                    font.clone(),
+                    theme::CYAN(),
+                ),
+            ),
+            None => (
+                p.layout_no_wrap("—".into(), font.clone(), dim),
+                p.layout_no_wrap("—".into(), font.clone(), dim),
+            ),
+        };
+        body.push([
+            p.layout_no_wrap(b.label().to_string(), font.clone(), theme::CYAN()),
+            verdict,
+            act(st.band_activity.as_ref()),
+            act(st.psk_activity.as_ref()),
+            paths,
+            reach,
+        ]);
+    }
+
+    // Column widths from the widest cell in each, so the figures line up.
+    let mut col_w = [0.0f32; 6];
+    for (i, h) in head.iter().enumerate() {
+        col_w[i] = h.size().x;
+    }
+    for row in &body {
+        for (i, c) in row.iter().enumerate() {
+            col_w[i] = col_w[i].max(c.size().x);
+        }
+    }
+    let gap = 9.0;
+    let row_h = font.size + 3.0;
+    let pad = 10.0;
+    let title = p.layout_no_wrap("BANDS".into(), small.clone(), theme::CYAN_DIM());
+    let note = p.layout_no_wrap(
+        format!(
+            "{} at QTH · CONDX global forecast, WSPR/PSK the world's networks, \
+             PATHS/REACH this station",
+            if daylight { "day" } else { "night" }
+        ),
+        small.clone(),
+        theme::LINE_LIT(),
+    );
+    let table_w: f32 = col_w.iter().sum::<f32>() + gap * 5.0;
+    let width = table_w.max(title.size().x).max(note.size().x) + pad * 2.0;
+    let height =
+        title.size().y + 6.0 + row_h + body.len() as f32 * row_h + note.size().y + 6.0 + pad * 2.0;
+    let panel = place.reserve(ui, egui::vec2(width, height))?;
+
+    p.rect_filled(panel, 0, theme::FILL().gamma_multiply(0.82));
+    chrome::paint_cut_border(&p, panel, theme::LINE_LIT(), egui::Color32::TRANSPARENT);
+
+    let mut y = panel.top() + pad;
+    p.galley(egui::pos2(panel.left() + pad, y), title.clone(), theme::CYAN_DIM());
+    y += title.size().y + 6.0;
+    // Headings right-column-by-right-column, so the numbers read down.
+    let mut x = panel.left() + pad;
+    for (i, h) in head.into_iter().enumerate() {
+        let right = x + col_w[i] - h.size().x;
+        p.galley(egui::pos2(right, y), h, theme::CYAN_DIM());
+        x += col_w[i] + gap;
+    }
+    y += row_h;
+    for row in body {
+        let mut x = panel.left() + pad;
+        for (i, c) in row.into_iter().enumerate() {
+            let right = x + col_w[i] - c.size().x;
+            p.galley(egui::pos2(right, y), c, theme::CYAN());
+            x += col_w[i] + gap;
+        }
+        y += row_h;
+    }
+    y += 4.0;
+    p.galley(egui::pos2(panel.left() + pad, y), note, theme::LINE_LIT());
     Some(panel)
 }
 

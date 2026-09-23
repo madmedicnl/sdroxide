@@ -194,6 +194,9 @@ impl Solar3d {
         traffic: DigiTraffic,
         awards: Arc<Vec<sdroxide_types::EntitySlot>>,
         prop: Arc<sdroxide_types::PropField>,
+        band_conditions: Option<sdroxide_solar::BandConditions>,
+        band_activity: Option<sdroxide_solar::BandActivityTable>,
+        psk_activity: Option<sdroxide_solar::BandActivityTable>,
         sat_cfg: Arc<sdroxide_types::SatConfig>,
         sat_lock: Option<u64>,
     ) -> Option<LockChange> {
@@ -230,6 +233,9 @@ impl Solar3d {
             st.digi = traffic;
             st.awards = awards;
             st.prop = prop;
+            st.band_conditions = band_conditions;
+            st.band_activity = band_activity;
+            st.psk_activity = psk_activity;
             st.sat_cfg = sat_cfg;
             st.sat_lock = sat_lock;
         }

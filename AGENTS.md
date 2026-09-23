@@ -662,6 +662,26 @@ unpushed:
   The `upstream-pr/band-openings` PR (upstream #537) stays at 165 and is still
   the thing to land first; the fork's copy drops out once it does.
 
+Second review round (2026-09-23), same branches now on `main`:
+
+- **The terminator is stroked.** `ephem::on_terminator(elev)` and a
+  `NIGHT_LINE_INK` band in `night_shade_rgba`: cells within 1.2° of the solar
+  horizon take a bright neutral line ink at ~full alpha, because the soft shade
+  alone read poorly over some themes' land colours. The line ink is deliberately
+  not a theme colour — the overlay is uploaded as bytes the same on every theme.
+- **Meteor and IBP hover target the labels, not the row.** A `Label` defaults to
+  `Sense::hover()` (and `selectable_labels` adds click+drag), so it *takes* the
+  hover and the enclosing `ui.horizontal(...).response` is never hovered while
+  the pointer is over any text. That is why `.response.on_hover_text` did
+  nothing; the tooltip now hangs on each label.
+- **The BANDS window's table is in the 3D view.** `SolarUi` carries
+  `band_conditions` / `band_activity` / `psk_activity`, published by the host in
+  `viewport` each frame like `prop`, and `bands_info_panel` draws the
+  CONDX/WSPR/PSK/PATHS/REACH table under the `BANDS OPEN` chart. So conditions
+  can be read from the globe without opening the BANDS window over the main
+  view. Note the browser `/solar-ws` relay does not carry these yet, so the
+  panel is absent in the browser tab.
+
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
 The bridge the CB side interoperates with is installed in the Wine prefix on

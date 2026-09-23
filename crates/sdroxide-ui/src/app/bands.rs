@@ -351,35 +351,7 @@ impl SdroxideApp {
         ui.add_space(3.0);
         for a in &active {
             let s = a.shower;
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(s.name).size(11.0).strong());
-                ui.label(dim(s.code));
-                ui.label(RichText::new(format!("ZHR {}", s.zhr)).size(10.5));
-                if a.at_peak() {
-                    ui.label(
-                        RichText::new("PEAK").size(9.5).strong().color(crate::theme::GREEN()),
-                    );
-                }
-                if a.radiant_up() {
-                    ui.label(
-                        RichText::new(format!(
-                            "radiant {:.0}° {}",
-                            a.alt_deg,
-                            sdroxide_solar::satellites::compass(a.az_deg)
-                        ))
-                        .size(10.5),
-                    );
-                } else {
-                    ui.label(
-                        RichText::new(format!("radiant down ({:.0}°)", a.alt_deg))
-                            .size(10.5)
-                            .color(dim_ink()),
-                    );
-                }
-            })
-            .response
-            .interact(egui::Sense::hover())
-            .on_hover_text(format!(
+            let hover = format!(
                 "{} ({}) — {} km/s, parent {}. Peak rate ZHR {} around {}.\n\nA radiant \
                  above the horizon means the trails can reach you; a fast shower leaves \
                  longer-lived ionised trails for meteor scatter on 6 m and 2 m, and the \
@@ -390,7 +362,39 @@ impl SdroxideApp {
                 s.parent,
                 s.zhr,
                 peak_label(s.peak),
-            ));
+            );
+            // The tooltip goes on each label rather than on the row: a `Label`
+            // takes the hover for itself, so the `horizontal`'s own response is
+            // not hovered while the pointer is over any of the text.
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(s.name).size(11.0).strong()).on_hover_text(&hover);
+                ui.label(dim(s.code)).on_hover_text(&hover);
+                ui.label(RichText::new(format!("ZHR {}", s.zhr)).size(10.5)).on_hover_text(&hover);
+                if a.at_peak() {
+                    ui.label(
+                        RichText::new("PEAK").size(9.5).strong().color(crate::theme::GREEN()),
+                    )
+                    .on_hover_text(&hover);
+                }
+                if a.radiant_up() {
+                    ui.label(
+                        RichText::new(format!(
+                            "radiant {:.0}° {}",
+                            a.alt_deg,
+                            sdroxide_solar::satellites::compass(a.az_deg)
+                        ))
+                        .size(10.5),
+                    )
+                    .on_hover_text(&hover);
+                } else {
+                    ui.label(
+                        RichText::new(format!("radiant down ({:.0}°)", a.alt_deg))
+                            .size(10.5)
+                            .color(dim_ink()),
+                    )
+                    .on_hover_text(&hover);
+                }
+            });
         }
     }
 
@@ -415,27 +419,30 @@ impl SdroxideApp {
         )));
         ui.add_space(3.0);
         for a in &active {
+            let hover = format!(
+                "{} at {} — hearing it means the {} path is open. 10m (28.200 MHz) is the \
+                 closest amateur-band proxy for 11 m conditions. Each beacon steps up a band \
+                 every 10 s, so this row changes every slot.",
+                a.beacon.callsign, a.beacon.location, a.band.label
+            );
+            // On each label, not the row: a `Label` takes the hover for itself,
+            // so the `horizontal`'s response is not hovered over the text.
             ui.horizontal(|ui| {
-                ui.label(RichText::new(a.band.label).size(10.5).strong());
-                ui.label(RichText::new(format!("{:.3} MHz", a.band.freq_hz / 1e6)).size(10.5));
-                ui.label(RichText::new(a.beacon.callsign).size(11.0).strong());
-                ui.label(dim(a.beacon.location));
+                ui.label(RichText::new(a.band.label).size(10.5).strong()).on_hover_text(&hover);
+                ui.label(RichText::new(format!("{:.3} MHz", a.band.freq_hz / 1e6)).size(10.5))
+                    .on_hover_text(&hover);
+                ui.label(RichText::new(a.beacon.callsign).size(11.0).strong())
+                    .on_hover_text(&hover);
+                ui.label(dim(a.beacon.location)).on_hover_text(&hover);
                 if let (Some(b), Some(d)) = (a.bearing_deg, a.distance_km) {
                     ui.label(dim(&format!(
                         "{} · {:.0} km",
                         sdroxide_solar::satellites::compass(b),
                         d
-                    )));
+                    )))
+                    .on_hover_text(&hover);
                 }
-            })
-            .response
-            .interact(egui::Sense::hover())
-            .on_hover_text(format!(
-                "{} at {} — hearing it means the {} path is open. 10m (28.200 MHz) is the \
-                 closest amateur-band proxy for 11 m conditions. Each beacon steps up a band \
-                 every 10 s, so this row changes every slot.",
-                a.beacon.callsign, a.beacon.location, a.band.label
-            ));
+            });
         }
     }
 }

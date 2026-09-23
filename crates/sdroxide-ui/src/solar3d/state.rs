@@ -223,6 +223,13 @@ pub struct SolarUi {
     /// into this window sixty times a second is the one part of this that would
     /// cost anything.
     pub prop: std::sync::Arc<sdroxide_types::PropField>,
+    /// The published band conditions (N0NBH), the WSPR network's per-band
+    /// activity, and PSK Reporter's — the same three the main window's BANDS
+    /// window shows, republished so this view can carry the table without the
+    /// operator opening that window. `None` until each fetch has landed.
+    pub band_conditions: Option<sdroxide_solar::BandConditions>,
+    pub band_activity: Option<sdroxide_solar::BandActivityTable>,
+    pub psk_activity: Option<sdroxide_solar::BandActivityTable>,
     /// The propagation field resolved to RGBA, and what it was resolved from.
     ///
     /// Cached here rather than rebuilt per frame: it costs ten thousand pixels
@@ -403,6 +410,9 @@ impl SolarUi {
             qso_card: None,
             awards: Default::default(),
             prop: Default::default(),
+            band_conditions: None,
+            band_activity: None,
+            psk_activity: None,
             prop_rgba: Default::default(),
             prop_rgba_key: None,
             prop_gen: 0,

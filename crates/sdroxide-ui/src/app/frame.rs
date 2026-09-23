@@ -1044,6 +1044,9 @@ impl eframe::App for SdroxideApp {
                 traffic,
                 awards,
                 prop,
+                self.band_conditions.clone(),
+                self.band_activity.clone(),
+                self.psk_activity.clone(),
                 std::sync::Arc::clone(&self.sat_cfg),
                 self.sat_track.as_ref().map(|t| t.norad_id),
             );
