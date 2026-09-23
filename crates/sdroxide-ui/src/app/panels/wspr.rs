@@ -162,6 +162,7 @@ impl SdroxideApp {
         self.digi_stations.observe_wspr(&self.wspr_spots, now_t, now);
         let stations = self.digi_stations.stations(now_t);
         let heat = self.prop_texture(ui.ctx(), self.state.rx_freq_hz());
+        let night = self.night_texture(ui.ctx());
         let reporters = self.heard_me_reporters();
         crate::widgets::worldmap::show(
             ui,
@@ -174,6 +175,7 @@ impl SdroxideApp {
             &[],
             &reporters,
             heat,
+            night,
             self.digi_status.as_ref().map(|s| s.transmitting).unwrap_or(false),
             map_budget,
         );

@@ -153,6 +153,15 @@ pub struct ViewState {
     /// rings are drawn.
     #[serde(default)]
     pub psk_heard_me: bool,
+    /// Shade the night side of the flat map, with the twilight either side of
+    /// it — the grey line.
+    ///
+    /// Here and not in [`Solar3dView`] for the same reason [`Self::prop_on_map`]
+    /// is: that struct belongs to the globe window and is republished wholesale
+    /// every frame. Off by default, like the propagation heat — scenery rather
+    /// than something to leave switched on over a decode list.
+    #[serde(default)]
+    pub map_night: bool,
     /// Which spot kinds are shown in the SPOTS list, on the panadapter and on
     /// the world map — indexed by `SpotKind::index`, so the chip order in the
     /// SPOTS window and this array have to stay in lockstep.
@@ -565,6 +574,7 @@ impl Default for ViewState {
             prop_map_mode: prop_map_mode_default(),
             prop_map_band: prop_map_band_default(),
             psk_heard_me: false,
+            map_night: false,
             spot_kinds_shown: spot_kinds_default(),
             digi_panel_fraction: 0.46,
             digi_split_fraction: 0.52,
