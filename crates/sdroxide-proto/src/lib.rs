@@ -1445,81 +1445,91 @@ use sdroxide_types::{
 /// a v163 peer reads the extra bytes as the start of the next field and
 /// fails to decode every digital status.
 ///
-/// v165: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
+/// v165: band-decoder relay outputs (issue #442) — the HPSDR OC table's idea
+/// (a per-band RX/TX output word), generalised to the generic T/R-switch
+/// relay bank so a USB relay board, GPIO header, HID relay or external
+/// command can switch an outboard filter or transverter by band too, not
+/// only HPSDR's own seven-pin bus. `RelayRole` gains `BandDecoder`, appended,
+/// so no surviving discriminant moves; `RelayConfig` gains
+/// `band_table: Vec<RelayBandRow>` on its tail, and `RelayConfig` rides
+/// whole inside `Command::SetRelayConfig`, so a v164 peer reads the extra
+/// bytes as the start of the next field and fails to decode the command.
+///
+/// v166: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
 /// — how long the unattended FT8/FT4/FT2 sequencer may run with no operator
 /// input before it disarms. Appended to `RadioConfig`'s tail, and it rides
-/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v164 peer
+/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v165 peer
 /// handed one runs off the end of the struct. A downstream (fork) addition.
 ///
-/// v166: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
+/// v167: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
 /// appended to that enum, so the `Spot` sets in `RadioEvent::Spots` shift — a
-/// v165 peer misreads them, and the two sides run in lockstep as always. The
+/// v166 peer misreads them, and the two sides run in lockstep as always. The
 /// overlay itself is a client view toggle, not a config field: the engine
 /// polls the reports whenever the PSK feed is on, and the client decides
 /// whether to draw them. A downstream (fork) addition.
 ///
-/// v167: the (tr)uSDX nG CAT family. `CatFamily::TrUsdxNg` is appended to that
+/// v168: the (tr)uSDX nG CAT family. `CatFamily::TrUsdxNg` is appended to that
 /// enum, so no surviving family moves; `CatConfig` gains the nG level fields
 /// (`trusdx_ng_volume`, `trusdx_ng_agc`, `trusdx_ng_speaker`) on its tail, and
 /// `CatConfig` rides `Command::SetCatConfig` and `ServerMsg::CatConfig` whole,
-/// so a v166 peer handed one runs off the end of the struct. A downstream
+/// so a v167 peer handed one runs off the end of the struct. A downstream
 /// (fork) addition.
 ///
-/// v168: live band-opening detections, `ServerMsg::BandOpenings` appended to
+/// v169: live band-opening detections, `ServerMsg::BandOpenings` appended to
 /// that enum (no surviving discriminant moves). Like every network update it is
-/// relay, not handshake, so a v167 peer simply never learns about openings —
+/// relay, not handshake, so a v168 peer simply never learns about openings —
 /// but the added variant shifts the message stream's encoding, hence the bump.
 /// A downstream (fork) addition.
 ///
-/// v169: DSC, the marine Digital Selective Calling decoder. `Mode::Dsc` is
+/// v170: DSC, the marine Digital Selective Calling decoder. `Mode::Dsc` is
 /// appended to that enum and `DigiStatus` gains `dsc: Option<DscStatus>` on its
 /// tail (after `acars`), the same shape NAVTEX and ACARS already have — and
-/// `DigiStatus` rides whole, so a v168 peer reads the extra bytes as the start
+/// `DigiStatus` rides whole, so a v169 peer reads the extra bytes as the start
 /// of the next field and fails to decode every digital status. Cannot be
 /// bundled upstream with the mode alone, so it is a downstream (fork) addition
 /// until the decoder is proven on a real burst.
 ///
-/// v170: JT65 and JT9, the weak-signal slotted modes from mfsk-core.
+/// v171: JT65 and JT9, the weak-signal slotted modes from mfsk-core.
 /// `Mode::Jt65` and `Mode::Jt9` are appended to that enum, so no surviving
 /// discriminant moves. No new wire type: a JT decode is an ordinary
 /// `Decode` and rides the existing `RadioEvent::Decodes` path, and the modes
 /// are receive-only so nothing else is added. `Mode` is postcard-encoded by
-/// declaration index and rides `RadioState`, so a v169 peer handed one runs
+/// declaration index and rides `RadioState`, so a v170 peer handed one runs
 /// off the end of the enum — the same break every appended `Mode` causes, and
 /// the same fix (the two sides run in lockstep). A downstream (fork) addition,
 /// and an "isolate it" upstream change when it is offered.
 ///
-/// v171: FST4, the slow weak-signal mode. `Mode::Fst4` is appended to that
+/// v172: FST4, the slow weak-signal mode. `Mode::Fst4` is appended to that
 /// enum and `DigiConfig` gains `fst4_period` (`Fst4Period`) on its tail, since
 /// the period is a setting rather than part of the mode. `DigiConfig` rides
-/// `Command::SetDigiConfig` and `DigiStatus` whole, so a v170 peer reads the
+/// `Command::SetDigiConfig` and `DigiStatus` whole, so a v171 peer reads the
 /// extra bytes as the start of the next field and fails to decode every
 /// digital status — the same break as v162's appended CW settings. A downstream
 /// (fork) addition.
 ///
-/// v172: MSK144, the meteor-scatter mode. `Mode::Msk144` is appended to that
+/// v173: MSK144, the meteor-scatter mode. `Mode::Msk144` is appended to that
 /// enum, so no surviving discriminant moves. No new wire type: a decode is an
 /// ordinary `Decode` with the burst's time into the slot as its `dt`, and the
-/// mode is receive-only. `Mode` rides `RadioState`, so a v171 peer handed one
+/// mode is receive-only. `Mode` rides `RadioState`, so a v172 peer handed one
 /// runs off the end of the enum — the same break every appended `Mode` causes.
 /// A downstream (fork) addition.
 ///
-/// v173: Q65, the modern weak-signal mode. `Mode::Q65` is appended to that
+/// v174: Q65, the modern weak-signal mode. `Mode::Q65` is appended to that
 /// enum and `DigiConfig` gains `q65_mode` (`Q65Mode`) on its tail, since the
 /// sub-mode fixes the period and the tone spacing rather than being part of the
 /// mode. `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so
-/// a v172 peer reads the extra bytes as the start of the next field and fails
-/// to decode every digital status — the same break as v171's appended
+/// a v173 peer reads the extra bytes as the start of the next field and fails
+/// to decode every digital status — the same break as v172's appended
 /// `fst4_period`. A downstream (fork) addition.
 ///
-/// v174: UVPacket, the packet byte-pipe protocol. `Mode::UvPacket` is appended
+/// v175: UVPacket, the packet byte-pipe protocol. `Mode::UvPacket` is appended
 /// to that enum, so no surviving discriminant moves, and `DigiStatus` gains
 /// `uvpacket` (`Option<UvPacketStatus>`) on its tail, since a decoded frame
 /// carries an application tag and raw payload rather than a WSJT message.
-/// `DigiStatus` rides `RadioState` whole, so a v173 peer reads the extra bytes
+/// `DigiStatus` rides `RadioState` whole, so a v174 peer reads the extra bytes
 /// as the start of the next field and fails to decode every digital status —
-/// the same break as v173's appended `q65_mode`. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 174;
+/// the same break as v174's appended `q65_mode`. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 175;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -2427,6 +2437,52 @@ mod tests {
 
     fn no_station() -> sdroxide_types::StationConfig {
         sdroxide_types::StationConfig::default()
+    }
+
+    /// The T/R switch's configuration, both ways, with a band decoder in it
+    /// (issue #442). The role and the band table are its newest parts, and a
+    /// row that decoded onto the wrong band or into the wrong word would
+    /// switch the wrong filter. Filled in rather than defaulted, for
+    /// `roundtrip_radio_config`'s reason.
+    #[test]
+    fn roundtrip_relay_config() {
+        use sdroxide_types::{
+            Band, RelayBandRow, RelayChannel, RelayConfig, RelayLink, RelayRole, StationConfig,
+        };
+
+        let relay = RelayConfig {
+            link: RelayLink::Hid,
+            device: "/dev/hidraw3".into(),
+            channels: vec![
+                RelayChannel {
+                    index: 1,
+                    role: RelayRole::SdrAntenna,
+                    label: "SDR".into(),
+                    active_high: true,
+                    lead_ms: 15,
+                    hold_ms: 30,
+                },
+                RelayChannel {
+                    index: 4,
+                    role: RelayRole::BandDecoder,
+                    label: "20 m BPF".into(),
+                    active_high: false,
+                    lead_ms: 8,
+                    hold_ms: 12,
+                },
+            ],
+            band_table: vec![
+                RelayBandRow { band: Band::M20, rx_mask: 0b1000, tx_mask: 0b1000 },
+                RelayBandRow { band: Band::Gen, rx_mask: 0, tx_mask: 0b1000 },
+            ],
+            ..RelayConfig::default()
+        };
+        let cmd = ClientMsg::Command(Command::SetRelayConfig(Box::new(relay.clone())));
+        let back: ClientMsg = decode(&encode(&cmd).unwrap()).unwrap();
+        assert_eq!(back, cmd);
+        let m = ServerMsg::StationConfig(Box::new(StationConfig { relay, ..no_station() }));
+        let back: ServerMsg = decode(&encode(&m).unwrap()).unwrap();
+        assert_eq!(back, m);
     }
 
     /// The interface configuration, both ways.

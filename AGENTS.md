@@ -57,21 +57,21 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   ourselves saves the round trip. Anything with a `PROTO_VERSION` bump, a new
   decoder, a resampler or a transmit-path change is in the "isolate it" group.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at **164**, the fork's `main` at **166** (the band-openings
-  branch, awaiting an upstream PR, is one ahead at **167**). The fork's extras
-  are the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
+  upstream is at **165**, the fork's `main` at **175**. The fork's extras are
+  the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
-  additions through v166 — the register's full story is documented in
+  additions — the register's full story is documented in
   `crates/sdroxide-proto/src/lib.rs`. Upstream's v157/158 (SSTV styling and
   the (tr)uSDX family), **v159 (NR2's three `NrLevel` variants)** and **v160
-  (`CwStatus::rig_keys_itself`)** are folded in; taking them shifted the fork's
-  own entries above them. Fork-only on top of that: **v165**
-  (`RadioConfig::auto_idle_stop_min`, the auto-mode inactivity stop) and
-  **v166** (`SpotKind::HeardMe`, the "who heard me" overlay), both appended.
-  When merging, keep the number ahead of upstream's and fold its new entries in
-  rather than dropping them — the 2026-09-20 merge is the worked example (NR2
-  and `rig_keys_itself` inserted under the fork's register and everything above
-  renumbered).
+  (`CwStatus::rig_keys_itself`)** are folded in, and **v165** (the
+  band-decoder relay outputs, #442) was folded in on the 2026-09-23 merge,
+  shifting the fork's own entries above it. Fork-only on top of that:
+  **v166**–**v175** — `auto_idle_stop_min`, `SpotKind::HeardMe`, the (tr)uSDX
+  nG family, `ServerMsg::BandOpenings`, DSC, JT65/JT9, FST4, MSK144, Q65 and
+  UVPacket. When merging, keep the number ahead of upstream's and fold its new
+  entries in rather than dropping them — the 2026-09-23 merge (upstream v165
+  inserted under the fork's register, everything above renumbered) is the
+  latest worked example, after the 2026-09-20 one.
 - Watch list:
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46

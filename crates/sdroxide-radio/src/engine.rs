@@ -3055,6 +3055,11 @@ struct Engine {
     relay_pending: bool,
     /// Whether the lead cap has already been complained about this session.
     relay_lead_capped: bool,
+    /// The receive and transmit dials, and the bands they were in, last told
+    /// to the T/R switch's band decoder (issue #442) — see
+    /// [`Engine::tell_tr_switch_bands`]. The dials are kept so an unmoved one
+    /// costs a comparison per tick rather than a band-plan lookup.
+    relay_bands_told: Option<(f64, f64, sdroxide_types::Band, sdroxide_types::Band)>,
     /// What was last written to `session.json`, so the periodic check only
     /// touches the disk when the operator has actually moved. `None` when this
     /// engine does not remember its session (see
@@ -4286,6 +4291,7 @@ fn engine_thread(
         relay_last_status: None,
         relay_pending: false,
         relay_lead_capped: false,
+        relay_bands_told: None,
         rotator: None,
         rot_last_status: None,
         next_rot_emit: Instant::now(),
@@ -9857,6 +9863,9 @@ impl Engine {
                 // else, and the band stack, the band buttons and the transmit
                 // lockout all key off `state.band`.
                 self.state.band = Band::containing(self.state.active_freq_hz());
+                // So does the band decoder, which only looks again when a dial
+                // moves (issue #442).
+                self.relay_bands_told = None;
                 self.emit_station_config();
             }
             SetCbPlan(plan) => {
@@ -9933,6 +9942,7 @@ impl Engine {
                 // Same reason as `SetRegion`: the dial has not moved but the
                 // band under it may have.
                 self.state.band = Band::containing(self.state.active_freq_hz());
+                self.relay_bands_told = None;
                 self.emit_station_config();
                 // Whatever the loader had to say — a row it dropped, a file it
                 // could not read — reaches the operator who asked for the
@@ -12544,6 +12554,10 @@ impl Engine {
     /// Capped, because an operator who types 500 ms should get a switch that
     /// works and not a radio that stutters.
     fn lead_tr_switch(&mut self) {
+        // The dial may have moved since the last tick — a split set in the
+        // same batch of commands as the key-down — and the band decoder's TX
+        // word has to be this over's.
+        self.tell_tr_switch_bands();
         let Some(hub) = self.tr_switch.as_ref() else { return };
         let wait = hub.key(self.instance);
         if wait.is_zero() {
@@ -12572,6 +12586,9 @@ impl Engine {
     /// comparison — see [`crate::TrSwitch::publish`].
     fn poll_tr_switch(&mut self) {
         let Some(hub) = self.tr_switch.clone() else { return };
+        // Before `publish`, which may be the key-down for an over this engine
+        // did not drive, and brings this radio's transmit band with it.
+        self.tell_tr_switch_bands();
         hub.publish(self.instance, self.on_air());
 
         // A transmitter out in the shack keyed itself, and the sense line saw
@@ -12597,6 +12614,34 @@ impl Engine {
                 let _ = self.event_tx.send(RadioEvent::RelayStatus(Box::new(st)));
             }
         }
+    }
+
+    /// Tell the T/R switch's band decoder (issue #442) which bands this
+    /// radio's dials are in: every engine its transmit band, since whichever
+    /// radio keys brings its own; the primary its receive band too, since the
+    /// bank belongs to the station and not to any one receiver.
+    ///
+    /// Bands only. Which word a contact follows, and when it swaps its RX
+    /// word for its TX word, is the relay worker's decision, made from the
+    /// station-wide on-air state inside the same lead and hold as every other
+    /// contact — never here, where it would arrive after the key-down's lead
+    /// had already been served.
+    fn tell_tr_switch_bands(&mut self) {
+        let Some(hub) = self.tr_switch.as_ref() else { return };
+        let (rx_hz, tx_hz) = (self.state.rx_freq_hz(), self.tx_target_hz());
+        let told = self.relay_bands_told;
+        if matches!(told, Some((r, t, _, _)) if r == rx_hz && t == tx_hz) {
+            return;
+        }
+        let rx = sdroxide_types::Band::containing(rx_hz);
+        let tx = sdroxide_types::Band::containing(tx_hz);
+        if self.primary && told.map(|t| t.2) != Some(rx) {
+            hub.set_rx_band(rx);
+        }
+        if told.map(|t| t.3) != Some(tx) {
+            hub.set_tx_band(self.instance, tx);
+        }
+        self.relay_bands_told = Some((rx_hz, tx_hz, rx, tx));
     }
 
     fn emit_relay_status(&mut self) {
@@ -12627,6 +12672,10 @@ impl Engine {
         self.follow_rig_tx(on);
         // Straight through to the switch rather than waiting for the next tick.
         // The whole value of hearing about this early is spending none of it.
+        // The bands first, as `poll_tr_switch` does: a rig that retuned and
+        // keyed in the same batch of updates would otherwise bring the old
+        // band into the over, and a band arriving mid-over waits for its end.
+        self.tell_tr_switch_bands();
         if let Some(hub) = self.tr_switch.as_ref() {
             hub.publish(self.instance, self.on_air());
         }
@@ -15513,6 +15562,18 @@ impl Engine {
         self.sync_skim_window();
     }
 
+    /// Where a key-down would transmit: the dial's transmit frequency, or
+    /// under a satellite lock the transponder's uplink for the dial — the
+    /// mapping the key-down itself uses. Everything that switches hardware by
+    /// band ahead of the over reads this, so a V/U or QO-100 station has its
+    /// filters on the uplink's band rather than the downlink's.
+    fn tx_target_hz(&self) -> f64 {
+        match self.sat_lock.as_ref().and_then(|l| l.cfg.uplink) {
+            Some(u) => u.uplink_for(self.state.active_freq_hz()) + self.state.xit.effective_hz(),
+            None => self.state.tx_freq_hz(),
+        }
+    }
+
     /// Tell the source where we would transmit, for the band-switching hardware
     /// that has to know before the operator keys (see
     /// [`IqSource::set_tx_freq_hz`]).
@@ -15524,10 +15585,7 @@ impl Engine {
     /// instrumenting them all is a list that would silently fall out of date.
     /// Deriving it costs one comparison per iteration.
     fn push_tx_freq(&mut self) {
-        let hz = match self.sat_lock.as_ref().and_then(|l| l.cfg.uplink) {
-            Some(u) => u.uplink_for(self.state.active_freq_hz()) + self.state.xit.effective_hz(),
-            None => self.state.tx_freq_hz(),
-        };
+        let hz = self.tx_target_hz();
         if self.tx_freq_told != Some(hz) {
             self.tx_freq_told = Some(hz);
             self.source.set_tx_freq_hz(hz);

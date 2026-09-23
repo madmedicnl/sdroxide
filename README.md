@@ -155,7 +155,9 @@ The full interface: the radio, receiver, display and system controls along the t
   announcements** through a bundled local neural voice (plus NVDA/Orca/VoiceOver).
 - **T/R switch** — drives an external relay that grounds the antenna while
   transmitting and sequences an amplifier with it; several USB/serial/GPIO
-  relay kinds supported. See "T/R switch" in the manual for the limits.
+  relay kinds supported. A contact can take a **band-decoder** role instead,
+  switching an outboard filter or transverter by the dial's band from a
+  per-band RX/TX table. See "T/R switch" in the manual for the limits.
 - **Persistence** — device, rates, gains, memories, band stacks, network/QSL
   credentials, control bindings and the logbook under `~/.config/sdroxide/`,
   plus named **station profiles**.
