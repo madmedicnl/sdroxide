@@ -331,3 +331,10 @@ A special shout-out to the **[Dutch CB Group](https://www.dutchcbgroup.nl/)** an
 are, and the reason the 11 m side of this fork exists at all. Thanks for the
 channels, the logs and the company.
 
+Several of the listener's propagation tools were adapted from
+**[OpenHamClock](https://github.com/accius/openhamclock)** (MIT): the
+band-opening detector, the grey-line shading on the flat maps, the
+meteor-shower calendar, the IBP beacon schedule and the schedule's local solar
+time. The algorithms are theirs; the integration is this fork's. Thanks for the
+groundwork.
+

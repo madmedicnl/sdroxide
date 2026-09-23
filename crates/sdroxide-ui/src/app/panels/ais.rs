@@ -468,10 +468,12 @@ impl SdroxideApp {
     }
 
     fn ais_map_pane(&mut self, ui: &mut egui::Ui, st: &AisStatus, now: i64, h: f32) {
+        ui.horizontal(|ui| self.night_chip(ui));
         let home = self.ais_home();
         let cfg = self.state.ais;
+        let night = self.night_texture(ui.ctx());
         let state = &mut self.ais_map;
-        crate::ais_map::show(ui, state, &st.vessels, home, now, cfg, h);
+        crate::ais_map::show(ui, state, &st.vessels, home, now, cfg, night, h);
     }
 
     /// The operator's own position, from the grid in the digital-mode setup.

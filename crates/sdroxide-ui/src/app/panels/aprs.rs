@@ -576,10 +576,13 @@ impl SdroxideApp {
     }
 
     fn aprs_map_pane(&mut self, ui: &mut egui::Ui, st: &AprsStatus, now: i64, h: f32) {
+        ui.horizontal(|ui| self.night_chip(ui));
         let ttl = self.digi_cfg_edit.aprs_station_ttl_min;
+        let night = self.night_texture(ui.ctx());
         let icons = &mut self.aprs_icons;
         let state = &mut self.aprs_map;
-        let picked = crate::aprs_map::show(ui, state, icons, &st.stations, st.my_pos, now, ttl, h);
+        let picked =
+            crate::aprs_map::show(ui, state, icons, &st.stations, st.my_pos, now, ttl, night, h);
         if let Some(name) = picked {
             if st.stations.iter().any(|s| s.name == name && s.entry == AprsEntryKind::Station) {
                 self.aprs_target = name;

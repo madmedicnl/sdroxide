@@ -547,6 +547,24 @@ fn paint_world_texture(
     }
 }
 
+/// Paint the grey-line overlay under a flat map's continents, when the operator
+/// has it on. Shared by every flat map (the operating panel's and the ADS-B,
+/// AIS, APRS and HFDL charts) so the terminator lands in the same place on all
+/// of them.
+pub fn paint_night(
+    p: &eframe::egui::Painter,
+    rect: eframe::egui::Rect,
+    clat: f64,
+    clon: f64,
+    lon_span: f64,
+    lat_span: f64,
+    night: Option<eframe::egui::TextureId>,
+) {
+    if let Some(tex) = night {
+        paint_world_texture(p, rect, clat, clon, lon_span, lat_span, tex);
+    }
+}
+
 /// Draw the map filling the available width (2:1 aspect). `view` carries the
 /// animated centre/zoom across frames. `home`/`dx`/`preview` are (lat, lon) in
 /// degrees. `stations` is every decoded station still on the map — drawn as

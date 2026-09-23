@@ -2826,7 +2826,12 @@ impl SdroxideApp {
                 });
             }
             SettingsTab::Ui => {
-                settings_ui_tab(ui, io.ui_edit, io.solar_cloud_march.as_deref_mut());
+                settings_ui_tab(
+                    ui,
+                    io.ui_edit,
+                    io.radio_edit.as_mut(),
+                    io.solar_cloud_march.as_deref_mut(),
+                );
                 ui.add_space(10.0);
                 ui.separator();
                 ui.add_space(6.0);

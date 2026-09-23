@@ -188,6 +188,22 @@ impl SdroxideApp {
             .then(|| self.night_shade.texture(ctx, crate::time::now_unix()))
     }
 
+    /// The NIGHT toggle on its own, for a panel whose map has no propagation
+    /// chip row (ADS-B, AIS, APRS, HFDL). Same switch as the operating panels'
+    /// NIGHT chip, so turning it on anywhere turns it on everywhere.
+    pub(in crate::app) fn night_chip(&mut self, ui: &mut egui::Ui) {
+        if crate::chrome::chip(ui, self.view.map_night, RichText::new("NIGHT").size(9.5))
+            .on_hover_text(
+                "Shade where the Sun is down, and the twilight between, so the grey line shows \
+                 on the map. Low bands go long and high bands close on the night side of it, \
+                 and the terminator itself is where the DX is.",
+            )
+            .clicked()
+        {
+            self.view.map_night = !self.view.map_night;
+        }
+    }
+
     /// The chip row that turns the flat map's propagation heat on and picks
     /// what it shows. Drawn just above the map by every panel that has one.
     pub(in crate::app) fn prop_map_controls(&mut self, ui: &mut egui::Ui) {
@@ -226,16 +242,7 @@ impl SdroxideApp {
             }
             // The grey line, independent of the heat — it stays useful with PROP
             // off, so it sits above the early return with HEARD ME.
-            if crate::chrome::chip(ui, self.view.map_night, RichText::new("NIGHT").size(9.5))
-                .on_hover_text(
-                    "Shade where the Sun is down, and the twilight between, so the grey line \
-                     shows on the map. Low bands go long and high bands close on the night side \
-                     of it, and the terminator itself is where the DX is.",
-                )
-                .clicked()
-            {
-                self.view.map_night = !self.view.map_night;
-            }
+            self.night_chip(ui);
             if !on {
                 return;
             }

@@ -378,6 +378,7 @@ impl SdroxideApp {
                 }
             })
             .response
+            .interact(egui::Sense::hover())
             .on_hover_text(format!(
                 "{} ({}) — {} km/s, parent {}. Peak rate ZHR {} around {}.\n\nA radiant \
                  above the horizon means the trails can reach you; a fast shower leaves \
@@ -428,6 +429,7 @@ impl SdroxideApp {
                 }
             })
             .response
+            .interact(egui::Sense::hover())
             .on_hover_text(format!(
                 "{} at {} — hearing it means the {} path is open. 10m (28.200 MHz) is the \
                  closest amateur-band proxy for 11 m conditions. Each beacon steps up a band \

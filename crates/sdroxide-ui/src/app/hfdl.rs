@@ -199,8 +199,10 @@ impl SdroxideApp {
 
     /// The aircraft map, fed by the app's plot table.
     fn hfdl_map_pane(&mut self, ui: &mut egui::Ui, now: i64, avail_h: f32) {
+        ui.horizontal(|ui| self.night_chip(ui));
         let home = self.hfdl_home();
-        crate::hfdl_map::show(ui, &mut self.hfdl_map, home, now, avail_h);
+        let night = self.night_texture(ui.ctx());
+        crate::hfdl_map::show(ui, &mut self.hfdl_map, home, now, night, avail_h);
     }
 
     /// The operator's own position, from the grid in the digital-mode setup —

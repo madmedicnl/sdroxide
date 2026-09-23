@@ -24,7 +24,7 @@ use sdroxide_types::HfdlDecode;
 
 use crate::theme;
 use crate::widgets::map_labels::{self, MapLabel};
-use crate::widgets::worldmap::{MapView, alpha, draw_base, interact, wrap180};
+use crate::widgets::worldmap::{MapView, alpha, draw_base, interact, paint_night, wrap180};
 
 /// Below this height the map is not worth drawing.
 pub const MIN_HEIGHT: f32 = 90.0;
@@ -177,6 +177,7 @@ pub fn show(
     state: &mut HfdlMapState,
     home: Option<(f64, f64)>,
     now: i64,
+    night: Option<eframe::egui::TextureId>,
     max_h: f32,
 ) -> Option<String> {
     let avail_w = ui.available_width();
@@ -227,6 +228,7 @@ pub fn show(
     let (clat, clon, lon_span) = (view.clat, view.clon, view.lon_span);
     let lat_span = lon_span * aspect;
 
+    paint_night(&p, rect, clat, clon, lon_span, lat_span, night);
     let dot_r = draw_base(&p, rect, clat, clon, lon_span, lat_span, map);
 
     // Nothing to plot yet is the normal state on a quiet channel — say so, so a

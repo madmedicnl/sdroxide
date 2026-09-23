@@ -25,6 +25,7 @@ use crate::chrome::StyledCombo;
 pub(in crate::app) fn settings_ui_tab(
     ui: &mut egui::Ui,
     cfg: &mut sdroxide_types::UiSettings,
+    radio: Option<&mut sdroxide_types::RadioConfig>,
     cloud_march: Option<&mut bool>,
 ) {
     use sdroxide_types::{ChromeStyle, FontSize, LayoutMode, UiSettings, UiTheme};
@@ -250,6 +251,26 @@ pub(in crate::app) fn settings_ui_tab(
         );
         crate::chrome::checkbox(ui, &mut cfg.start_swl, "start with SWL mode on");
         ui.end_row();
+
+        // The switch itself, not only the seed: the same per-radio
+        // `RadioConfig::hide_tx` that Settings → Radio → Transmit controls
+        // writes, reachable here because a listener looks for it in the UI
+        // menu. Off `radio` (a remote or browser client with no config yet)
+        // there is nothing to set, so the row is left out rather than shown
+        // dead.
+        if let Some(radio) = radio {
+            ui.label("SWL mode").on_hover_text(
+                "Hide every transmit control for this radio — the PTT, CALL CQ, TX level, \
+                 SEND, BEACON, all of it — and swap the strip's ham extras (spots, awards) \
+                 for the listener's (SCHEDULE, LISTEN). The same switch as Settings → Radio \
+                 → Transmit controls, and per radio: a listening dongle can sit in this mode \
+                 while the transceiver beside it keeps its transmitter.\n\n\
+                 The hardware can still transmit; this only hides the controls. `--swl` \
+                 forces it on for every radio for the run.\n\nTakes effect on Apply.",
+            );
+            crate::chrome::checkbox(ui, &mut radio.hide_tx, "hide all transmit controls");
+            ui.end_row();
+        }
 
         ui.label("Cities on maps").on_hover_text(
             "Draw the world's cities — a dot per place, with its name beside it \
