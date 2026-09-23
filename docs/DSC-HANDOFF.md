@@ -76,59 +76,56 @@ Proof already in the test file (`diag_drift_and_framer`):
 So: **feed the detector a tail's worth of extra audio (or flush its FIR) and
 DSC decodes.** That is the fix.
 
-### Immediate state (uncommitted, on `fork/dsc`)
+### Done (both committed on `fork/dsc`)
 
-`crates/sdroxide-dsp/src/dsc.rs` has uncommitted work (the `diag_drift_and_framer`
-test plus an added trailing-silence flush in the *diag* only). It **builds**
-(`cargo check -p sdroxide-dsp` passes).
+1. **The tail flush** (`0f01406d`). `ComplexFir::group_delay`,
+   `AfskRx::flush` (one group delay of silence through the band-pass),
+   `MonoResampler::flush` (pad `pending` to a whole chunk) and `DscRx::flush`
+   (both, then the framer). The two audio round-trip tests are un-ignored and
+   pass; `diag_drift_and_framer` now uses `flush` instead of hand-added
+   trailing silence and shows `got 449` against `sent 450` — offset 8, zero
+   wrong bits.
+2. **The mode, wired end to end** (`2062fe6c`). `Mode::Dsc` (discriminant 44),
+   `DigiStatus::dsc`, `DscController`, `DscStatus`/`DscHeard`/`DSC_TONE_HZ`,
+   the two-pane UI panel, all the CAT/TCI/smartsdr/rigctld/flrig/speech tables,
+   `Band::Sw`, the engine lane, `PROTO_VERSION` 168 → 169, the manual and README.
+   The bench example `crates/sdroxide-dsp/examples/dsc_capture.rs` reads a raw
+   CF32 I/Q capture through the engine's own chain (DDC → SSB demod → `DscRx`).
 
-- `diag_drift_and_framer` is **not** `#[ignore]`d and prints the three lines
-  above when run. Make it run all three and confirm `framer on recovered` is
-  now 1 message with the flush.
-- `a_distress_alert_round_trips_through_audio` and
-  `a_routine_call_round_trips_at_the_demod_rate` are **`#[ignore]`d** and
-  currently **fail** (the tail loss). The flush was added to the diag, not to
-  these; add it to them (or better, make `DscRx` flush properly) and un-ignore.
+### Proven, and what is still not
 
-### What to do next, in order
+- The **whole chain** decodes a **synthetic burst at 250 ksps I/Q**: a
+  distress alert comes out with MMSI, nature and time exact, through
+  `dsc_capture` on `/tmp/dsc_synth.cs16`. That is the real-hardware-rate path,
+  end to end.
+- **No off-air burst has decoded yet.** The saved captures
+  (`/tmp/dsc_2187_long.cs16` 3 min, `/tmp/dsc_2187500.cs16`,
+  `/tmp/dsc_8414500.cs16`) carry no DSC sequence at any tested audio offset —
+  they are the flat-noise captures the first session took. The only "decode"
+  they produce is a single `UNKNOWN MMSI 000000000` at one offset, which is the
+  framer false-locking on noise and timing out at `MAX_SEQ_SYMBOLS` without an
+  EOS — not a real sequence.
+- **Do not offer upstream until a real burst decodes.**
 
-1. **Fix the tail flush.** Two options:
-   - Simple: in `DscRx::process`, after pushing the block, push a group-delay's
-     worth of zeros through when the caller says the burst ended. Cleaner:
-     give `ComplexFir`/`AfskRx` a `flush()` that emits the buffered tail, and
-     call it at end-of-burst or on every `process` call (the engine feeds
-     continuous audio, so on-air this is a non-issue — it only bites batch/file
-     decode and the tests).
-   - Whichever: **the offset-8 / 0-wrong result proves no other tuning is
-     needed.** Do not go chasing tone-pair constants.
-2. Un-ignore and pass the two round-trip tests. Then `cargo test -p sdroxide-dsp
-   -p sdroxide-types` and commit.
-3. **Wire the mode** (the "isolate it" upstream change): add `Mode::Dsc` to
-   `sdroxide-types/src/mode.rs`, ripple through the CAT/TCI/smartsdr/rigctld/
-   speech mode tables and `Band::accepts_mode`, add the engine lane, and a
-   panel. This is the large, mechanical part; look at how `Mode::Navtex` or
-   `Mode::Acars` is wired end to end.
-4. Offer upstream **only after** it decodes a real burst (see bench note).
+### The bench is currently wedged
 
-### Bench / real signal
+The **SDRplay RSP1** is still attached (`lsusb` shows `1df7:2500`, the
+`sdrplay.service` is running), but the API service hit
+`libusb: error [submit_iso_transfer] submiturb failed, errno=12` at 16:29 and
+**has not recovered**: `SoapySDRUtil --find` reports "No devices found" and
+`iqcap` reports "no available RSP devices found". The service needs a restart
+(`sudo systemctl restart sdrplay`), which needs a password this session does
+not have. **Ask the operator to restart it**, then:
 
-An **SDRplay RSP1** is attached and reachable (`SoapySDRUtil --find` →
-`driver=sdrplay`; gain 20–59 dB). It captures real RF — WWV at 10 MHz showed
-~30 dB SNR. **But no DSC burst was caught** in a 20 s 8414.5 kHz capture or a
-3-minute 2187.5 kHz capture (both flat noise here). Notes are in `AGENTS.md`
-under "The bench".
-
-- Headless capture tool: a **scratch crate at `/tmp/iqcap`** (path-depends on
-  `vendor/soapysdr`), source also at `/tmp/iqcap/src/main.rs`. Build:
-  `cd /tmp/iqcap && cargo build --release`, run:
-  `./target/release/iqcap <freq_hz> <rate> <secs> <out.cs16> <gain_db>`.
-  It writes interleaved CF32, which `sdroxide --file` reads back. `/tmp` was
-  not guaranteed persistent across sessions — if it is gone, rewrite it (the
-  source is short; the pattern is in AGENTS "The bench").
-- **Next real-signal step:** leave the RSP1 on **2187.5 kHz** (MF, busiest in
-  Europe overnight) for ~10–15 minutes and capture; DSC bursts are ~1 s and
-  sporadic. Then run the recovered audio through `DscRx` to confirm the
-  detector on a real burst before offering upstream.
+- Capture tool: `/tmp/iqcap` survived (path-depends on `vendor/soapysdr`):
+  `cd /tmp/iqcap && cargo build --release && ./target/release/iqcap 2187500
+  250000 600 /tmp/dsc_2187_10min.cs16 45` for a ten-minute 2187.5 kHz watch
+  (MF, busiest in Europe overnight; bursts are ~1 s and sporadic).
+- Then feed it through the committed example, no rebuild of the decoder
+  needed: `cargo run --release -p sdroxide-dsp --example dsc_capture --
+  /tmp/dsc_2187_10min.cs16 250000 1700`. A real burst prints its summary.
+  (Sweep the offset — 1700, -300, 700, 2700 — if the channel was captured a
+  little off; the framer handles tone inversion but not a mistuned dial.)
 
 ## A note on how I worked
 
