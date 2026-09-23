@@ -100,6 +100,9 @@ pub fn make_modulator(mode: Mode, rate: f64, passband: (f32, f32)) -> Option<Box
         // DSC joins them, and for a graver reason: it is the marine distress
         // and calling channel, and an amateur station keying a distress alert
         // on it is not making a mode choice but a hoax.
+        // JT65/JT9 are receive-only in this build: transmit is not wired yet,
+        // so there is no modulator rather than one that would put something
+        // unsequenced on the air under a JT label.
         Mode::Pi4
         | Mode::Cw
         | Mode::Wfm
@@ -110,7 +113,9 @@ pub fn make_modulator(mode: Mode, rate: f64, passband: (f32, f32)) -> Option<Box
         | Mode::Vdl2
         | Mode::Ais
         | Mode::Hfdl
-        | Mode::Dsc => None,
+        | Mode::Dsc
+        | Mode::Jt65
+        | Mode::Jt9 => None,
     }
 }
 

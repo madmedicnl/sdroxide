@@ -269,6 +269,8 @@ fn mode_digit(m: Mode) -> char {
         | Mode::Wefax
         | Mode::Navtex
         | Mode::Dsc
+        | Mode::Jt65
+        | Mode::Jt9
         | Mode::RfPaint
         | Mode::Digu
         | Mode::Ft8

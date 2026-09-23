@@ -69,6 +69,8 @@ pub fn mode_to_civ(m: Mode) -> u8 {
         | Mode::Wefax
         | Mode::Navtex
         | Mode::Dsc
+        | Mode::Jt65
+        | Mode::Jt9
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

@@ -154,6 +154,9 @@ impl<'a> Speaker<'a> {
             Mode::Navtex => "nav tex",
             // Spelt out, not "disc": the mode is never said as a word.
             Mode::Dsc => "D S C",
+            // Spelt out like every other alphanumeric mode name here.
+            Mode::Jt65 => "J T sixty five",
+            Mode::Jt9 => "J T nine",
             Mode::Js8 => "J S eight",
             // Pronounced "whisper" — the joke the name is built on.
             Mode::Wspr => "whisper",

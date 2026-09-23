@@ -60,6 +60,8 @@ fn mode_name(m: Mode) -> &'static str {
         | Mode::Wefax
         | Mode::Navtex
         | Mode::Dsc
+        | Mode::Jt65
+        | Mode::Jt9
         | Mode::RfPaint => "USB",
         Mode::Cw => "CW",
         Mode::Am | Mode::Sam | Mode::Drm | Mode::Cquam | Mode::Acars => "AM",

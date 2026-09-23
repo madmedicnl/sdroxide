@@ -30,7 +30,7 @@ num-complex.workspace = true
 # cb-support, rev ebd8a88) is retired. The 11 m CB grammar now lives in
 # sdroxide-types::is_cb_callsign and widens the FT8 decode gate per call
 # through DecodeRequest::also_accept; see modem.rs.
-mfsk-core = { version = "0.11", default-features = false, features = ["std", "ft8", "ft4", "wspr", "parallel", "fft-rustfft"] }
+mfsk-core = { version = "0.11", default-features = false, features = ["std", "ft8", "ft4", "wspr", "jt65", "jt9", "parallel", "fft-rustfft"] }
 crossbeam-channel.workspace = true
 # The WSPR candidate search is four-fifths Fano and splits cleanly across
 # candidates. Already in the tree via mfsk-core's `parallel` feature.

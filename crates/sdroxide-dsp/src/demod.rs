@@ -194,6 +194,8 @@ pub fn make_demod(mode: Mode, channel_rate: f64) -> Option<Box<dyn Demodulator>>
         | Mode::Wefax
         | Mode::Navtex
         | Mode::Dsc
+        | Mode::Jt65
+        | Mode::Jt9
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

@@ -326,6 +326,22 @@ pub enum Mode {
     /// below it — see [`Mode::standard_tone_offset_hz`]. Appended for the same
     /// reason as [`Mode::Hell`].
     Dsc,
+    /// JT65 — the classic EME (moonbounce) and weak-signal mode from WSJT:
+    /// 65-FSK, 2.69 baud, a 60-second slot, RS(63,12) error correction, and
+    /// the 72-bit JT message.
+    ///
+    /// A QSO mode, and a very slow one — a full exchange takes minutes — so
+    /// its panel is the slotted decode list rather than a keyboard. Receive
+    /// only in this build: transmit is not wired yet. Appended for the same
+    /// reason as [`Mode::Hell`].
+    Jt65,
+    /// JT9 — WSJT's 9-FSK sibling of JT65: the same 60-second slot and 72-bit
+    /// message, but with convolutional FEC and a much narrower, slower
+    /// waveform (~16 Hz wide), for the weakest signals on HF.
+    ///
+    /// Receive only in this build, for the same reason [`Mode::Jt65`] is.
+    /// Appended for the same reason as [`Mode::Hell`].
+    Jt9,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -346,7 +362,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 45] = [
+    pub const ALL: [Mode; 47] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -392,6 +408,8 @@ impl Mode {
         Mode::Rade,
         Mode::Hfdl,
         Mode::Dsc,
+        Mode::Jt65,
+        Mode::Jt9,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -399,7 +417,7 @@ impl Mode {
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
     /// received in AM.
-    pub const DIGITAL: [Mode; 26] = [
+    pub const DIGITAL: [Mode; 28] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -426,6 +444,8 @@ impl Mode {
         Mode::PacketHf,
         Mode::Aprs,
         Mode::Dsc,
+        Mode::Jt65,
+        Mode::Jt9,
     ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
@@ -455,6 +475,8 @@ impl Mode {
                 | Mode::Wefax
                 | Mode::Navtex
                 | Mode::Dsc
+                | Mode::Jt65
+                | Mode::Jt9
                 | Mode::Packet
                 | Mode::PacketHf
                 | Mode::Aprs
@@ -629,7 +651,10 @@ impl Mode {
     /// Including it would buy an overlay that is always empty and a transmit
     /// frequency picker for a mode whose tone offset does not move.
     pub fn is_slotted(self) -> bool {
-        matches!(self, Mode::Ft8 | Mode::Ft4 | Mode::Ft2 | Mode::Js8)
+        matches!(
+            self,
+            Mode::Ft8 | Mode::Ft4 | Mode::Ft2 | Mode::Js8 | Mode::Jt65 | Mode::Jt9
+        )
     }
 
     /// How much spectrum this mode's signal occupies, in Hz, for the modes whose
@@ -711,6 +736,14 @@ impl Mode {
                 tx_offset_s: 0.0,
                 burst_s: crate::PI4_BURST_S,
             }),
+            // JT65A is 126 symbols of 4460/12000 s — 46.83 s — keyed one
+            // second into a 60-second slot, the offset WSJT-X uses for the
+            // whole JT65/JT9 family. The burst is short enough that the
+            // receiver has most of the slot to decode before the next one.
+            Mode::Jt65 => Some(SlotTiming { slot_s: 60.0, tx_offset_s: 1.0, burst_s: 46.83 }),
+            // JT9 is 85 symbols of 6912/12000 s — 48.96 s — in the same
+            // 60-second slot and at the same one-second offset.
+            Mode::Jt9 => Some(SlotTiming { slot_s: 60.0, tx_offset_s: 1.0, burst_s: 48.96 }),
             _ => None,
         }
     }
@@ -779,6 +812,10 @@ impl Mode {
                 // A decoder for a beacon network's signal, not a beacon
                 // implementation — see `Mode::Pi4`'s own doc comment.
                 | Mode::Pi4
+                // JT65/JT9 are QSO modes, but transmit is not wired in this
+                // build — the panel is the decode list alone.
+                | Mode::Jt65
+                | Mode::Jt9
         )
     }
 
@@ -833,6 +870,8 @@ impl Mode {
             Mode::RttyFm => "RTTY-FM",
             Mode::Navtex => "NAVTEX",
             Mode::Dsc => "DSC",
+            Mode::Jt65 => "JT65",
+            Mode::Jt9 => "JT9",
             Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
             Mode::SstvFm => "SSTV-FM",
@@ -915,6 +954,8 @@ impl Mode {
                 | Mode::PacketHf
                 | Mode::Navtex
                 | Mode::Dsc
+                | Mode::Jt65
+                | Mode::Jt9
                 | Mode::Wefax
                 | Mode::Acars
         );
@@ -985,10 +1026,16 @@ impl Mode {
             // narrowly around audio_hz — and Hell X9 needs nearly all of it).
             // SSTV occupies the full sideband audio passband (mirrored onto
             // the lower sideband by `default_filter_at` where it rides one).
+            // JT65 and JT9 are narrow — JT9 is ~16 Hz wide — but they are
+            // worked anywhere in the 200–3000 Hz audio range and the decoder
+            // searches the whole passband, so they get the same wide filter the
+            // other slotted modes have.
             Mode::Ft8
             | Mode::Ft4
             | Mode::Ft2
             | Mode::Js8
+            | Mode::Jt65
+            | Mode::Jt9
             | Mode::Psk
             | Mode::Rtty
             | Mode::Sstv
@@ -1242,6 +1289,8 @@ impl Mode {
             | Mode::Wefax
             | Mode::Navtex
             | Mode::Dsc
+            | Mode::Jt65
+            | Mode::Jt9
             | Mode::Olivia
             | Mode::Thor
             | Mode::Fsq
@@ -1499,6 +1548,8 @@ impl Mode {
             | Mode::Wefax
             | Mode::Navtex
             | Mode::Dsc
+            | Mode::Jt65
+            | Mode::Jt9
             | Mode::Acars
             | Mode::PacketHf
             | Mode::Rade
@@ -2048,6 +2099,8 @@ mod tests {
             (Mode::Hfdl, 42),
             (Mode::Pi4, 43),
             (Mode::Dsc, 44),
+            (Mode::Jt65, 45),
+            (Mode::Jt9, 46),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2094,7 +2147,7 @@ mod tests {
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker.
-        let last = Mode::Dsc as u8;
+        let last = Mode::Jt9 as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");
@@ -2272,8 +2325,10 @@ mod tests {
     #[test]
     fn only_the_slotted_modes_have_a_slot_clock() {
         for mode in Mode::ALL {
-            let expected =
-                matches!(mode, Mode::Ft8 | Mode::Ft4 | Mode::Ft2 | Mode::Wspr | Mode::Pi4);
+            let expected = matches!(
+                mode,
+                Mode::Ft8 | Mode::Ft4 | Mode::Ft2 | Mode::Wspr | Mode::Pi4 | Mode::Jt65 | Mode::Jt9
+            );
             assert_eq!(mode.slot_timing().is_some(), expected, "{mode:?}");
         }
         assert_eq!(Mode::Js8.slot_timing(), None);

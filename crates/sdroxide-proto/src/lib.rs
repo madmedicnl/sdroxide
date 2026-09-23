@@ -1478,7 +1478,17 @@ use sdroxide_types::{
 /// of the next field and fails to decode every digital status. Cannot be
 /// bundled upstream with the mode alone, so it is a downstream (fork) addition
 /// until the decoder is proven on a real burst.
-pub const PROTO_VERSION: u16 = 169;
+///
+/// v170: JT65 and JT9, the weak-signal slotted modes from mfsk-core.
+/// `Mode::Jt65` and `Mode::Jt9` are appended to that enum, so no surviving
+/// discriminant moves. No new wire type: a JT decode is an ordinary
+/// `Decode` and rides the existing `RadioEvent::Decodes` path, and the modes
+/// are receive-only so nothing else is added. `Mode` is postcard-encoded by
+/// declaration index and rides `RadioState`, so a v169 peer handed one runs
+/// off the end of the enum — the same break every appended `Mode` causes, and
+/// the same fix (the two sides run in lockstep). A downstream (fork) addition,
+/// and an "isolate it" upstream change when it is offered.
+pub const PROTO_VERSION: u16 = 170;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

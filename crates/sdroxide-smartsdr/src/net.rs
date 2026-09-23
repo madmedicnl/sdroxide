@@ -1667,6 +1667,8 @@ fn mode_to_flex(m: Mode) -> &'static str {
         | Mode::Wefax
         | Mode::Navtex
         | Mode::Dsc
+        | Mode::Jt65
+        | Mode::Jt9
         | Mode::RfPaint
         | Mode::Spec => "USB",
     }

@@ -100,6 +100,9 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         Mode::Wefax => &["CHART", "SAVED"],
         Mode::Navtex => &["MESSAGES", "READING"],
         Mode::Dsc => &["MESSAGES", "READING"],
+        // The decode list alone: the QSO pane is FT8's sequencer, which a
+        // receive-only JT build has nothing to put in.
+        Mode::Jt65 | Mode::Jt9 => &["DECODES"],
         Mode::RfPaint => &["TEXT", "IMAGE"],
         // The keyboard modes and RADE are one column already: receive above,
         // what you are sending below it.
@@ -710,6 +713,20 @@ impl SdroxideApp {
     /// A phone shows one column at a time instead — see [`Self::digi_tabs`].
     /// Two columns need 180 + 7 + 220 points before either has said anything,
     /// which is more than the whole of the screen.
+    /// The JT65/JT9 panel: the slot clock and the decode list, and nothing
+    /// else.
+    ///
+    /// A JT decode is an ordinary [`sdroxide_types::Decode`], so the list is
+    /// the one the FT8 modes share. What is missing is the QSO area — a JT
+    /// exchange is a minutes-long handshake this build does not sequence (it
+    /// is receive-only), so the sequencer, the transmit pane and the call
+    /// queue have nothing to drive.
+    pub(in crate::app) fn jt_panel(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+        self.slot_progress(ui);
+        ui.add_space(4.0);
+        self.decode_list(ui, cmds);
+    }
+
     pub(in crate::app) fn digi_panel(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
         // Full width, above the split: the turn is as much the decode list's
         // clock as the sequencer's, and a phone showing one pane at a time must

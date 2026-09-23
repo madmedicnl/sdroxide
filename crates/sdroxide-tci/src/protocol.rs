@@ -298,7 +298,14 @@ pub fn parse_status(text: &str) -> Vec<(String, String)> {
 pub fn mode_to_tci(mode: Mode) -> &'static str {
     match mode {
         Mode::Lsb => "lsb",
-        Mode::Usb | Mode::Sstv | Mode::Wefax | Mode::Navtex | Mode::Dsc | Mode::RfPaint => "usb",
+        Mode::Usb
+        | Mode::Sstv
+        | Mode::Wefax
+        | Mode::Navtex
+        | Mode::Dsc
+        | Mode::Jt65
+        | Mode::Jt9
+        | Mode::RfPaint => "usb",
         Mode::Cw => "cw",
         // TCI has no DRM modulation; AM is the nearest, for the same
         // reason as the hamlib mapping.

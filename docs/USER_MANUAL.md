@@ -18,12 +18,13 @@ or connects to a remote sdroxide server.
 2. [Basic operation](#2-basic-operation)
     - [2.20 HD Radio (NRSC-5)](#220-hd-radio-nrsc-5)
     - [2.22 QO-100 beacon plugin](#222-qo-100-beacon-plugin)
-3. [Digital modes (FT8, FT4, FT2, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, DSC, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
+3. [Digital modes (FT8, FT4, FT2, JT65, JT9, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, DSC, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
     - [3.17 AtCHAT NET](#317-atchat-net)
     - [3.18 ACARS](#318-acars-airline-datalink-on-airband)
     - [3.19 HFDL](#319-hfdl-aircraft-on-the-shortwave-band)
     - [3.20 PI4](#320-pi4-next-generation-beacon)
     - [3.21 DSC](#321-dsc-marine-distress-and-calling)
+    - [3.22 JT65 and JT9](#322-jt65-and-jt9)
 4. [Skimmers (CW, PSK, RTTY)](#4-skimmers)
 5. [ISM band decoder (315 / 345 / 433 / 868 / 915 MHz devices)](#5-ism-band-decoder)
 6. [Settings](#6-settings)
@@ -398,7 +399,7 @@ The **OPERATE** tab's rows:
   than a hunt through the digital modes. `FM` here is **NFM** (narrow); the
   broadcast band's own button comes up **WFM** (see below).
 - **MODE:** `LSB USB CW AM SAM C-QUAM NFM WFM DRM HD DIGU DIGL DSB ISB SPEC`.
-- **DIGITAL:** `FT8 FT4 FT2 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
+- **DIGITAL:** `FT8 FT4 FT2 JT65 JT9 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
   [Digital modes](#3-digital-modes)).
 
 ![The band and mode selector popup](images/04-band-mode-popup.jpg)
@@ -6063,6 +6064,46 @@ compare the sender's against.
 **Nothing to set.** There is no tone reversal control, unlike NAVTEX: the
 detector reads both tone senses and the framer locks to whichever it sees.
 The tones and the baud are fixed by ITU-R M.493.
+
+### 3.22 JT65 and JT9
+
+Choose **JT65** or **JT9** from the DIGITAL row. These are the two classic
+weak-signal modes from the WSJT family: JT65 is the EME (moonbounce) mode,
+and JT9 is its narrower, slower sibling for the weakest signals on HF. Both
+carry a short message — a callsign, another callsign, and a locator or a
+report — in a **60-second slot**, and both are decoded here rather than
+sequenced, so this build is **receive only** for them.
+
+**Where they are.** JT65 and JT9 are HF and low-VHF modes. JT65 is used on
+6 m and up for moonbounce and on HF for weak-signal work; JT9 is HF. Tune the
+dial to the band and leave the audio cursor where the signals are — a JT
+signal is tiny, 16 Hz wide for JT9 and about 180 Hz for JT65, and the panel's
+decoder searches the whole audio passband for it.
+
+**What you see.** One pane, the **DECODES** list, newest first, exactly the
+list FT8 and FT4 use: the time, the SNR, the audio offset, and the decoded
+`<to> <from> <grid|report>`. There is no QSO pane and no transmit half — see
+below.
+
+**One slot at a time.** Both modes keep the clock the other slotted modes do:
+the slot begins on the minute, and a decode arrives a few seconds after the
+slot ends. The decoder runs on its own thread, because a JT65 scan over a
+minute of audio is seconds of work — so the list fills in shortly after each
+minute rather than instantly, and a slot is skipped rather than queued if the
+machine cannot keep up.
+
+**No checksum, so a decode is a claim.** Unlike FT8 and FT4, the 72-bit JT
+message carries no CRC — the error correction is a Reed–Solomon code (JT65)
+or a convolutional one (JT9), and either can converge on a well-formed
+message that was never sent when the band is empty or the signal is deep in
+the noise. The decoder orders what it finds by the strength of the sync and
+keeps the strongest few. On a real signal the true message is the strong one;
+on a dead band, do not read a lone weak row as a station.
+
+**Receive only.** Transmit is not wired in this build. A JT65 exchange is a
+minutes-long, precisely-timed handshake, and getting the sequencing wrong on
+the air is worse than not offering it — so the panel decodes and the operator
+copies. The modes will gain a sequencer when it can be done properly.
 
 ## 4. Skimmers
 
@@ -16285,6 +16326,7 @@ using. Bind them under **Speech** on the Controls tab:
 | RTTY-FM | The same modem on an FM carrier, the way a club bulletin is still sent on VHF. |
 | NAVTEX | The maritime safety broadcast on 518, 490 and 4209.5 kHz: navigational and meteorological warnings, search-and-rescue bulletins and ice reports, framed into messages. Receive only. |
 | DSC | Digital Selective Calling — the marine distress and calling system on VHF channel 70 and the MF/HF distress channels: 1200-baud FFSK carrying distress alerts (MMSI, nature, position, time) and routine calls. Receive only. See [3.21](#321-dsc-marine-distress-and-calling). |
+| JT65 / JT9 | The classic WSJT weak-signal modes — 65-FSK (JT65) and 9-FSK (JT9), both in a 60-second slot, carrying `<to> <from> <grid\|report>`. Receive only in this build (no QSO sequencer). See [3.22](#322-jt65-and-jt9). |
 | OLIVIA | Robust MFSK keyboard mode (selectable tones/bandwidth). |
 | THOR | DominoEX-family IFK keyboard mode with FEC (THOR4…THOR32). |
 | FSQ | Fast Simple QSO — 33-tone IFK with directed (FSQCALL) messaging and images. |
