@@ -20,8 +20,8 @@ use sdroxide_digi::{
     AcarsController, AprsController, AtChatController, CwController, DigiAction, DigiController,
     DigiEngine, DscController, FsqController, Fst4Controller, HellController, Js8Controller,
     JtController, NavtexController, PacketController, Pi4Controller, Q65Controller, RadeController,
-    RfPaintController, RifpController, SstvController, TextModemController, WefaxController,
-    WsprController,
+    RfPaintController, RifpController, SstvController, TextModemController, UvPacketController,
+    WefaxController, WsprController,
 };
 use sdroxide_drm::DrmDemod;
 use sdroxide_dsp::{
@@ -6978,6 +6978,10 @@ impl Engine {
             // the period and the tone spacing, neither of which the FT8
             // controller has a concept of.
             Box::new(Q65Controller::new(self.digi_config.clone(), tap_rate))
+        } else if mode == Mode::UvPacket {
+            // UVPacket is not slotted at all: frames start anywhere, so the
+            // controller keeps a rolling window rather than a slot buffer.
+            Box::new(UvPacketController::new(self.digi_config.clone(), tap_rate))
         } else {
             Box::new(DigiController::new(mode, self.digi_config.clone(), tap_rate))
         }
@@ -17609,6 +17613,7 @@ fn rig_mode_class(m: Mode) -> u8 {
         | Mode::Fst4
         | Mode::Msk144
         | Mode::Q65
+        | Mode::UvPacket
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

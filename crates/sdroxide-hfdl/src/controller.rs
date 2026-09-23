@@ -251,7 +251,6 @@ mod tests {
             kind: kind.to_string(),
             details,
             acars: None,
-            dsc: None,
             fec_corrected: None,
             freq_skew_hz: None,
             snr_db: None,

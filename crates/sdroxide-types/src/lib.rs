@@ -76,6 +76,7 @@ mod tciserver;
 pub mod text;
 mod tone;
 mod ui;
+mod uvpacket;
 mod vdl2;
 mod voice;
 mod wefax;
@@ -185,6 +186,9 @@ pub use ism::{
 };
 pub use fst4::Fst4Period;
 pub use q65::Q65Mode;
+pub use uvpacket::{
+    UVPACKET_AUDIO_CENTRE_HZ, UVPACKET_FRAME_MAX, UvPacketFrame, UvPacketMode, UvPacketStatus,
+};
 pub use js8::{
     HB_BAND_HI_HZ, HB_BAND_LO_HZ, HB_SLOT_HZ, Js8FrameInfo, Js8FrameKind, Js8Heard, Js8Msg,
     Js8Speed, Js8Status,

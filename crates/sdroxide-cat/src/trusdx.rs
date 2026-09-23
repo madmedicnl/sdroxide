@@ -274,6 +274,7 @@ fn mode_digit(m: Mode) -> char {
         | Mode::Fst4
         | Mode::Msk144
         | Mode::Q65
+        | Mode::UvPacket
         | Mode::RfPaint
         | Mode::Digu
         | Mode::Ft8

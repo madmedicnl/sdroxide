@@ -308,6 +308,7 @@ pub fn mode_to_tci(mode: Mode) -> &'static str {
         | Mode::Fst4
         | Mode::Msk144
         | Mode::Q65
+        | Mode::UvPacket
         | Mode::RfPaint => "usb",
         Mode::Cw => "cw",
         // TCI has no DRM modulation; AM is the nearest, for the same

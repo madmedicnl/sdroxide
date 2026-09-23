@@ -93,7 +93,7 @@ struct Cli {
     /// WFM, DRM, HD RADIO, ADS-B, VDL2, AIS, DIGU, DIGL, DSB, ISB, SPEC, FT8,
     /// FT4, FT2, JS8, WSPR, PI4, PSK, RTTY, RTTY-FM, PACKET, PACKET-HF, APRS,
     /// SSTV, SSTV-FM, RIFP, WEFAX, NAVTEX, DSC, JT65, JT9, FST4, MSK144, Q65,
-    /// ACARS, OLIVIA, THOR, FSQ, ATCHAT, HELL, RFPAINT, RADE, HFDL
+    /// UVPACKET, ACARS, OLIVIA, THOR, FSQ, ATCHAT, HELL, RFPAINT, RADE, HFDL
     ///
     /// "HD RADIO" is the one name with a space in it, so it needs the quotes.
     ///

@@ -222,6 +222,7 @@ impl NavtexController {
             navtex: Some(self.navtex_status()),
             acars: None,
             dsc: None,
+            uvpacket: None,
             aprs: None,
             js8: None,
             atchat: None,

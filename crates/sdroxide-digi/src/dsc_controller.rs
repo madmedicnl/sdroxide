@@ -92,6 +92,7 @@ impl DscController {
             navtex: None,
             acars: None,
             dsc: Some(self.dsc_status()),
+            uvpacket: None,
             aprs: None,
             js8: None,
             atchat: None,

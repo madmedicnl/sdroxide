@@ -207,6 +207,7 @@ impl RifpController {
             navtex: None,
             acars: None,
             dsc: None,
+            uvpacket: None,
             aprs: None,
             js8: None,
             atchat: None,

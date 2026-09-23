@@ -203,17 +203,16 @@ shortwave/CB/VHF listener and by how cleanly each fits the existing DSP chain.
 The house rule holds: a new decoder is an "isolate it" upstream change, and
 anything with a vocoder or a patent posture is called out.
 
-1. **The mfsk-core modes we already link but do not build.** This is the
-   cheapest large expansion by far, and worth doing before any new decoder.
-   `sdroxide-digi` pins **mfsk-core 0.11** with only `ft8, ft4, wspr` enabled;
-   the crate also ships **JT65, JT9, Q65 (ten sub-modes), FST4 (five), MSK144
-   and the UVPacket four** (`uvpacket`, `full` features). Each is a WSJT-X
-   port with the same `DecodeRequest` shape the FT8/FT4 path already uses, so
-   the work is a decode request per mode plus panel wiring — not a port. The
-   catch is the same one 0.11 settled for FT4/FT8: the CB callsign grammar
-   hook (`also_accept`) applies per mode, and WSPR-adjacent modes (FST4W,
-   Q65 beacons) need the same `SpotKind`/upload path WSPR already has.
-   **Worth scoping first, before DSC/ALE/M17.** Not started.
+1. **The mfsk-core modes we already link but do not build.** **Done
+   (2026-09-23):** `sdroxide-digi` now enables **JT65, JT9, Q65 (ten
+   sub-modes), FST4 (five), MSK144 and UVPacket (four sub-modes)** alongside
+   `ft8, ft4, wspr`. The WSJT-X ports share the `DecodeRequest` shape the
+   FT8/FT4 path already uses, so each was a decode request plus panel wiring;
+   UVPacket is not a WSJT-X mode but a packet byte pipe, so it got a dedicated
+   panel rather than the decode list. The CB callsign grammar hook
+   (`also_accept`) is applied per mode. Still open from this item: the
+   WSPR-adjacent upload path for FST4W and Q65 beacons (`SpotKind`), which
+   none of the added modes uses yet.
 2. **DSC** (Digital Selective Calling — marine distress and routine, VHF CH70
    and MF/HF 2187.5/4207.5/6312/8414.5 kHz). SOLAS selective calling: a
    1200-baud FFSK burst with BCH(10,7) error correction, carrying the MMSI of

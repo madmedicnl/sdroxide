@@ -18,7 +18,7 @@ or connects to a remote sdroxide server.
 2. [Basic operation](#2-basic-operation)
     - [2.20 HD Radio (NRSC-5)](#220-hd-radio-nrsc-5)
     - [2.22 QO-100 beacon plugin](#222-qo-100-beacon-plugin)
-3. [Digital modes (FT8, FT4, FT2, JT65, JT9, FST4, MSK144, Q65, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, DSC, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
+3. [Digital modes (FT8, FT4, FT2, JT65, JT9, FST4, MSK144, Q65, UVPACKET, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, DSC, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
     - [3.17 AtCHAT NET](#317-atchat-net)
     - [3.18 ACARS](#318-acars-airline-datalink-on-airband)
     - [3.19 HFDL](#319-hfdl-aircraft-on-the-shortwave-band)
@@ -28,6 +28,7 @@ or connects to a remote sdroxide server.
     - [3.23 FST4](#323-fst4)
     - [3.24 MSK144](#324-msk144)
     - [3.25 Q65](#325-q65)
+    - [3.26 UVPacket](#326-uvpacket)
 4. [Skimmers (CW, PSK, RTTY)](#4-skimmers)
 5. [ISM band decoder (315 / 345 / 433 / 868 / 915 MHz devices)](#5-ism-band-decoder)
 6. [Settings](#6-settings)
@@ -402,7 +403,7 @@ The **OPERATE** tab's rows:
   than a hunt through the digital modes. `FM` here is **NFM** (narrow); the
   broadcast band's own button comes up **WFM** (see below).
 - **MODE:** `LSB USB CW AM SAM C-QUAM NFM WFM DRM HD DIGU DIGL DSB ISB SPEC`.
-- **DIGITAL:** `FT8 FT4 FT2 JT65 JT9 FST4 MSK144 Q65 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
+- **DIGITAL:** `FT8 FT4 FT2 JT65 JT9 FST4 MSK144 Q65 UVPACKET JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
   [Digital modes](#3-digital-modes)).
 
 ![The band and mode selector popup](images/04-band-mode-popup.jpg)
@@ -6197,6 +6198,41 @@ machine cannot keep up.
 **Receive only.** As with JT65/JT9 and FST4, transmit is not wired in this
 build: a Q65 contact is a precisely-timed, minutes-long handshake and the panel
 decodes rather than sequences.
+
+### 3.26 UVPacket
+
+Choose **UVPACKET** from the DIGITAL row. UVPacket is not one of the WSJT
+weak-signal modes: it is a **packet protocol** for private amateur VHF/UHF
+groups, carried as a short π/4-DQPSK burst. Where FT8 and its relatives carry a
+`<to> <from> <grid>` message, a UVPacket frame carries an application **byte
+pipe** — the sender's own data, tagged with a small application number and a
+sequence number and split into 1–32 blocks of twelve bytes. What is inside is up
+to the group using it: a sentence, a short status line, or a packed binary
+struct.
+
+**Where it is.** Anywhere a group has agreed a channel — typically on VHF/UHF,
+where a 1200-baud packet burst fits a narrow FM or SSB voice channel. There is
+no calling frequency and no band plan; tune the dial to the group's channel.
+The modem's tones sit 800–2600 Hz above the dial, so the panel's decoder
+searches a fixed audio window regardless of the cursor.
+
+**What you see.** Two panes. **FRAMES** is the rolling list of what has been
+decoded — time, sub-mode, application number, sequence, payload size and SNR —
+and **FRAME** is the one selected, with every header field and the payload shown
+two ways: as text when it is printable, and always as a hex dump. The sub-mode
+(Robust, Standard, Ultra, Express) is **detected from the preamble**, so there
+is nothing to choose: each frame is labelled with the one it arrived at.
+
+**Frames are not slotted.** Unlike every other mode in this chapter, a UVPacket
+frame can begin at any instant, so there is no clock to watch and no turn
+headers. The receiver keeps a rolling window of the last several seconds of
+audio and re-scans it, so a frame appears a moment after it ends. A frame that
+arrives twice is shown once; a repeated transmission more than a few seconds
+later is a new frame.
+
+**Receive only.** Transmit is not wired in this build: UVPacket is a byte pipe
+whose contents are the application's, and this program has no application to
+put in it. The panel decodes what the group is sending.
 
 ## 4. Skimmers
 
@@ -16423,6 +16459,7 @@ using. Bind them under **Speech** on the Controls tab:
 | FST4 | The slow weak-signal mode for EME, troposcatter and LF/MF: 160-symbol GFSK in a 15/30/60/120/300-second T/R period, carrying the same 77-bit message as FT8/JT65. Receive only in this build. See [3.23](#323-fst4). |
 | MSK144 | Meteor scatter on 6 m and 2 m: continuous-phase binary MSK at 2000 baud in a 15-second period, carrying the same 77-bit message as FT8. The decoder hunts the period for meteor-trail bursts. Receive only in this build. See [3.24](#324-msk144). |
 | Q65 | The modern WSJT weak-signal mode for EME, ionoscatter, rainscatter and troposcatter: 65-tone FSK in a 15/30/60/120/300-second T/R period, with a tone-spacing letter A–E for Doppler spread. Carries the same 77-bit message as FT8. Receive only in this build. See [3.25](#325-q65). |
+| UVPACKET | A packet protocol for private amateur VHF/UHF groups: a short π/4-DQPSK burst carrying an application byte pipe (app type, sequence, 1–32 payload blocks) rather than a WSJT message. The sub-mode is detected from the preamble. Receive only in this build. See [3.26](#326-uvpacket). |
 | OLIVIA | Robust MFSK keyboard mode (selectable tones/bandwidth). |
 | THOR | DominoEX-family IFK keyboard mode with FEC (THOR4…THOR32). |
 | FSQ | Fast Simple QSO — 33-tone IFK with directed (FSQCALL) messaging and images. |

@@ -503,6 +503,9 @@ pub struct SdroxideApp {
     /// Which DSC sequence the reading pane is showing, or `None` for the
     /// newest.
     dsc_open: Option<usize>,
+    /// Which UVPacket frame the reading pane is showing, or `None` for the
+    /// newest.
+    uvpacket_open: Option<usize>,
     /// Fade clock for the noise-reduction picker, like `tone_popup_since`.
     nr_popup_since: Option<f64>,
     rec_popup_since: Option<f64>,
@@ -1506,6 +1509,7 @@ impl SdroxideApp {
             tone_popup_since: None,
             navtex_open: None,
             dsc_open: None,
+            uvpacket_open: None,
             nr_popup_since: None,
             rec_popup_since: None,
             recording_stop_at: None,

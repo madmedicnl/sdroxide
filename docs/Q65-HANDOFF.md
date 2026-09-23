@@ -1,25 +1,28 @@
-# Handoff — Q65 (and the mfsk-core mode expansion)
+# Handoff — the mfsk-core mode expansion (JT65/JT9/FST4/MSK144/Q65/UVPacket)
 
-**Q65 landed.** Updated 2026-09-23 from the mid-session note, which said the
-tree did not compile and Q65 was uncommitted — both are now false. Read the
-"Where everything is" section as current and the rest as history/next steps.
+**The group is complete.** Updated 2026-09-23. The mid-session note this
+started as said the tree did not compile and Q65 was uncommitted — both long
+false now, and UVPacket has since landed too. Read "Where everything is" as
+current and the rest as history.
 
 ## Where everything is
 
 - **Repo:** `/home/druid/sdroxide`, branch `main`, **clean**.
-- **Local `main` is at `835944fe` (Q65)**, two commits ahead of the
-  remote-tracking `origin/main`, which is at `3777cea5` (FST4). So **MSK144 and
-  Q65 are local-only as far as this clone knows** — the earlier note claimed
-  MSK144 had been pushed, but the tracking ref disagrees. Confirm with
-  `git fetch` before any push; **do not push and do not open a PR until the
-  operator says so.**
-- **Committed locally, in order:** `0f01406d` DSC flush, `2062fe6c` DSC mode,
-  `e8c969ba` DSC bench example, `14e5ea00` JT65/JT9, `3777cea5` FST4,
-  `67634cfe` MSK144, `835944fe` Q65. **Nothing has been offered upstream.**
+- **`main` is pushed and level with `origin/main`.** The mfsk-core group is in,
+  in order: `0f01406d` DSC flush, `2062fe6c` DSC mode, `e8c969ba` DSC bench
+  example, `14e5ea00` JT65/JT9, `3777cea5` FST4, `67634cfe` MSK144, `835944fe`
+  Q65, `d3c33159` the Q65 handoff, and the UVPacket commit on top. **Nothing
+  has been offered upstream.**
 - **DSC real-burst check is still open:** the RSP1's API service was wedged
   (`libusb errno=12`). `sudo systemctl restart sdrplay` needs a password. No
   off-air DSC burst has ever decoded here. See `docs/DSC-HANDOFF.md` for the
   `dsc_capture` example and the exact commands.
+- **One pre-existing bug found and fixed while doing UVPacket:** the DSC commit
+  had added `dsc: None` to a `HfdlEvent` test helper in
+  `crates/sdroxide-hfdl/src/controller.rs`, so `cargo test -p sdroxide-hfdl`
+  did not compile. `cargo check` never caught it because it does not build
+  tests. Worth remembering: after a struct field is added, run
+  `cargo test --workspace --no-run`.
 
 ## What Q65 shipped (`835944fe`)
 
@@ -61,12 +64,36 @@ tree did not compile and Q65 was uncommitted — both are now false. Read the
   `cargo test -p sdroxide-digi --release -- --ignored q65` (all ten pass in
   ~3 s release).
 
-## After Q65: UVPacket (last of the mfsk-core group)
+## UVPacket (last of the mfsk-core group)
 
-`mfsk_core::uvpacket::rx::decode(audio: &[f32], audio_centre_hz: f32) ->
-Vec<DecodedFrame>` — its own protocol, needs research. Feature is `uvpacket`
-(it implies `fst4`). Then the roadmap moves on to **ALE**, then **M17**
-(both not started; see `ROADMAP.md`'s "Decoder candidates for version 2").
+UVPacket is **not** a WSJT-X message mode, and the research turned that up
+before any code was written: it is a **packet byte pipe** — a π/4-DQPSK burst
+carrying an `app_type`, a `sequence` number and 1–32 blocks of raw payload —
+and its sub-mode is **detected from the preamble**, so there is no operator
+setting and no `DigiConfig` field. Frames are unslotted and `rx::decode` scans
+a whole buffer, so the shared decode list (which draws EVEN/ODD turn headers
+per slot) was the wrong home; it got a **dedicated panel** like DSC/ACARS.
+
+- `crates/sdroxide-types/src/uvpacket.rs` — `UvPacketMode` (Robust, Standard,
+  UltraRobust, Express), `UvPacketFrame` (header fields + payload + `as_text`/
+  `as_hex`), `UvPacketStatus`, `UVPACKET_FRAME_MAX`, `UVPACKET_AUDIO_CENTRE_HZ`
+  (1700 Hz).
+- `Mode::UvPacket` appended (discriminant **50**); `DigiStatus::uvpacket`
+  appended on the tail; `PROTO_VERSION` 173 → 174.
+- `sdroxide-digi`: the `uvpacket` feature (implies `fst4`), `decode_uvpacket`
+  in `modem.rs`, and `UvPacketController` — a rolling 9 s window of 12 kHz
+  audio, re-scanned every 0.5 s on a worker thread, with a 12 s frame-hash
+  de-dup set so overlapping windows file a frame once.
+- `crates/sdroxide-ui/src/app/panels/uvpacket.rs` — the FRAMES/FRAME panel.
+- `uvpacket_frames_round_trip_at_every_sub_mode` covers all four sub-modes
+  (0.13 s debug), so it is **not** `#[ignore]`d.
+
+What is **not** done: transmit (there is no application layer), and the
+WSPR-adjacent upload path (`SpotKind`) that FST4W and Q65 beacons would need —
+none of the added modes uses it yet.
+
+Next in the roadmap's "Decoder candidates for version 2": **ALE / HF Selcall**,
+then **M17** (both not started).
 
 ## Patches applied that could bite a `cargo`/`git` step
 
@@ -84,7 +111,7 @@ edits both reported success and did not apply). **Always verify an edit with a
 large one. If a session stalls again, write the state to a handoff like this
 one and start fresh — it worked.
 
-## Quick reference: the mode pipeline (all the new slotted modes)
+## Quick reference: the mode pipeline (all the new modes)
 
 ```
 audio → digi engine tap (12 kHz i16) → [controller slot buffer] → worker thread
@@ -96,4 +123,7 @@ audio → digi engine tap (12 kHz i16) → [controller slot buffer] → worker t
   worker.
 - FST4: `Fst4Controller`, period from `cfg.fst4_period`.
 - Q65: `Q65Controller`, sub-mode from `cfg.q65_mode`.
+- UVPacket: `UvPacketController` — **not slotted**, so a rolling window and
+  `DigiAction::Status` with `DigiStatus::uvpacket`, drawn by its own panel; it
+  never emits `Decodes`.
 - All receive-only (`Mode::is_rx_only`), no QSO sequencer, no transmitter.

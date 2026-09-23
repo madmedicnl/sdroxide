@@ -547,6 +547,11 @@ pub struct DigiStatus {
     /// struct, after `acars`, for the same positional reason.
     #[serde(default)]
     pub dsc: Option<DscStatus>,
+    /// UVPacket status, when that mode is selected. `None` in every other
+    /// mode, as the rest of these are. Last in the struct, after `dsc`, for the
+    /// same positional reason.
+    #[serde(default)]
+    pub uvpacket: Option<crate::UvPacketStatus>,
 }
 
 /// The running detail of the contact in progress: when it started and what has
@@ -1091,6 +1096,7 @@ impl DigiStatus {
             navtex: None,
             acars: None,
             dsc: None,
+            uvpacket: None,
             aprs: None,
             js8: None,
             atchat: None,

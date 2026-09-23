@@ -81,6 +81,7 @@ impl AcarsController {
             navtex: None,
             acars: Some(self.acars_status()),
             dsc: None,
+            uvpacket: None,
             aprs: None,
             js8: None,
             atchat: None,

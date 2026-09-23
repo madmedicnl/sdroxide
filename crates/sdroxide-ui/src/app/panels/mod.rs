@@ -37,6 +37,7 @@ pub(in crate::app) mod rf_paint;
 pub(in crate::app) mod setup;
 pub(in crate::app) mod sstv;
 pub(in crate::app) mod text_modem;
+pub(in crate::app) mod uvpacket;
 pub(in crate::app) mod vdl2;
 pub(in crate::app) mod wefax;
 pub(in crate::app) mod widgets;
@@ -100,6 +101,10 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         Mode::Wefax => &["CHART", "SAVED"],
         Mode::Navtex => &["MESSAGES", "READING"],
         Mode::Dsc => &["MESSAGES", "READING"],
+        // Two, for the reason DSC has two: the rolling list of frames, and the
+        // one selected, whose payload wants reading on its own whether it is
+        // text or binary.
+        Mode::UvPacket => &["FRAMES", "FRAME"],
         // The decode list alone: the QSO pane is FT8's sequencer, which a
         // receive-only JT/FST4/MSK144/Q65 build has nothing to put in.
         Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65 => &["DECODES"],

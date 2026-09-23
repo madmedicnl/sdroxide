@@ -637,6 +637,7 @@ impl AprsController {
             navtex: None,
             acars: None,
             dsc: None,
+            uvpacket: None,
             aprs: Some(Box::new(self.aprs_status())),
             js8: None,
             atchat: None,

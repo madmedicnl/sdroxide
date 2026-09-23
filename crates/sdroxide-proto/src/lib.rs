@@ -1511,7 +1511,15 @@ use sdroxide_types::{
 /// a v172 peer reads the extra bytes as the start of the next field and fails
 /// to decode every digital status — the same break as v171's appended
 /// `fst4_period`. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 173;
+///
+/// v174: UVPacket, the packet byte-pipe protocol. `Mode::UvPacket` is appended
+/// to that enum, so no surviving discriminant moves, and `DigiStatus` gains
+/// `uvpacket` (`Option<UvPacketStatus>`) on its tail, since a decoded frame
+/// carries an application tag and raw payload rather than a WSJT message.
+/// `DigiStatus` rides `RadioState` whole, so a v173 peer reads the extra bytes
+/// as the start of the next field and fails to decode every digital status —
+/// the same break as v173's appended `q65_mode`. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 174;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
