@@ -147,7 +147,9 @@ pub use drm::{
     spectrum_occupancy_khz,
 };
 pub use dsc::{
-    DscCategory, DscFormat, DscMessage, DscNature, bch as dsc_bch, decode_mmsi, decode_position,
+    CHAR_BITS as DSC_CHAR_BITS, DX_STRIDE as DSC_DX_STRIDE, DscCategory, DscFormat, DscFramer,
+    DscMessage, DscNature, EOS_SYMBOLS as DSC_EOS_SYMBOLS, MAX_SEQ_SYMBOLS as DSC_MAX_SEQ_SYMBOLS,
+    PHASING_SYMBOL as DSC_PHASING_SYMBOL, bch as dsc_bch, decode_mmsi, decode_position,
     parse as parse_dsc,
 };
 pub use entity::{

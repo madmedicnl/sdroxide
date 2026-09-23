@@ -381,9 +381,266 @@ pub fn parse(symbols: &[u8], clean: bool) -> DscMessage {
     m
 }
 
+/// The DSC end-of-sequence characters. Any of them closes a sequence.
+pub const EOS_SYMBOLS: [u8; 3] = [117, 122, 127];
+/// The phasing-sequence character (ITU-R M.493-15 §3.2.1): it repeats through
+/// the phasing run, giving the framer a pattern to lock the cadence onto.
+pub const PHASING_SYMBOL: u8 = 125;
+/// Bits per DSC character: 7 data + 3 BCH.
+pub const CHAR_BITS: u32 = 10;
+/// DX and RX characters interleave at the character cadence, so successive DX
+/// characters land 20 bits apart.
+pub const DX_STRIDE: u32 = 2 * CHAR_BITS;
+/// Cap on the symbols collected for one sequence. A runaway capture with no
+/// end-of-sequence character is abandoned rather than grown without bound; the
+/// longest standard sequence is well under this.
+pub const MAX_SEQ_SYMBOLS: usize = 40;
+
+/// Frames a demodulated DSC bit stream into messages.
+///
+/// This is the layer between the DSP (which turns audio into one bit at a time)
+/// and [`parse`]. It slides a 10-bit window through the bits, uses the BCH
+/// check to lock onto the repeating phasing character, samples the DX cadence
+/// to recover the 7-bit symbols, and stops at the end-of-sequence character.
+///
+/// # DX/RX time diversity
+///
+/// DSC sends each character twice, in the DX and RX positions, interleaved on a
+/// 20-bit grid. This takes the simple path the reference does first: lock the
+/// DX grid on the phasing pattern and read DX only. Comparing each DX character
+/// against its RX twin to recover a BCH failure is a yield improvement that
+/// needs both grids sampled — a follow-up. Clean captures decode without it.
+///
+/// # Polarity
+///
+/// An FM discriminator can present the tones either way round, so the phasing
+/// hunt accepts the phasing character and its bitwise complement; locking on
+/// the complement inverts the sampled symbols back.
+#[derive(Debug, Default)]
+pub struct DscFramer {
+    state: Framed,
+    /// The 10-bit sliding window, newest bit in the low bit.
+    reg: u16,
+    /// Bits pushed since construction.
+    nbits: u32,
+    /// Whether the window has seen a full character's worth of bits.
+    full: bool,
+    /// Hunt: the most recent phasing sighting, to confirm the 20-bit cadence.
+    last_dx_bit: u32,
+    last_dx_inverted: bool,
+    dx_seen: bool,
+    /// Lock: the tone sense, the DX boundary, and the collected symbols.
+    inverted: bool,
+    lock_bit: u32,
+    started: bool,
+    symbols: Vec<u8>,
+    bad_in_seq: usize,
+    /// Complete sequences seen, for a status line.
+    sequences: u64,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Framed {
+    #[default]
+    Hunt,
+    Locked,
+}
+
+impl DscFramer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Feed one wire bit. Bits outside `{0, 1}` are clamped to 1.
+    ///
+    /// Returns every message the bit completed, which is at most one — the
+    /// `Vec` is for an API that has room for a burst later.
+    pub fn push(&mut self, bit: u8, out: &mut Vec<DscMessage>) {
+        // Clamp a byte that is not a clean bit down to 1, as the reference
+        // does; 0 and 1 pass through unchanged.
+        let bit = if bit > 1 { 1 } else { bit };
+        self.reg = ((self.reg << 1) | u16::from(bit)) & 0x3FF;
+        self.nbits = self.nbits.wrapping_add(1);
+        if !self.full {
+            if self.nbits >= CHAR_BITS {
+                self.full = true;
+            } else {
+                return;
+            }
+        }
+        match self.state {
+            Framed::Hunt => self.hunt(),
+            Framed::Locked => self.collect(out),
+        }
+    }
+
+    /// Number of complete sequences seen, for a status line.
+    pub fn sequences(&self) -> u64 {
+        self.sequences
+    }
+
+    /// Look for two phasing characters one DX stride apart at the same
+    /// polarity. That confirms the cadence and the tone sense, and fixes the DX
+    /// grid.
+    fn hunt(&mut self) {
+        let Some(inverted) = self.window_is_phasing() else { return };
+        if self.dx_seen && self.last_dx_inverted == inverted && self.nbits - self.last_dx_bit == DX_STRIDE
+        {
+            self.state = Framed::Locked;
+            self.inverted = inverted;
+            self.lock_bit = self.nbits;
+            self.started = false;
+            self.symbols.clear();
+            self.bad_in_seq = 0;
+            self.dx_seen = false;
+            return;
+        }
+        self.dx_seen = true;
+        self.last_dx_bit = self.nbits;
+        self.last_dx_inverted = inverted;
+    }
+
+    /// Whether the current window decodes to the phasing character under either
+    /// polarity, and which one worked.
+    fn window_is_phasing(&self) -> Option<bool> {
+        if let (data, true) = bch::check(self.reg)
+            && data == PHASING_SYMBOL
+        {
+            return Some(false);
+        }
+        if let (data, true) = bch::check((!self.reg) & 0x3FF)
+            && data == PHASING_SYMBOL
+        {
+            return Some(true);
+        }
+        None
+    }
+
+    /// Sample the DX grid: at each DX boundary, check the window, skip the
+    /// leading phasing characters, then append symbols until the
+    /// end-of-sequence character closes the run.
+    fn collect(&mut self, out: &mut Vec<DscMessage>) {
+        if !(self.nbits - self.lock_bit).is_multiple_of(DX_STRIDE) {
+            return;
+        }
+        let cw = if self.inverted { (!self.reg) & 0x3FF } else { self.reg };
+        let (sym, ok) = bch::check(cw);
+
+        if !self.started {
+            if sym == PHASING_SYMBOL {
+                return; // still in the phasing run
+            }
+            if !ok {
+                // Noise on the DX grid before the format specifier: drop the
+                // lock and re-hunt.
+                self.reset();
+                return;
+            }
+            self.started = true;
+            self.symbols.clear();
+            self.bad_in_seq = 0;
+        }
+
+        if !ok {
+            self.bad_in_seq += 1;
+        }
+        self.symbols.push(sym);
+
+        if EOS_SYMBOLS.contains(&sym) {
+            self.finish(out);
+            return;
+        }
+        if self.symbols.len() >= MAX_SEQ_SYMBOLS {
+            self.reset(); // runaway sequence, no EOS: give up the lock
+        }
+    }
+
+    /// Decode the collected run, emit the message and return to hunting.
+    fn finish(&mut self, out: &mut Vec<DscMessage>) {
+        self.sequences += 1;
+        out.push(parse(&self.symbols, self.bad_in_seq == 0));
+        self.reset();
+    }
+
+    fn reset(&mut self) {
+        self.state = Framed::Hunt;
+        self.started = false;
+        self.symbols.clear();
+        self.bad_in_seq = 0;
+        self.dx_seen = false;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Bits for one character, most-significant-bit first, matching the wire
+    /// order the framer's sliding window expects.
+    fn char_bits(symbol: u8) -> impl Iterator<Item = u8> {
+        let cw = bch::encode(symbol);
+        (0..CHAR_BITS).rev().map(move |i| ((cw >> i) & 1) as u8)
+    }
+
+    /// Build the bit stream for a sequence: a phasing run, then the DX/RX
+    /// interleaved body, then an end-of-sequence character, exactly as the
+    /// on-wire cadence lays it out.
+    ///
+    /// During phasing the DX slot carries the phasing character and the RX slot
+    /// carries a *different* valid character — the receiver samples only the DX
+    /// grid, so the RX value is immaterial, but it must not also be the phasing
+    /// character or the 20-bit cadence would look like a 10-bit one.
+    fn sequence_bits(body: &[u8]) -> Vec<u8> {
+        let mut bits = Vec::new();
+        for i in 0..8u8 {
+            bits.extend(char_bits(PHASING_SYMBOL)); // DX
+            bits.extend(char_bits(111 - i)); // RX placeholder
+        }
+        for &s in body {
+            bits.extend(char_bits(s)); // DX
+            bits.extend(char_bits(s)); // RX twin (not read)
+        }
+        bits.extend(char_bits(127)); // end of sequence, DX slot
+        bits
+    }
+
+    /// The whole chain — encode, frame, parse — recovers a distress alert.
+    #[test]
+    fn the_framer_recovers_a_distress_alert_from_bits() {
+        let mut body = vec![112u8];
+        body.extend([36, 61, 23, 45, 60]); // MMSI
+        body.push(105); // sinking
+        body.extend([0, 51, 30, 0, 7]);
+        body.extend([12, 34]);
+
+        let mut framer = DscFramer::new();
+        let mut out = Vec::new();
+        for bit in sequence_bits(&body) {
+            framer.push(bit, &mut out);
+        }
+        assert_eq!(out.len(), 1, "expected exactly one sequence, got {}", out.len());
+        let m = &out[0];
+        assert_eq!(m.format, DscFormat::Distress);
+        assert_eq!(m.self_mmsi, 366_123_456);
+        assert_eq!(m.nature, DscNature::Sinking);
+        assert!(m.clean, "a clean synthetic stream must decode clean");
+        assert_eq!(framer.sequences(), 1);
+    }
+
+    /// The framer copes with the opposite tone sense, as an FM discriminator
+    /// may present it.
+    #[test]
+    fn the_framer_recovers_an_inverted_stream() {
+        let body = [120u8, 24, 41, 23, 45, 60, 100, 36, 61, 23, 45, 60];
+        let mut framer = DscFramer::new();
+        let mut out = Vec::new();
+        for bit in sequence_bits(&body) {
+            framer.push(1 - bit, &mut out); // invert every bit
+        }
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].format, DscFormat::Individual);
+        assert_eq!(out[0].target_mmsi, 244_123_456);
+    }
 
     /// The codec round-trips every symbol, and the check rejects a flipped
     /// bit — the property the whole framer rests on.
@@ -501,3 +758,4 @@ mod tests {
         assert_eq!(m.format, DscFormat::Distress);
     }
 }
+
