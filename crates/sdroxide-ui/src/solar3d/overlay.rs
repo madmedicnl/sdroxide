@@ -1704,14 +1704,15 @@ fn bottom_right(rect: egui::Rect, bottom: f32, size: egui::Vec2) -> egui::Rect {
     egui::Rect::from_min_size(egui::pos2(rect.right() - MARGIN - size.x, bottom - size.y), size)
 }
 
-/// The calendar date the clock's time belongs to, UTC over local, in the
+/// The calendar date and time the clock belongs to, UTC over local, in the
 /// bottom-right corner.
 ///
 /// The clock deliberately shows only `HH:MM:SS`, which is all you need until
 /// the two zones fall on different days — and then "is that pass tonight or
-/// tomorrow night?" has no answer on screen at all. Scrubbing the timeline
-/// makes it worse: a month of simulated time moves nothing in a readout that
-/// only counts seconds.
+/// tomorrow night?" has no answer on screen at all. The date here settles which
+/// day, and the time is repeated beside it so one instant can be read whole
+/// rather than across two boxes. Scrubbing the timeline makes it worse still: a
+/// month of simulated time moves nothing in a readout that only counts seconds.
 ///
 /// Out of the way rather than beside the clock: the date is checked once and
 /// then ignored, while the top of the view is where the menu chips and the space
@@ -1719,12 +1720,17 @@ fn bottom_right(rect: egui::Rect, bottom: f32, size: egui::Vec2) -> egui::Rect {
 fn date_readout(ui: &egui::Ui, st: &SolarUi, rect: egui::Rect, sim_now: f64) -> Option<egui::Rect> {
     let utc = sim_now as i64;
     let scrubbed = st.sim_offset_s != 0.0;
+    // Date and time together: the clock above shows only `HH:MM:SS`, so this is
+    // the one place the day a pass or an opening falls on is legible, and a time
+    // beside it saves reading two boxes to place one instant.
+    let stamp = |unix: i64| {
+        let (_, _, _, h, m, s) = sdroxide_types::utc_ymd_hms(unix);
+        format!("{} {h:02}:{m:02}:{s:02}", timefmt::dmy(unix))
+    };
     // The scrubbed instant, like the clock: two readouts of "now" that disagreed
     // would read as one of them being broken.
-    let rows = [
-        ("UTC", timefmt::dmy(utc)),
-        ("LOC", timefmt::dmy(utc + crate::time::local_offset_seconds())),
-    ];
+    let local_off = crate::time::local_offset_seconds();
+    let rows = [("UTC", stamp(utc)), ("LOC", stamp(utc + local_off))];
 
     let font = egui::FontId::proportional(11.5);
     let label_font = egui::FontId::proportional(9.5);
