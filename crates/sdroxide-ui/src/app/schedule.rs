@@ -32,6 +32,10 @@ pub(in crate::app) struct ScheduleUi {
     pub use_now: bool,
     /// Show only the listener's favourite stations.
     pub favourites_only: bool,
+    /// Show each row's local mean solar time at the transmitter, from the
+    /// site's longitude. Off by default: most listeners work in UTC, and the
+    /// column is only as good as the site coordinate.
+    pub solar_time: bool,
     /// The filtered list, and the key it was built for. Rebuilt only when the
     /// filters, the favourites, the loaded schedule or the UTC minute change —
     /// not sixty times a second over four and a half thousand rows.
@@ -50,6 +54,7 @@ impl Default for ScheduleUi {
             hhmm: 0,
             use_now: true,
             favourites_only: false,
+            solar_time: false,
             cache_key: None,
             cache: Vec::new(),
         }
@@ -196,6 +201,17 @@ impl SdroxideApp {
                     {
                         self.schedule.favourites_only = !self.schedule.favourites_only;
                     }
+                    if crate::chrome::chip(ui, self.schedule.solar_time, "SOLAR TIME")
+                        .on_hover_text(
+                            "Show each row's local time at the transmitter — the Sun's clock, \
+                             four minutes a degree from its longitude, not a civil time zone. \
+                             It knows nothing of daylight saving or zone borders, so it is \
+                             labelled solar rather than local.",
+                        )
+                        .clicked()
+                    {
+                        self.schedule.solar_time = !self.schedule.solar_time;
+                    }
                     ui.separator();
                     ui.label(
                         RichText::new(format!("{} UTC", crate::time::utc_clock(now)))
@@ -249,6 +265,23 @@ impl SdroxideApp {
                                         .size(11.0)
                                         .color(crate::theme::gray(140)),
                                 );
+                                if self.schedule.solar_time
+                                    && let Some(lon) = s.lon
+                                {
+                                    let (_, _, _, h, mi, _) = sdroxide_types::utc_ymd_hms(now);
+                                    let local =
+                                        broadcast::local_solar_hhmm(h as u16 * 100 + mi as u16, lon);
+                                    ui.label(
+                                        RichText::new(local.clone())
+                                            .size(11.0)
+                                            .monospace()
+                                            .color(crate::theme::gray(140)),
+                                    )
+                                    .on_hover_text(format!(
+                                        "{local} local solar time at {}, {lon:.1}°",
+                                        s.site,
+                                    ));
+                                }
                                 let fav =
                                     self.broadcast_favs.iter().any(|n| n == &s.name);
                                 if ui

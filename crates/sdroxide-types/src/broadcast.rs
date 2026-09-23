@@ -547,6 +547,20 @@ pub fn metre_band(khz: f64) -> Option<&'static str> {
         .map(|&(name, _, _)| name)
 }
 
+/// Local mean solar time at a transmitter, `HH:MM`, for a UTC `HHMM` clock time
+/// and the site's longitude.
+///
+/// The Sun's own clock — four minutes a degree — not a civil time zone: it
+/// knows nothing of daylight saving or of a country's zone borders. It is what
+/// the schedule's site coordinates can honestly be turned into, and it is the
+/// clock a listener means by "the broadcaster's evening", so it is labelled
+/// *solar* wherever it is shown rather than passed off as local time.
+pub fn local_solar_hhmm(utc_hhmm: u16, lon_deg: f64) -> String {
+    let utc_min = (utc_hhmm / 100) as i64 * 60 + (utc_hhmm % 100) as i64;
+    let solar = (utc_min + (lon_deg * 4.0).round() as i64).rem_euclid(1440);
+    format!("{:02}:{:02}", solar / 60, solar % 60)
+}
+
 /// The shortwave broadcast metre bands, `(name, low_khz, high_khz)` — the
 /// conventional edges the schedules use.
 ///
@@ -1271,6 +1285,19 @@ mod utility_tests {
         assert!(contains_ascii_ci("anything", ""), "an empty needle matches");
         assert!(contains_ascii_ci("anything", "  "), "so does whitespace");
         assert!(!contains_ascii_ci("ab", "abc"), "a longer needle cannot match");
+    }
+
+    /// Four minutes a degree, and it wraps: noon UTC is 12:00 at Greenwich,
+    /// ahead of it to the east, behind it to the west, and never off the clock.
+    #[test]
+    fn solar_time_is_four_minutes_a_degree_and_wraps() {
+        assert_eq!(local_solar_hhmm(1200, 0.0), "12:00");
+        // 15°E is +60 min; 75°W is −300 min.
+        assert_eq!(local_solar_hhmm(1200, 15.0), "13:00");
+        assert_eq!(local_solar_hhmm(1200, -75.0), "07:00");
+        // Past midnight the clock wraps rather than going negative.
+        assert_eq!(local_solar_hhmm(0100, -75.0), "20:00");
+        assert_eq!(local_solar_hhmm(2300, 120.0), "07:00");
     }
 
     #[test]
