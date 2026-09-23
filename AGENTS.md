@@ -639,8 +639,31 @@ Not started: **D-RAP absorption map** (item 6, a new SWPC feed) and the
 equirectangular throughout, so it is a rework of `widgets/worldmap.rs` rather
 than a bolt-on).
 
-Post-review follow-ups (2026-09-23), all merged into local `main`, still
-unpushed:
+**Offered upstream 2026-09-23**, each a single commit branched from
+`upstream/main` (the fork's `main` was pushed at the same time, `1995973d`):
+
+- **PR #541** (`upstream-pr/gray-line`) — the grey-line shading, no HEARD ME
+  (fork-only) and no JS8 map (upstream has none), so it is just the two panels
+  upstream carries.
+- **PR #542** (`upstream-pr/meteor-calendar`) — the IMO table and
+  `radiant_altaz`; cherry-picked clean.
+- **PR #543** (`upstream-pr/ibp-beacons`) — the 18-beacon schedule;
+  cherry-picked clean.
+- **PR #544** (`upstream-pr/space-weather-trends`) — the Kp observed history;
+  cherry-picked clean.
+- **PR #545** (`upstream-pr/trusdx-ng`), **draft** — the nG CAT family, marked
+  honestly untested on an nG radio with the on-air checks named in the body.
+  `PROTO_VERSION` 164 → 165 on that branch (upstream's register).
+
+**Local solar time is fork-only, not offered:** `broadcast::local_solar_hhmm`
+and the SOLAR TIME chip live on the SCHEDULE window, which upstream does not
+have. The cherry-pick for it did not apply, and it should not — the feature has
+no upstream home.
+
+The band-openings fork build stays on `main`; its upstream form is still
+**#537**, and the fork's copy drops out once that lands.
+
+Post-review follow-ups (2026-09-23), all merged into local `main` and pushed:
 
 - **NIGHT is on every flat map.** ADS-B, AIS, APRS and HFDL each gained a
   `night: Option<TextureId>` parameter to their `show`, painting the overlay
