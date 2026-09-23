@@ -198,6 +198,7 @@ pub fn make_demod(mode: Mode, channel_rate: f64) -> Option<Box<dyn Demodulator>>
         | Mode::Jt9
         | Mode::Fst4
         | Mode::Msk144
+        | Mode::Q65
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

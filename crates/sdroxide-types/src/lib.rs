@@ -45,6 +45,7 @@ mod mode;
 mod netcfg;
 mod pi4;
 mod pictures;
+mod q65;
 mod probe;
 mod profile;
 mod prop_store;
@@ -183,6 +184,7 @@ pub use ism::{
     Rtl433Settings, Rtl433Status,
 };
 pub use fst4::Fst4Period;
+pub use q65::Q65Mode;
 pub use js8::{
     HB_BAND_HI_HZ, HB_BAND_LO_HZ, HB_SLOT_HZ, Js8FrameInfo, Js8FrameKind, Js8Heard, Js8Msg,
     Js8Speed, Js8Status,

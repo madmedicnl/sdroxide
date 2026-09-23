@@ -101,8 +101,8 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         Mode::Navtex => &["MESSAGES", "READING"],
         Mode::Dsc => &["MESSAGES", "READING"],
         // The decode list alone: the QSO pane is FT8's sequencer, which a
-        // receive-only JT/FST4/MSK144 build has nothing to put in.
-        Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 => &["DECODES"],
+        // receive-only JT/FST4/MSK144/Q65 build has nothing to put in.
+        Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65 => &["DECODES"],
         Mode::RfPaint => &["TEXT", "IMAGE"],
         // The keyboard modes and RADE are one column already: receive above,
         // what you are sending below it.
@@ -746,6 +746,33 @@ impl SdroxideApp {
                 }
             });
             ui.add_space(4.0);
+        } else if mode == Mode::Q65 {
+            // Q65's sub-mode is the one thing about it an operator chooses, and
+            // it fixes the period, the tone spacing and the decode — so it gets
+            // a chip row, exactly as FST4's period does. The slot bar below
+            // reads from the chosen sub-mode.
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new("Q65").size(11.0).strong().color(crate::theme::CYAN()));
+                ui.label(RichText::new("sub-mode").size(10.0).weak());
+                for m in sdroxide_types::Q65Mode::UI_ORDER {
+                    let on = self.digi_cfg_edit.q65_mode == m;
+                    if crate::chrome::chip(ui, on, RichText::new(m.label()).size(10.5))
+                        .on_hover_text(format!(
+                            "{}-second T/R period, {} s burst",
+                            m.slot_s(),
+                            m.burst_s()
+                        ))
+                        .clicked()
+                        && !on
+                    {
+                        self.digi_cfg_edit.q65_mode = m;
+                        if self.digi_cfg_seeded {
+                            cmds.push(Command::SetDigiConfig(self.digi_cfg_edit.clone()));
+                        }
+                    }
+                }
+            });
+            ui.add_space(4.0);
         }
         self.slot_progress(ui);
         ui.add_space(4.0);
@@ -1135,6 +1162,9 @@ impl SdroxideApp {
             // cannot see — the same shape as JS8's speed, answered from the
             // editor config the panel just wrote.
             Mode::Fst4 => Some(self.digi_cfg_edit.fst4_period.slot_timing()),
+            // Q65 is the same shape again: its sub-mode is a config field the
+            // mode cannot see, and it fixes the period.
+            Mode::Q65 => Some(self.digi_cfg_edit.q65_mode.slot_timing()),
             _ => mode.slot_timing(),
         }
     }

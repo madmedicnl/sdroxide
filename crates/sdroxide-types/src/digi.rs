@@ -2182,6 +2182,11 @@ pub struct DigiConfig {
     /// [`crate::Fst4Period`].
     #[serde(default)]
     pub fst4_period: crate::Fst4Period,
+    /// Q65: the sub-mode — T/R period and tone-spacing letter together. Like
+    /// FST4's period, this is a property of the contact rather than of the
+    /// mode, so it is a setting. See [`crate::Q65Mode`].
+    #[serde(default)]
+    pub q65_mode: crate::Q65Mode,
 }
 
 fn cw_default_tx_idle_s() -> f32 {
@@ -2303,6 +2308,7 @@ impl Default for DigiConfig {
             rade_mute_analog: false,
             js8_speed: crate::Js8Speed::Normal,
             fst4_period: crate::Fst4Period::P60,
+            q65_mode: crate::Q65Mode::A30,
             js8_multi_decode: false,
             js8_auto_reply: true,
             js8_heartbeat_min: 0,

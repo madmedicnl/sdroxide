@@ -363,6 +363,17 @@ pub enum Mode {
     /// build, as [`Mode::Fst4`] is. Appended for the same reason as
     /// [`Mode::Hell`].
     Msk144,
+    /// Q65 — WSJT-X's modern weak-signal mode for EME, ionoscatter, meteor
+    /// scatter and other very low-SNR paths: 65-tone FSK with a Q-ary LDPC
+    /// code, carrying the same 77-bit message as FT8.
+    ///
+    /// Its sub-mode ([`crate::Q65Mode`]) fixes both the T/R period
+    /// (15/30/60/120/300 s) and the tone-spacing letter (A–E, wider for more
+    /// Doppler), so like FST4's period it is a setting rather than part of the
+    /// mode and [`Mode::slot_timing`] answers `None`. Receive only in this
+    /// build, as [`Mode::Fst4`] is. Appended for the same reason as
+    /// [`Mode::Hell`].
+    Q65,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -383,7 +394,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 49] = [
+    pub const ALL: [Mode; 50] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -433,6 +444,7 @@ impl Mode {
         Mode::Jt9,
         Mode::Fst4,
         Mode::Msk144,
+        Mode::Q65,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -440,7 +452,7 @@ impl Mode {
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
     /// received in AM.
-    pub const DIGITAL: [Mode; 30] = [
+    pub const DIGITAL: [Mode; 31] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -471,6 +483,7 @@ impl Mode {
         Mode::Jt9,
         Mode::Fst4,
         Mode::Msk144,
+        Mode::Q65,
     ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
@@ -504,6 +517,7 @@ impl Mode {
                 | Mode::Jt9
                 | Mode::Fst4
                 | Mode::Msk144
+                | Mode::Q65
                 | Mode::Packet
                 | Mode::PacketHf
                 | Mode::Aprs
@@ -688,6 +702,7 @@ impl Mode {
                 | Mode::Jt9
                 | Mode::Fst4
                 | Mode::Msk144
+                | Mode::Q65
         )
     }
 
@@ -858,6 +873,7 @@ impl Mode {
                 | Mode::Jt9
                 | Mode::Fst4
                 | Mode::Msk144
+                | Mode::Q65
         )
     }
 
@@ -916,6 +932,7 @@ impl Mode {
             Mode::Jt9 => "JT9",
             Mode::Fst4 => "FST4",
             Mode::Msk144 => "MSK144",
+            Mode::Q65 => "Q65",
             Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
             Mode::SstvFm => "SSTV-FM",
@@ -1002,6 +1019,7 @@ impl Mode {
                 | Mode::Jt9
                 | Mode::Fst4
                 | Mode::Msk144
+                | Mode::Q65
                 | Mode::Wefax
                 | Mode::Acars
         );
@@ -1084,6 +1102,7 @@ impl Mode {
             | Mode::Jt9
             | Mode::Fst4
             | Mode::Msk144
+            | Mode::Q65
             | Mode::Psk
             | Mode::Rtty
             | Mode::Sstv
@@ -1341,6 +1360,7 @@ impl Mode {
             | Mode::Jt9
             | Mode::Fst4
             | Mode::Msk144
+            | Mode::Q65
             | Mode::Olivia
             | Mode::Thor
             | Mode::Fsq
@@ -1602,6 +1622,7 @@ impl Mode {
             | Mode::Jt9
             | Mode::Fst4
             | Mode::Msk144
+            | Mode::Q65
             | Mode::Acars
             | Mode::PacketHf
             | Mode::Rade
@@ -2155,6 +2176,7 @@ mod tests {
             (Mode::Jt9, 46),
             (Mode::Fst4, 47),
             (Mode::Msk144, 48),
+            (Mode::Q65, 49),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2201,7 +2223,7 @@ mod tests {
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker.
-        let last = Mode::Msk144 as u8;
+        let last = Mode::Q65 as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");

@@ -1671,6 +1671,7 @@ fn mode_to_flex(m: Mode) -> &'static str {
         | Mode::Jt9
         | Mode::Fst4
         | Mode::Msk144
+        | Mode::Q65
         | Mode::RfPaint
         | Mode::Spec => "USB",
     }

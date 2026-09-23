@@ -808,7 +808,7 @@ impl eframe::App for SdroxideApp {
                                     self.pi4_panel(ui, &mut cmds, panel_h);
                                 } else if matches!(
                                     mode,
-                                    Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144
+                                    Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65
                                 ) {
                                     self.jt_panel(ui, &mut cmds);
                                 } else {

@@ -225,6 +225,7 @@ fn mode_digit(m: Mode) -> char {
         | Mode::Jt9
         | Mode::Fst4
         | Mode::Msk144
+        | Mode::Q65
         | Mode::RfPaint => '2',
     }
 }

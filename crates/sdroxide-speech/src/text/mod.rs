@@ -161,6 +161,7 @@ impl<'a> Speaker<'a> {
             // said "F S T four", not spelt out.
             Mode::Fst4 => "F S T four",
             Mode::Msk144 => "M S K one forty four",
+            Mode::Q65 => "Q sixty five",
             Mode::Js8 => "J S eight",
             // Pronounced "whisper" — the joke the name is built on.
             Mode::Wspr => "whisper",
