@@ -221,8 +221,19 @@ anything with a vocoder or a patent posture is called out.
    channel. Genuinely SWL — it is the one marine emergency channel a listener
    can decode — and self-contained. Reference: **GopherTrunk**
    (`internal/radio/dsc` + `ffsk`, Go, Apache-2.0) and
-   `tomastnc/vhf-dsc-decoder` (Python, Unlicense). Low–moderate: a binary-FSK
-   front end plus a small parser, portable to Rust. **Not started.**
+    `tomastnc/vhf-dsc-decoder` (Python, Unlicense). Low–moderate: a binary-FSK
+    front end plus a small parser, portable to Rust. **Protocol + framer done**
+    (`fork/dsc`, 2026-09-23): `sdroxide_types::dsc` has the BCH(10,7) codec,
+    the MMSI/position codecs, the format/category/nature tables, the parser and
+    the DX/RX `DscFramer`, all unit-tested at the bit level (encode → frame →
+    parse round-trips a distress alert and an inverted individual call).
+    **The audio front end is the open half:** `sdroxide_dsp::dsc::DscRx` wraps
+    the packet FSK detector at a new `AfskProfile::Dsc` (1200 baud, 1300/2100
+    Hz), but the packet detector's constants do not acquire cleanly on the DSC
+    tone pair, so its two audio round-trip tests are `#[ignore]`d. Tuning
+    against a captured ITU-R M.493 burst is the way in — see the bench note in
+    `AGENTS.md` (the RSP1 on this machine captures fine, but no DSC burst was
+    caught in the 2187.5/8414.5 kHz windows tried).
 3. **ALE / HF Selcall** (MIL-STD-188-141 2G automatic link establishment, plus
    the 2G/3G sounding and a selective call). 8-FSK at 125 baud, with FEC and
    word framing; the utility-HF monitoring staple — who is calling whom, and on
