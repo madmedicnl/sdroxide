@@ -1926,6 +1926,30 @@ fn unix_now_f64() -> f64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0.0, |d| d.as_secs_f64())
 }
 
+/// 11 m WSJT-CB decodes, as path evidence for the band-opening detector.
+///
+/// The other side of every such path is the operator, wherever they are; the
+/// station side is whatever the decode names. Unresolved callsigns name no
+/// continent and are skipped.
+fn cb_paths(decodes: &[sdroxide_types::Decode], to_continent: &'static str) -> Vec<sdroxide_types::BandPath> {
+    let mut out: Vec<sdroxide_types::BandPath> = Vec::new();
+    for d in decodes {
+        let Some(from_c) = d.from.as_deref().filter(|c| !c.is_empty()) else { continue };
+        let Some(from) = sdroxide_types::resolve_callsign(from_c).map(|i| i.continent) else {
+            continue;
+        };
+        out.push(sdroxide_types::BandPath {
+            call: from_c.to_string(),
+            band: sdroxide_types::Band::M11,
+            from_continent: from,
+            to_continent,
+            timestamp: d.slot_utc,
+            id: Some(format!("11m|{from_c}|{}", d.slot_utc)),
+        });
+    }
+    out
+}
+
 /// Convert Unix seconds to a UTC civil date-time `(year, month, day, hour, min,
 /// sec)`. Howard Hinnant's `civil_from_days` algorithm — exact, no leap-second
 /// or timezone handling (UTC), and no external crate.
@@ -6502,6 +6526,30 @@ impl Engine {
         }
     }
 
+    /// Feed a slot's 11 m decodes to the band-opening detector.
+    ///
+    /// The citizens' band has no cluster or PSK-Reporter-style feed of its own,
+    /// so a decode is the whole evidence that a path is open. Every named
+    /// station becomes a `Band::M11` path from its continent to the operator's,
+    /// and the detector looks for the same short-window surge against the
+    /// 3-hour baseline it applies to the spot feeds. Deliberately 11 m only:
+    /// off the band the amateur feeds already chart the openings.
+    fn feed_cb_decodes(&mut self, decodes: &[sdroxide_types::Decode]) {
+        if self.state.band != Band::M11 || self.digi_config.my_call.trim().is_empty() {
+            return;
+        }
+        let Some(to) = sdroxide_types::resolve_callsign(&self.digi_config.my_call)
+            .map(|i| i.continent)
+        else {
+            return;
+        };
+        let paths = cb_paths(decodes, to);
+        if paths.is_empty() {
+            return;
+        }
+        self.spots.feed_openings(paths, unix_now_f64() as i64);
+    }
+
     /// Broadcast the station's state as WSJT-X reports it.
     fn wsjtx_status(&self, s: &sdroxide_types::DigiStatus) {
         let Some(w) = &self.wsjtx else { return };
@@ -6594,6 +6642,7 @@ impl Engine {
                     self.psk_report_decodes(&d, dial);
                     self.wsjtcb_report_decodes(&d, dial);
                     self.wsjtx_decodes(&d);
+                    self.feed_cb_decodes(&d);
                     let _ = self.event_tx.send(RadioEvent::Ft8Decodes(d));
                 }
                 DigiAction::Status(mut s) => {
@@ -12822,6 +12871,7 @@ impl Engine {
         for ev in self.spots.poll() {
             let re = match ev {
                 sdroxide_net::NetEvent::Spots(s) => RadioEvent::Spots(s),
+                sdroxide_net::NetEvent::BandOpenings(o) => RadioEvent::BandOpenings(o),
                 sdroxide_net::NetEvent::Status(s) => RadioEvent::NetStatus(s),
                 sdroxide_net::NetEvent::Callsign(c) => RadioEvent::CallsignResult(c),
                 sdroxide_net::NetEvent::Upload(r) => RadioEvent::Upload(r),
@@ -19739,5 +19789,46 @@ mod cw_monitor_tests {
         }
         assert_eq!(ready.len(), CW_MONITOR_CAP);
         assert_eq!(*ready.back().unwrap(), (400 * 480 - 1) as f32, "the newest is kept");
+    }
+}
+
+#[cfg(test)]
+mod cb_opening_tests {
+    use super::*;
+
+    fn dec(slot: i64, from: Option<&str>) -> sdroxide_types::Decode {
+        sdroxide_types::Decode {
+            slot_utc: slot,
+            snr_db: 0,
+            dt: 0.0,
+            audio_hz: 1500.0,
+            message: from.map(|f| format!("CQ {f}")).unwrap_or_default(),
+            to: None,
+            from: from.map(|s| s.to_string()),
+            grid: None,
+            is_cq: false,
+            cq_to: None,
+            free_text: false,
+            rr73_to: None,
+        }
+    }
+
+    #[test]
+    fn cb_decodes_become_eleven_metre_paths() {
+        let paths = cb_paths(&[dec(1_700_000_000, Some("JA1ABC")), dec(1_700_000_000, None)], "EU");
+        assert_eq!(paths.len(), 1, "the decode without a callsign names nobody");
+        assert_eq!(paths[0].band, Band::M11);
+        assert_eq!(paths[0].call, "JA1ABC");
+        assert_eq!(paths[0].from_continent, "AS");
+        assert_eq!(paths[0].to_continent, "EU", "the other end is wherever the operator is");
+        assert_eq!(paths[0].timestamp, 1_700_000_000);
+        assert!(paths[0].id.as_deref().unwrap().starts_with("11m|JA1ABC|"));
+    }
+
+    #[test]
+    fn unresolvable_calls_are_skipped_not_named() {
+        let paths = cb_paths(&[dec(99, Some("0A1ZZZ")), dec(99, Some("JA1ABC"))], "EU");
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].call, "JA1ABC");
     }
 }

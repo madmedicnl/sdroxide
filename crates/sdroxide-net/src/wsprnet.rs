@@ -395,6 +395,20 @@ pub fn fetch(call: &str, side: Query, minutes: u32) -> Result<Vec<WsprSpot>, Str
     parse_spots(&body, side)
 }
 
+/// Turn a download error into something calm on the status line.
+///
+/// WSPRnet has been answering 403 to whole client classes at the server (its
+/// Drupal front-end presses back on non-browser traffic in spurts), which is
+/// neither an app fault nor something a retry fixes — the line should say that
+/// and stop there, not dump a chunk of HTML.
+fn friendly_download_error(e: &str) -> String {
+    if e.starts_with("HTTP 403") {
+        "refusing requests (HTTP 403) — a server-side block, clears on its own".to_string()
+    } else {
+        e.to_string()
+    }
+}
+
 /// Parse the `spots/json` payload.
 ///
 /// The endpoint answers with an array of objects whose keys are capitalised and
@@ -485,6 +499,7 @@ pub fn spawn_download(
             let mut seen: std::collections::HashSet<(i64, String, i64, Option<String>)> =
                 Default::default();
             let mut last_err: Option<String> = None;
+            let mut last_err_at = Instant::now() - Duration::from_secs(600);
             loop {
                 // Checked before the request rather than only after the sleep,
                 // so a handle dropped while this was sleeping does not go on to
@@ -512,9 +527,17 @@ pub fn spawn_download(
                         }
                     }
                     Err(e) => {
-                        if last_err.as_deref() != Some(e.as_str()) {
+                        let e = friendly_download_error(&e);
+                        // Re-announce the same stalemate on a slow beat, so a
+                        // server that has been pressing every request for hours
+                        // neither floods the status line nor looks like it has
+                        // gone quiet.
+                        let first = last_err.as_deref() != Some(e.as_str());
+                        let due = last_err_at.elapsed() >= Duration::from_secs(600);
+                        if first || due {
                             let _ = events.send(NetEvent::Status(Some(format!("WSPRnet: {e}"))));
                             last_err = Some(e);
+                            last_err_at = Instant::now();
                         }
                     }
                 }
@@ -563,6 +586,25 @@ mod tests {
 
     fn rx() -> Reporter {
         Reporter { call: "g0xyz".into(), grid: "io91np".into() }
+    }
+
+    /// The download error gets a quiet, accurate rendering when the server is
+    /// blocking us, and everything else passes through untouched.
+    #[test]
+    fn a_server_side_block_is_described_gently_but_other_errors_pass_through() {
+        assert_eq!(
+            friendly_download_error("HTTP 403: <html>… whatever the drupal page says"),
+            "refusing requests (HTTP 403) — a server-side block, clears on its own",
+        );
+        assert_eq!(
+            friendly_download_error("HTTP 502: Bad Gateway"),
+            "HTTP 502: Bad Gateway",
+            "a transient gateway error is not a block and keeps its real wording",
+        );
+        assert_eq!(
+            friendly_download_error("connection refused"),
+            "connection refused",
+        );
     }
 
     /// The upload format, checked here because the server will not check it for

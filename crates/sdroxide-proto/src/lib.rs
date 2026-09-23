@@ -1464,7 +1464,13 @@ use sdroxide_types::{
 /// `CatConfig` rides `Command::SetCatConfig` and `ServerMsg::CatConfig` whole,
 /// so a v166 peer handed one runs off the end of the struct. A downstream
 /// (fork) addition.
-pub const PROTO_VERSION: u16 = 167;
+///
+/// v168: live band-opening detections, `ServerMsg::BandOpenings` appended to
+/// that enum (no surviving discriminant moves). Like every network update it is
+/// relay, not handshake, so a v167 peer simply never learns about openings —
+/// but the added variant shifts the message stream's encoding, hence the bump.
+/// A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 168;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -1665,6 +1671,9 @@ pub enum ServerMsg {
     VoiceStatus(VoiceStatus),
     // Network cockpit.
     Spots(Vec<Spot>),
+    /// Live band-opening detections, appended on `Spots`'s tail like the
+    /// network updates it accompanies.
+    BandOpenings(Vec<sdroxide_types::BandOpening>),
     NetStatus(Option<String>),
     CallsignResult(CallsignInfo),
     Upload(UploadResult),
