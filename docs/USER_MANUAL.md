@@ -18,7 +18,7 @@ or connects to a remote sdroxide server.
 2. [Basic operation](#2-basic-operation)
     - [2.20 HD Radio (NRSC-5)](#220-hd-radio-nrsc-5)
     - [2.22 QO-100 beacon plugin](#222-qo-100-beacon-plugin)
-3. [Digital modes (FT8, FT4, FT2, JT65, JT9, FST4, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, DSC, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
+3. [Digital modes (FT8, FT4, FT2, JT65, JT9, FST4, MSK144, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, DSC, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
     - [3.17 AtCHAT NET](#317-atchat-net)
     - [3.18 ACARS](#318-acars-airline-datalink-on-airband)
     - [3.19 HFDL](#319-hfdl-aircraft-on-the-shortwave-band)
@@ -26,6 +26,7 @@ or connects to a remote sdroxide server.
     - [3.21 DSC](#321-dsc-marine-distress-and-calling)
     - [3.22 JT65 and JT9](#322-jt65-and-jt9)
     - [3.23 FST4](#323-fst4)
+    - [3.24 MSK144](#324-msk144)
 4. [Skimmers (CW, PSK, RTTY)](#4-skimmers)
 5. [ISM band decoder (315 / 345 / 433 / 868 / 915 MHz devices)](#5-ism-band-decoder)
 6. [Settings](#6-settings)
@@ -400,7 +401,7 @@ The **OPERATE** tab's rows:
   than a hunt through the digital modes. `FM` here is **NFM** (narrow); the
   broadcast band's own button comes up **WFM** (see below).
 - **MODE:** `LSB USB CW AM SAM C-QUAM NFM WFM DRM HD DIGU DIGL DSB ISB SPEC`.
-- **DIGITAL:** `FT8 FT4 FT2 JT65 JT9 FST4 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
+- **DIGITAL:** `FT8 FT4 FT2 JT65 JT9 FST4 MSK144 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
   [Digital modes](#3-digital-modes)).
 
 ![The band and mode selector popup](images/04-band-mode-popup.jpg)
@@ -6134,6 +6135,36 @@ the machine cannot keep up.
 **Receive only.** As with JT65/JT9, transmit is not wired in this build: an
 FST4 contact is a precisely-timed, minutes-long handshake and the panel
 decodes rather than sequences.
+
+### 3.24 MSK144
+
+Choose **MSK144** from the DIGITAL row. MSK144 is the **meteor-scatter** mode:
+it works by bouncing a signal off the brief, random ionised trail a meteor
+leaves in the upper atmosphere, which exists for a fraction of a second to a
+few seconds at a time. It is the standard way to work 6 m and 2 m "meteor
+scatter" contacts, and it is fast for a weak-signal mode — a complete exchange
+can be done in a minute when the meteors cooperate, which is why it carries
+the same short 77-bit message as FT8.
+
+**Where it is.** 6 m and 2 m, on the meteor-scatter calling frequencies — for
+example **50.260 MHz** on 6 m and **144.200 MHz** on 2 m. Tune the dial there
+and leave the audio cursor alone: the decoder searches the whole audio
+passband.
+
+**What you see.** The same **DECODES** list as JT65/JT9 and FST4. One column
+reads differently from those modes: the **DT** is not an offset from a frame
+start — MSK144 has no fixed frame position — but **how far into the 15-second
+period** the meteor burst was found, so a row at 6.4 s is a ping that arrived
+6.4 seconds after the period began.
+
+**How the period works.** MSK144 runs on a **15-second T/R period**, and an
+operator transmits *continuously* through it: the 72 ms frame repeats back to
+back, so whenever a meteor trail appears it catches part of one. The decoder
+scans the whole period for those captures — there is no slot-aligned decode
+the way FT8 has, and a whole period may pass with nothing.
+
+**Receive only.** Transmit is not wired in this build, as for JT65/JT9 and
+FST4. What the panel does is copy the pings that arrive.
 
 ## 4. Skimmers
 
@@ -16358,6 +16389,7 @@ using. Bind them under **Speech** on the Controls tab:
 | DSC | Digital Selective Calling — the marine distress and calling system on VHF channel 70 and the MF/HF distress channels: 1200-baud FFSK carrying distress alerts (MMSI, nature, position, time) and routine calls. Receive only. See [3.21](#321-dsc-marine-distress-and-calling). |
 | JT65 / JT9 | The classic WSJT weak-signal modes — 65-FSK (JT65) and 9-FSK (JT9), both in a 60-second slot, carrying `<to> <from> <grid\|report>`. Receive only in this build (no QSO sequencer). See [3.22](#322-jt65-and-jt9). |
 | FST4 | The slow weak-signal mode for EME, troposcatter and LF/MF: 160-symbol GFSK in a 15/30/60/120/300-second T/R period, carrying the same 77-bit message as FT8/JT65. Receive only in this build. See [3.23](#323-fst4). |
+| MSK144 | Meteor scatter on 6 m and 2 m: continuous-phase binary MSK at 2000 baud in a 15-second period, carrying the same 77-bit message as FT8. The decoder hunts the period for meteor-trail bursts. Receive only in this build. See [3.24](#324-msk144). |
 | OLIVIA | Robust MFSK keyboard mode (selectable tones/bandwidth). |
 | THOR | DominoEX-family IFK keyboard mode with FEC (THOR4…THOR32). |
 | FSQ | Fast Simple QSO — 33-tone IFK with directed (FSQCALL) messaging and images. |

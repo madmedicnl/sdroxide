@@ -352,6 +352,17 @@ pub enum Mode {
     /// the chosen period. Receive only in this build, as [`Mode::Jt65`] is.
     /// Appended for the same reason as [`Mode::Hell`].
     Fst4,
+    /// MSK144 — meteor scatter on 6 m and 2 m: continuous-phase binary MSK at
+    /// 2000 baud, LDPC(128,90), the same 77-bit message as FT8, in a 15-second
+    /// T/R period.
+    ///
+    /// Unlike the FT/JT family this is not a frame at a fixed offset: an
+    /// operator transmits continuously and the decoder hunts the 15-second
+    /// slot for the short ionised-trail bursts a meteor leaves, so a decode
+    /// carries the time *into* the slot it was found at. Receive only in this
+    /// build, as [`Mode::Fst4`] is. Appended for the same reason as
+    /// [`Mode::Hell`].
+    Msk144,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -372,7 +383,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 48] = [
+    pub const ALL: [Mode; 49] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -421,6 +432,7 @@ impl Mode {
         Mode::Jt65,
         Mode::Jt9,
         Mode::Fst4,
+        Mode::Msk144,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -428,7 +440,7 @@ impl Mode {
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
     /// received in AM.
-    pub const DIGITAL: [Mode; 29] = [
+    pub const DIGITAL: [Mode; 30] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -458,6 +470,7 @@ impl Mode {
         Mode::Jt65,
         Mode::Jt9,
         Mode::Fst4,
+        Mode::Msk144,
     ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
@@ -490,6 +503,7 @@ impl Mode {
                 | Mode::Jt65
                 | Mode::Jt9
                 | Mode::Fst4
+                | Mode::Msk144
                 | Mode::Packet
                 | Mode::PacketHf
                 | Mode::Aprs
@@ -673,6 +687,7 @@ impl Mode {
                 | Mode::Jt65
                 | Mode::Jt9
                 | Mode::Fst4
+                | Mode::Msk144
         )
     }
 
@@ -763,6 +778,12 @@ impl Mode {
             // JT9 is 85 symbols of 6912/12000 s — 48.96 s — in the same
             // 60-second slot and at the same one-second offset.
             Mode::Jt9 => Some(SlotTiming { slot_s: 60.0, tx_offset_s: 1.0, burst_s: 48.96 }),
+            // MSK144 is a 15-second T/R period and the operator transmits
+            // *continuously* through it: one 72 ms frame at 2000 baud, repeated
+            // back to back, so a meteor's brief trail catches part of one. The
+            // burst figure is one frame; the steady stream is why the decoder
+            // scans the whole slot rather than a fixed offset.
+            Mode::Msk144 => Some(SlotTiming { slot_s: 15.0, tx_offset_s: 0.0, burst_s: 0.4 }),
             _ => None,
         }
     }
@@ -831,11 +852,12 @@ impl Mode {
                 // A decoder for a beacon network's signal, not a beacon
                 // implementation — see `Mode::Pi4`'s own doc comment.
                 | Mode::Pi4
-                // JT65/JT9 and FST4 are QSO modes, but transmit is not wired in
-                // this build — the panel is the decode list alone.
+                // JT65/JT9, FST4 and MSK144 are QSO modes, but transmit is not
+                // wired in this build — the panel is the decode list alone.
                 | Mode::Jt65
                 | Mode::Jt9
                 | Mode::Fst4
+                | Mode::Msk144
         )
     }
 
@@ -893,6 +915,7 @@ impl Mode {
             Mode::Jt65 => "JT65",
             Mode::Jt9 => "JT9",
             Mode::Fst4 => "FST4",
+            Mode::Msk144 => "MSK144",
             Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
             Mode::SstvFm => "SSTV-FM",
@@ -978,6 +1001,7 @@ impl Mode {
                 | Mode::Jt65
                 | Mode::Jt9
                 | Mode::Fst4
+                | Mode::Msk144
                 | Mode::Wefax
                 | Mode::Acars
         );
@@ -1059,6 +1083,7 @@ impl Mode {
             | Mode::Jt65
             | Mode::Jt9
             | Mode::Fst4
+            | Mode::Msk144
             | Mode::Psk
             | Mode::Rtty
             | Mode::Sstv
@@ -1315,6 +1340,7 @@ impl Mode {
             | Mode::Jt65
             | Mode::Jt9
             | Mode::Fst4
+            | Mode::Msk144
             | Mode::Olivia
             | Mode::Thor
             | Mode::Fsq
@@ -1575,6 +1601,7 @@ impl Mode {
             | Mode::Jt65
             | Mode::Jt9
             | Mode::Fst4
+            | Mode::Msk144
             | Mode::Acars
             | Mode::PacketHf
             | Mode::Rade
@@ -2127,6 +2154,7 @@ mod tests {
             (Mode::Jt65, 45),
             (Mode::Jt9, 46),
             (Mode::Fst4, 47),
+            (Mode::Msk144, 48),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2173,7 +2201,7 @@ mod tests {
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker.
-        let last = Mode::Fst4 as u8;
+        let last = Mode::Msk144 as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");
@@ -2353,7 +2381,14 @@ mod tests {
         for mode in Mode::ALL {
             let expected = matches!(
                 mode,
-                Mode::Ft8 | Mode::Ft4 | Mode::Ft2 | Mode::Wspr | Mode::Pi4 | Mode::Jt65 | Mode::Jt9
+                Mode::Ft8
+                    | Mode::Ft4
+                    | Mode::Ft2
+                    | Mode::Wspr
+                    | Mode::Pi4
+                    | Mode::Jt65
+                    | Mode::Jt9
+                    | Mode::Msk144
             );
             assert_eq!(mode.slot_timing().is_some(), expected, "{mode:?}");
         }

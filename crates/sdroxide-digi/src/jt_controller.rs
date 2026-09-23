@@ -24,7 +24,7 @@ use sdroxide_types::{Decode, DigiConfig, DigiStatus, Mode, QsoStep};
 
 use crate::DigiEngine;
 use crate::controller::DigiAction;
-use crate::modem::decode_jt_slot;
+use crate::modem::{decode_jt_slot, decode_msk144_slot};
 use crate::params::{DECODE_RATE, DigiParams};
 use crate::scheduler::SlotScheduler;
 
@@ -75,7 +75,13 @@ impl JtController {
             .name("sdroxide-jt-decode".into())
             .spawn(move || {
                 while let Ok(job) = job_rx.recv() {
-                    let decodes = decode_jt_slot(&job.audio, job.mode, job.slot_utc);
+                    let decodes = match job.mode {
+                        // JT65/JT9 hold a frame at a fixed offset; MSK144 hunts
+                        // the whole slot for a meteor burst. The two report the
+                        // same `Decode`, so only the call differs.
+                        Mode::Msk144 => decode_msk144_slot(&job.audio, job.slot_utc),
+                        _ => decode_jt_slot(&job.audio, job.mode, job.slot_utc),
+                    };
                     if res_tx.send(DecodeResult { decodes }).is_err() {
                         break;
                     }

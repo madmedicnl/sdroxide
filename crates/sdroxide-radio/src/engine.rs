@@ -6961,11 +6961,12 @@ impl Engine {
             // PI4 is 4-FSK too, just wider and faster, so an FT8 decoder
             // handed its audio would sit there finding nothing.
             Box::new(Pi4Controller::new(self.digi_config.clone(), tap_rate))
-        } else if matches!(mode, Mode::Jt65 | Mode::Jt9) {
-            // Ahead of the fall-through, which is FT8's: JT65/JT9 are a different
-            // 60-second protocol with no 77-bit message and no QSO sequencer, so
-            // an FT8 decoder handed their audio would decode nothing and say
-            // nothing. Their own controller holds the slot and shows decodes.
+        } else if matches!(mode, Mode::Jt65 | Mode::Jt9 | Mode::Msk144) {
+            // Ahead of the fall-through, which is FT8's: JT65/JT9 and MSK144 are
+            // different protocols with no 77-bit FT8 framing and no QSO
+            // sequencer, so an FT8 decoder handed their audio would decode
+            // nothing and say nothing. Their own controller holds the slot and
+            // shows decodes.
             Box::new(JtController::new(mode, self.digi_config.clone(), tap_rate))
         } else if mode == Mode::Fst4 {
             // The same shape again, and ahead of the fall-through for the same
@@ -17601,6 +17602,7 @@ fn rig_mode_class(m: Mode) -> u8 {
         | Mode::Jt65
         | Mode::Jt9
         | Mode::Fst4
+        | Mode::Msk144
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

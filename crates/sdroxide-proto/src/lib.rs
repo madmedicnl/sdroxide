@@ -1496,7 +1496,14 @@ use sdroxide_types::{
 /// extra bytes as the start of the next field and fails to decode every
 /// digital status — the same break as v162's appended CW settings. A downstream
 /// (fork) addition.
-pub const PROTO_VERSION: u16 = 171;
+///
+/// v172: MSK144, the meteor-scatter mode. `Mode::Msk144` is appended to that
+/// enum, so no surviving discriminant moves. No new wire type: a decode is an
+/// ordinary `Decode` with the burst's time into the slot as its `dt`, and the
+/// mode is receive-only. `Mode` rides `RadioState`, so a v171 peer handed one
+/// runs off the end of the enum — the same break every appended `Mode` causes.
+/// A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 172;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

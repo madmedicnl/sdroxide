@@ -101,8 +101,8 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         Mode::Navtex => &["MESSAGES", "READING"],
         Mode::Dsc => &["MESSAGES", "READING"],
         // The decode list alone: the QSO pane is FT8's sequencer, which a
-        // receive-only JT/FST4 build has nothing to put in.
-        Mode::Jt65 | Mode::Jt9 | Mode::Fst4 => &["DECODES"],
+        // receive-only JT/FST4/MSK144 build has nothing to put in.
+        Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 => &["DECODES"],
         Mode::RfPaint => &["TEXT", "IMAGE"],
         // The keyboard modes and RADE are one column already: receive above,
         // what you are sending below it.
