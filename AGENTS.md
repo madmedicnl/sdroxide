@@ -639,6 +639,29 @@ Not started: **D-RAP absorption map** (item 6, a new SWPC feed) and the
 equirectangular throughout, so it is a rework of `widgets/worldmap.rs` rather
 than a bolt-on).
 
+Post-review follow-ups (2026-09-23), all merged into local `main`, still
+unpushed:
+
+- **NIGHT is on every flat map.** ADS-B, AIS, APRS and HFDL each gained a
+  `night: Option<TextureId>` parameter to their `show`, painting the overlay
+  under the base through a shared `widgets::worldmap::paint_night` helper, and
+  their own **NIGHT** chip (`SdroxideApp::night_chip`) above the chart. The
+  operating panels use the same chip from `prop_map_controls`. One shared
+  `ViewState::map_night` flag means switching it on anywhere lights the
+  terminator everywhere.
+- **The SWL switch is in Settings → UI**, not only the per-radio Radio tab:
+  `settings_ui_tab` now takes `radio: Option<&mut RadioConfig>` and writes
+  `hide_tx` directly, so a listener can turn SWL mode on without a restart.
+- **No OpenHamClock reference is UI-visible.** The only one that ever was —
+  the OPENINGS chip's tooltip in `spots.rs` — is gone; references now live in
+  code comments and the README's Acknowledgements only.
+- **The band-opening detector is merged into local `main`** from
+  `fork/live-band-openings` (the fork build with the 11 m decode feed). The
+  merge took **PROTO_VERSION 167 → 168** for `ServerMsg::BandOpenings`: the
+  (tr)uSDX nG family already held 167 on `main`, so band-openings moved up.
+  The `upstream-pr/band-openings` PR (upstream #537) stays at 165 and is still
+  the thing to land first; the fork's copy drops out once it does.
+
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
 The bridge the CB side interoperates with is installed in the Wine prefix on

@@ -157,7 +157,9 @@ noted for 11 m:
    streams we already hold and a listener gets "20 m into VK just opened"; feed
    it our own FT8/WSJT-CB decodes and the CB skip-watcher gets "11 m into
    Southern Europe opening" **— relevant to both halves.** General-purpose:
-   upstream-first. **Started.**
+   upstream-first. **PR #537 open upstream; the fork build (with the 11 m
+   decode feed) is merged into local `main`** (2026-09-23). The upstream PR is
+   the thing to land first; the fork's copy drops out once it does.
 2. **Gray line on the flat maps.** **Done** (2026-09-23, `fork/gray-line`) —
    `sdroxide_solar::ephem::night_shade_rgba` off the same Sun the band
    conditions are read from, and a **NIGHT** chip on the FT8/FT4/FT2, WSPR and

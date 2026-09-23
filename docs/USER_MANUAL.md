@@ -4879,8 +4879,13 @@ the coastlines so the geography stays legible. Like PROP it is off by default: i
 is scenery rather than something to leave switched on over a decode list, and it
 is drawn whether or not PROP is. The Sun's position is the same one the band
 conditions are read from, so the shade and the "day"/"night" a verdict calls a
-band cannot disagree. It is on the FT8/FT4/FT2 map, the WSPR map and the JS8
-map alike.
+band cannot disagree.
+
+**NIGHT is on every flat map**, and the one switch turns it on for all of them:
+the operating panel's FT8/FT4/FT2, WSPR and JS8 maps, and the ADS-B, AIS, APRS
+and HFDL maps — the last four carry their own **NIGHT** chip above the chart.
+Where a map has no chip row of its own (the four decoder maps), the chip sits
+just above it. Switching it on anywhere lights the same terminator everywhere.
 
 Drag the strip under the map to resize it against the status pane.
 
@@ -11448,6 +11453,13 @@ spoken announcements below them under `[speech]`:
   unless asked for; the **SWL mode** switch above still turns it off for a
   session, and the next start honours this setting again. `--swl` does the same
   for a single run without touching it.
+- **SWL mode** — tick **hide all transmit controls** to turn the listener's
+  screen on for the radio on screen *now*, without restarting. It is the same
+  per-radio switch as Settings → Radio → Transmit controls (stored as
+  `hide_tx` with the radio, not with the screen), so one listening radio can sit
+  in this mode while a transceiver beside it keeps its transmitter. The box does
+  not appear on a remote or browser client that has not received the radio's
+  configuration yet.
 - **Layout** — which control strip the window wears. **Auto** picks one from the
   window size and is what you want; **Desktop**, **Tablet**, **Small screen**
   and **Phone** force it, to see how the compact strips look without a phone to
@@ -14023,6 +14035,23 @@ frequency, mode, and any grid/reference from the spot). If auto-lookup is on
 (below), the name/QTH/grid are filled in too. CW spots are tuned a sidetone pitch
 low so the signal lands in the CW passband. Broadcast stations only tune — they
 have no callsign to log or look up.
+
+#### Band openings
+
+The **OPENINGS** chip at the top of the SPOTS window opens a live detector that
+answers a different question from the spot list: not "who is being heard" but
+"which paths have just come alive". It watches the spot feeds the window already
+has — and, on 11 m, this station's own WSJT-CB decodes — and flags a band and
+continent-pair whose recent activity has surged past its own baseline over the
+last three hours. A path that was quiet and suddenly carries a burst of new
+stations is an opening; a band that is simply busy is not.
+
+Each detection names the band, the direction (which continent-pair), how far past
+its baseline it is running, and how long ago it opened; a path that goes quiet
+again is retired on its own. The section has its own draggable divider, so a
+listener watching a big surge can give the detections more room and the spot rows
+less. It is a surge detector over the spot traffic, not a propagation forecast:
+it says what the feeds are showing now.
 
 ### 10.2 Callsign lookup
 
