@@ -196,6 +196,63 @@ noted for 11 m:
    opening. **Not started** — the flat map widget is equirectangular
    throughout, so this is a rework of it rather than a bolt-on.
 
+### Decoder candidates for version 2
+
+A survey (2026-09-23) of what this program does **not** decode yet, ranked for a
+shortwave/CB/VHF listener and by how cleanly each fits the existing DSP chain.
+The house rule holds: a new decoder is an "isolate it" upstream change, and
+anything with a vocoder or a patent posture is called out.
+
+1. **The mfsk-core modes we already link but do not build.** This is the
+   cheapest large expansion by far, and worth doing before any new decoder.
+   `sdroxide-digi` pins **mfsk-core 0.11** with only `ft8, ft4, wspr` enabled;
+   the crate also ships **JT65, JT9, Q65 (ten sub-modes), FST4 (five), MSK144
+   and the UVPacket four** (`uvpacket`, `full` features). Each is a WSJT-X
+   port with the same `DecodeRequest` shape the FT8/FT4 path already uses, so
+   the work is a decode request per mode plus panel wiring — not a port. The
+   catch is the same one 0.11 settled for FT4/FT8: the CB callsign grammar
+   hook (`also_accept`) applies per mode, and WSPR-adjacent modes (FST4W,
+   Q65 beacons) need the same `SpotKind`/upload path WSPR already has.
+   **Worth scoping first, before DSC/ALE/M17.** Not started.
+2. **DSC** (Digital Selective Calling — marine distress and routine, VHF CH70
+   and MF/HF 2187.5/4207.5/6312/8414.5 kHz). SOLAS selective calling: a
+   1200-baud FFSK burst with BCH(10,7) error correction, carrying the MMSI of
+   the caller and the called, the distress nature, and the follow-on working
+   channel. Genuinely SWL — it is the one marine emergency channel a listener
+   can decode — and self-contained. Reference: **GopherTrunk**
+   (`internal/radio/dsc` + `ffsk`, Go, Apache-2.0) and
+   `tomastnc/vhf-dsc-decoder` (Python, Unlicense). Low–moderate: a binary-FSK
+   front end plus a small parser, portable to Rust. **Not started.**
+3. **ALE / HF Selcall** (MIL-STD-188-141 2G automatic link establishment, plus
+   the 2G/3G sounding and a selective call). 8-FSK at 125 baud, with FEC and
+   word framing; the utility-HF monitoring staple — who is calling whom, and on
+   which channel. Reference: **PC-ALE** (C++17, MIT, clean-room from the
+   standard). Moderate: start decode-only (no ARQ). **Not started.**
+4. **M17** (the open amateur digital-voice standard, 4-FSK + Codec2). The
+   cleanest digital-voice win because there is no AMBE patent exposure and the
+   implementation is already Rust: **`m17core`/`m17app`** (MIT). Low effort;
+   Codec2 is LGPL (dynamic-link caveat) and would sit behind a feature like the
+   existing vocoders. **Not started.**
+5. **POCSAG / FLEX** (VHF/UHF paging). Same FSK DSP as several modes already
+   present; reference `multimon-ng` (GPL-2+) or an MIT POCSAG in
+   `AXRoux/sigint-decoder`. Moderate. **Not started.**
+6. **ARDOP** (HF ARQ for Winlink; the fork already ships a Winlink client, so
+   this completes that workflow). `ardopcf` (MIT) or ProjectUltra's
+   `ultra_tnc` (Rust, MIT). Med–high (ARQ timing). **Not started.**
+7. **FLARM / OGN** (glider traffic, slots beside the existing ADS-B lane and
+   map). **`rs1090`** (Rust, MIT). Low. **Not started.**
+8. **UAT 978 MHz ADS-B** (the US 978 MHz sibling; the wideband-lane pattern
+   already exists). `dump978-fa` (BSD-2). Moderate (RS FEC + a 2 Msps lane).
+   **Not started.**
+
+**Not recommended.** The **DMR/D-STAR/YSF/P25/NXDN/TETRA** family (GopherTrunk,
+Apache-2.0, and DSD-FME, GPL-3) is high effort *and* its AMBE/AMBE+2 vocoder is
+patent-encumbered — M17 above avoids both. **VARA** is proprietary with no open
+codec; **PACTOR**'s only open attempt is AGPL, incompatible with this GPL-3
+program. **MFSK16/Contestia/DominoEX/Throb** are close cousins of modes already
+present and only complete in fldigi (GPL-3), so low urgency. L-band Inmarsat /
+Aero / Iridium need a front end most listeners do not have.
+
 ## Phase 4 — polish
 
 - **Say why the dial is not the frequency you picked.** Several modes tune
