@@ -49,6 +49,9 @@ pub enum AfskProfile {
     Hf300,
     /// 1200 baud, 1200/2200 Hz — Bell 202, VHF packet through an FM rig.
     Vhf1200,
+    /// 1200 baud, 1300/2100 Hz — the DSC pair (ITU-R M.493-15 §3.1). No NRZI:
+    /// DSC is direct FSK, so the slicer's bit is the wire bit.
+    Dsc,
 }
 
 impl AfskProfile {
@@ -56,7 +59,7 @@ impl AfskProfile {
     pub fn baud(self) -> f64 {
         match self {
             AfskProfile::Hf300 => 300.0,
-            AfskProfile::Vhf1200 => 1200.0,
+            AfskProfile::Vhf1200 | AfskProfile::Dsc => 1200.0,
         }
     }
 
@@ -66,6 +69,7 @@ impl AfskProfile {
         match self {
             AfskProfile::Hf300 => (1600.0, 1800.0),
             AfskProfile::Vhf1200 => (1200.0, 2200.0),
+            AfskProfile::Dsc => (1300.0, 2100.0),
         }
     }
 
