@@ -157,6 +157,9 @@ impl<'a> Speaker<'a> {
             // Spelt out like every other alphanumeric mode name here.
             Mode::Jt65 => "J T sixty five",
             Mode::Jt9 => "J T nine",
+            // Pronounced as a word, like "whisper" and "rade" above — FST4 is
+            // said "F S T four", not spelt out.
+            Mode::Fst4 => "F S T four",
             Mode::Js8 => "J S eight",
             // Pronounced "whisper" — the joke the name is built on.
             Mode::Wspr => "whisper",

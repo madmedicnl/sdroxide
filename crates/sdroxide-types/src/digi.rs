@@ -2176,6 +2176,12 @@ pub struct DigiConfig {
     /// [`SstvStyle`].
     #[serde(default)]
     pub sstv_style: SstvStyle,
+    /// FST4: the T/R period (15/30/60/120/300 s). The period is a property of
+    /// the contact rather than of the mode — all five share one waveform and
+    /// one message — so it is a setting here, exactly as JS8's speed is. See
+    /// [`crate::Fst4Period`].
+    #[serde(default)]
+    pub fst4_period: crate::Fst4Period,
 }
 
 fn cw_default_tx_idle_s() -> f32 {
@@ -2296,6 +2302,7 @@ impl Default for DigiConfig {
             fox_slots: 3,
             rade_mute_analog: false,
             js8_speed: crate::Js8Speed::Normal,
+            fst4_period: crate::Fst4Period::P60,
             js8_multi_decode: false,
             js8_auto_reply: true,
             js8_heartbeat_min: 0,

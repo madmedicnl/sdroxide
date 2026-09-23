@@ -30,6 +30,7 @@ mod drm;
 mod dsc;
 mod entity;
 mod entity_flags;
+mod fst4;
 mod geo;
 mod hd;
 mod hfdl;
@@ -181,6 +182,7 @@ pub use ism::{
     RTL433_BANDS_DEFAULT, RTL433_BANDWIDTH_AUTO, RTL433_BANDWIDTH_MIN_HZ, RTL433_BANDWIDTHS,
     Rtl433Settings, Rtl433Status,
 };
+pub use fst4::Fst4Period;
 pub use js8::{
     HB_BAND_HI_HZ, HB_BAND_LO_HZ, HB_SLOT_HZ, Js8FrameInfo, Js8FrameKind, Js8Heard, Js8Msg,
     Js8Speed, Js8Status,

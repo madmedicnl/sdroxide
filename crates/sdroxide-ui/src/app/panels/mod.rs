@@ -101,8 +101,8 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         Mode::Navtex => &["MESSAGES", "READING"],
         Mode::Dsc => &["MESSAGES", "READING"],
         // The decode list alone: the QSO pane is FT8's sequencer, which a
-        // receive-only JT build has nothing to put in.
-        Mode::Jt65 | Mode::Jt9 => &["DECODES"],
+        // receive-only JT/FST4 build has nothing to put in.
+        Mode::Jt65 | Mode::Jt9 | Mode::Fst4 => &["DECODES"],
         Mode::RfPaint => &["TEXT", "IMAGE"],
         // The keyboard modes and RADE are one column already: receive above,
         // what you are sending below it.
@@ -722,6 +722,31 @@ impl SdroxideApp {
     /// is receive-only), so the sequencer, the transmit pane and the call
     /// queue have nothing to drive.
     pub(in crate::app) fn jt_panel(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+        let mode = self.state.rx[0].mode;
+        if mode == Mode::Fst4 {
+            // FST4's T/R period is the one thing about it an operator chooses,
+            // and it decides both the slot length and the decode — so it gets a
+            // chip row, exactly as JS8's speed does. The slot bar below reads
+            // from the chosen period.
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new("FST4").size(11.0).strong().color(crate::theme::CYAN()));
+                ui.label(RichText::new("period").size(10.0).weak());
+                for p in sdroxide_types::Fst4Period::ALL {
+                    let on = self.digi_cfg_edit.fst4_period == p;
+                    if crate::chrome::chip(ui, on, RichText::new(p.label()).size(10.5))
+                        .on_hover_text(format!("{}-second T/R period", p.label()))
+                        .clicked()
+                        && !on
+                    {
+                        self.digi_cfg_edit.fst4_period = p;
+                        if self.digi_cfg_seeded {
+                            cmds.push(Command::SetDigiConfig(self.digi_cfg_edit.clone()));
+                        }
+                    }
+                }
+            });
+            ui.add_space(4.0);
+        }
         self.slot_progress(ui);
         ui.add_space(4.0);
         self.decode_list(ui, cmds);
@@ -1106,6 +1131,10 @@ impl SdroxideApp {
                     .map_or(sdroxide_types::Js8Speed::default(), |j| j.speed)
                     .slot_timing(),
             ),
+            // FST4's clock is its period, which is a config field the mode
+            // cannot see — the same shape as JS8's speed, answered from the
+            // editor config the panel just wrote.
+            Mode::Fst4 => Some(self.digi_cfg_edit.fst4_period.slot_timing()),
             _ => mode.slot_timing(),
         }
     }

@@ -384,6 +384,7 @@ fn mode_digit(m: Mode) -> (char, bool) {
         | Mode::Dsc
         | Mode::Jt65
         | Mode::Jt9
+        | Mode::Fst4
         | Mode::RfPaint => ('2', false),
     }
 }
