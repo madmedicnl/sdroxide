@@ -861,6 +861,29 @@ tagged release rather than at last week's build.
   workspace run but pass alone: `sdroxide-deepcw`, `sdroxide-radio --test
   skim_window`, and the `sdroxide-tci`/`icomnet_source` ones above.
 
+## The bench
+
+An **SDRplay RSP1** is attached to this machine and reachable through the
+SDRplay API service. `SoapySDRUtil --find` sees it as
+`driver = sdrplay, label = SDRplay Dev0 RSP1`; gain range 20–59 dB, 0.01–2000
+MHz, one RX channel. It samples real RF — a 5 s capture at 10 MHz with max gain
+showed the WWV/WWVH cluster around 10.000 MHz at ~30 dB over a ~1 dB noise
+floor — so it is usable for decoder bench work.
+
+Two things worth keeping:
+
+- **Capturing headlessly.** There is no timed-capture flag; `--record-iq`
+  records the GUI's stream. A throwaway SoapySDR capture tool does the job:
+  open `driver=sdrplay`, set rate/frequency/manual gain, `rx_stream` →
+  `read` → write interleaved CF32 (little-endian f32 pairs), which `--file`
+  reads back. It needs `soapysdr` as a direct dependency, which the root crate
+  does not carry, so it lives outside the tree (a scratch crate that
+  path-depends on `vendor/soapysdr`).
+- **Some channels are simply dead.** 2187.5 kHz (MF DSC) was flat noise over a
+  3-minute watch here, and 8414.5 kHz had no burst in a 20 s capture; 40 m was
+  busy at the same time. A missing signal is not a broken decoder — check a
+  known carrier (WWV at 10 MHz) before blaming the DSP.
+
 ## House rules
 
 - Keep changes listener-first: when a choice is between a ham workflow and a
