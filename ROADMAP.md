@@ -133,8 +133,14 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
    2048 ksps, raw `.cs16` (dabradio-readable), 7z-compressed, via SDRconnect —
    which left a ~40 kHz tune offset the decoder must absorb, a detail in its
    own right. dabradio reads `.zst` rather than `.7z` (smaller fixture) and
-   `xoolive` is adding filename-inferred `--center-freq`. pvanderp can record
-   a dozen other Dutch ensembles if 12C does not exercise what comes next.
+   `xoolive` is adding filename-inferred `--center-freq`. **Two captures now,
+   both confirmed to decode:** pvanderp's **12C** as above, and a second from
+   **kevin2008-01** (2026-09-22) — channel **8B** at **197.648 MHz**, 2.5 Msps,
+   ~30 s, raw `.cs16` in a `.zst`, from a PlutoSDR via `iio_readdev` (no SDR
+   container), which `xoolive` decoded with `--service "BFM BUSINESS"`. The
+   **dabradio 0.5.0 release binaries** make either re-playable without a local
+   build. pvanderp can record a dozen other Dutch ensembles if 12C does not
+   exercise what comes next.
 
 **Eight more listening tools, audited from OpenHamClock 2026-09-22.** A
 pass over [`accius/openhamclock`](https://github.com/accius/openhamclock)

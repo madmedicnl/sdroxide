@@ -309,8 +309,15 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     **227.360 MHz** centre (SDRconnect put the rate at 2048 ksps and left a
     ~40 kHz tune offset that the decoder has to absorb), readable by dabradio;
     `xoolive` noted dabradio reads `.zst` directly (smaller fixture than a
-    `7z`) and is adding filename-inferred `--center-freq`. pvanderp runs a
-    dozen other Dutch ensembles if 12C does not exercise whatever comes next.
+    `7z`) and is adding filename-inferred `--center-freq`. A **second,
+    independent capture** arrived 2026-09-22 from **kevin2008-01** (Nancy,
+    France): raw `.cs16` in a `.zst`, ~30 s of channel **8B** at **197.648 MHz**,
+    2.5 Msps, taken with `iio_readdev` against a PlutoSDR (Tezuka firmware) so
+    there is no SDR container to strip. `xoolive` confirmed both decode — 12C on
+    the SDRconnect file, 8B on the Pluto one (`--service "BFM BUSINESS"`) — and
+    pointed at the **dabradio 0.5.0 release binaries**, so either capture can be
+    replayed without a local build. pvanderp runs a dozen other Dutch ensembles
+    if 12C does not exercise whatever comes next.
 
 (HD Radio landed upstream with #466 and the fork's duplicate is retired: the
 faad2 submodule is back on `knik0/faad2`, `crates/sdroxide-faad2` patches it at
