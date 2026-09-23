@@ -497,10 +497,13 @@ pub struct SdroxideApp {
     layers_popup_since: Option<f64>,
     /// Fade clock for the sub-audible tone popup, like `skimmer_popup_since`.
     tone_popup_since: Option<f64>,
-    /// Fade clock for the noise-reduction picker, like `tone_popup_since`.
     /// Which NAVTEX message the reading pane is showing, or `None` for the one
     /// arriving.
     navtex_open: Option<usize>,
+    /// Which DSC sequence the reading pane is showing, or `None` for the
+    /// newest.
+    dsc_open: Option<usize>,
+    /// Fade clock for the noise-reduction picker, like `tone_popup_since`.
     nr_popup_since: Option<f64>,
     rec_popup_since: Option<f64>,
     /// When the running MP3 recording should stop, Unix UTC seconds, and the
@@ -1502,6 +1505,7 @@ impl SdroxideApp {
             layers_popup_since: None,
             tone_popup_since: None,
             navtex_open: None,
+            dsc_open: None,
             nr_popup_since: None,
             rec_popup_since: None,
             recording_stop_at: None,

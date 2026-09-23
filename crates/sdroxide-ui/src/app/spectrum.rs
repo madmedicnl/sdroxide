@@ -1397,6 +1397,15 @@ mod focus_tests {
         assert_eq!(focus_hz(Mode::Navtex, dial, sdroxide_types::NAVTEX_TONE_HZ, false), 518_000.0);
     }
 
+    /// DSC's channel frequencies are the centre of *its* tone pair too, so the
+    /// same 1700 Hz arithmetic applies — logging the dial would name every
+    /// sequence 1.7 kHz low.
+    #[test]
+    fn dsc_anchors_on_its_tone_too() {
+        let dial = 2_187_500.0 - f64::from(sdroxide_types::DSC_TONE_HZ);
+        assert_eq!(focus_hz(Mode::Dsc, dial, sdroxide_types::DSC_TONE_HZ, false), 2_187_500.0);
+    }
+
     /// The modes that pick a slot inside a sub-band stay on the dial. FT8's
     /// tone offset moves by itself whenever the engine chooses a new transmit
     /// frequency, and a window that followed it would slide out from under the

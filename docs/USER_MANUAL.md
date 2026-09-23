@@ -18,11 +18,12 @@ or connects to a remote sdroxide server.
 2. [Basic operation](#2-basic-operation)
     - [2.20 HD Radio (NRSC-5)](#220-hd-radio-nrsc-5)
     - [2.22 QO-100 beacon plugin](#222-qo-100-beacon-plugin)
-3. [Digital modes (FT8, FT4, FT2, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
+3. [Digital modes (FT8, FT4, FT2, PSK31, RTTY, Olivia, THOR, FSQ, Hellschreiber, SSTV, RIFP, weather fax, JS8, RF Paint, WSPR, PI4, packet, APRS, ADS-B, NAVTEX, DSC, ACARS, VDL2, AIS, HFDL, AtCHAT NET)](#3-digital-modes)
     - [3.17 AtCHAT NET](#317-atchat-net)
     - [3.18 ACARS](#318-acars-airline-datalink-on-airband)
     - [3.19 HFDL](#319-hfdl-aircraft-on-the-shortwave-band)
     - [3.20 PI4](#320-pi4-next-generation-beacon)
+    - [3.21 DSC](#321-dsc-marine-distress-and-calling)
 4. [Skimmers (CW, PSK, RTTY)](#4-skimmers)
 5. [ISM band decoder (315 / 345 / 433 / 868 / 915 MHz devices)](#5-ism-band-decoder)
 6. [Settings](#6-settings)
@@ -397,7 +398,7 @@ The **OPERATE** tab's rows:
   than a hunt through the digital modes. `FM` here is **NFM** (narrow); the
   broadcast band's own button comes up **WFM** (see below).
 - **MODE:** `LSB USB CW AM SAM C-QUAM NFM WFM DRM HD DIGU DIGL DSB ISB SPEC`.
-- **DIGITAL:** `FT8 FT4 FT2 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
+- **DIGITAL:** `FT8 FT4 FT2 JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
   [Digital modes](#3-digital-modes)).
 
 ![The band and mode selector popup](images/04-band-mode-popup.jpg)
@@ -6010,6 +6011,58 @@ Generation Beacon" transmission — there are beacons on 6 m through 23 cm and
 higher. Receive only: there is no transmit half of this panel, and there
 never will be — this decoder exists to listen to the network, not to join
 it.
+
+### 3.21 DSC (marine distress and calling)
+
+Choose **DSC** from the DIGITAL row. Digital Selective Calling is the marine
+system behind every GMDSS distress alert: a short digital burst that carries
+an identity and, on a distress call, what is wrong and where. It is the one
+marine emergency channel a listener can decode, and the reason this mode is
+here at all.
+
+**Receive only, and deliberately.** DSC is distress and safety traffic. An
+amateur putting a false alert on the channel is not making a mode choice but
+a hoax, so the panel has no transmit half and no callsign to set.
+
+**The channels.** The signal is 1200-baud FFSK — mark 1300 Hz, space
+2100 Hz — on marine VHF **channel 70** (156.525 MHz) and the MF/HF distress
+channels **2187.5**, **4207.5**, **6312**, **8414.5**, **12577** and
+**16804.5 kHz**. The chips in the panel tune to each. As with NAVTEX the
+quoted frequency is the *centre* of the two tones, so the dial sits 1.7 kHz
+below it and the readout still says where the signal is.
+
+The MF/HF channels are the ones a shortwave listener reaches; in Europe
+**2187.5 kHz** is the busiest overnight. DSC is sporadic — a burst is a
+second or two and the channel is silent between them — so leave it on a
+channel and wait.
+
+**What you see.** Two panes, as NAVTEX has:
+
+- **MESSAGES** — one entry per sequence, newest first: the time received, the
+  format (DISTRESS, ALL SHIPS, INDIVIDUAL, …), the calling MMSI and, on a
+  distress alert, the nature. A row with a yellow heading is a **marginal**
+  decode: a character failed its BCH check, so the fields shown may be wrong.
+  It is listed rather than dropped, which is the only honest thing to do with
+  a distress alert that arrived imperfectly.
+- **READING** — the sequence selected, or the newest. Every field the parser
+  recovered: format, category, MMSI, the distress nature, position and time,
+  and the raw seven-bit symbol run, which is what to look at when a decode is
+  marginal.
+
+**An MMSI** is the vessel or coast station's nine-digit identity, the same
+number that appears on a marine radio's display. A distress alert carries no
+target — the address *is* the sender's own ID — so the reading pane shows
+**Caller MMSI** and leaves the target out.
+
+**The position and time** on a distress alert are the sender's claim, not the
+receiver's: a station that did not know where it was sends the all-nines
+"unknown" sentinel and the pane says *not stated*. The time the pane shows at
+the top of the reading is when *sdroxide* decoded it, which is the figure to
+compare the sender's against.
+
+**Nothing to set.** There is no tone reversal control, unlike NAVTEX: the
+detector reads both tone senses and the framer locks to whichever it sees.
+The tones and the baud are fixed by ITU-R M.493.
 
 ## 4. Skimmers
 
@@ -16231,6 +16284,7 @@ using. Bind them under **Speech** on the Controls tab:
 | RTTY | RTTY keyboard mode (Baudot; selectable shift and baud), on a sideband. |
 | RTTY-FM | The same modem on an FM carrier, the way a club bulletin is still sent on VHF. |
 | NAVTEX | The maritime safety broadcast on 518, 490 and 4209.5 kHz: navigational and meteorological warnings, search-and-rescue bulletins and ice reports, framed into messages. Receive only. |
+| DSC | Digital Selective Calling — the marine distress and calling system on VHF channel 70 and the MF/HF distress channels: 1200-baud FFSK carrying distress alerts (MMSI, nature, position, time) and routine calls. Receive only. See [3.21](#321-dsc-marine-distress-and-calling). |
 | OLIVIA | Robust MFSK keyboard mode (selectable tones/bandwidth). |
 | THOR | DominoEX-family IFK keyboard mode with FEC (THOR4…THOR32). |
 | FSQ | Fast Simple QSO — 33-tone IFK with directed (FSQCALL) messaging and images. |

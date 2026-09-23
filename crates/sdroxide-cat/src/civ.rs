@@ -68,6 +68,7 @@ pub fn mode_to_civ(m: Mode) -> u8 {
         | Mode::Sstv
         | Mode::Wefax
         | Mode::Navtex
+        | Mode::Dsc
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

@@ -776,6 +776,8 @@ impl eframe::App for SdroxideApp {
                                     self.navtex_panel(ui, &mut cmds, panel_h);
                                 } else if mode == Mode::Acars {
                                     self.acars_panel(ui, &mut cmds, panel_h);
+                                } else if mode == Mode::Dsc {
+                                    self.dsc_panel(ui, &mut cmds, panel_h);
                                 } else if mode.is_image() {
                                     self.image_panel(ui, &mut cmds, mode);
                                 } else if mode.is_rf_paint() {

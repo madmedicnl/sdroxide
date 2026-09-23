@@ -152,6 +152,8 @@ impl<'a> Speaker<'a> {
             Mode::Aprs => "aprs",
             Mode::Wefax => "wefax",
             Mode::Navtex => "nav tex",
+            // Spelt out, not "disc": the mode is never said as a word.
+            Mode::Dsc => "D S C",
             Mode::Js8 => "J S eight",
             // Pronounced "whisper" — the joke the name is built on.
             Mode::Wspr => "whisper",

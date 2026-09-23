@@ -18,9 +18,9 @@ use sdroxide_ais::{AisAction, AisController};
 use sdroxide_config::BandStacks;
 use sdroxide_digi::{
     AcarsController, AprsController, AtChatController, CwController, DigiAction, DigiController,
-    DigiEngine, FsqController, HellController, Js8Controller, NavtexController, PacketController,
-    Pi4Controller, RadeController, RfPaintController, RifpController, SstvController,
-    TextModemController, WefaxController, WsprController,
+    DigiEngine, DscController, FsqController, HellController, Js8Controller, NavtexController,
+    PacketController, Pi4Controller, RadeController, RfPaintController, RifpController,
+    SstvController, TextModemController, WefaxController, WsprController,
 };
 use sdroxide_drm::DrmDemod;
 use sdroxide_dsp::{
@@ -6896,6 +6896,11 @@ impl Engine {
             // nothing further down would notice it had been handed an airline
             // datalink rather than a radio amateur's text.
             Box::new(AcarsController::new(self.digi_config.clone(), tap_rate))
+        } else if mode == Mode::Dsc {
+            // And the same again: DSC frames its own sequences and nothing
+            // further down would notice it had been handed a marine distress
+            // alert rather than a radio amateur's text.
+            Box::new(DscController::new(self.digi_config.clone(), tap_rate))
         } else if mode.is_rifp() {
             Box::new(RifpController::new(self.digi_config.clone(), tap_rate))
         } else if mode.is_aprs() {
@@ -17580,6 +17585,7 @@ fn rig_mode_class(m: Mode) -> u8 {
         | Mode::Sstv
         | Mode::Wefax
         | Mode::Navtex
+        | Mode::Dsc
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

@@ -310,6 +310,22 @@ pub enum Mode {
     /// none of WSPR's duty-cycle or band-hopping machinery. Appended for the
     /// same reason as [`Mode::Hell`].
     Pi4,
+    /// DSC — Digital Selective Calling, the marine distress and calling system
+    /// on VHF channel 70 (156.525 MHz) and the MF/HF DSC channels (2187.5,
+    /// 4207.5, 6312, 8414.5, 12577, 16804.5 kHz).
+    ///
+    /// 1200-baud FFSK, mark 1300 Hz and space 2100 Hz, carrying 10-bit
+    /// BCH-checked characters sent twice on a DX/RX grid. A distress alert
+    /// carries the sender's MMSI, the nature of the distress, a position and a
+    /// time; a routine call carries who is calling whom.
+    ///
+    /// Receive only, and deliberately so: DSC is the one marine emergency
+    /// channel a listener can decode, and an amateur putting a false alert on
+    /// it is not a mode choice but a hoax. Like [`Mode::Navtex`] the channel
+    /// frequency is the *centre* of the two tones, so the dial sits 1700 Hz
+    /// below it — see [`Mode::standard_tone_offset_hz`]. Appended for the same
+    /// reason as [`Mode::Hell`].
+    Dsc,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -330,7 +346,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 44] = [
+    pub const ALL: [Mode; 45] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -375,6 +391,7 @@ impl Mode {
         Mode::RfPaint,
         Mode::Rade,
         Mode::Hfdl,
+        Mode::Dsc,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -382,7 +399,7 @@ impl Mode {
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
     /// received in AM.
-    pub const DIGITAL: [Mode; 25] = [
+    pub const DIGITAL: [Mode; 26] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -408,7 +425,8 @@ impl Mode {
         Mode::Packet,
         Mode::PacketHf,
         Mode::Aprs,
-];
+        Mode::Dsc,
+    ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
     pub fn is_digital(self) -> bool {
@@ -436,6 +454,7 @@ impl Mode {
                 | Mode::Rade
                 | Mode::Wefax
                 | Mode::Navtex
+                | Mode::Dsc
                 | Mode::Packet
                 | Mode::PacketHf
                 | Mode::Aprs
@@ -750,6 +769,7 @@ impl Mode {
             Mode::Wefax
                 | Mode::Adsb
                 | Mode::Navtex
+                | Mode::Dsc
                 | Mode::Acars
                 | Mode::Vdl2
                 | Mode::Isb
@@ -812,6 +832,7 @@ impl Mode {
             Mode::Rtty => "RTTY",
             Mode::RttyFm => "RTTY-FM",
             Mode::Navtex => "NAVTEX",
+            Mode::Dsc => "DSC",
             Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
             Mode::SstvFm => "SSTV-FM",
@@ -893,6 +914,7 @@ impl Mode {
                 | Mode::Packet
                 | Mode::PacketHf
                 | Mode::Navtex
+                | Mode::Dsc
                 | Mode::Wefax
                 | Mode::Acars
         );
@@ -983,6 +1005,9 @@ impl Mode {
             // either side leaves room for a receiver that is not exactly on the
             // channel, which is the usual state of a signal found by ear.
             Mode::Navtex => (1300.0, 2100.0),
+            // DSC's tones are 1300 and 2100 Hz; the same margin either side
+            // keeps a receiver a little off the channel decoding.
+            Mode::Dsc => (1100.0, 2300.0),
             // ACARS' MSK sits at 1200 and 2400 Hz on the AM carrier, so the
             // passband has to keep both tones and the carrier between them.
             Mode::Acars => (-3000.0, 3000.0),
@@ -1124,6 +1149,10 @@ impl Mode {
             // is 1700 Hz below the channel, and a decode logged at the dial
             // would be logged 1.7 kHz low.
             Mode::Navtex => Some(crate::NAVTEX_TONE_HZ),
+            // DSC's channel frequencies are the assigned frequency, which is
+            // the *centre* of the two tones for the J2B emission — so the dial
+            // is 1700 Hz below the channel, exactly as NAVTEX's is.
+            Mode::Dsc => Some(crate::DSC_TONE_HZ),
             _ => None,
         }
     }
@@ -1212,6 +1241,7 @@ impl Mode {
             | Mode::Rifp
             | Mode::Wefax
             | Mode::Navtex
+            | Mode::Dsc
             | Mode::Olivia
             | Mode::Thor
             | Mode::Fsq
@@ -1468,6 +1498,7 @@ impl Mode {
             | Mode::Rifp
             | Mode::Wefax
             | Mode::Navtex
+            | Mode::Dsc
             | Mode::Acars
             | Mode::PacketHf
             | Mode::Rade
@@ -2015,6 +2046,8 @@ mod tests {
             (Mode::Acars, 40),
             (Mode::HdRadio, 41),
             (Mode::Hfdl, 42),
+            (Mode::Pi4, 43),
+            (Mode::Dsc, 44),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2061,7 +2094,7 @@ mod tests {
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker.
-        let last = Mode::Pi4 as u8;
+        let last = Mode::Dsc as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");

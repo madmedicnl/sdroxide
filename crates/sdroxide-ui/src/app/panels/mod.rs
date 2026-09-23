@@ -26,6 +26,7 @@ pub(in crate::app) mod aprs;
 pub(in crate::app) mod atchat;
 pub(in crate::app) mod cw;
 pub(in crate::app) mod decodes;
+pub(in crate::app) mod dsc;
 pub(in crate::app) mod fsq;
 pub(in crate::app) mod js8;
 mod navtex;
@@ -98,6 +99,7 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         Mode::Hfdl => &["DECODES", "MAP"],
         Mode::Wefax => &["CHART", "SAVED"],
         Mode::Navtex => &["MESSAGES", "READING"],
+        Mode::Dsc => &["MESSAGES", "READING"],
         Mode::RfPaint => &["TEXT", "IMAGE"],
         // The keyboard modes and RADE are one column already: receive above,
         // what you are sending below it.
@@ -448,6 +450,22 @@ fn digi_dial_freqs(mode: Mode) -> &'static [(&'static str, f64)] {
         // 1700 Hz below it — see `NAVTEX_TONE_HZ`. Labelled by the channel,
         // because that is what a schedule names.
         Mode::Navtex => &[("518", 516_300.0), ("490", 488_300.0), ("4209.5", 4_207_800.0)],
+        // The DSC channels, as *dial* frequencies: the service quotes the
+        // assigned frequency (2187.5, 4207.5 kHz and the rest), which for the
+        // J2B emission is the centre of the two tones, so upper sideband sits
+        // 1700 Hz below it — see `DSC_TONE_HZ`. Channel 70 is the marine VHF
+        // distress and calling channel at 156.525 MHz; the dial is 1700 Hz
+        // below it, though the marine band is FM and the dial convention
+        // differs — the chip is a starting point, not a tuning rule.
+        Mode::Dsc => &[
+            ("70", 156_523_300.0),
+            ("2187.5", 2_185_800.0),
+            ("4207.5", 4_205_800.0),
+            ("6312", 6_310_300.0),
+            ("8414.5", 8_412_800.0),
+            ("12577", 12_575_300.0),
+            ("16804.5", 16_802_800.0),
+        ],
         // Olivia activity centres (USB dial).
         Mode::Olivia => &[
             ("80m", 3_581_000.0),

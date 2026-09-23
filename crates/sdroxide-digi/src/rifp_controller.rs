@@ -206,6 +206,7 @@ impl RifpController {
             packet: None,
             navtex: None,
             acars: None,
+            dsc: None,
             aprs: None,
             js8: None,
             atchat: None,

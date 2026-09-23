@@ -97,6 +97,9 @@ pub fn make_modulator(mode: Mode, rate: f64, passband: (f32, f32)) -> Option<Box
         // signal, not a beacon implementation (see `Mode::Pi4`'s own doc
         // comment) — so like ACARS and ISB it has no modulator to transmit
         // with.
+        // DSC joins them, and for a graver reason: it is the marine distress
+        // and calling channel, and an amateur station keying a distress alert
+        // on it is not making a mode choice but a hoax.
         Mode::Pi4
         | Mode::Cw
         | Mode::Wfm
@@ -106,7 +109,8 @@ pub fn make_modulator(mode: Mode, rate: f64, passband: (f32, f32)) -> Option<Box
         | Mode::Adsb
         | Mode::Vdl2
         | Mode::Ais
-        | Mode::Hfdl => None,
+        | Mode::Hfdl
+        | Mode::Dsc => None,
     }
 }
 

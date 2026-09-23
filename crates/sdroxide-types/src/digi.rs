@@ -210,6 +210,16 @@ pub const RTTY_CENTER_HZ: f32 = 2210.0;
 /// mode's audio offset, there is nothing here for an operator to choose.
 pub const NAVTEX_TONE_HZ: f32 = 1700.0;
 
+/// Where a DSC signal's tone pair sits above the dial, in Hz.
+///
+/// The same 1700 Hz as NAVTEX, and for the same reason: a DSC channel
+/// frequency (2187.5, 4207.5, 8414.5 kHz and the rest) is the *assigned*
+/// frequency, which for the J2B emission is the centre of the two tones — mark
+/// 1300 Hz, space 2100 Hz. So a receiver in upper sideband tunes 1700 Hz below
+/// the channel and the tones land where the decoder looks for them. Fixed by
+/// ITU-R M.493; there is nothing here for an operator to choose.
+pub const DSC_TONE_HZ: f32 = 1700.0;
+
 /// A "special operating activity": a contest whose exchange is not the
 /// everyday grid-and-report, so the slotted modes have to send and read
 /// something else (issue #223).
@@ -532,6 +542,11 @@ pub struct DigiStatus {
     /// peer that matches the protocol version but not this build.
     #[serde(default)]
     pub acars: Option<AcarsStatus>,
+    /// DSC (Digital Selective Calling) status, when that mode is selected.
+    /// `None` in every other mode, as the rest of these are. Last in the
+    /// struct, after `acars`, for the same positional reason.
+    #[serde(default)]
+    pub dsc: Option<DscStatus>,
 }
 
 /// The running detail of the contact in progress: when it started and what has
@@ -974,6 +989,37 @@ pub struct AcarsStatus {
     pub bad: u64,
 }
 
+/// Most DSC sequences kept. A DSC channel is mostly quiet — bursts are a
+/// second or two and sporadic — so this is a long evening's listening.
+pub const DSC_MESSAGE_MAX: usize = 300;
+
+/// One DSC sequence as the receiver filed it: the message, and when it was
+/// heard.
+///
+/// The time is the receiver's, not the message's: a DSC alert carries a time
+/// of its own (in [`crate::DscMessage::time_utc`]) and that is the sender's
+/// claim, which is exactly the sort of thing a listener wants to compare
+/// against when it was actually received.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DscHeard {
+    pub message: crate::DscMessage,
+    /// Unix seconds UTC when the sequence was decoded.
+    pub at: i64,
+}
+
+/// What the DSC receiver is doing.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DscStatus {
+    /// Smoothed audio level, for a meter.
+    pub level: f32,
+    /// Sequences received, newest last.
+    pub messages: Vec<DscHeard>,
+    /// Complete sequences seen, good and marginal.
+    pub sequences: u64,
+    /// The detector's confidence in its mark/space separation, `0..1`.
+    pub separation: f32,
+}
+
 /// Most frames kept for the monitor pane. A busy VHF channel produces a few a
 /// second, and the pane is a rolling view rather than a log.
 pub const PACKET_HEARD_MAX: usize = 200;
@@ -1044,6 +1090,7 @@ impl DigiStatus {
             packet: None,
             navtex: None,
             acars: None,
+            dsc: None,
             aprs: None,
             js8: None,
             atchat: None,

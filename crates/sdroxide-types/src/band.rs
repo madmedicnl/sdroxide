@@ -392,6 +392,10 @@ impl Band {
             // SSB/CW alongside them — including HFDL, the aircraft datalink
             // whose ground stations sit on assigned frequencies across the
             // band.
+            // Shortwave: broadcast AM and DRM, and the utility services on
+            // SSB/CW alongside them — including HFDL, the aircraft datalink
+            // whose ground stations sit on assigned frequencies across the
+            // band, and DSC, whose MF/HF distress channels do too.
             Band::Sw => Some(&[
                 Mode::Am,
                 Mode::Sam,
@@ -400,6 +404,7 @@ impl Band {
                 Mode::Cw,
                 Mode::Drm,
                 Mode::Hfdl,
+                Mode::Dsc,
             ]),
             // FM broadcast: WFM, with the stereo pilot and RDS its own business
             // — and HD Radio's FM hybrid, which shares these channels.
@@ -444,7 +449,13 @@ impl Band {
                 Mode::PacketHf,
                 Mode::Aprs,
             ]),
-            // Every amateur allocation takes anything.
+            // Every amateur allocation takes anything. 2 m is among them and
+            // is *not* restricted: the marine DSC channel 70 (156.525 MHz)
+            // sits inside its allocation, and a service band's own rule would
+            // have to list every mode the band takes by hand — a table that
+            // silently blocks the next mode added. DSC is receive-only, so the
+            // transmit rails are what stop a false alert on the channel, not
+            // this table.
             _ => None,
         }
     }
@@ -1122,5 +1133,9 @@ mod tests {
             assert!(b.accepts_mode(Mode::Wfm));
             assert!(b.accepts_mode(Mode::Ft8));
         }
+        // DSC's home on this side of the dial is the shortwave band, where the
+        // MF/HF distress channels sit — a service band, so it is listed.
+        assert!(Band::Sw.accepts_mode(Mode::Dsc), "the MF/HF distress channels");
+        assert!(Band::M2.accepts_mode(Mode::Dsc), "and channel 70 is inside 2 m");
     }
 }

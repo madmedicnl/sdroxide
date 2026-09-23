@@ -221,6 +221,7 @@ impl NavtexController {
             packet: None,
             navtex: Some(self.navtex_status()),
             acars: None,
+            dsc: None,
             aprs: None,
             js8: None,
             atchat: None,

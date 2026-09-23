@@ -1470,7 +1470,15 @@ use sdroxide_types::{
 /// relay, not handshake, so a v167 peer simply never learns about openings —
 /// but the added variant shifts the message stream's encoding, hence the bump.
 /// A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 168;
+///
+/// v169: DSC, the marine Digital Selective Calling decoder. `Mode::Dsc` is
+/// appended to that enum and `DigiStatus` gains `dsc: Option<DscStatus>` on its
+/// tail (after `acars`), the same shape NAVTEX and ACARS already have — and
+/// `DigiStatus` rides whole, so a v168 peer reads the extra bytes as the start
+/// of the next field and fails to decode every digital status. Cannot be
+/// bundled upstream with the mode alone, so it is a downstream (fork) addition
+/// until the decoder is proven on a real burst.
+pub const PROTO_VERSION: u16 = 169;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

@@ -91,6 +91,7 @@ rest.
 | **C-QUAM AM stereo** | — | decoded on MW, with a stereo lamp and a mono blend (not yet verified against a real signal) |
 | **ACARS** | — | the VHF airband airline datalink (131.550, 131.725 MHz and friends), with a message panel; the demodulator has carrier and bit-clock recovery and is checked against an off-air recording |
 | **HFDL** | — | the shortwave aircraft datalink (ARINC 635): ground stations across 2.8–22 MHz talking to aircraft over the ocean, with a decode log and an **aircraft map** drawn from the positions the aircraft downlink |
+| **DSC** | — | the marine Digital Selective Calling system on VHF channel 70 and the MF/HF distress channels (2187.5, 4207.5, 8414.5 kHz …): 1200-baud FFSK carrying distress alerts (MMSI, nature, position, time) and routine calls, with a message panel and a raw-symbol view; receive only |
 | **MW/SW DX tools** | SAM and the ham audio chain | **ECSS-U / ECSS-L** presets on SAM and a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. A receive-only radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning banner, which switches it to this screen. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
@@ -136,7 +137,7 @@ The full interface: the radio, receiver, display and system controls along the t
 - **Modes** — SSB, CW, AM, SAM, **C-QUAM** AM stereo, NFM (CTCSS/DCS),
   WFM (stereo + **RDS/RBDS**), DSB, **ISB**, DIGU/DIGL, SPEC, **DRM**,
   **HD Radio** (FM, stereo), and the receive-only utility decoders **ADS-B**,
-  **VDL2**, **ACARS**, **HFDL**, **NAVTEX**, **weather fax**.
+  **VDL2**, **ACARS**, **HFDL**, **NAVTEX**, **DSC**, **weather fax**.
 - **Digital modes** — **FT8/FT4/FT2**, **JS8**, **WSPR**, **PSK31/RTTY**,
   **Olivia/THOR/FSQ**, **Hellschreiber**, **SSTV**, **RIFP**, **RF Paint**,
   **RADE** digital voice, **packet/APRS**, **AtCHAT NET**, **Winlink** email.
@@ -268,7 +269,7 @@ one core. `WGPU_BACKEND=vulkan sdroxide` takes Vulkan back where it is steady.
 | `--freq <HZ>` | Center frequency in Hz (default: where the last session was left; `14200000` on a first run). |
 | `--rate <HZ>` | Sample rate in Hz (default: from config). |
 | `--gain <DB>` | Overall RX gain in dB (default: hardware AGC / moderate). |
-| `--mode <MODE>` | Initial mode, case-insensitive: `LSB USB CW AM SAM NFM WFM DRM ADS-B VDL2 AIS DIGU DIGL DSB ISB SPEC FT8 FT4 FT2 JS8 WSPR PI4 PSK RTTY RTTY-FM PACKET PACKET-HF APRS SSTV SSTV-FM RIFP WEFAX NAVTEX ACARS OLIVIA THOR FSQ ATCHAT HELL RFPAINT RADE HFDL`, and `"HD RADIO"` (the one name with a space in it, so it needs the quotes). Default: the mode the last session was left in. |
+| `--mode <MODE>` | Initial mode, case-insensitive: `LSB USB CW AM SAM NFM WFM DRM ADS-B VDL2 AIS DIGU DIGL DSB ISB SPEC FT8 FT4 FT2 JS8 WSPR PI4 PSK RTTY RTTY-FM PACKET PACKET-HF APRS SSTV SSTV-FM RIFP WEFAX NAVTEX DSC ACARS OLIVIA THOR FSQ ATCHAT HELL RFPAINT RADE HFDL`, and `"HD RADIO"` (the one name with a space in it, so it needs the quotes). Default: the mode the last session was left in. |
 | `--antenna <NAME>` | RX antenna port, as the device names it (`LNAH`, `TX/RX`; see `--probe`). Default: the port the last session was left on. |
 | `--tx-antenna <NAME>` | TX antenna port, likewise (`BAND1`, `BAND2`). |
 | `--server` | Run as a server: HTTP web client + WebSocket streaming backend. |
