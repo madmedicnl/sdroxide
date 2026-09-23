@@ -669,6 +669,11 @@ Second review round (2026-09-23), same branches now on `main`:
   horizon take a bright neutral line ink at ~full alpha, because the soft shade
   alone read poorly over some themes' land colours. The line ink is deliberately
   not a theme colour — the overlay is uploaded as bytes the same on every theme.
+  **Reversed 2026-09-23:** baked into a 360×180 raster, one cell is ~1° of
+  latitude, so the "line" reads as a fat blocky band at map scale and looked
+  worse than the shade. Reverted to shade-only. A thin terminator would have to
+  be stroked as a vector polyline along the zero-elevation locus by each map
+  widget in screen space, not painted cell-by-cell into the texture.
 - **Meteor and IBP hover target the labels, not the row.** A `Label` defaults to
   `Sense::hover()` (and `selectable_labels` adds click+drag), so it *takes* the
   hover and the enclosing `ui.horizontal(...).response` is never hovered while
@@ -680,7 +685,10 @@ Second review round (2026-09-23), same branches now on `main`:
   CONDX/WSPR/PSK/PATHS/REACH table under the `BANDS OPEN` chart. So conditions
   can be read from the globe without opening the BANDS window over the main
   view. Note the browser `/solar-ws` relay does not carry these yet, so the
-  panel is absent in the browser tab.
+  panel is absent in the browser tab. The right-hand corner boxes share one
+  width: `Place::Corner` carries a `w`, and `SolarUi::corner_w` is published by
+  the BANDS table (one-frame settle) so the stack reads as one column. The
+  table's footer is laid out wrapped to the table width, not `layout_no_wrap`.
 
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 

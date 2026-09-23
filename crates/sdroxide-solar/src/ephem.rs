@@ -550,18 +550,6 @@ const NIGHT_MAX_ALPHA: f32 = 0.62;
 /// Night ink — a deep dusk blue rather than black, so the map is shaded rather
 /// than erased.
 const NIGHT_INK: [u8; 3] = [8, 12, 28];
-/// Half-width of the solid terminator line, in degrees of solar elevation. The
-/// shade alone reads poorly against some themes' land colours, so the day/night
-/// boundary itself is drawn as a crisp line: cells within this of the horizon
-/// take [`NIGHT_LINE_INK`] at nearly full alpha.
-const NIGHT_LINE_HALF_DEG: f64 = 1.2;
-/// The terminator line's ink — a bright, near-white cyan, deliberately not a
-/// theme colour: the overlay is uploaded as bytes the same on every theme, and
-/// it has to read over a pale day map and a dark night one alike.
-const NIGHT_LINE_INK: [u8; 3] = [150, 225, 235];
-/// Alpha of the terminator line, as a fraction. Nearly opaque: it is a line,
-/// not a shade.
-const NIGHT_LINE_ALPHA: f32 = 0.95;
 
 /// How dark the grey-line overlay is at a solar elevation: `0.0` in daylight,
 /// rising through twilight to `1.0` at full night.
@@ -579,12 +567,6 @@ pub fn night_shade(elev_deg: f64) -> f32 {
     }
 }
 
-/// Whether a solar elevation falls on the terminator line the overlay draws —
-/// the crisp day/night boundary, a degree or so either side of the horizon.
-pub fn on_terminator(elev_deg: f64) -> bool {
-    elev_deg.abs() <= NIGHT_LINE_HALF_DEG
-}
-
 /// The grey-line overlay for an equirectangular world image: straight RGBA8,
 /// row-major from the north pole, `width` cells across 360° of longitude and
 /// `height` down 180° of latitude.
@@ -594,10 +576,11 @@ pub fn on_terminator(elev_deg: f64) -> bool {
 /// a verdict calls a band cannot disagree. Pure arithmetic — no textures, no
 /// I/O — so it compiles for the browser and can be unit-tested.
 ///
-/// The shade alone is a soft wash and reads poorly over some themes' land
-/// colours, so the boundary itself is stroked: cells on the terminator take the
-/// bright line ink at nearly full alpha, and a thin solid line runs down the
-/// edge of the night on every theme.
+/// A soft wash only: baking a solid line into the raster at this resolution
+/// reads as a fat, blocky band at map scale (a cell is ~1° of latitude), and it
+/// was tried and taken back out. A thin vector terminator would have to be
+/// stroked by each map widget in screen space, along the great-circle locus of
+/// zero solar elevation, not painted cell-by-cell here.
 pub fn night_shade_rgba(width: usize, height: usize, unix_s: i64) -> Vec<u8> {
     let mut px = vec![0u8; width * height * 4];
     if width == 0 || height == 0 {
@@ -608,22 +591,16 @@ pub fn night_shade_rgba(width: usize, height: usize, unix_s: i64) -> Vec<u8> {
     let (sub_lat, sub_lon) = subsolar_point(julian_day(unix_s as f64));
     let sun = geodetic_to_body(sub_lat, sub_lon);
     let alpha_full = (NIGHT_MAX_ALPHA * 255.0).round() as u8;
-    let line_alpha = (NIGHT_LINE_ALPHA * 255.0).round() as u8;
     for y in 0..height {
         let lat = 90.0 - (y as f64 + 0.5) * 180.0 / height as f64;
         for x in 0..width {
             let lon = -180.0 + (x as f64 + 0.5) * 360.0 / width as f64;
             let here = geodetic_to_body(lat, lon);
             let elev = 90.0 - here.dot(sun).clamp(-1.0, 1.0).acos().to_degrees();
+            let a = (night_shade(elev) * alpha_full as f32).round() as u8;
             let i = (y * width + x) * 4;
-            if on_terminator(elev) {
-                px[i..i + 3].copy_from_slice(&NIGHT_LINE_INK);
-                px[i + 3] = line_alpha;
-            } else {
-                let a = (night_shade(elev) * alpha_full as f32).round() as u8;
-                px[i..i + 3].copy_from_slice(&NIGHT_INK);
-                px[i + 3] = a;
-            }
+            px[i..i + 3].copy_from_slice(&NIGHT_INK);
+            px[i + 3] = a;
         }
     }
     px
@@ -1026,39 +1003,5 @@ mod tests {
             (NIGHT_MAX_ALPHA * 255.0).round() as u8,
             "the antipode is not in full night"
         );
-    }
-
-    /// The terminator is stroked, not just shaded: a cell on the line takes the
-    /// bright line ink, and the line sits between the lit and shaded halves.
-    #[test]
-    fn the_terminator_is_drawn_as_a_line() {
-        assert!(on_terminator(0.0), "the horizon is on the line");
-        assert!(on_terminator(-1.0) && on_terminator(1.0), "the line has width");
-        assert!(!on_terminator(-5.0) && !on_terminator(5.0), "the line is thin");
-
-        let (w, h) = (360usize, 180usize);
-        let unix = 1_800_000_000i64;
-        let px = night_shade_rgba(w, h, unix);
-        let (sub_lat, sub_lon) = subsolar_point(julian_day(unix as f64));
-        // A cell a little poleward of the subsolar latitude is on the line when
-        // it faces the same way as the Sun (the line bends), so walk longitude
-        // at the subsolar latitude and require at least one line pixel.
-        let mut line_px = 0;
-        for x in 0..w {
-            let lon = -180.0 + (x as f64 + 0.5) * 360.0 / w as f64;
-            let elev = solar_elevation_deg(sub_lat, lon, unix as f64);
-            if on_terminator(elev) {
-                let y = (((90.0 - sub_lat) / 180.0) * h as f64) as usize;
-                let i = (y.min(h - 1) * w + x) * 4;
-                assert_eq!(
-                    &px[i..i + 3],
-                    &NIGHT_LINE_INK,
-                    "a terminator cell at lon {lon} is not the line ink"
-                );
-                line_px += 1;
-            }
-        }
-        assert!(line_px > 0, "no terminator cells were found to stroke");
-        let _ = sub_lon;
     }
 }

@@ -190,6 +190,12 @@ pub struct SolarUi {
     /// Operator QTH as configured (Maidenhead) and its decoded (lat, lon).
     pub qth_grid: String,
     pub qth: Option<(f64, f64)>,
+    /// The width the right-hand corner panels share, in points. Zero until the
+    /// BANDS table has been laid out once; that panel publishes its natural
+    /// table width here, and the boxes above it take it up on the next frame so
+    /// the whole stack reads as one column. A one-frame settle is invisible and
+    /// keeps the panels from having to lay out twice each in the same frame.
+    pub corner_w: f32,
     /// Simulated-time offset from now, in seconds — driven by the time chips so
     /// the whole scene can be scrubbed forward and back.
     pub sim_offset_s: f64,
@@ -404,6 +410,7 @@ impl SolarUi {
             unlock_requested: false,
             qth_grid: String::new(),
             qth: None,
+            corner_w: 0.0,
             sim_offset_s: 0.0,
             data: None,
             digi: DigiTraffic::default(),

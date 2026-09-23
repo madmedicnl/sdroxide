@@ -88,7 +88,11 @@ const MARGIN: f32 = 12.0;
 /// and the same code drawing them: only where they are put changes.
 #[derive(Clone, Copy)]
 enum Place {
-    Corner { scene: egui::Rect, top: f32 },
+    /// Down the right-hand edge. `w` is the shared corner width: a panel lays
+    /// itself out at its natural size and then takes at least this, so the
+    /// stack reads as one column rather than a ragged edge. A panel wider than
+    /// `w` keeps its width — text is never clipped to fit a house style.
+    Corner { scene: egui::Rect, top: f32, w: f32 },
     Inline,
 }
 
@@ -101,7 +105,8 @@ impl Place {
     /// what it is given.
     fn reserve(self, ui: &mut egui::Ui, size: egui::Vec2) -> Option<egui::Rect> {
         match self {
-            Place::Corner { scene, top } => {
+            Place::Corner { scene, top, w } => {
+                let size = egui::vec2(size.x.max(w), size.y);
                 let r = egui::Rect::from_min_size(
                     egui::pos2(scene.right() - size.x - MARGIN, top),
                     size,
@@ -853,14 +858,20 @@ fn scene(ui: &mut egui::Ui, st: &mut SolarUi, data: Option<&SolarData>) {
     find_box(ui, st, data, rect, clock_rect);
     let top = menu_rect.map_or(rect.top() + MARGIN, |r| r.bottom() + 8.0);
     if !phone {
-        let aurora = aurora_panel(ui, st, data, Place::Corner { scene: rect, top }, sim_now as i64);
+        // One width for every box down the edge, so the stack reads as a single
+        // column. The BANDS table publishes its natural width into `corner_w`;
+        // until it has been laid out once the other boxes use their own, and a
+        // frame later they all agree. A panel wider than this keeps its own
+        // width; nothing is clipped to fit.
+        let corner_w = st.corner_w.clamp(140.0, 320.0);
+        let corner = |top: f32| Place::Corner { scene: rect, top, w: corner_w };
+        let aurora = aurora_panel(ui, st, data, corner(top), sim_now as i64);
         let below = aurora.map_or(top, |r| r.bottom() + 8.0);
-        let weather =
-            weather_panel(ui, st, data, Place::Corner { scene: rect, top: below }, sim_now as i64);
+        let weather = weather_panel(ui, st, data, corner(below), sim_now as i64);
         let below = weather.map_or(below, |r| r.bottom() + 8.0);
-        let bands_open = bands_panel(ui, st, Place::Corner { scene: rect, top: below });
+        let bands_open = bands_panel(ui, st, corner(below));
         let below = bands_open.map_or(below, |r| r.bottom() + 8.0);
-        let _ = bands_info_panel(ui, st, Place::Corner { scene: rect, top: below }, sim_now as i64);
+        let _ = bands_info_panel(ui, st, corner(below), sim_now as i64);
     }
     // The bottom-right stack, from the corner up: the date, then the award key
     // above whatever the date left.
@@ -2493,7 +2504,7 @@ fn bands_panel(ui: &mut egui::Ui, st: &SolarUi, place: Place) -> Option<egui::Re
 /// WEATHER chip instead of down the edge, like the two panels above it.
 fn bands_info_panel(
     ui: &mut egui::Ui,
-    st: &SolarUi,
+    st: &mut SolarUi,
     place: Place,
     now: i64,
 ) -> Option<egui::Rect> {
@@ -2599,7 +2610,11 @@ fn bands_info_panel(
     let row_h = font.size + 3.0;
     let pad = 10.0;
     let title = p.layout_no_wrap("BANDS".into(), small.clone(), theme::CYAN_DIM());
-    let note = p.layout_no_wrap(
+    let table_w: f32 = col_w.iter().sum::<f32>() + gap * 5.0;
+    // The note wraps to the table's width rather than running the box wide: it
+    // is a sentence, and a sentence's length should not set a panel's width
+    // past the numbers it sits under.
+    let note = p.layout(
         format!(
             "{} at QTH · CONDX global forecast, WSPR/PSK the world's networks, \
              PATHS/REACH this station",
@@ -2607,9 +2622,12 @@ fn bands_info_panel(
         ),
         small.clone(),
         theme::LINE_LIT(),
+        table_w,
     );
-    let table_w: f32 = col_w.iter().sum::<f32>() + gap * 5.0;
     let width = table_w.max(title.size().x).max(note.size().x) + pad * 2.0;
+    // Publish the table's own width for the boxes above to take up next frame,
+    // so the whole corner stack shares one width.
+    st.corner_w = width;
     let height =
         title.size().y + 6.0 + row_h + body.len() as f32 * row_h + note.size().y + 6.0 + pad * 2.0;
     let panel = place.reserve(ui, egui::vec2(width, height))?;

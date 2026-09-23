@@ -4887,11 +4887,6 @@ and HFDL maps — the last four carry their own **NIGHT** chip above the chart.
 Where a map has no chip row of its own (the four decoder maps), the chip sits
 just above it. Switching it on anywhere lights the same terminator everywhere.
 
-The terminator itself is drawn as a **thin solid line** on the day/night
-boundary, not only a wash of shade: the shading alone reads poorly over some
-themes' land colours, so the edge is stroked in a bright neutral that stands out
-on a pale day map and a dark night one alike.
-
 Drag the strip under the map to resize it against the status pane.
 
 #### Transmitting
