@@ -577,6 +577,68 @@ military airband (225–400) reads UHF and FM broadcast (87.5–108) VHF, and a
 band with no edges (`Gen`) is in every slice. Neither the filter nor ALL
 moves the dial (ALL clears the band; the filter only hides chips).
 
+### The eight listening tools audited from OpenHamClock
+
+The ROADMAP's Phase 3 audit of [`accius/openhamclock`](https://github.com/accius/openhamclock)
+(MIT) listed eight tools worth adapting. Five are in the fork as of 2026-09-23,
+each on its own branch off fork `main`, **local only — not pushed, no PRs**, and
+**not yet merged into `main`** (they are for the operator to test first):
+
+- **Gray line on the flat maps** (`fork/gray-line`) — the flat maps drew day and
+  night identically; the terminator lived only in the 3D scene's shaders.
+  `sdroxide_solar::ephem::night_shade_rgba(width, height, unix)` produces an
+  equirectangular RGBA day/night/twilight image off `subsolar_point` — the same
+  Sun `is_daylight_at` reads the band-conditions half from, so the shade and a
+  "day"/"night" verdict cannot disagree. `night_shade(elev)` is the ramp (0 in
+  daylight, 1 below −14°). In the UI a `NightShade` texture
+  (`crates/sdroxide-ui/src/prop_map.rs`, rebuilt at most once a minute) is painted
+  over the heat and under the continents by the new `paint_world_texture` helper
+  in `widgets/worldmap.rs`, behind a `ViewState::map_night` **NIGHT** chip that
+  sits with HEARD ME (independent of PROP). Wired into all three flat-map callers
+  (FT8/FT4/FT2, WSPR, JS8). Tests recover the subsolar cell being unshaded and
+  the antipode at full night; the ramp is monotonic.
+- **Meteor-shower calendar** (`fork/meteor-calendar`) — `sdroxide_solar::meteor`:
+  a static IMO table (15 major showers, windows/peak/ZHR/radiant/velocity/parent)
+  and pure `radiant_altaz(lat, lon, ra, dec, unix)` built on `gmst_deg`. The
+  Earth-fixed radiant frame is the same one `subsolar_point` uses — pinned by a
+  test that recovers the Sun's own RA/Dec from its ecliptic longitude
+  (`sun_geocentric` returns `(lon, r)`, **not** RA/Dec — the first test to assume
+  otherwise is what caught it). `active_at` returns what is active now, strongest
+  first; the BANDS window's `meteor_section` lists it with peak ZHR, a PEAK flag
+  and whether the radiant is above the station's locator.
+- **IBP beacon checker** (`fork/ibp-beacons`) — `sdroxide_types::ibp`: the 18
+  NCDXF/IARU beacons, the 5 bands with offsets `0/17/16/15/14`, and the 180 s
+  cycle aligned to UTC midnight (`slot_at`, `seconds_left_in_slot`,
+  `active_at(unix, from)`). Geometry from `geo::bearing_deg`/`distance_km`. The
+  BANDS window's `ibp_section` lists each band's current beacon with bearing and
+  distance, and the window now calls `repaint::after_ms(ctx, 1000)` while open so
+  the slot and countdown stay live. The offsets are the easy thing to get wrong:
+  a beacon steps *up* a band every 10 s, so the band N slots earlier is
+  `(18 - N) % 18`, which puts YV5B on 17 m at slot 0, not 4U1UN. A test walks a
+  whole cycle per band and asserts every beacon is visited exactly once.
+- **Space-weather trend** (`fork/space-weather-trends`, first slice of ROADMAP
+  item 4) — the planetary-K product already carries a week of observed bins in
+  front of the three days predicted, and only the forecast half was drawn. New
+  `aurora::recent` returns the observed bins that have *ended* (`p.unix + 10_800
+  <= now`), which is what keeps it disjoint from `upcoming`'s in-progress bin —
+  the first cut used `p.unix <= now` and leaked that bin into both halves, which
+  the test caught. The AURORA panel now draws observed (solid) + forecast (wash)
+  as one trend with the boundary marked. **Still open from item 4:** solar-wind /
+  Bz / proton sparklines (a new SWPC product to fetch and parse) and the
+  solar-cycle chart.
+- **Local solar time** (`fork/local-solar-time`, ROADMAP item 5) —
+  `broadcast::local_solar_hhmm(utc_hhmm, lon_deg)`: four minutes a degree, from
+  the site coordinates EiBi carries. A **SOLAR TIME** chip on the SCHEDULE window
+  puts it on each row. The operator's call was to label it **solar, not local**:
+  it is mean solar time with no DST and no zone borders, and a true civil time
+  zone would need a country-polygon dataset (OpenHamClock's `geo-tz`) this fork
+  will not carry.
+
+Not started: **D-RAP absorption map** (item 6, a new SWPC feed) and the
+**azimuthal map** (item 8, a QOth-centred projection — the flat map widget is
+equirectangular throughout, so it is a rework of `widgets/worldmap.rs` rather
+than a bolt-on).
+
 ### The LOG11DX WSJT bridge (for the auto-mode and DX-radar work)
 
 The bridge the CB side interoperates with is installed in the Wine prefix on

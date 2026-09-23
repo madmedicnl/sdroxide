@@ -158,36 +158,41 @@ noted for 11 m:
    it our own FT8/WSJT-CB decodes and the CB skip-watcher gets "11 m into
    Southern Europe opening" **— relevant to both halves.** General-purpose:
    upstream-first. **Started.**
-2. **Gray line on the flat maps.** The terminator lives only inside the 3D
-   solar scene today; the world/prop maps should shade night and twilight from
-   the `ephem` we already have (their `terminator.js` is Leaflet glue, not
-   portable; their feature, our implementation). Grey-line windows on the low
-   bands; 11 m grey-line and trans-equatorial skip are real.
-3. **Meteor-shower calendar** (their `meteorShowers.js`): IMO list + radiant
-   alt/az (RA/Dec vs GMST — we already compute both). When to listen for
-   meteor scatter; 11 m does MS and long-delay echoes for real. Cheap static
-   data.
-4. **Space-weather trends + solar-cycle chart** (their `swpc-trends.js` /
-   `solarCycle.js`): we keep current values only, no history series anywhere.
-   Binned 24-h sparklines of solar wind/Bz/protons and an observed-SSN vs
-   prediction "where are we in the cycle" chart. 11 m skip follows flux the
-   same way 10 m does.
-5. **Local time at the target** (their `geo-time.js`): the schedule and SWL
-   log show UTC only; listeners plan in the broadcaster's evening. Needs a
-   small timezone table keyed by lat/lon.
+2. **Gray line on the flat maps.** **Done** (2026-09-23, `fork/gray-line`) —
+   `sdroxide_solar::ephem::night_shade_rgba` off the same Sun the band
+   conditions are read from, and a **NIGHT** chip on the FT8/FT4/FT2, WSPR and
+   JS8 maps that paints night and twilight over the propagation heat and under
+   the continents. The terminator still lives only in the 3D scene's shaders;
+   the flat maps now agree with it.
+3. **Meteor-shower calendar.** **Done** (2026-09-23, `fork/meteor-calendar`) —
+   `sdroxide_solar::meteor`, the IMO table plus `radiant_altaz` from GMST in the
+   same Earth-fixed frame as the subsolar point, listed at the foot of the
+   BANDS window with peak ZHR and whether the radiant is up for the station.
+4. **Space-weather trends + solar-cycle chart.** **Partly done** (2026-09-23,
+   `fork/space-weather-trends`) — the AURORA panel now draws the planetary K
+   **observed history** flowing into the forecast, which needed no new feed
+   (`aurora::recent` halves the series the Kp product already carries). **Still
+   open:** 24-h sparklines of solar wind / Bz / protons (a new SWPC product to
+   fetch and parse) and the solar-cycle chart.
+5. **Local time at the target.** **Done, as solar time** (2026-09-23,
+   `fork/local-solar-time`) — `broadcast::local_solar_hhmm` and a **SOLAR TIME**
+   chip on the SCHEDULE window, four minutes a degree from the site's longitude
+   and labelled *solar*, not local: no DST, no zone borders. A true civil time
+   zone needs a country-polygon dataset this fork will not carry for it.
 6. **D-RAP absorption map** (SWPC's D-region grid, their `useDRAP.js` layer):
    why the low bands are dead at noon, and X-ray events. Lower 11 m value (a
-   skip band), but daytime local absorption is real.
-7. **IBP beacon checker** (their `ibp.js`): the NCDXF/IARU 18-beacon, 5-band
-   (14.100/18.110/21.150/24.930/28.200) 3-minute deterministic sequence,
-   hears → path open. **10 m included** — and 28.2 MHz is the closest beacon
-   proxy for 11 m conditions the amateur bands offer, which makes this more
-   than a ham curiosity. Same pattern can later carry an 11 m beacon watch
-   table.
+   skip band), but daytime local absorption is real. **Not started.**
+7. **IBP beacon checker.** **Done** (2026-09-23, `fork/ibp-beacons`) —
+   `sdroxide_types::ibp` (18 beacons, 5 bands, the deterministic 180 s cycle)
+   listed at the foot of the BANDS window with bearing and distance from the
+   station, refreshed each second. The 10 m beacon at 28.200 MHz is the closest
+   proxy for 11 m conditions; the same shape can later carry an 11 m beacon
+   watch table.
 8. **Azimuthal map** (their `azimuthalCRS.js`): a QTH-centred equidistant
    projection, with the bearing math we already have, for directional and
    portable listening — and it pairs with #1 to show which *azimuth* is
-   opening.
+   opening. **Not started** — the flat map widget is equirectangular
+   throughout, so this is a rework of it rather than a bolt-on.
 
 ## Phase 4 — polish
 

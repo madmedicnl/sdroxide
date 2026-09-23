@@ -2182,6 +2182,49 @@ The document is cached on disk, so the last verdicts are on screen immediately
 at startup and survive being offline. Everywhere they appear they are labelled
 with their age.
 
+#### Meteor showers
+
+At the foot of the BANDS window is the one propagation forecast that has nothing
+to do with the ionosphere: the annual meteor showers currently active, from the
+International Meteor Organization's working list. A shower's window and its
+radiant are fixed, so nothing here is fetched — it is a table and a clock.
+
+Each active shower shows its name and IMO code, its peak **ZHR** (the meteors an
+observer would see with the radiant overhead under a perfect sky — a brightness,
+not a count to expect), a green **PEAK** on the peak date, and whether the
+radiant is **above your horizon right now**, with its altitude and compass
+bearing from your locator. Hover a row for the parent body and the geocentric
+velocity.
+
+The radiant's altitude is the part that changes: a shower is worth listening for
+when its radiant is up, because a radiant below the horizon sends its trails up
+through the Earth. A fast shower (above about 40 km/s) leaves longer-lived
+ionised trails, which is what makes meteor scatter work on 6 m and 2 m and what
+gives the brief 10 m and 11 m openings their seconds-long returns.
+
+The dates are the shower's published activity window, not a fitted rate curve:
+inside the window the rate is the peak figure, outside it there is nothing.
+
+#### IBP beacons
+
+Below the showers is the **NCDXF/IARU International Beacon Project** — eighteen
+beacons on five bands, on a schedule that is entirely deterministic: a
+three-minute cycle of eighteen ten-second slots, aligned to UTC midnight, in
+which exactly one beacon is transmitting on each band at any instant. Nothing is
+fetched here either.
+
+Each band's row shows the metre band, the frequency, the callsign now
+transmitting, its location, and the compass bearing and distance from your own
+locator. The header counts down to the next beacon, and the whole list refreshes
+every second, so it stays live while the window is open. A beacon you can hear
+is a path that is open, measured rather than forecast — and the **10 m beacon at
+28.200 MHz** is the closest amateur-band proxy there is for 11 m conditions,
+which is why it is worth watching from a CB or SWL station.
+
+Every beacon, whatever its proper name, works every band once per cycle: at the
+start of a cycle the 20 m beacon is the first in the list and the higher bands
+are showing beacons that started three, six, nine and twelve seconds earlier.
+
 ### 2.16 Satellite operation (SAT)
 
 ![Satellite mode window](images/satellite.jpg)
@@ -4827,6 +4870,17 @@ decides whether the rings are drawn. Hover a ring for the reporter's callsign,
 frequency, mode and the SNR they gave. Deliberately its own control rather than
 another spot colour: a dot at the *receiver* is a marker at the wrong end of a
 report, so these never appear in the SPOTS list or on the panadapter.
+
+Beside it is **NIGHT**, which shades the night side of the map and the twilight
+either side of it — the grey line, the terminator where the low bands go long and
+the high bands close. The shading is drawn over the propagation heat when PROP
+is on, so a band that is dead because the Sun is down reads that way, and under
+the coastlines so the geography stays legible. Like PROP it is off by default: it
+is scenery rather than something to leave switched on over a decode list, and it
+is drawn whether or not PROP is. The Sun's position is the same one the band
+conditions are read from, so the shade and the "day"/"night" a verdict calls a
+band cannot disagree. It is on the FT8/FT4/FT2 map, the WSPR map and the JS8
+map alike.
 
 Drag the strip under the map to resize it against the status pane.
 
@@ -12923,8 +12977,13 @@ northern one for exactly that reason.
 | `Kp peak 24 h` | The worst three-hour bin still ahead of you in NOAA's planetary K forecast, and how far away it is. |
 | `viewline` | Roughly how far towards the equator that Kp puts the aurora, as a **geomagnetic** latitude. A rule of thumb — see below. |
 
-Under the rows, one bar per three-hour bin over the next day: the shape answers
-"is it worth staying up" faster than eight numbers would. Green is quiet, yellow
+Under the rows is the planetary K **trend**: one bar per three-hour bin, the
+observed history behind you flowing into the forecast ahead, so the shape of the
+last day and the shape of the next are one picture and "it picks up after
+midnight" reads at a glance. The measured bars are solid and the predicted ones
+a wash, with the boundary between them marked, because a measurement and a
+prediction must never be read as the same thing; the foot of the chart says
+`observed | forecast` and the ends carry their UTC hour. Green is quiet, yellow
 worth watching, pink a storm. The footer says what the picture is *valid for*
 and how old the fetch is — never what time it is now, because the grid is a
 forecast for about forty minutes ahead and may itself be half an hour old.
@@ -14174,6 +14233,28 @@ Each entry needs only a name and a frequency in kHz:
 | `start_utc`, `end_utc` | UTC `HHMM`. Leave both out for a round-the-clock station. `end_utc` below `start_utc` wraps past midnight, so `2200`–`0200` works. |
 | `days` | Digits `1` (Monday) to `7` (Sunday), e.g. `"12345"` for weekdays. Empty means daily. |
 | `season` | `"A"` (last Sunday in March to last Sunday in October) or `"B"`. Absent means both. |
+
+#### The SCHEDULE window
+
+In SWL mode the strip's ham chips give way to **SCHEDULE** and **LISTEN**
+([§6.3](#63-ui-display-preferences-and-voice-announcements)), and the SCHEDULE
+window is where the listener browses the table: it turns the same EiBi schedule
+the waterfall labels into the list a listener works from.
+
+At the top are the filters — a UTC time (or **now**), free text over name, site,
+country, language and target, language, target, and a metre band — plus **★
+FAVS**, which shows only the stations you have starred. A row can be **TUNE**d
+(the same tune as clicking its label on the waterfall) or **LOG**ged straight
+into the reception log with the station, language and site already filled in.
+
+**SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
+from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,
+four minutes a degree from the site's longitude — and deliberately not a civil
+time zone, because that would need a country-polygon dataset a fork should not
+carry for this. It is labelled solar rather than local for that reason: it knows
+nothing of daylight saving or of a country's zone borders. Hover the column for
+the site and longitude it was read from. A listener planning in the
+broadcaster's evening is the thing it is for.
 
 #### Where the data comes from
 
