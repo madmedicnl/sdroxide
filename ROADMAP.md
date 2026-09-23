@@ -203,6 +203,18 @@ shortwave/CB/VHF listener and by how cleanly each fits the existing DSP chain.
 The house rule holds: a new decoder is an "isolate it" upstream change, and
 anything with a vocoder or a patent posture is called out.
 
+**Next up (2026-09-24): FSK441**, the original meteor-scatter mode and
+MSK144's older sibling — 4-FSK at 441 baud on 882/1323/1764/2205 Hz, in a
+30 s T/R period (15 s also used), carrying the 43-character PUA-43 alphabet
+with `R26`/`R27`/`RRR`/`73` as single-tone shorthand. Asked for on upstream
+**#542** once MSK144 landed there as **#549**. **Not in mfsk-core**, unlike
+every mode in item 1, so this is a decoder written from scratch rather than a
+feature flag: a 4-FSK front end, the short underdense-trail ping search, and
+the alphabet. Reference: [`Nythbran23/FSK441-PLUS`](https://github.com/Nythbran23/FSK441-PLUS);
+K1JT's own specification is at
+<http://www.qsl.net/zs2pe/VHF/Digital/FSK441Def.htm>. Moderate, and an
+"isolate it" upstream change.
+
 1. **The mfsk-core modes we already link but do not build.** **Done
    (2026-09-23):** `sdroxide-digi` now enables **JT65, JT9, Q65 (ten
    sub-modes), FST4 (five), MSK144 and UVPacket (four sub-modes)** alongside
