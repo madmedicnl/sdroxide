@@ -442,6 +442,7 @@ impl SdroxideApp {
         let now_t = ui.input(|i| i.time);
         let stations = self.digi_stations.stations(now_t);
         let heat = self.prop_texture(ui.ctx(), self.state.rx_freq_hz());
+        let night = self.night_texture(ui.ctx());
         self.prop_map_controls(ui);
         let reporters = self.heard_me_reporters();
         crate::widgets::worldmap::show(
@@ -455,6 +456,7 @@ impl SdroxideApp {
             &[],
             &reporters,
             heat,
+            night,
             false,
             avail_h,
         );
