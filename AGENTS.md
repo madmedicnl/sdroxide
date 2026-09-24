@@ -456,6 +456,26 @@ not report it — that is what a ping detector is for — but its front end read
 still the bench check. Offered upstream as an "isolate it" PR, **#555**, branch
 `upstream-pr/fsk441` (upstream's `PROTO_VERSION` 165 → 166 there).
 
+### The VDL2 window on a narrow front end
+
+A fixed window target does not land on the same rung of the decimation ladder
+on every front end, because `Ddc::rate_for` rounds to the *nearest* whole
+decimation. `WINDOW_TARGET_RATE_HZ = 500_000` is fine on a 2.4 Msps RTL-SDR
+(480 kHz, all fourteen channels) but on a **768 kSPS Airspy HF+** it rounds
+1.536 up to 2 and lands on **384 kHz**, which reaches only **ten** of the
+fourteen channels and drops **136.975 MHz, the worldwide Common Signalling
+Channel** — so the HF+ appeared to decode only the middle of the plan while the
+RTL-SDR decoded all of it (upstream issue **#548**). The target is now derived
+from the device rate, `plan::window_target_rate_for`: the nominal target when
+`rate_for` lands at or above the plan, else the device rate, which is the one
+rung that always holds the plan when any does. Large front ends are unchanged;
+768 k and 912 k now reach all fourteen. `plan.rs`'s own test only covered rates
+≥ 2 Msps, which is how it slipped through — the sweep
+`every_wide_enough_front_end_reaches_the_whole_plan` is the guard now. Offered
+upstream as a PR. (The engine already reports the shortfall in `vdl2_degraded`
+— "reaches N of the 14 channels" — so check that sentence on a report before
+reaching for the arithmetic.)
+
 ### The (tr)uSDX family
 
 The fork's (tr)uSDX support is one upstream PR, **#498**, branched from
