@@ -1,5 +1,6 @@
 mod airspy_source;
 mod airspyhf_source;
+mod atsmini_source;
 mod audio_cat_source;
 mod console;
 mod device_registry;
@@ -1465,6 +1466,7 @@ fn open_configured_source(
         Backend::None => bail!("no radio interface selected — choose one in Settings → Radio"),
         Backend::Cat => open_cat_source(radio),
         Backend::UsbAudio => open_usb_audio_source(radio, cli.center_hz()),
+        Backend::AtsMini => open_atsmini_source(radio, cli.center_hz()),
         Backend::Hpsdr => open_hpsdr_source(radio, cli.center_hz()),
         Backend::Tci => open_tci_source(radio, cli.center_hz()),
         Backend::IcomNet => open_icomnet_source(radio),
@@ -1642,6 +1644,38 @@ fn open_usb_audio_source(
     )
     .context("opening USB audio radio")?;
     Ok((Box::new(src), usb_audio_caps()))
+}
+
+/// Build the ATS Mini source from radio.json: the firmware's "ad hoc" TCP
+/// control link to `radio.atsmini`, and the radio's demodulated audio from the
+/// radio-wide sound input. Receive-only; no I/Q.
+fn open_atsmini_source(
+    radio: &RadioConfig,
+    center_hz: f64,
+) -> anyhow::Result<(Box<dyn IqSource>, DeviceCaps)> {
+    let src = atsmini_source::AtsMiniSource::open(
+        &radio.atsmini.host,
+        radio.atsmini.port,
+        radio.radio_audio_in.as_deref(),
+        center_hz,
+    )
+    .context("opening ATS Mini")?;
+    Ok((Box::new(src), atsmini_caps(&radio.atsmini)))
+}
+
+/// Capabilities for the ATS Mini: a receive-only audio source. The Si4732
+/// covers 150 kHz–30 MHz and FM broadcast; broad ranges are stated and the
+/// operator narrows them in `radio.json` if the dial gate should follow.
+fn atsmini_caps(cfg: &sdroxide_types::AtsMiniConfig) -> DeviceCaps {
+    DeviceCaps {
+        driver: "ats-mini".into(),
+        label: format!("ATS Mini at {}:{}", cfg.host, cfg.port),
+        rx_channels: 1,
+        tx_channels: 0,
+        audio_mode: true,
+        freq_ranges_rx: vec![(100_000.0, 30_000_000.0), (64_000_000.0, 108_000_000.0)],
+        ..DeviceCaps::default()
+    }
 }
 
 /// Build the HPSDR (ethernet SDR) source from radio.json. The target IP is the

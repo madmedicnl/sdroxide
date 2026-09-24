@@ -1141,6 +1141,85 @@ pub(in crate::app) fn settings_usb_audio_tab(
     });
 }
 
+/// The ATS Mini: a Wi-Fi/serial controlled Si4732 pocket receiver whose audio
+/// arrives on a sound card. The control link is the firmware's "ad hoc" TCP
+/// protocol (see `docs/ats-mini-handover.md`); receive only, so no TX device is
+/// offered — the Si4732 demodulates in hardware and there is nothing to key.
+pub(in crate::app) fn settings_atsmini_tab(
+    ui: &mut egui::Ui,
+    devices: Option<(&[String], &[String])>,
+    radio_edit: &mut Option<sdroxide_types::RadioConfig>,
+    apply: &mut bool,
+    can_probe: bool,
+) {
+    let Some(cfg) = radio_edit.as_mut() else {
+        ui.label("Waiting for the configuration of the machine the radio is attached to.");
+        return;
+    };
+
+    ui.add_space(6.0);
+    ui.label(RichText::new("Control link").strong());
+    egui::Grid::new("atsmini-link").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
+        ui.label("Host").on_hover_text(
+            "The receiver's ad hoc TCP server: `atsmini.local` (mDNS) or its IP. On the \
+             radio, Settings → TCP Port → Ad hoc, with Wi-Fi in Connect, AP+Connect or \
+             AP Only.",
+        );
+        ui.text_edit_singleline(&mut cfg.atsmini.host);
+        ui.end_row();
+        ui.label("TCP port").on_hover_text("The firmware defaults to 60000.");
+        ui.add(egui::DragValue::new(&mut cfg.atsmini.port).range(1..=65535).speed(1.0));
+        ui.end_row();
+    });
+
+    ui.add_space(10.0);
+    ui.separator();
+    ui.add_space(6.0);
+    ui.label(RichText::new("Radio audio (sound card)").strong());
+    let Some((inputs, _outputs)) = devices else {
+        ui.label(
+            RichText::new("Waiting for the sound cards on the machine the radio is plugged into.")
+                .weak(),
+        );
+        return;
+    };
+    let ci = cfg.radio_audio_in.clone();
+    egui::Grid::new("atsmini-audio").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
+        ui.label("Receive (radio → PC)").on_hover_text(
+            "The PC input the receiver's headphone jack is wired to. Everything on the \
+             panadapter and in the decoders arrives here.",
+        );
+        probe_only(ui, can_probe, |ui| {
+            device_combo(ui, "ats-in", inputs, &ci, |n| cfg.radio_audio_in = n)
+        });
+        ui.end_row();
+    });
+
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(
+            "Receive only: the Si4732 demodulates in hardware, so the mode picked here is \
+             commanded to the radio and everything else — detection, decoding, the log — is \
+             done on this computer.",
+        )
+        .weak(),
+    );
+    ui.horizontal(|ui| {
+        if ui
+            .button("Apply / reconnect")
+            .on_hover_text("Reopen the radio with these settings — no restart")
+            .clicked()
+        {
+            *apply = true;
+        }
+        ui.add(
+            egui::Label::new(RichText::new("Reconnects the radio without restarting.").weak())
+                .wrap(),
+        );
+    });
+    crate::app::settings::general::settings_rx_audio_gain(ui, cfg);
+}
+
 /// HPSDR interface: network device discovery / manual IP / sample rate (the
 /// interface itself is chosen by the selector in `settings_body`).
 pub(in crate::app) fn settings_hpsdr_tab(

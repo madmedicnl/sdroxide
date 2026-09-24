@@ -110,18 +110,27 @@ from AM, `m` (down) is one step, `M` (up) is two.
 
 ## Phase plan
 
-- **Phase 1 — backend skeleton (in progress).**
+- **Phase 1 — backend skeleton (done, not yet bench-run end to end).**
   - [x] Protocol module `crates/sdroxide-types/src/atsmini.rs`: telemetry parser,
         `dial_hz`, command builders, `FirmwareMode`. Unit-tested from the
         captured CSV lines.
-  - [ ] `Backend::AtsMini` (append last) + `AtsMiniConfig { host, port }` in
-        `RadioConfig` (reuse `radio_audio_in`/`radio_audio_out` for the sound
-        card); `PROTO_VERSION` bump + register entry in `crates/sdroxide-proto`.
-  - [ ] `src/atsmini_source.rs`: `AtsMiniSource: IqSource` = cpal audio input +
-        a control thread (connect, `t`, parse telemetry, send `F`/`B`/`M`/`V`/
-        `W`/`A`). Caps: `rx_channels: 1, tx_channels: 0, audio_mode: true`.
-  - [ ] `src/main.rs`: `open_atsmini_source`, an arm in `open_configured_source`,
-        `iface_opts`, settings dispatch.
+  - [x] `Backend::AtsMini` (append last) + `AtsMiniConfig { host, port }` in
+        `RadioConfig` (the sound card is the radio-wide `radio_audio_in`);
+        `PROTO_VERSION` 176 → 177 + register entry in `crates/sdroxide-proto`.
+  - [x] `src/atsmini_source.rs`: `AtsMiniSource: IqSource` = cpal audio input +
+        a control thread (connect, `t`, parse telemetry, drive `F` with a band
+        cycle, and `M`/`m` mode steps). Caps: `rx_channels: 1, tx_channels: 0,
+        audio_mode: true`; `rx_signal_dbm` from RSSI (dBµV − 107).
+  - [x] `src/main.rs`: `open_atsmini_source`, an arm in
+        `open_configured_source`, `iface_opts`, settings dispatch →
+        `settings_atsmini_tab` (host/port, sound card, Apply).
+  - Still open in Phase 1/2: `poll_control` so the radio's own knob reaches the
+    dial (today only sdroxide → radio is live); `set_control_filter` /
+    bandwidth; volume/AGC/step controls in the panel; the telemetry-derived
+    S-meter is exposed (`rx_signal_dbm`) but not yet shown as a live readout;
+    and none of it has been run against the bench radio from inside sdroxide.
+    Slice 1 = commit "the host-side ad hoc protocol codec"; slice 2 = the
+    backend/source/settings-tab commit.
 - **Phase 2 — panel + dial/S-meter.** Settings → Radio → ATS Mini tab (host/port,
   sound card, band/mode/step/BW/AGC/volume); dial sync both ways; S-meter from
   RSSI/SNR; sdroxide mode ↔ firmware mode.

@@ -1540,7 +1540,16 @@ use sdroxide_types::{
 /// extra bytes as the start of the next field and fails to decode every digital
 /// status — the same break as v175's appended `uvpacket`. A downstream (fork)
 /// addition, and an "isolate it" upstream change when it is offered.
-pub const PROTO_VERSION: u16 = 176;
+///
+/// v177: the ATS Mini receive source. `Backend::AtsMini` is appended to that
+/// enum and `RadioConfig` gains `atsmini` (`AtsMiniConfig`) on its tail. The
+/// enum is serialised by name in `radio.json`, but it also rides
+/// `RadioConfig`/`StationConfig`/`Command::SetRadioConfig` as a postcard
+/// discriminant, so it may only go at the end; `RadioConfig` rides whole, so a
+/// v176 peer reads the extra `atsmini` bytes as the start of the next field
+/// and fails to decode every radio config — the same break as v176's appended
+/// `fsk441_period`. Fork-only (an SWL extra), like the schedule and the log.
+pub const PROTO_VERSION: u16 = 177;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

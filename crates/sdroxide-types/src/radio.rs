@@ -172,10 +172,16 @@ pub enum Backend {
     /// demod-audio CAT rig, minus the serial. Appended last, for the same
     /// reason as `SmartSdr` above.
     UsbAudio,
+    /// ATS Mini (ESP32-S3 + Si4732) pocket receiver: receive-only, its
+    /// demodulated audio from the headphone jack into a host sound card, with
+    /// band/frequency/mode commanded over the firmware's "ad hoc" TCP protocol.
+    /// No I/Q — the Si4732 demodulates in hardware. Appended last, for the same
+    /// reason as `SmartSdr` above.
+    AtsMini,
 }
 
 impl Backend {
-    pub const ALL: [Backend; 23] = [
+    pub const ALL: [Backend; 24] = [
         Backend::Auto,
         Backend::Soapy,
         Backend::Cat,
@@ -199,6 +205,7 @@ impl Backend {
         Backend::HydraSdr,
         Backend::Fobos,
         Backend::UsbAudio,
+        Backend::AtsMini,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -225,6 +232,7 @@ impl Backend {
             Backend::HydraSdr => "HydraSDR RFOne (USB)",
             Backend::Fobos => "RigExpert Fobos SDR (USB)",
             Backend::UsbAudio => "USB audio radio (sound card)",
+            Backend::AtsMini => "ATS Mini (Wi-Fi control, sound card)",
             Backend::None => "Not configured",
         }
     }
@@ -7369,6 +7377,27 @@ pub struct ParkedRanges {
     pub tx: Vec<(f64, f64)>,
 }
 
+/// ATS Mini (ESP32-S3 + Si4732) receive source. See `docs/ats-mini-handover.md`.
+///
+/// The sound card is the radio-wide `radio_audio_in`; this is the control link
+/// only — the firmware's "ad hoc" protocol on a TCP port.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AtsMiniConfig {
+    /// Host of the firmware's ad hoc TCP server: `atsmini.local` (mDNS) or an
+    /// IP literal. No mDNS resolver is assumed.
+    pub host: String,
+    /// TCP port. The firmware defaults to 60000; it is a setting on the radio
+    /// (`Settings → TCP Port`), hence configurable here.
+    pub port: u16,
+}
+
+impl Default for AtsMiniConfig {
+    fn default() -> Self {
+        Self { host: crate::atsmini::DEFAULT_HOST.to_string(), port: crate::atsmini::DEFAULT_PORT }
+    }
+}
+
 /// Persisted backend configuration (`radio.json`).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -7567,6 +7596,9 @@ pub struct RadioConfig {
     /// refuses to make its rated power. See [`Self::tx_drive_ceiling`] for what
     /// it is for and why it is not the band table.
     pub tx_drive_max: Option<f32>,
+    /// ATS Mini control link. Appended last, as the wire requires; the
+    /// sound-card device it listens on is the radio-wide `radio_audio_in`.
+    pub atsmini: AtsMiniConfig,
 }
 
 impl RadioConfig {

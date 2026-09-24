@@ -41,12 +41,12 @@ use self::net::{
 };
 use self::profiles::settings_profiles_tab;
 use self::radio::{
-    settings_airspy_tab, settings_airspyhf_tab, settings_cat_tab, settings_elad_tab,
-    settings_fobos_tab, settings_hackrf_tab, settings_hpsdr_tab, settings_hydrasdr_tab,
-    settings_icomnet_tab, settings_kiwisdr_tab, settings_lime_tab, settings_pluto_tab,
-    settings_rtlsdr_tab, settings_rtltcp_tab, settings_rx888_tab, settings_sdrplay_tab,
-    settings_smartsdr_tab, settings_soapy_devices, settings_soapy_tab, settings_spyserver_tab,
-    settings_tci_tab, settings_usb_audio_tab,
+    settings_airspy_tab, settings_airspyhf_tab, settings_atsmini_tab, settings_cat_tab,
+    settings_elad_tab, settings_fobos_tab, settings_hackrf_tab, settings_hpsdr_tab,
+    settings_hydrasdr_tab, settings_icomnet_tab, settings_kiwisdr_tab, settings_lime_tab,
+    settings_pluto_tab, settings_rtlsdr_tab, settings_rtltcp_tab, settings_rx888_tab,
+    settings_sdrplay_tab, settings_smartsdr_tab, settings_soapy_devices, settings_soapy_tab,
+    settings_spyserver_tab, settings_tci_tab, settings_usb_audio_tab,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use self::remote::settings_remote_tab;
@@ -806,6 +806,11 @@ fn iface_opts(soapy_supported: bool) -> Vec<sdroxide_types::Backend> {
     // Nothing to install and nothing to enumerate free — the radio is the two
     // device names picked here.
     opts.push(sdroxide_types::Backend::UsbAudio);
+    // std::net to the radio's TCP control port plus the same sound-card audio,
+    // so nothing to install here either. The audio is the radio's headphone
+    // jack into one of the PC's inputs; the control link is the firmware's
+    // "ad hoc" protocol (see docs/ats-mini-handover.md).
+    opts.push(sdroxide_types::Backend::AtsMini);
     // Case-folded so HackRF lands under H beside HPSDR rather than after
     // it, which a byte-order sort would do.
     opts.sort_by_key(|b| b.label().to_ascii_lowercase());
@@ -2581,6 +2586,15 @@ impl SdroxideApp {
                         cmds,
                     ),
                     Backend::UsbAudio => settings_usb_audio_tab(
+                        ui,
+                        self.radio_audio_devices
+                            .as_ref()
+                            .map(|(i, o)| (i.as_slice(), o.as_slice())),
+                        io.radio_edit,
+                        io.apply_iface,
+                        io.can_probe,
+                    ),
+                    Backend::AtsMini => settings_atsmini_tab(
                         ui,
                         self.radio_audio_devices
                             .as_ref()
