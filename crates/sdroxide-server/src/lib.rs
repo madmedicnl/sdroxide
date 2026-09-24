@@ -1243,6 +1243,10 @@ fn handle_event(shared: &Shared, ev: RadioEvent) {
             // client's, and it is only ever asked for from the machine the
             // credentials live on. Same treatment as `RadioEvent::Notice`.
             RadioEvent::LoginTest(_) => None,
+            // Native-only, like `Qo100Status`: the ATS Mini's memory table is
+            // answered on the machine the radio is attached to and is not on
+            // the wire.
+            RadioEvent::AtsMiniMemories(_) => None,
             RadioEvent::Profiles(p) => {
                 latest.profiles = p.clone();
                 Some(ServerMsg::Profiles(p))

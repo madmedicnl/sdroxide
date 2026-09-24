@@ -44,6 +44,17 @@ impl FirmwareMode {
         }
     }
 
+    /// The sdroxide receive mode that corresponds — the Si4732's FM is wide
+    /// broadcast FM.
+    pub fn as_rx_mode(self) -> crate::Mode {
+        match self {
+            Self::Am => crate::Mode::Am,
+            Self::Lsb => crate::Mode::Lsb,
+            Self::Usb => crate::Mode::Usb,
+            Self::Fm => crate::Mode::Wfm,
+        }
+    }
+
     /// The telemetry spelling.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -204,6 +215,39 @@ pub fn band_index(name: &str, dial_hz: f64) -> Option<usize> {
     best.map(|(i, _)| i)
 }
 
+/// One of the receiver's memory slots, as the `$` dump reports it and the `#`
+/// command takes it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AtsMiniMemory {
+    /// 1..=99, as numbered on the radio.
+    pub slot: u8,
+    /// The firmware band name (`VHF`, `ALL`, `CB`, …). A memory names its band,
+    /// and the firmware refuses a frequency outside the band it is in.
+    pub band: String,
+    pub freq_hz: u64,
+    pub mode: FirmwareMode,
+}
+
+impl AtsMiniMemory {
+    /// Parse a `#NN,BAND,HZ,MODE` line — the `$` dump writes exactly the form
+    /// the `#` command reads, so this parses both.
+    pub fn parse(line: &str) -> Option<Self> {
+        let line = line.trim();
+        let rest = line.strip_prefix('#').unwrap_or(line);
+        let mut parts = rest.split(',');
+        let slot: u8 = parts.next()?.trim().parse().ok()?;
+        let band = parts.next()?.trim().to_string();
+        let freq_hz: u64 = parts.next()?.trim().parse().ok()?;
+        let mode = FirmwareMode::parse(parts.next()?.trim())?;
+        (1..=99).contains(&slot).then_some(Self { slot, band, freq_hz, mode })
+    }
+
+    /// The `#NN,BAND,HZ,MODE\r` the firmware's `#` command takes.
+    pub fn command(&self) -> String {
+        format!("#{:02},{},{},{}\r", self.slot, self.band, self.freq_hz, self.mode.as_str())
+    }
+}
+
 /// Toggle the 500 ms telemetry monitor (`t`).
 pub fn monitor_toggle() -> char {
     't'
@@ -320,6 +364,31 @@ mod tests {
         assert_eq!(band_index("CB", 27_135_000.0), Some(27));
         assert_eq!(band_index("ALL", 27_265_000.0), Some(1));
         assert_eq!(band_index("NOPE", 1_000_000.0), None);
+    }
+
+    #[test]
+    fn firmware_modes_map_back_to_rx_modes() {
+        assert_eq!(FirmwareMode::Am.as_rx_mode(), crate::Mode::Am);
+        assert_eq!(FirmwareMode::Lsb.as_rx_mode(), crate::Mode::Lsb);
+        assert_eq!(FirmwareMode::Usb.as_rx_mode(), crate::Mode::Usb);
+        assert_eq!(FirmwareMode::Fm.as_rx_mode(), crate::Mode::Wfm);
+    }
+
+    #[test]
+    fn a_memory_line_parses_and_round_trips() {
+        let m = AtsMiniMemory::parse("#01,VHF,107900000,FM").expect("parses");
+        assert_eq!(m.slot, 1);
+        assert_eq!(m.band, "VHF");
+        assert_eq!(m.freq_hz, 107_900_000);
+        assert_eq!(m.mode, FirmwareMode::Fm);
+        // The dump form and the set form are the same, so it round-trips.
+        assert_eq!(m.command(), "#01,VHF,107900000,FM\r");
+        assert_eq!(AtsMiniMemory::parse(m.command().trim()), Some(m));
+
+        // Junk, an empty slot and an unknown mode are all refused.
+        assert!(AtsMiniMemory::parse("").is_none());
+        assert!(AtsMiniMemory::parse("#00,VHF,107900000,FM").is_none());
+        assert!(AtsMiniMemory::parse("#05,VHF,107900000,XX").is_none());
     }
 
     #[test]

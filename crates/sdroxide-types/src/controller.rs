@@ -392,6 +392,11 @@ pub enum RadioEvent {
     ///
     /// Appended last, for the usual reason.
     Pi4Spots(Vec<crate::Pi4Spot>),
+    /// The ATS Mini's memory slots, answered to a `memories-dump`
+    /// [`crate::Command::SetDeviceSetting`]. Native-only — the radio's control
+    /// link is a local hardware concern, and the server bridge maps it to
+    /// `None` like [`RadioEvent::Qo100Status`].
+    AtsMiniMemories(Vec<crate::atsmini::AtsMiniMemory>),
 }
 
 /// Snapshot of the frontend's switchable sound devices (native clients).

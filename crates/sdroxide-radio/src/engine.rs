@@ -6100,6 +6100,11 @@ impl Engine {
             // answered: see [`ControlUpdate::RigTx`] for why keying along with
             // it would talk over the person holding the microphone.
             ControlUpdate::RigTx(on) => self.adopt_rig_tx(on, "its own control"),
+            // Not a control to apply: the radio's memory table is answered for
+            // the screen, which owns the panel. Forward it and be done.
+            ControlUpdate::AtsMiniMemories(v) => {
+                let _ = self.event_tx.send(RadioEvent::AtsMiniMemories(v));
+            }
             ControlUpdate::Mode(m) => {
                 let cur = self.state.rx[0].mode;
                 // Against the mode we *command*, not the one on screen: SSTV is

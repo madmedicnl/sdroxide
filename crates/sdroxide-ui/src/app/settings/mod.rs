@@ -2605,6 +2605,7 @@ impl SdroxideApp {
                         io.radio_edit,
                         io.apply_iface,
                         io.can_probe,
+                        self.atsmini_memories.as_deref(),
                         cmds,
                     ),
                     Backend::Tci => settings_tci_tab(

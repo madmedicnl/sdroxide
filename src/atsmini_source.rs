@@ -45,6 +45,11 @@ enum Cmd {
     /// Select one of the firmware's bands by index (its own cycle, so this
     /// costs up to half a lap of `B`/`b`).
     BandIndex(usize),
+    /// Ask the radio for its memory slots (`$`); the answer comes back as a
+    /// `ControlUpdate::AtsMiniMemories`.
+    DumpMemories,
+    /// Write one memory slot (`#NN,…`).
+    SetMemory(sdroxide_types::atsmini::AtsMiniMemory),
 }
 
 /// State the control thread publishes for the source and UI to read.
@@ -288,6 +293,18 @@ impl IqSource for AtsMiniSource {
             }
             return Ok(());
         }
+        // The memory table: `$` asks, `#NN,…` writes one slot. The dump is
+        // collected in the control thread and comes back as an event.
+        if key == "memories-dump" {
+            let _ = self.cmd_tx.send(Cmd::DumpMemories);
+            return Ok(());
+        }
+        if key == "memory-set" {
+            if let Some(m) = sdroxide_types::atsmini::AtsMiniMemory::parse(value) {
+                let _ = self.cmd_tx.send(Cmd::SetMemory(m));
+            }
+            return Ok(());
+        }
         let up = value != "down";
         let step = match key {
             "volume" => atsmini::volume_step(up),
@@ -354,18 +371,6 @@ fn firmware_mode(mode: Mode) -> Option<FirmwareMode> {
     }
 }
 
-/// The firmware's demodulator as an sdroxide receive mode, for reporting a
-/// mode the radio changed on its own.
-fn sdroxide_mode(mode: FirmwareMode) -> Mode {
-    match mode {
-        FirmwareMode::Am => Mode::Am,
-        FirmwareMode::Lsb => Mode::Lsb,
-        FirmwareMode::Usb => Mode::Usb,
-        // The Si4732's FM is wide broadcast FM.
-        FirmwareMode::Fm => Mode::Wfm,
-    }
-}
-
 /// The single `M`/`m` press that moves `current` toward `target` fastest, if
 /// both are on the three-mode cycle.
 fn mode_step_toward(current: FirmwareMode, target: FirmwareMode) -> Option<char> {
@@ -390,16 +395,6 @@ mod tests {
         assert_eq!(mode_step_toward(FirmwareMode::Lsb, FirmwareMode::Usb), Some('M'));
         assert_eq!(mode_step_toward(FirmwareMode::Am, FirmwareMode::Am), Some('M'));
         assert_eq!(mode_step_toward(FirmwareMode::Fm, FirmwareMode::Am), None);
-    }
-
-    /// The radio's own mode button reaching sdroxide maps back to a mode it
-    /// understands (FM is broadcast-wide here).
-    #[test]
-    fn firmware_modes_map_back_for_the_radio_kind() {
-        assert_eq!(sdroxide_mode(FirmwareMode::Am), Mode::Am);
-        assert_eq!(sdroxide_mode(FirmwareMode::Lsb), Mode::Lsb);
-        assert_eq!(sdroxide_mode(FirmwareMode::Usb), Mode::Usb);
-        assert_eq!(sdroxide_mode(FirmwareMode::Fm), Mode::Wfm);
     }
 
     #[test]
@@ -475,6 +470,8 @@ fn control_thread(
         let mut commanded_hz: Option<i64> = None;
         let mut commanded_mode: Option<FirmwareMode> = None;
         let mut pending_band: Option<usize> = None;
+        // A dump in progress: when it started and the slots gathered so far.
+        let mut collecting: Option<(Instant, Vec<sdroxide_types::atsmini::AtsMiniMemory>)> = None;
 
         'session: while !stop.load(Ordering::Relaxed) {
             // Commands from the app.
@@ -487,6 +484,13 @@ fn control_thread(
                     }
                     Ok(Cmd::Mode(m)) => target_mode = firmware_mode(m),
                     Ok(Cmd::BandIndex(i)) => pending_band = Some(i),
+                    Ok(Cmd::DumpMemories) => {
+                        let _ = write.write_all(&[atsmini::dump_memories() as u8]);
+                        collecting = Some((Instant::now(), Vec::new()));
+                    }
+                    Ok(Cmd::SetMemory(m)) => {
+                        let _ = write.write_all(m.command().as_bytes());
+                    }
                     // A panel step button: send it now, no confirmation loop.
                     Ok(Cmd::Raw(c)) => {
                         let _ = write.write_all(&[c as u8]);
@@ -612,7 +616,7 @@ fn control_thread(
                                         "ATS Mini: radio mode moved out-of-band"
                                     );
                                     let _ =
-                                        control_tx.send(ControlUpdate::Mode(sdroxide_mode(t.mode)));
+                                        control_tx.send(ControlUpdate::Mode(t.mode.as_rx_mode()));
                                 }
                             }
                             if target_mode == Some(t.mode) {
@@ -623,6 +627,10 @@ fn control_thread(
                             if let Ok(mut s) = shared.lock() {
                                 s.telemetry = Some(t);
                             }
+                        } else if let Some((_, mems)) = collecting.as_mut()
+                            && let Some(m) = sdroxide_types::atsmini::AtsMiniMemory::parse(&line)
+                        {
+                            mems.push(m);
                         } else if line.to_ascii_lowercase().contains("error") {
                             saw_error = true;
                         }
@@ -630,6 +638,18 @@ fn control_thread(
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {}
                 Err(_) => break 'session,
+            }
+
+            // The dump arrives in one burst; give the lines a moment to clear
+            // the socket, then hand the table over. There is no terminator to
+            // wait for — the firmware just stops printing.
+            if collecting
+                .as_ref()
+                .is_some_and(|(start, _)| start.elapsed() > Duration::from_millis(800))
+            {
+                let (_, mems) = collecting.take().expect("checked just above");
+                tracing::debug!(slots = mems.len(), "ATS Mini: memory dump");
+                let _ = control_tx.send(ControlUpdate::AtsMiniMemories(mems));
             }
         }
         set_status(&shared, Some("ATS Mini disconnected".into()));

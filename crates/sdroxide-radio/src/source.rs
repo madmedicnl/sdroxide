@@ -46,7 +46,7 @@ pub fn lo_offset_for(rate: f64, analog_bw: f64) -> f64 {
 /// A change a rig reported out-of-band (the operator turned the dial or
 /// changed the mode on the radio itself, or a sibling stream moved shared
 /// hardware).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ControlUpdate {
     Freq(f64),
     Mode(Mode),
@@ -110,6 +110,9 @@ pub enum ControlUpdate {
     /// So the engine *observes* it: the meter follows the over and shows its
     /// SWR, and sdroxide will not key on top of it. It does not transmit.
     RigTx(bool),
+    /// The ATS Mini answered a memory dump; the engine forwards it to the
+    /// screen as [`sdroxide_types::RadioEvent::AtsMiniMemories`].
+    AtsMiniMemories(Vec<sdroxide_types::atsmini::AtsMiniMemory>),
 }
 
 /// Anything that produces a stream of complex baseband samples: a live

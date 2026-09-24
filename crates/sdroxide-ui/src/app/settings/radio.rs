@@ -1151,6 +1151,7 @@ pub(in crate::app) fn settings_atsmini_tab(
     radio_edit: &mut Option<sdroxide_types::RadioConfig>,
     apply: &mut bool,
     can_probe: bool,
+    memories: Option<&[sdroxide_types::atsmini::AtsMiniMemory]>,
     cmds: &mut Vec<Command>,
 ) {
     let Some(cfg) = radio_edit.as_mut() else {
@@ -1275,6 +1276,61 @@ pub(in crate::app) fn settings_atsmini_tab(
         )
         .weak(),
     );
+    ui.add_space(10.0);
+    ui.separator();
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Memories").strong());
+        if ui
+            .button("Refresh")
+            .on_hover_text("Read the 99 slots from the receiver")
+            .clicked()
+        {
+            cmds.push(Command::SetDeviceSetting {
+                key: "memories-dump".into(),
+                value: String::new(),
+            });
+        }
+    });
+    match memories {
+        Some(list) if !list.is_empty() => {
+            egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                for m in list {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("{:02}", m.slot)).monospace());
+                        ui.label(format!(
+                            "{}  {:.5} MHz  {}",
+                            m.band,
+                            m.freq_hz as f64 / 1e6,
+                            m.mode.as_str()
+                        ));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .button("Tune")
+                                .on_hover_text("Tune this radio to the slot")
+                                .clicked()
+                            {
+                                cmds.push(Command::SetVfo {
+                                    vfo: sdroxide_types::Vfo::A,
+                                    hz: m.freq_hz as f64,
+                                });
+                                cmds.push(Command::SetMode {
+                                    rx: sdroxide_types::RxId::Main,
+                                    mode: m.mode.as_rx_mode(),
+                                });
+                            }
+                        });
+                    });
+                }
+            });
+        }
+        Some(_) => {
+            ui.label(RichText::new("No slots stored on the receiver.").weak());
+        }
+        None => {
+            ui.label(RichText::new("Press Refresh to read the receiver's memory slots.").weak());
+        }
+    }
     crate::app::settings::general::settings_rx_audio_gain(ui, cfg);
 }
 

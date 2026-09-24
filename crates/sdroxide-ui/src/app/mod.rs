@@ -1086,6 +1086,9 @@ pub struct SdroxideApp {
     /// otherwise a dismissal lasts until the window closes, and `--oob-tx` on
     /// the next launch warns afresh.
     oob_tx_ack: bool,
+    /// The ATS Mini's memory slots, from its last `memories-dump`; the
+    /// settings tab's Memories section draws them. `None` until asked for.
+    atsmini_memories: Option<Vec<sdroxide_types::atsmini::AtsMiniMemory>>,
     /// The sign-in screen a server that asks for a password puts up, in place
     /// of everything above.
     login: crate::login::LoginForm,
@@ -1735,6 +1738,7 @@ spots: Vec::new(),
             sat_sub_status: Vec::new(),
             wefax: Default::default(),
             oob_tx_ack: ui_settings.oob_tx_dismissed,
+            atsmini_memories: None,
             login: Default::default(),
             remote_access: persist::load_remote_access(),
             #[cfg(not(target_arch = "wasm32"))]
