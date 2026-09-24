@@ -2377,6 +2377,10 @@ impl SdroxideApp {
         let (state, caps) = (&self.state, &self.caps);
         let stated = self.radio_cfg.as_ref().is_some_and(|c| !c.freq_ranges_rx.is_empty());
         let (conditions, daylight) = (self.band_conditions.as_ref(), self.daylight);
+        // The ATS Mini has its own band table (a Si4732's bands are not the
+        // ham allocations), offered only while it is the active radio.
+        let atsmini =
+            self.radio_cfg.as_ref().is_some_and(|c| c.backend == sdroxide_types::Backend::AtsMini);
         crate::chrome::fading_menu_popup(ui, &btn, &mut self.mode_popup_since, |ui| {
             band_mode_menu(
                 ui,
@@ -2388,6 +2392,7 @@ impl SdroxideApp {
                 stated,
                 conditions,
                 daylight,
+                atsmini,
                 cmds,
             );
         });
@@ -6771,6 +6776,37 @@ fn mode_listen_chip(
 /// test can lay the whole menu out on a phone-sized viewport without an app
 /// around it — see `the_band_menu_fits_a_phone_screen`.
 #[allow(clippy::too_many_arguments)]
+/// The band popup for an ATS Mini: the firmware's own bands, not sdroxide's
+/// ham allocations, and receive-only. Picking one steps the receiver's band
+/// cycle (the protocol has no direct select); the firmware's table is
+/// user-editable, so this is its defaults, not a promise.
+fn atsmini_band_menu(ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+    crate::chrome::menu_caption(ui, "Bands the receiver offers");
+    ui.horizontal_wrapped(|ui| {
+        for (i, b) in sdroxide_types::atsmini::BANDS.iter().enumerate() {
+            let hover = format!(
+                "{} — {:.3} MHz, {} at its default. Steps the receiver to this band.",
+                b.name,
+                b.default_hz / 1e6,
+                b.mode.as_str()
+            );
+            if crate::chrome::chip(ui, false, b.name).on_hover_text(hover).clicked() {
+                cmds.push(Command::SetDeviceSetting {
+                    key: "band-index".into(),
+                    value: i.to_string(),
+                });
+            }
+        }
+    });
+    ui.add_space(4.0);
+    ui.label(
+        egui::RichText::new(
+            "Receive only — the Si4732 demodulates in hardware and there is nothing to key.",
+        )
+        .weak(),
+    );
+}
+
 fn band_mode_menu(
     ui: &mut egui::Ui,
     tab: &mut BandMenuTab,
@@ -6787,8 +6823,15 @@ fn band_mode_menu(
     // solar window has been opened once, and colours nothing.
     conditions: Option<&sdroxide_solar::BandConditions>,
     daylight: bool,
+    // The active radio is an ATS Mini, whose bands are the firmware's own — the
+    // popup offers those instead of the ham allocations below.
+    atsmini: bool,
     cmds: &mut Vec<Command>,
 ) {
+    if atsmini {
+        atsmini_band_menu(ui, cmds);
+        return;
+    }
     // Which half of the menu; the band and mode rows below draw from it.
     ui.horizontal(|ui| {
         for (t, label) in [(BandMenuTab::Listen, "LISTEN"), (BandMenuTab::Operate, "OPERATE")] {
@@ -8791,6 +8834,7 @@ mod tests {
                     false,
                     None,
                     true,
+                    false,
                     cmds,
                 );
             })
@@ -8867,6 +8911,7 @@ mod tests {
                     false,
                     None,
                     true,
+                    false,
                     &mut Vec::new(),
                 );
             });

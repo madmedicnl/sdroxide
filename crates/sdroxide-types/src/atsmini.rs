@@ -138,6 +138,72 @@ impl Telemetry {
     }
 }
 
+/// One of the receiver's bands, in the order `B` steps through them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BandInfo {
+    pub name: &'static str,
+    /// Where the band was parked when the table was captured. Used to tell the
+    /// two bands named `15M` apart, and as a tooltip.
+    pub default_hz: f64,
+    pub mode: FirmwareMode,
+}
+
+/// The firmware's bands (v2.40 bench radio), in `B` cycle order, with the
+/// default frequency and mode each was found on.
+///
+/// **Not a promise.** The firmware lets the operator edit these, so this is
+/// "what the radio offers" at its defaults, used to draw a band list and to
+/// work out which band the radio is on. The `11M` here is the 25.6–26.1 MHz
+/// *broadcast* band and `CB` is the 27 MHz citizens' band.
+pub const BANDS: [BandInfo; 28] = [
+    BandInfo { name: "VHF", default_hz: 103_000_000.0, mode: FirmwareMode::Fm },
+    BandInfo { name: "ALL", default_hz: 15_000_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "11M", default_hz: 25_850_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "13M", default_hz: 21_650_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "15M", default_hz: 18_950_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "16M", default_hz: 17_650_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "19M", default_hz: 15_450_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "22M", default_hz: 13_650_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "25M", default_hz: 11_850_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "31M", default_hz: 9_650_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "41M", default_hz: 7_300_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "49M", default_hz: 6_000_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "60M", default_hz: 4_950_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "75M", default_hz: 3_950_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "90M", default_hz: 3_300_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "MW3", default_hz: 2_500_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "MW2", default_hz: 783_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "MW1", default_hz: 810_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "160M", default_hz: 1_900_000.0, mode: FirmwareMode::Lsb },
+    BandInfo { name: "80M", default_hz: 3_800_000.0, mode: FirmwareMode::Lsb },
+    BandInfo { name: "40M", default_hz: 7_150_000.0, mode: FirmwareMode::Lsb },
+    BandInfo { name: "30M", default_hz: 10_125_000.0, mode: FirmwareMode::Lsb },
+    BandInfo { name: "20M", default_hz: 14_100_000.0, mode: FirmwareMode::Usb },
+    BandInfo { name: "17M", default_hz: 18_115_000.0, mode: FirmwareMode::Usb },
+    BandInfo { name: "15M", default_hz: 21_225_000.0, mode: FirmwareMode::Usb },
+    BandInfo { name: "12M", default_hz: 24_940_000.0, mode: FirmwareMode::Usb },
+    BandInfo { name: "10M", default_hz: 28_500_000.0, mode: FirmwareMode::Usb },
+    BandInfo { name: "CB", default_hz: 27_135_000.0, mode: FirmwareMode::Am },
+];
+
+/// Which band the radio is on, from the telemetry band name and dial.
+///
+/// The name alone is not enough: the firmware has two bands called `15M` (the
+/// broadcast band and the amateur one), so the nearest default breaks the tie.
+pub fn band_index(name: &str, dial_hz: f64) -> Option<usize> {
+    let mut best: Option<(usize, f64)> = None;
+    for (i, b) in BANDS.iter().enumerate() {
+        if b.name != name {
+            continue;
+        }
+        let d = (b.default_hz - dial_hz).abs();
+        if best.is_none_or(|(_, bd)| d < bd) {
+            best = Some((i, d));
+        }
+    }
+    best.map(|(i, _)| i)
+}
+
 /// Toggle the 500 ms telemetry monitor (`t`).
 pub fn monitor_toggle() -> char {
     't'
@@ -242,6 +308,18 @@ mod tests {
         ] {
             assert!(Telemetry::parse(line).is_none(), "should reject {line:?}");
         }
+    }
+
+    #[test]
+    fn the_band_index_tells_the_two_15m_bands_apart() {
+        // The firmware has two bands named 15M — 18.95 broadcast and 21.225
+        // amateur — so the dial, not the name, decides.
+        assert_eq!(band_index("15M", 18_950_000.0), Some(4));
+        assert_eq!(band_index("15M", 21_225_000.0), Some(24));
+        assert_eq!(band_index("VHF", 103_400_000.0), Some(0));
+        assert_eq!(band_index("CB", 27_135_000.0), Some(27));
+        assert_eq!(band_index("ALL", 27_265_000.0), Some(1));
+        assert_eq!(band_index("NOPE", 1_000_000.0), None);
     }
 
     #[test]

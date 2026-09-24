@@ -42,6 +42,9 @@ enum Cmd {
     /// One step command straight from a panel button (`V`/`v`, `A`/`a`,
     /// `W`/`w`, `S`/`s`).
     Raw(char),
+    /// Select one of the firmware's bands by index (its own cycle, so this
+    /// costs up to half a lap of `B`/`b`).
+    BandIndex(usize),
 }
 
 /// State the control thread publishes for the source and UI to read.
@@ -277,6 +280,14 @@ impl IqSource for AtsMiniSource {
     /// relative on the wire (there is no "set volume to 12"), so the panel sends
     /// a direction and the firmware steps.
     fn set_device_setting(&mut self, key: &str, value: &str) -> Result<()> {
+        // A band pick names an index into the firmware's own table; the control
+        // thread steps its cycle to reach it.
+        if key == "band-index" {
+            if let Ok(i) = value.parse::<usize>() {
+                let _ = self.cmd_tx.send(Cmd::BandIndex(i));
+            }
+            return Ok(());
+        }
         let up = value != "down";
         let step = match key {
             "volume" => atsmini::volume_step(up),
@@ -463,6 +474,7 @@ fn control_thread(
         let mut last_mode: Option<FirmwareMode> = None;
         let mut commanded_hz: Option<i64> = None;
         let mut commanded_mode: Option<FirmwareMode> = None;
+        let mut pending_band: Option<usize> = None;
 
         'session: while !stop.load(Ordering::Relaxed) {
             // Commands from the app.
@@ -474,6 +486,7 @@ fn control_thread(
                         saw_error = false;
                     }
                     Ok(Cmd::Mode(m)) => target_mode = firmware_mode(m),
+                    Ok(Cmd::BandIndex(i)) => pending_band = Some(i),
                     // A panel step button: send it now, no confirmation loop.
                     Ok(Cmd::Raw(c)) => {
                         let _ = write.write_all(&[c as u8]);
@@ -489,7 +502,28 @@ fn control_thread(
             // Drive a pending tune / mode, paced so the radio can answer.
             if last_send.elapsed() > Duration::from_millis(150) {
                 let mut out: Option<String> = None;
-                if let Some(hz) = target_hz {
+                // A band pick from the popup: the firmware has no "go to band
+                // N", so step its own cycle the shorter way round.
+                if let Some(idx) = pending_band
+                    && let Some(t) = shared.lock().ok().and_then(|s| s.telemetry.clone())
+                    && let Some(cur) = atsmini::band_index(&t.band, t.dial_hz())
+                {
+                    let n = atsmini::BANDS.len();
+                    let up = (idx + n - cur) % n;
+                    let down = (cur + n - idx) % n;
+                    if up != 0 {
+                        let (steps, step) = if up <= down {
+                            (up, atsmini::band_step(true))
+                        } else {
+                            (down, atsmini::band_step(false))
+                        };
+                        out = Some(std::iter::repeat_n(step, steps).collect());
+                    }
+                    pending_band = None;
+                }
+                if out.is_some() {
+                    // Band step is out; nothing else this tick.
+                } else if let Some(hz) = target_hz {
                     if saw_error && sent_for == Some(hz) {
                         // Outside the current band: step the band and offer it
                         // again. `sent_for` scopes the error to this target, so
