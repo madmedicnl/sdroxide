@@ -1529,7 +1529,18 @@ use sdroxide_types::{
 /// `DigiStatus` rides `RadioState` whole, so a v174 peer reads the extra bytes
 /// as the start of the next field and fails to decode every digital status —
 /// the same break as v174's appended `q65_mode`. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 175;
+///
+/// v176: FSK441, the original meteor-scatter mode. `Mode::Fsk441` is appended
+/// to that enum and `DigiConfig` gains `fsk441_period` (`Fsk441Period`) on its
+/// tail, since the period is a setting rather than part of the mode. The
+/// decoder is the fork's own — mfsk-core has no FSK441 — so it lives in
+/// `sdroxide-dsp`; on the wire a decode is an ordinary `Decode` with the ping's
+/// time into the slot as its `dt`, exactly as MSK144's is. `DigiConfig` rides
+/// `Command::SetDigiConfig` and `DigiStatus` whole, so a v175 peer reads the
+/// extra bytes as the start of the next field and fails to decode every digital
+/// status — the same break as v175's appended `uvpacket`. A downstream (fork)
+/// addition, and an "isolate it" upstream change when it is offered.
+pub const PROTO_VERSION: u16 = 176;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

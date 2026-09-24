@@ -107,7 +107,9 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         Mode::UvPacket => &["FRAMES", "FRAME"],
         // The decode list alone: the QSO pane is FT8's sequencer, which a
         // receive-only JT/FST4/MSK144/Q65 build has nothing to put in.
-        Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65 => &["DECODES"],
+        Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65 | Mode::Fsk441 => {
+            &["DECODES"]
+        }
         Mode::RfPaint => &["TEXT", "IMAGE"],
         // The keyboard modes and RADE are one column already: receive above,
         // what you are sending below it.
@@ -778,6 +780,28 @@ impl SdroxideApp {
                 }
             });
             ui.add_space(4.0);
+        } else if mode == Mode::Fsk441 {
+            // FSK441's T/R period is the one thing about it an operator
+            // chooses, and it decides the slot length the ping search runs
+            // over — so it gets a chip row, exactly as FST4's period does.
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new("FSK441").size(11.0).strong().color(crate::theme::CYAN()));
+                ui.label(RichText::new("period").size(10.0).weak());
+                for p in sdroxide_types::Fsk441Period::ALL {
+                    let on = self.digi_cfg_edit.fsk441_period == p;
+                    if crate::chrome::chip(ui, on, RichText::new(p.label()).size(10.5))
+                        .on_hover_text(format!("{}-second T/R period", p.label()))
+                        .clicked()
+                        && !on
+                    {
+                        self.digi_cfg_edit.fsk441_period = p;
+                        if self.digi_cfg_seeded {
+                            cmds.push(Command::SetDigiConfig(self.digi_cfg_edit.clone()));
+                        }
+                    }
+                }
+            });
+            ui.add_space(4.0);
         }
         self.slot_progress(ui);
         ui.add_space(4.0);
@@ -1170,6 +1194,8 @@ impl SdroxideApp {
             // Q65 is the same shape again: its sub-mode is a config field the
             // mode cannot see, and it fixes the period.
             Mode::Q65 => Some(self.digi_cfg_edit.q65_mode.slot_timing()),
+            // And FSK441's period, the same shape once more.
+            Mode::Fsk441 => Some(self.digi_cfg_edit.fsk441_period.slot_timing()),
             _ => mode.slot_timing(),
         }
     }

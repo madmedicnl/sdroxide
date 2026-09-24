@@ -75,6 +75,7 @@ pub fn mode_to_civ(m: Mode) -> u8 {
         | Mode::Msk144
         | Mode::Q65
         | Mode::UvPacket
+        | Mode::Fsk441
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

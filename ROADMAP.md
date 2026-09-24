@@ -203,17 +203,28 @@ shortwave/CB/VHF listener and by how cleanly each fits the existing DSP chain.
 The house rule holds: a new decoder is an "isolate it" upstream change, and
 anything with a vocoder or a patent posture is called out.
 
-**Next up (2026-09-24): FSK441**, the original meteor-scatter mode and
-MSK144's older sibling — 4-FSK at 441 baud on 882/1323/1764/2205 Hz, in a
-30 s T/R period (15 s also used), carrying the 43-character PUA-43 alphabet
-with `R26`/`R27`/`RRR`/`73` as single-tone shorthand. Asked for on upstream
-**#542** once MSK144 landed there as **#549**. **Not in mfsk-core**, unlike
-every mode in item 1, so this is a decoder written from scratch rather than a
-feature flag: a 4-FSK front end, the short underdense-trail ping search, and
-the alphabet. Reference: [`Nythbran23/FSK441-PLUS`](https://github.com/Nythbran23/FSK441-PLUS);
-K1JT's own specification is at
-<http://www.qsl.net/zs2pe/VHF/Digital/FSK441Def.htm>. Moderate, and an
-"isolate it" upstream change.
+**Done (2026-09-24): FSK441**, the original meteor-scatter mode and MSK144's
+older sibling — 4-FSK at 441 baud on 882/1323/1764/2205 Hz, in a 30 s (and
+15 s) T/R period, carrying the 43-character PUA-43 alphabet with
+`R26`/`R27`/`RRR`/`73` as single-tone shorthand. Asked for on upstream **#542**
+once MSK144 landed there as **#549**. **Not in mfsk-core**, unlike every mode in
+item 1, so it is the fork's own decoder: `sdroxide-dsp`'s `fsk441.rs` — the
+4-FSK matched-filter front end, the short underdense-trail ping search, the
+sample-level sync search and the alphabet — ported from the MIT
+[`Nythbran23/FSK441-PLUS`](https://github.com/Nythbran23/FSK441-PLUS) reference
+(K1JT's own specification is at
+<http://www.qsl.net/zs2pe/VHF/Digital/FSK441Def.htm>). It resamples the clean tap
+to **11 025 Hz** (441 baud × 25 samples), the rate the constants are defined at,
+rather than the 12 kHz the mfsk-core modes use. Receive only, with a
+`Fsk441Period` setting (15/30 s) giving it FST4's and Q65's shape;
+`PROTO_VERSION` 175 → 176. **Offered upstream as an "isolate it" PR** (branch
+`upstream-pr/fsk441`). The bench check is a real 6 m/2 m meteor ping — only
+synthetic pings and the fork's own generator have been decoded here.
+
+**Next up:** the **DSC audio front end** (item 2 below) — the protocol and
+framer are done, but the packet FSK detector does not acquire the DSC tone pair
+cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
+**ALE / HF Selcall** (item 3) is the largest untouched utility-HF decoder.
 
 1. **The mfsk-core modes we already link but do not build.** **Done
    (2026-09-23):** `sdroxide-digi` now enables **JT65, JT9, Q65 (ten

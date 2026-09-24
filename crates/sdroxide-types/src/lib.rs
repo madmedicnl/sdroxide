@@ -30,6 +30,7 @@ mod drm;
 mod dsc;
 mod entity;
 mod entity_flags;
+mod fsk441;
 mod fst4;
 mod geo;
 mod hd;
@@ -184,6 +185,7 @@ pub use ism::{
     RTL433_BANDS_DEFAULT, RTL433_BANDWIDTH_AUTO, RTL433_BANDWIDTH_MIN_HZ, RTL433_BANDWIDTHS,
     Rtl433Settings, Rtl433Status,
 };
+pub use fsk441::Fsk441Period;
 pub use fst4::Fst4Period;
 pub use q65::Q65Mode;
 pub use uvpacket::{

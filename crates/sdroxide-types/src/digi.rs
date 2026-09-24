@@ -2193,6 +2193,12 @@ pub struct DigiConfig {
     /// mode, so it is a setting. See [`crate::Q65Mode`].
     #[serde(default)]
     pub q65_mode: crate::Q65Mode,
+    /// FSK441: the T/R period (15/30 s). As with FST4's period, this is a
+    /// property of the contact rather than of the mode — both periods share one
+    /// waveform and one alphabet — so it is a setting here. See
+    /// [`crate::Fsk441Period`].
+    #[serde(default)]
+    pub fsk441_period: crate::Fsk441Period,
 }
 
 fn cw_default_tx_idle_s() -> f32 {
@@ -2315,6 +2321,7 @@ impl Default for DigiConfig {
             js8_speed: crate::Js8Speed::Normal,
             fst4_period: crate::Fst4Period::P60,
             q65_mode: crate::Q65Mode::A30,
+            fsk441_period: crate::Fsk441Period::P30,
             js8_multi_decode: false,
             js8_auto_reply: true,
             js8_heartbeat_min: 0,

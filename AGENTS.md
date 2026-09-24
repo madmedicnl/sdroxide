@@ -398,6 +398,56 @@ its own encoder's output, which is exactly what hid both bugs (acarsdec cannot
 decode that audio either). Not ported: acarsdec's error correction, the
 syndrome search that fixes a few parity/CRC errors; only clean frames decode.
 
+### The FSK441 decoder
+
+FSK441 is the original high-speed meteor-scatter mode and MSK144's older
+sibling — 4-FSK at 441 baud on 882/1323/1764/2205 Hz, carrying the 43-character
+PUA-43 alphabet (three dits a character) plus the single-tone `R26`/`R27`/`RRR`/
+`73` shorthand, in a 30 s (and 15 s) T/R period. It is **not in mfsk-core**, so
+this is the fork's own decoder, `crates/sdroxide-dsp/src/fsk441.rs`, a port of
+the MIT [`Nythbran23/FSK441-PLUS`](https://github.com/Nythbran23/FSK441-PLUS)
+reference (© Roger Banks GW4WND) against K1JT's 2001 definition. Four things
+about it are easy to get wrong:
+
+- **The rate is 11 025 Hz, not 12 kHz.** 441 baud is exactly 25 samples a dit at
+  11025, and the whole front end (the 25-sample matched-filter window, the tone
+  spacing, the sync search) is defined at that rate. `Fsk441Controller`
+  resamples the 48 kHz tap to it, exactly as the mfsk-core modes resample to
+  12 kHz — do not re-derive the constants at another rate. (The reference's
+  own author switched from 48 kHz to 11025 for a −195 Hz systematic offset the
+  non-integer ratio caused.)
+- **The ping search is tone-selective.** The detector is a 10 ms block envelope
+  of the *strongest of the four matched filters*, thresholded at 4× its median.
+  A raw-power envelope would trip on broadband noise; the tone envelope does
+  not. Runs shorter than 40 ms (the reference's `wmin`) are dropped, and a run
+  whose decode has mean dit confidence below 0.35 is dropped too, so a noise
+  burst cannot reach the decode list.
+- **The shorthand is checked at the nominal tones, before the frequency
+  refine.** A whole ping on one tone is `R26`/`R27`/`RRR`/`73`, not text — but
+  `refine_frequency`'s four-tone objective is degenerate when only one tone is
+  present and mis-aligns the tone set, so the shorthand gate runs on the
+  nominal filters first and uses `tone_offset` for its displayed frequency.
+- **Tone 3 never starts a character**, so the character boundary is the mod-3
+  phase where tone 3 is least often dominant (`jsync`); the alphabet's `d0` is
+  only ever 0–2.
+
+The dit trim matters: the ping run is padded by a block either side, and
+counting the silence dits at the ends drags confidence down and truncates the
+last character — `extract_dits` trims on dit energy, not on the matrix extent.
+The alphabet table is MSHV's (` 123456789.,?/# $ABCD FGHIJKLMNOPQRSTUVWXY 0EZ*!`),
+which fills the reserved slots 46/47 with `*!` where K1JT's table leaves them
+blank.
+
+Receive only. `Mode::Fsk441` is appended (discriminant 51, `PROTO_VERSION` 175 →
+176); `Fsk441Period` (15/30 s) is a `DigiConfig` tail field, so the panel's clock
+comes from the period exactly as FST4's and Q65's do, and `Mode::slot_timing`
+answers `None`. Tested with synthetic pings and the fork's own generator
+(`a_clean_ping_decodes_to_its_message`, `a_mistuned_ping_is_refined_and_decoded`,
+`a_weak_ping_still_decodes`, `a_single_tone_ping_is_the_shorthand`,
+`noise_alone_does_not_decode`, plus the digi adapter round trip); **not verified
+off air** — a real 6 m/2 m meteor ping is the bench check. Offered upstream as
+an "isolate it" PR, branch `upstream-pr/fsk441`.
+
 ### The (tr)uSDX family
 
 The fork's (tr)uSDX support is one upstream PR, **#498**, branched from

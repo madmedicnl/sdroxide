@@ -563,6 +563,7 @@ fn candidates(m: Mode) -> &'static [&'static str] {
         | Mode::Msk144
         | Mode::Q65
         | Mode::UvPacket
+        | Mode::Fsk441
         | Mode::RfPaint => &["USB"],
         Mode::Cw => &["CW"],
         Mode::Am | Mode::Sam | Mode::Drm | Mode::Cquam | Mode::Acars => &["AM"],

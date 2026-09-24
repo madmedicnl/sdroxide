@@ -18,7 +18,8 @@ use sdroxide_ais::{AisAction, AisController};
 use sdroxide_config::BandStacks;
 use sdroxide_digi::{
     AcarsController, AprsController, AtChatController, CwController, DigiAction, DigiController,
-    DigiEngine, DscController, FsqController, Fst4Controller, HellController, Js8Controller,
+    DigiEngine, DscController, Fsk441Controller, FsqController, Fst4Controller, HellController,
+    Js8Controller,
     JtController, NavtexController, PacketController, Pi4Controller, Q65Controller, RadeController,
     RfPaintController, RifpController, SstvController, TextModemController, UvPacketController,
     WefaxController, WsprController,
@@ -6988,6 +6989,11 @@ impl Engine {
             // UVPacket is not slotted at all: frames start anywhere, so the
             // controller keeps a rolling window rather than a slot buffer.
             Box::new(UvPacketController::new(self.digi_config.clone(), tap_rate))
+        } else if mode == Mode::Fsk441 {
+            // FSK441 is its own meteor-scatter protocol and its own decoder —
+            // mfsk-core has none — and its slot is a period setting, so the
+            // FT8 fall-through has neither its protocol nor its clock.
+            Box::new(Fsk441Controller::new(self.digi_config.clone(), tap_rate))
         } else {
             Box::new(DigiController::new(mode, self.digi_config.clone(), tap_rate))
         }
@@ -17672,6 +17678,7 @@ fn rig_mode_class(m: Mode) -> u8 {
         | Mode::Msk144
         | Mode::Q65
         | Mode::UvPacket
+        | Mode::Fsk441
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

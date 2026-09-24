@@ -73,7 +73,7 @@ rest.
    carriers labelled on the waterfall; keep the separate **SWL log** with
    **SINPO/SIO** and send a **reception report**; replay the last two minutes
    with **REPLAY**; record a band on a timer; or scan 49 m and stop on carriers.
- 7. **Everything else** — FT8/FT4/FT2, JT65/JT9, FST4, MSK144, Q65, UVPACKET, WSPR, PSK/RTTY, Olivia, SSTV, RIFP,
+ 7. **Everything else** — FT8/FT4/FT2, JT65/JT9, FST4, MSK144, FSK441, Q65, UVPACKET, WSPR, PSK/RTTY, Olivia, SSTV, RIFP,
    weather fax, DRM, HD Radio, ADS-B/VDL2/ACARS/HFDL, the logbook, awards, QSL
    upload, MIDI control — is in the **[User Manual](docs/USER_MANUAL.md)**.
 
@@ -138,7 +138,7 @@ The full interface: the radio, receiver, display and system controls along the t
   WFM (stereo + **RDS/RBDS**), DSB, **ISB**, DIGU/DIGL, SPEC, **DRM**,
   **HD Radio** (FM, stereo), and the receive-only utility decoders **ADS-B**,
   **VDL2**, **ACARS**, **HFDL**, **NAVTEX**, **DSC**, **weather fax**.
-- **Digital modes** — **FT8/FT4/FT2**, **JT65/JT9**, **FST4**, **MSK144**, **Q65**, **UVPACKET**, **JS8**, **WSPR**, **PSK31/RTTY**,
+- **Digital modes** — **FT8/FT4/FT2**, **JT65/JT9**, **FST4**, **MSK144**, **FSK441**, **Q65**, **UVPACKET**, **JS8**, **WSPR**, **PSK31/RTTY**,
   **Olivia/THOR/FSQ**, **Hellschreiber**, **SSTV**, **RIFP**, **RF Paint**,
   **RADE** digital voice, **packet/APRS**, **AtCHAT NET**, **Winlink** email.
   Details and setup are in the [manual's digital-modes chapter](docs/USER_MANUAL.md#3-digital-modes).
@@ -271,7 +271,7 @@ one core. `WGPU_BACKEND=vulkan sdroxide` takes Vulkan back where it is steady.
 | `--freq <HZ>` | Center frequency in Hz (default: where the last session was left; `14200000` on a first run). |
 | `--rate <HZ>` | Sample rate in Hz (default: from config). |
 | `--gain <DB>` | Overall RX gain in dB (default: hardware AGC / moderate). |
-| `--mode <MODE>` | Initial mode, case-insensitive: `LSB USB CW AM SAM NFM WFM DRM ADS-B VDL2 AIS DIGU DIGL DSB ISB SPEC FT8 FT4 FT2 JS8 WSPR PI4 JT65 JT9 FST4 MSK144 Q65 UVPACKET PSK RTTY RTTY-FM PACKET PACKET-HF APRS SSTV SSTV-FM RIFP WEFAX NAVTEX DSC ACARS OLIVIA THOR FSQ ATCHAT HELL RFPAINT RADE HFDL`, and `"HD RADIO"` (the one name with a space in it, so it needs the quotes). Default: the mode the last session was left in. |
+| `--mode <MODE>` | Initial mode, case-insensitive: `LSB USB CW AM SAM NFM WFM DRM ADS-B VDL2 AIS DIGU DIGL DSB ISB SPEC FT8 FT4 FT2 JS8 WSPR PI4 JT65 JT9 FST4 MSK144 FSK441 Q65 UVPACKET PSK RTTY RTTY-FM PACKET PACKET-HF APRS SSTV SSTV-FM RIFP WEFAX NAVTEX DSC ACARS OLIVIA THOR FSQ ATCHAT HELL RFPAINT RADE HFDL`, and `"HD RADIO"` (the one name with a space in it, so it needs the quotes). Default: the mode the last session was left in. |
 | `--antenna <NAME>` | RX antenna port, as the device names it (`LNAH`, `TX/RX`; see `--probe`). Default: the port the last session was left on. |
 | `--tx-antenna <NAME>` | TX antenna port, likewise (`BAND1`, `BAND2`). |
 | `--server` | Run as a server: HTTP web client + WebSocket streaming backend. |

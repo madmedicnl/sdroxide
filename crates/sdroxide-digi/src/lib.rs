@@ -21,6 +21,7 @@ pub mod controller;
 pub mod cw_controller;
 pub mod dsc_controller;
 pub mod fox;
+pub mod fsk441_controller;
 pub mod fsq_controller;
 pub mod fst4_controller;
 pub mod ft2;
@@ -58,12 +59,16 @@ pub use controller::{DigiAction, DigiController};
 pub use cw_controller::CwController;
 pub use dsc_controller::DscController;
 pub use fox::Fox;
+pub use fsk441_controller::Fsk441Controller;
 pub use fsq_controller::FsqController;
 pub use fst4_controller::Fst4Controller;
 pub use hell_controller::HellController;
 pub use js8_controller::Js8Controller;
 pub use jt_controller::JtController;
-pub use modem::{ApHints, Ft8Modem, decode_fst4_slot, decode_jt_slot, decode_q65_slot, decode_uvpacket};
+pub use modem::{
+    ApHints, Ft8Modem, decode_fsk441_slot, decode_fst4_slot, decode_jt_slot, decode_q65_slot,
+    decode_uvpacket,
+};
 pub use navtex_controller::NavtexController;
 pub use packet_controller::PacketController;
 pub use params::{DECODE_RATE, DigiParams};

@@ -385,6 +385,22 @@ pub enum Mode {
     /// answers `None` — a frame can start anywhere. Receive only in this build,
     /// as [`Mode::Fst4`] is. Appended for the same reason as [`Mode::Hell`].
     UvPacket,
+    /// FSK441 — the original high-speed meteor-scatter mode, MSK144's older
+    /// sibling: 4-FSK at 441 baud on four tones 441 Hz apart (882/1323/1764/
+    /// 2205 Hz), carrying the 43-character PUA-43 alphabet plus the single-tone
+    /// `R26`/`R27`/`RRR`/`73` shorthand, in a 30-second T/R period (15 seconds
+    /// also used).
+    ///
+    /// Like [`Mode::Msk144`] this is not a frame at a fixed offset: an operator
+    /// transmits the message repeatedly through the whole period and the
+    /// decoder hunts the slot for the short ionised-trail bursts a meteor
+    /// leaves, so a decode carries the time *into* the slot it was found at.
+    /// The period is an operator setting ([`crate::Fsk441Period`]), not part of
+    /// the mode, so [`Mode::slot_timing`] answers `None` and the clock comes
+    /// from the chosen period — the same shape as FST4's. Receive only in this
+    /// build, as [`Mode::Fst4`] is. Appended for the same reason as
+    /// [`Mode::Hell`].
+    Fsk441,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -405,7 +421,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 51] = [
+    pub const ALL: [Mode; 52] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -457,6 +473,7 @@ impl Mode {
         Mode::Msk144,
         Mode::Q65,
         Mode::UvPacket,
+        Mode::Fsk441,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -464,7 +481,7 @@ impl Mode {
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
     /// received in AM.
-    pub const DIGITAL: [Mode; 32] = [
+    pub const DIGITAL: [Mode; 33] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -497,6 +514,7 @@ impl Mode {
         Mode::Msk144,
         Mode::Q65,
         Mode::UvPacket,
+        Mode::Fsk441,
     ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
@@ -532,6 +550,7 @@ impl Mode {
                 | Mode::Msk144
                 | Mode::Q65
                 | Mode::UvPacket
+                | Mode::Fsk441
                 | Mode::Packet
                 | Mode::PacketHf
                 | Mode::Aprs
@@ -717,6 +736,7 @@ impl Mode {
                 | Mode::Fst4
                 | Mode::Msk144
                 | Mode::Q65
+                | Mode::Fsk441
         )
     }
 
@@ -889,6 +909,7 @@ impl Mode {
                 | Mode::Msk144
                 | Mode::Q65
                 | Mode::UvPacket
+                | Mode::Fsk441
         )
     }
 
@@ -949,6 +970,7 @@ impl Mode {
             Mode::Msk144 => "MSK144",
             Mode::Q65 => "Q65",
             Mode::UvPacket => "UVPACKET",
+            Mode::Fsk441 => "FSK441",
             Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
             Mode::SstvFm => "SSTV-FM",
@@ -1037,6 +1059,7 @@ impl Mode {
                 | Mode::Msk144
                 | Mode::Q65
                 | Mode::UvPacket
+                | Mode::Fsk441
                 | Mode::Wefax
                 | Mode::Acars
         );
@@ -1121,6 +1144,7 @@ impl Mode {
             | Mode::Msk144
             | Mode::Q65
             | Mode::UvPacket
+            | Mode::Fsk441
             | Mode::Psk
             | Mode::Rtty
             | Mode::Sstv
@@ -1380,6 +1404,7 @@ impl Mode {
             | Mode::Msk144
             | Mode::Q65
             | Mode::UvPacket
+            | Mode::Fsk441
             | Mode::Olivia
             | Mode::Thor
             | Mode::Fsq
@@ -1643,6 +1668,7 @@ impl Mode {
             | Mode::Msk144
             | Mode::Q65
             | Mode::UvPacket
+            | Mode::Fsk441
             | Mode::Acars
             | Mode::PacketHf
             | Mode::Rade
@@ -2198,6 +2224,7 @@ mod tests {
             (Mode::Msk144, 48),
             (Mode::Q65, 49),
             (Mode::UvPacket, 50),
+            (Mode::Fsk441, 51),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2244,7 +2271,7 @@ mod tests {
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker.
-        let last = Mode::UvPacket as u8;
+        let last = Mode::Fsk441 as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");
