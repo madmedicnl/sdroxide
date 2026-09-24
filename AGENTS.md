@@ -494,14 +494,34 @@ are only offered when one is set; a CAT radio's squelch belongs to the radio
 and its meters carry no passband level, so it gets a sentence rather than a
 recorder that would never close. Offered upstream as PR **#557**.
 
-**Not started, investigated:** upstream issue **#533** (save decoded text). The
-only text export today is the FT8/FT4/FT2 (and JS8 *frames*) DECODES header's
-CSV/ADIF buttons; CW (panel + skimmer), PSK/RTTY/RTTY-FM/Olivia/THOR, FSQ
-messages, NAVTEX, ACARS, DSC, HFDL, VDL2, APRS, PACKET/PACKET-HF, AtCHAT,
-UVPacket, WSPR, PI4 and JS8's reassembled messages have no save at all. The
-shape is a shared **SAVE** chip per text panel calling the existing
-`download::save(name, bytes)` (native `rfd` dialog + browser Blob), structured
-logs as CSV/TXT and free-running text as its rolling buffer.
+**Done (2026-09-24): upstream issue #533** (save decoded text). Every text
+panel now carries a **SAVE** chip beside **CLEAR RX**, plus WSPR, PI4 and the
+skimmer. The formatters live in one place, `app::save_text`: free-running text
+(CW and the keyboard modes) is written as itself, the structured logs (ACARS,
+DSC, NAVTEX, VDL2, HFDL, FSQ, UVPacket, packet, JS8) as one line per message
+with a UTC stamp, and WSPR/PI4/skimmer as their spot lists. The file goes
+through the existing `download::save` (native `rfd` dialog + browser Blob), so
+the dialog and destination are the logbook export's. `digi_has_log` is the
+cheap test that greys the chip. UI-only: no wire type, no `PROTO_VERSION`
+bump. Offered upstream as PR **#558** (there without the DSC/UVPacket branches,
+those modes being separate PRs). APRS and AtCHAT logs are the one gap left —
+they have their own status structs and were not wired in this cut.
+
+### The (tr)uSDX nG feedback (DL2MAN, 2026-09-24)
+
+DL2MAN reports that against a real nG radio the one-cable mode connects and
+streams, but **the audio is distorted and the waterfall shows only a sliver**,
+and **the dial does not follow the radio** (a 40 m radio showed as 20 m). The
+two standing assumptions this fork makes for nG are both now in doubt:
+`TRUSDX_RX_RATE_HZ = 7812` (taken as unchanged from 2.00x) and `poll_requests`
+being **empty** in one-cable mode because a mid-stream `FA;` was measured to
+kill 2.00x's stream. What to get before changing anything: DL2MAN's own answer
+on (a) the **nG receive audio rate** and whether the `UA`/`US` framing changed,
+and (b) whether a **CAT command is safe while the stream runs** in nG (the nG
+notes advertise "improved CAT audio streaming"). A **raw hex capture** of the
+serial stream while receiving would settle both directly; a compiled firmware
+binary does not help (nothing to run it on). See
+`tools/trusdx-probe/README.md` §nG for the checks named there.
 
 ### The (tr)uSDX family
 
