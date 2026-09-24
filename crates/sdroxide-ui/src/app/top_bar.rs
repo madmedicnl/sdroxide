@@ -6800,28 +6800,45 @@ fn band_mode_menu(
     ui.add_space(6.0);
 
     let band = state.band;
-    crate::chrome::menu_caption(ui, "Band");
-    // The coarse choices, under the caption: HF, VHF and UHF narrow the band
-    // chips below (the lit chip toggles itself back off), and ALL is the bandless
-    // entry that clears the band altogether — the same "where in the spectrum"
-    // decision, so it rides here rather than in the band list.
+    crate::chrome::menu_caption(ui, "Show bands");
+    // Two different decisions sat on one unnamed row and read as one: HF/VHF/UHF
+    // narrow the list below, and ALL (Band::Gen) *clears the band*. The filter
+    // chips carry a "BANDS" suffix so they read as a slice of the list, and the
+    // clear-band action is separated out under its own divider.
     ui.horizontal_wrapped(|ui| {
         for f in BandFilter::CHIPS {
-            if crate::chrome::chip(ui, *filter == f, f.label()).clicked() {
-                *filter = if *filter == f { BandFilter::All } else { f };
+            let lit = *filter == f;
+            if crate::chrome::chip(ui, lit, format!("{} BANDS", f.label()))
+                .on_hover_text(format!(
+                    "Show only the {} bands in the list below. Click again to show every band.",
+                    f.label()
+                ))
+                .clicked()
+            {
+                *filter = if lit { BandFilter::All } else { f };
             }
         }
-        if crate::chrome::chip(ui, state.band == Band::Gen, Band::Gen.label())
-            .on_hover_text("General coverage — clear the band and let the dial go anywhere")
-            .clicked()
+        if *filter != BandFilter::All
+            && crate::chrome::chip(ui, false, "show every band").clicked()
         {
-            // ALL is the "everything" choice, so it lets the range filter go
-            // too: whatever the row was narrowed to is cleared, the HF/VHF/UHF
-            // chips uncheck, and every band comes back.
             *filter = BandFilter::All;
-            cmds.push(Command::SetBand(Band::Gen));
         }
     });
+    ui.add_space(2.0);
+    // The bandless entry, on its own: it is not a filter and not a band, it is
+    // "drop the band restriction", so it must not sit in the row that reads as
+    // filters. Given its own caption rather than left in the band list, where it
+    // used to be the one chip that meant something different.
+    if crate::chrome::chip(ui, state.band == Band::Gen, "ALL — no band")
+        .on_hover_text(
+            "General coverage: clear the band and let the dial go anywhere. \
+             Not the same as the band filter above, which only narrows this list.",
+        )
+        .clicked()
+    {
+        *filter = BandFilter::All;
+        cmds.push(Command::SetBand(Band::Gen));
+    }
     ui.add_space(4.0);
     let digital = mode.is_digital();
     {
@@ -6945,6 +6962,7 @@ fn band_mode_menu(
                 // shortwave broadcast.
                 if filter.admits(Band::Sw) {
                     ui.add_space(6.0);
+                    crate::chrome::menu_caption(ui, "SW metre bands");
                     ui.horizontal_wrapped(|ui| {
                         let dial_khz = state.rx_freq_hz() / 1e3;
                         let here = sdroxide_types::broadcast::metre_band(dial_khz);
@@ -6992,27 +7010,21 @@ fn band_mode_menu(
                 }
             });
             ui.add_space(6.0);
-            crate::chrome::menu_caption(ui, "Primary modes");
-            ui.horizontal(|ui| {
-                // The four a CB or short-wave operator reaches for: AM and FM
-                // on 11 m, the sidebands above it. On their own row rather than
-                // left to be found among the digital and DRM modes, which is
-                // where the full list below buries them.
+            crate::chrome::menu_caption(ui, "Mode");
+            // The four an operator reaches for lead the row, then a divider and
+            // the rest — one row, one heading, rather than a "Primary modes" row
+            // and a "Mode" row that repeated the same four chips. Selecting a
+            // mode is one decision; giving it two rows made the second read as
+            // the leftovers.
+            ui.horizontal_wrapped(|ui| {
                 for m in [Mode::Am, Mode::Nfm, Mode::Usb, Mode::Lsb] {
                     mode_band_chip(ui, mode, m, band, state, cmds);
                 }
-            });
-            ui.add_space(6.0);
-            crate::chrome::menu_caption(ui, "Mode");
-            ui.horizontal_wrapped(|ui| {
+                ui.separator();
                 for m in [
-                    Mode::Lsb,
-                    Mode::Usb,
                     Mode::Cw,
-                    Mode::Am,
                     Mode::Sam,
                     Mode::Cquam,
-                    Mode::Nfm,
                     Mode::Wfm,
                     // DRM belongs with the analog modes rather than under
                     // "Digital" below: that heading is the modes the digi engine
@@ -8718,18 +8730,37 @@ mod tests {
 
     /// ALL is the "everything" choice: clicking it lets the range filter go as
     /// well as clearing the band, so the HF/VHF/UHF chips uncheck and every
-    /// band comes back. It used to clear only the band, leaving the list
-    /// narrowed with a lit chip that could not be mistaken for anything else.
+    /// band comes back. It carries a "no band" label rather than sharing the
+    /// row with the filter chips, since the two mean different things — the
+    /// filter narrows this list, ALL clears the band.
     #[test]
     fn all_clears_the_range_filter_too() {
         let state = RadioState::default();
         let mut filter = BandFilter::Hf;
-        let cmds = click_in_band_mode_menu_filtered(&state, "ALL", &mut filter);
+        let cmds = click_in_band_mode_menu_filtered(&state, "ALL — no band", &mut filter);
         assert_eq!(filter, BandFilter::All, "ALL must let the range filter go");
         assert!(
             cmds.contains(&Command::SetBand(Band::Gen)),
             "ALL must still clear the band: {cmds:?}"
         );
+    }
+
+    /// The filter chips read as a slice of the list and toggle back to every
+    /// band, and the row carries a separate "show every band" way out once one
+    /// is lit. This pins that the filter and the clear-band action are not the
+    /// same control wearing one label.
+    #[test]
+    fn the_band_filter_says_it_filters_and_toggles_off() {
+        let state = RadioState::default();
+        let mut filter = BandFilter::All;
+        // Clicking "HF BANDS" narrows to HF...
+        let cmds = click_in_band_mode_menu_filtered(&state, "HF BANDS", &mut filter);
+        assert_eq!(filter, BandFilter::Hf);
+        assert!(!cmds.contains(&Command::SetBand(Band::Gen)), "a filter is not a band change");
+        // ...clicking the lit chip again shows everything.
+        let mut filter = BandFilter::Hf;
+        let _ = click_in_band_mode_menu_filtered(&state, "HF BANDS", &mut filter);
+        assert_eq!(filter, BandFilter::All);
     }
 
     /// `label`, returning what the menu asked for. Two passes, as `press` does
