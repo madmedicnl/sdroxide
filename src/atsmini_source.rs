@@ -278,6 +278,11 @@ impl IqSource for AtsMiniSource {
             "agc" => atsmini::agc_step(up),
             "bandwidth" => atsmini::bandwidth_step(up),
             "step" => atsmini::tuning_step(up),
+            // Band and mode are the firmware's own cycle commands; stepping
+            // them here is the direct route to what the main band/mode menu
+            // reaches indirectly through the dial.
+            "band" => atsmini::band_step(up),
+            "mode" => atsmini::mode_step(up),
             _ => return Ok(()),
         };
         let _ = self.cmd_tx.send(Cmd::Raw(step));

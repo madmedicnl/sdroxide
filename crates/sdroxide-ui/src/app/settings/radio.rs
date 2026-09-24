@@ -1230,9 +1230,14 @@ pub(in crate::app) fn settings_atsmini_tab(
     ui.add_space(6.0);
     ui.label(RichText::new("Live controls").strong());
     ui.horizontal_wrapped(|ui| {
-        for (key, label) in
-            [("volume", "VOL"), ("agc", "AGC"), ("bandwidth", "BW"), ("step", "STEP")]
-        {
+        for (key, label) in [
+            ("band", "BAND"),
+            ("mode", "MODE"),
+            ("volume", "VOL"),
+            ("agc", "AGC"),
+            ("bandwidth", "BW"),
+            ("step", "STEP"),
+        ] {
             if ui.button(format!("{label} −")).clicked() {
                 cmds.push(Command::SetDeviceSetting {
                     key: key.to_string(),
