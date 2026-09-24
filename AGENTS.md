@@ -446,7 +446,8 @@ answers `None`. Tested with synthetic pings and the fork's own generator
 `a_weak_ping_still_decodes`, `a_single_tone_ping_is_the_shorthand`,
 `noise_alone_does_not_decode`, plus the digi adapter round trip); **not verified
 off air** — a real 6 m/2 m meteor ping is the bench check. Offered upstream as
-an "isolate it" PR, branch `upstream-pr/fsk441`.
+an "isolate it" PR, **#555**, branch `upstream-pr/fsk441` (upstream's
+`PROTO_VERSION` 165 → 166 there).
 
 ### The (tr)uSDX family
 

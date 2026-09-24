@@ -217,9 +217,9 @@ sample-level sync search and the alphabet — ported from the MIT
 to **11 025 Hz** (441 baud × 25 samples), the rate the constants are defined at,
 rather than the 12 kHz the mfsk-core modes use. Receive only, with a
 `Fsk441Period` setting (15/30 s) giving it FST4's and Q65's shape;
-`PROTO_VERSION` 175 → 176. **Offered upstream as an "isolate it" PR** (branch
-`upstream-pr/fsk441`). The bench check is a real 6 m/2 m meteor ping — only
-synthetic pings and the fork's own generator have been decoded here.
+`PROTO_VERSION` 175 → 176. **Offered upstream as an "isolate it" PR, #555**
+(branch `upstream-pr/fsk441`). The bench check is a real 6 m/2 m meteor ping —
+only synthetic pings and the fork's own generator have been decoded here.
 
 **Next up:** the **DSC audio front end** (item 2 below) — the protocol and
 framer are done, but the packet FSK detector does not acquire the DSC tone pair
