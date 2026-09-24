@@ -157,6 +157,35 @@ pub struct BandInfo {
     /// two bands named `15M` apart, and as a tooltip.
     pub default_hz: f64,
     pub mode: FirmwareMode,
+    /// The band's tuning range, from the firmware's manual. The bands overlap
+    /// (`ALL` covers everything, `CB` overlaps `10M`), so "does this band hold
+    /// `hz`" is a question with more than one right answer; this is only used
+    /// to *stay* in the band the operator is already on.
+    pub min_hz: f64,
+    pub max_hz: f64,
+}
+
+impl BandInfo {
+    pub fn contains(&self, hz: f64) -> bool {
+        (self.min_hz..=self.max_hz).contains(&hz)
+    }
+}
+
+/// The band to put a tuning target in: stay where we are if its range holds the
+/// frequency, else `ALL` for HF (150 kHz–30 MHz, general coverage) or `VHF` for
+/// 64–108 MHz. Using the general-coverage band avoids the overlap the metre
+/// bands have, so a tune lands every time.
+pub fn band_for_tuning(hz: f64, current: Option<usize>) -> Option<usize> {
+    if (64_000_000.0..=108_000_000.0).contains(&hz) {
+        return (current != Some(0)).then_some(0);
+    }
+    if (150_000.0..=30_000_000.0).contains(&hz) {
+        if current.is_some_and(|c| BANDS[c].contains(hz)) {
+            return None; // already in a band that holds it: do not move
+        }
+        return Some(1); // ALL
+    }
+    None
 }
 
 /// The firmware's bands (v2.40 bench radio), in `B` cycle order, with the
@@ -166,35 +195,36 @@ pub struct BandInfo {
 /// "what the radio offers" at its defaults, used to draw a band list and to
 /// work out which band the radio is on. The `11M` here is the 25.6–26.1 MHz
 /// *broadcast* band and `CB` is the 27 MHz citizens' band.
+#[rustfmt::skip]
 pub const BANDS: [BandInfo; 28] = [
-    BandInfo { name: "VHF", default_hz: 103_000_000.0, mode: FirmwareMode::Fm },
-    BandInfo { name: "ALL", default_hz: 15_000_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "11M", default_hz: 25_850_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "13M", default_hz: 21_650_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "15M", default_hz: 18_950_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "16M", default_hz: 17_650_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "19M", default_hz: 15_450_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "22M", default_hz: 13_650_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "25M", default_hz: 11_850_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "31M", default_hz: 9_650_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "41M", default_hz: 7_300_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "49M", default_hz: 6_000_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "60M", default_hz: 4_950_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "75M", default_hz: 3_950_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "90M", default_hz: 3_300_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "MW3", default_hz: 2_500_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "MW2", default_hz: 783_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "MW1", default_hz: 810_000.0, mode: FirmwareMode::Am },
-    BandInfo { name: "160M", default_hz: 1_900_000.0, mode: FirmwareMode::Lsb },
-    BandInfo { name: "80M", default_hz: 3_800_000.0, mode: FirmwareMode::Lsb },
-    BandInfo { name: "40M", default_hz: 7_150_000.0, mode: FirmwareMode::Lsb },
-    BandInfo { name: "30M", default_hz: 10_125_000.0, mode: FirmwareMode::Lsb },
-    BandInfo { name: "20M", default_hz: 14_100_000.0, mode: FirmwareMode::Usb },
-    BandInfo { name: "17M", default_hz: 18_115_000.0, mode: FirmwareMode::Usb },
-    BandInfo { name: "15M", default_hz: 21_225_000.0, mode: FirmwareMode::Usb },
-    BandInfo { name: "12M", default_hz: 24_940_000.0, mode: FirmwareMode::Usb },
-    BandInfo { name: "10M", default_hz: 28_500_000.0, mode: FirmwareMode::Usb },
-    BandInfo { name: "CB", default_hz: 27_135_000.0, mode: FirmwareMode::Am },
+    BandInfo { name: "VHF",  default_hz: 103_000_000.0, mode: FirmwareMode::Fm,  min_hz: 64_000_000.0, max_hz: 108_000_000.0 },
+    BandInfo { name: "ALL",  default_hz: 15_000_000.0,  mode: FirmwareMode::Am,  min_hz: 150_000.0,    max_hz: 30_000_000.0 },
+    BandInfo { name: "11M",  default_hz: 25_850_000.0,  mode: FirmwareMode::Am,  min_hz: 25_600_000.0, max_hz: 26_100_000.0 },
+    BandInfo { name: "13M",  default_hz: 21_650_000.0,  mode: FirmwareMode::Am,  min_hz: 21_500_000.0, max_hz: 21_900_000.0 },
+    BandInfo { name: "15M",  default_hz: 18_950_000.0,  mode: FirmwareMode::Am,  min_hz: 18_900_000.0, max_hz: 19_100_000.0 },
+    BandInfo { name: "16M",  default_hz: 17_650_000.0,  mode: FirmwareMode::Am,  min_hz: 17_400_000.0, max_hz: 18_100_000.0 },
+    BandInfo { name: "19M",  default_hz: 15_450_000.0,  mode: FirmwareMode::Am,  min_hz: 15_100_000.0, max_hz: 15_900_000.0 },
+    BandInfo { name: "22M",  default_hz: 13_650_000.0,  mode: FirmwareMode::Am,  min_hz: 13_500_000.0, max_hz: 13_900_000.0 },
+    BandInfo { name: "25M",  default_hz: 11_850_000.0,  mode: FirmwareMode::Am,  min_hz: 11_000_000.0, max_hz: 13_000_000.0 },
+    BandInfo { name: "31M",  default_hz: 9_650_000.0,   mode: FirmwareMode::Am,  min_hz: 9_000_000.0,  max_hz: 11_000_000.0 },
+    BandInfo { name: "41M",  default_hz: 7_300_000.0,   mode: FirmwareMode::Am,  min_hz: 7_000_000.0,  max_hz: 9_000_000.0 },
+    BandInfo { name: "49M",  default_hz: 6_000_000.0,   mode: FirmwareMode::Am,  min_hz: 5_000_000.0,  max_hz: 7_000_000.0 },
+    BandInfo { name: "60M",  default_hz: 4_950_000.0,   mode: FirmwareMode::Am,  min_hz: 4_000_000.0,  max_hz: 5_100_000.0 },
+    BandInfo { name: "75M",  default_hz: 3_950_000.0,   mode: FirmwareMode::Am,  min_hz: 3_500_000.0,  max_hz: 4_000_000.0 },
+    BandInfo { name: "90M",  default_hz: 3_300_000.0,   mode: FirmwareMode::Am,  min_hz: 3_000_000.0,  max_hz: 3_500_000.0 },
+    BandInfo { name: "MW3",  default_hz: 2_500_000.0,   mode: FirmwareMode::Am,  min_hz: 1_700_000.0,  max_hz: 3_500_000.0 },
+    BandInfo { name: "MW2",  default_hz: 783_000.0,     mode: FirmwareMode::Am,  min_hz: 495_000.0,    max_hz: 1_701_000.0 },
+    BandInfo { name: "MW1",  default_hz: 810_000.0,     mode: FirmwareMode::Am,  min_hz: 150_000.0,    max_hz: 1_800_000.0 },
+    BandInfo { name: "160M", default_hz: 1_900_000.0,   mode: FirmwareMode::Lsb, min_hz: 1_800_000.0,  max_hz: 2_000_000.0 },
+    BandInfo { name: "80M",  default_hz: 3_800_000.0,   mode: FirmwareMode::Lsb, min_hz: 3_500_000.0,  max_hz: 4_000_000.0 },
+    BandInfo { name: "40M",  default_hz: 7_150_000.0,   mode: FirmwareMode::Lsb, min_hz: 7_000_000.0,  max_hz: 7_300_000.0 },
+    BandInfo { name: "30M",  default_hz: 10_125_000.0,  mode: FirmwareMode::Lsb, min_hz: 10_000_000.0, max_hz: 10_200_000.0 },
+    BandInfo { name: "20M",  default_hz: 14_100_000.0,  mode: FirmwareMode::Usb, min_hz: 14_000_000.0, max_hz: 14_400_000.0 },
+    BandInfo { name: "17M",  default_hz: 18_115_000.0,  mode: FirmwareMode::Usb, min_hz: 18_000_000.0, max_hz: 18_200_000.0 },
+    BandInfo { name: "15M",  default_hz: 21_225_000.0,  mode: FirmwareMode::Usb, min_hz: 21_000_000.0, max_hz: 21_500_000.0 },
+    BandInfo { name: "12M",  default_hz: 24_940_000.0,  mode: FirmwareMode::Usb, min_hz: 24_800_000.0, max_hz: 25_000_000.0 },
+    BandInfo { name: "10M",  default_hz: 28_500_000.0,  mode: FirmwareMode::Usb, min_hz: 28_000_000.0, max_hz: 29_700_000.0 },
+    BandInfo { name: "CB",   default_hz: 27_135_000.0,  mode: FirmwareMode::Am,  min_hz: 25_000_000.0, max_hz: 28_000_000.0 },
 ];
 
 /// Which band the radio is on, from the telemetry band name and dial.
@@ -364,6 +394,22 @@ mod tests {
         assert_eq!(band_index("CB", 27_135_000.0), Some(27));
         assert_eq!(band_index("ALL", 27_265_000.0), Some(1));
         assert_eq!(band_index("NOPE", 1_000_000.0), None);
+    }
+
+    #[test]
+    fn tuning_lands_in_a_band_that_holds_the_frequency() {
+        // Stay put when the current band's range holds it (49M is 5–7 MHz).
+        assert_eq!(band_for_tuning(6_070_000.0, Some(11)), None);
+        // Otherwise general coverage, which holds every HF frequency.
+        assert_eq!(band_for_tuning(6_070_000.0, Some(20)), Some(1)); // from 40M
+        assert_eq!(band_for_tuning(6_070_000.0, None), Some(1));
+        // FM goes to VHF, and stays there.
+        assert_eq!(band_for_tuning(100_400_000.0, Some(11)), Some(0));
+        assert_eq!(band_for_tuning(100_400_000.0, Some(0)), None);
+        // The CB band is kept for a CB frequency.
+        assert_eq!(band_for_tuning(27_265_000.0, Some(27)), None);
+        // The 30–64 MHz gap is in no band; leave it to `F` to refuse.
+        assert_eq!(band_for_tuning(50_000_000.0, Some(1)), None);
     }
 
     #[test]

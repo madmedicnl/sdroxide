@@ -371,6 +371,17 @@ fn firmware_mode(mode: Mode) -> Option<FirmwareMode> {
     }
 }
 
+/// The `B`/`b` presses that move the firmware's band cycle from `from` to `to`
+/// the shorter way round, as one string (a burst of steps, not a chat).
+fn band_burst(from: usize, to: usize) -> String {
+    let n = atsmini::BANDS.len();
+    let up = (to + n - from) % n;
+    let down = (from + n - to) % n;
+    let (steps, key) =
+        if up <= down { (up, atsmini::band_step(true)) } else { (down, atsmini::band_step(false)) };
+    std::iter::repeat_n(key, steps).collect()
+}
+
 /// The single `M`/`m` press that moves `current` toward `target` fastest, if
 /// both are on the three-mode cycle.
 fn mode_step_toward(current: FirmwareMode, target: FirmwareMode) -> Option<char> {
@@ -470,6 +481,9 @@ fn control_thread(
         let mut commanded_hz: Option<i64> = None;
         let mut commanded_mode: Option<FirmwareMode> = None;
         let mut pending_band: Option<usize> = None;
+        // The frequency whose band we have already put the radio in, so the
+        // band is ensured once per tune rather than per F.
+        let mut band_ensured_for: Option<u64> = None;
         // A dump in progress: when it started and the slots gathered so far.
         let mut collecting: Option<(Instant, Vec<sdroxide_types::atsmini::AtsMiniMemory>)> = None;
 
@@ -481,6 +495,7 @@ fn control_thread(
                         target_hz = Some(hz.max(0.0) as u64);
                         sent_for = None;
                         saw_error = false;
+                        band_ensured_for = None;
                     }
                     Ok(Cmd::Mode(m)) => target_mode = firmware_mode(m),
                     Ok(Cmd::BandIndex(i)) => pending_band = Some(i),
@@ -512,29 +527,41 @@ fn control_thread(
                     && let Some(t) = shared.lock().ok().and_then(|s| s.telemetry.clone())
                     && let Some(cur) = atsmini::band_index(&t.band, t.dial_hz())
                 {
-                    let n = atsmini::BANDS.len();
-                    let up = (idx + n - cur) % n;
-                    let down = (cur + n - idx) % n;
-                    if up != 0 {
-                        let (steps, step) = if up <= down {
-                            (up, atsmini::band_step(true))
-                        } else {
-                            (down, atsmini::band_step(false))
-                        };
-                        out = Some(std::iter::repeat_n(step, steps).collect());
+                    if cur != idx {
+                        out = Some(band_burst(cur, idx));
                     }
                     pending_band = None;
                 }
                 if out.is_some() {
                     // Band step is out; nothing else this tick.
                 } else if let Some(hz) = target_hz {
-                    if saw_error && sent_for == Some(hz) {
-                        // Outside the current band: step the band and offer it
-                        // again. `sent_for` scopes the error to this target, so
-                        // a stale one cannot cycle forever.
+                    let cur = shared.lock().ok().and_then(|s| {
+                        s.telemetry.as_ref().and_then(|t| atsmini::band_index(&t.band, t.dial_hz()))
+                    });
+                    if band_ensured_for != Some(hz) {
+                        // Put the radio in a band that holds the frequency before
+                        // offering the `F`: `F` is band-locked, and a scroll that
+                        // cycles bands one error at a time never catches the
+                        // dial. `ALL` (150 kHz–30 MHz) or `VHF` covers the
+                        // overlap-free case; a band already holding it is kept.
+                        if let Some(cur) = cur {
+                            if let Some(want) = atsmini::band_for_tuning(hz as f64, Some(cur))
+                                && want != cur
+                            {
+                                out = Some(band_burst(cur, want));
+                            }
+                            band_ensured_for = Some(hz);
+                        }
+                        // No telemetry yet: wait for a band to appear.
+                    } else if saw_error && sent_for == Some(hz) {
+                        // The band it landed in still refuses it (a user-edited
+                        // band table, say): step on and offer it again.
                         saw_error = false;
                         sent_for = None;
-                        out = Some(atsmini::band_step(true).to_string());
+                        out = Some(band_burst(
+                            cur.unwrap_or(0),
+                            (cur.unwrap_or(0) + 1) % atsmini::BANDS.len(),
+                        ));
                     } else if sent_for != Some(hz) {
                         // Send the tune once; its acceptance is judged by the
                         // absence of an error by the next telemetry, not by the

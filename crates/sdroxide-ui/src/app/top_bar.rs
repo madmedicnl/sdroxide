@@ -6780,7 +6780,7 @@ fn mode_listen_chip(
 /// ham allocations, and receive-only. Picking one steps the receiver's band
 /// cycle (the protocol has no direct select); the firmware's table is
 /// user-editable, so this is its defaults, not a promise.
-fn atsmini_band_menu(ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+fn atsmini_band_menu(ui: &mut egui::Ui, state: &RadioState, cmds: &mut Vec<Command>) {
     crate::chrome::menu_caption(ui, "Bands the receiver offers");
     ui.horizontal_wrapped(|ui| {
         for (i, b) in sdroxide_types::atsmini::BANDS.iter().enumerate() {
@@ -6796,6 +6796,24 @@ fn atsmini_band_menu(ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
                     value: i.to_string(),
                 });
             }
+        }
+    });
+    // The receiver's own demodulators, and then every decoder — the same
+    // "every band" LISTEN rule, because this radio is receive-only and
+    // exploring the dial is the point. The four are what the Si4732 has; the
+    // decoders read the audio it hands over.
+    ui.add_space(6.0);
+    crate::chrome::menu_caption(ui, "Mode");
+    ui.horizontal_wrapped(|ui| {
+        for m in [Mode::Am, Mode::Lsb, Mode::Usb, Mode::Wfm] {
+            mode_listen_chip(ui, state.rx[0].mode, m, state, cmds);
+        }
+    });
+    ui.add_space(6.0);
+    crate::chrome::menu_caption(ui, "Digital");
+    ui.horizontal_wrapped(|ui| {
+        for m in Mode::DIGITAL {
+            mode_listen_chip(ui, state.rx[0].mode, m, state, cmds);
         }
     });
     ui.add_space(4.0);
@@ -6829,7 +6847,7 @@ fn band_mode_menu(
     cmds: &mut Vec<Command>,
 ) {
     if atsmini {
-        atsmini_band_menu(ui, cmds);
+        atsmini_band_menu(ui, state, cmds);
         return;
     }
     // Which half of the menu; the band and mode rows below draw from it.
