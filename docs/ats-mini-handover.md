@@ -1,10 +1,23 @@
 # ATS Mini integration — work handover
 
-Status: **Phase 1 started.** Goal is a fork-only (SWL extras) receive source
-that lets sdroxide drive a cheap ESP32-S3 + Si4732 receiver — control band and
-frequency from the computer, do all the demod-dependent listening and decoding
-on the PC. This file is the cold-start handover; fold the settled parts into
+Status: **Phase 1 done and working on the bench.** Goal is a fork-only (SWL
+extras) receive source that lets sdroxide drive a cheap ESP32-S3 + Si4732
+receiver — control band and frequency from the computer, do all the
+demod-dependent listening and decoding on the PC. The control link, tuning and
+sound-card audio were confirmed end to end against a real v2.40 radio
+(2026-09-25). This file is the cold-start handover; fold the settled parts into
 `AGENTS.md` and delete it when the feature lands.
+
+Bench gotchas found while wiring it up, worth not repeating:
+
+- The settings UI only asked the machine for its sound cards for `Cat` and
+  `UsbAudio`, so the ATS Mini tab offered no combo at all until
+  `free_device_probe` gained a `Backend::AtsMini => DeviceProbe::RadioAudio`
+  arm (and the tab must not return early before its Apply button).
+- **The receive sound card must be chosen explicitly.** Left on the system
+  default the source captured the mic: the panadapter drew a flat line and the
+  FT8 controller warned "no receive audio is reaching the decoder". Never assume
+  the default input is the radio.
 
 ## What the radio is
 
@@ -110,7 +123,7 @@ from AM, `m` (down) is one step, `M` (up) is two.
 
 ## Phase plan
 
-- **Phase 1 — backend skeleton (done, not yet bench-run end to end).**
+- **Phase 1 — backend skeleton (done, working on the bench).**
   - [x] Protocol module `crates/sdroxide-types/src/atsmini.rs`: telemetry parser,
         `dial_hz`, command builders, `FirmwareMode`. Unit-tested from the
         captured CSV lines.
@@ -124,13 +137,15 @@ from AM, `m` (down) is one step, `M` (up) is two.
   - [x] `src/main.rs`: `open_atsmini_source`, an arm in
         `open_configured_source`, `iface_opts`, settings dispatch →
         `settings_atsmini_tab` (host/port, sound card, Apply).
-  - Still open in Phase 1/2: `poll_control` so the radio's own knob reaches the
-    dial (today only sdroxide → radio is live); `set_control_filter` /
-    bandwidth; volume/AGC/step controls in the panel; the telemetry-derived
-    S-meter is exposed (`rx_signal_dbm`) but not yet shown as a live readout;
-    and none of it has been run against the bench radio from inside sdroxide.
-    Slice 1 = commit "the host-side ad hoc protocol codec"; slice 2 = the
-    backend/source/settings-tab commit.
+  - All of Phase 1 is confirmed on the bench: tuning from the app moves the
+    radio, the mode is commanded, audio flows, and it survives settings changes.
+    Slice 1 = "the host-side ad hoc protocol codec"; slice 2 = the
+    backend/source/settings-tab; plus a warning-quieting follow-up and a
+    sound-card-list fix (the tab also must not hide its Apply button).
+  - Still open: `poll_control` so the radio's own knob reaches the dial (today
+    only sdroxide → radio is live); `set_control_filter` / bandwidth;
+    volume/AGC/step controls in the panel; the telemetry-derived S-meter is
+    exposed (`rx_signal_dbm`) but not yet shown as a live readout.
 - **Phase 2 — panel + dial/S-meter.** Settings → Radio → ATS Mini tab (host/port,
   sound card, band/mode/step/BW/AGC/volume); dial sync both ways; S-meter from
   RSSI/SNR; sdroxide mode ↔ firmware mode.
