@@ -529,20 +529,32 @@ fn control_thread(
                             if let Some(prev) = last_dial
                                 && (dial - prev).abs() >= OUT_OF_BAND_MIN_HZ
                             {
-                                let ours = target_hz.is_some_and(|th| {
-                                    (dial - th as i64).abs() <= TUNED_TOLERANCE_HZ as i64
-                                }) || commanded_hz
-                                    .is_some_and(|c| (dial - c).abs() <= TUNED_TOLERANCE_HZ as i64);
+                                // While a tune is in flight every dial change is
+                                // ours (the band cycle steps through frequencies);
+                                // afterwards compare against where we left it with a
+                                // *tight* tolerance, not the convergence one, or a
+                                // small knob step is mistaken for our own command
+                                // and swallowed.
+                                let ours = target_hz.is_some()
+                                    || commanded_hz
+                                        .is_some_and(|c| (dial - c).abs() <= OUT_OF_BAND_MIN_HZ);
                                 if !ours {
+                                    tracing::debug!(
+                                        hz = dial,
+                                        "ATS Mini: radio dial moved out-of-band"
+                                    );
                                     let _ = control_tx.send(ControlUpdate::Freq(dial as f64));
                                 }
                             }
                             if let Some(prev) = last_mode
                                 && t.mode != prev
                             {
-                                let ours =
-                                    target_mode == Some(t.mode) || commanded_mode == Some(t.mode);
+                                let ours = target_mode.is_some() || commanded_mode == Some(t.mode);
                                 if !ours {
+                                    tracing::debug!(
+                                        mode = t.mode.as_str(),
+                                        "ATS Mini: radio mode moved out-of-band"
+                                    );
                                     let _ =
                                         control_tx.send(ControlUpdate::Mode(sdroxide_mode(t.mode)));
                                 }
