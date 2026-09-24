@@ -162,8 +162,19 @@ from AM, `m` (down) is one step, `M` (up) is two.
     firmware bandwidth index is guesswork — the labels are strings, the list
     per-mode), and *showing* the current volume/BW/AGC/S-meter values as live
     text (telemetry has them; the tab renders config, not telemetry).
-- **Phase 3 — SWL extras.** 99 memories (`$`/`#`) import/export; the broadcast
-  schedule tunes the radio; band menu ↔ firmware bands; battery voltage.
+- **Phase 3 — SWL extras (done, except battery voltage).**
+  - **Band popup** is the receiver's own 28 bands when it is the active radio
+    (`atsmini_band_menu` in `top_bar.rs`), backed by `atsmini::BANDS`; picking
+    one steps the firmware's cycle (no direct select). Receive-only, and says so.
+  - **Schedule tuning** needed nothing: a row click already sends `SetVfo` +
+    `SetMode`, which the source turns into a tune and a mode step.
+  - **Memories**: `$` dumps, `#NN,band,hz,mode` writes. `AtsMiniMemory` parses
+    the dump (same line the set command takes) and the settings tab shows it
+    with Refresh and a per-row Tune. The answer is local-only
+    (`ControlUpdate`/`RadioEvent` → server bridge maps it to `None`), so no wire
+    change and no `PROTO_VERSION` bump.
+  - **Not done: battery voltage.** It needs a field on the wire `Meters` plus a
+    source hook beside `rx_signal_dbm`; the radio's own screen shows it.
 - **Phase 4 — optional firmware.** Direct band-select (`C<index>`) or
   band-agnostic tune, offered upstream, only if the cycle proves annoying.
 
