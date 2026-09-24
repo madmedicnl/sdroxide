@@ -140,7 +140,9 @@ impl AtsMiniSource {
         })
     }
 
-    /// The latest telemetry, for a future control panel and the S-meter.
+    /// The latest telemetry, for the control panel and a live S-meter readout.
+    /// Not called yet — the settings tab is host/port/audio only so far.
+    #[allow(dead_code)]
     pub fn telemetry(&self) -> Option<Telemetry> {
         self.shared.lock().ok().and_then(|s| s.telemetry.clone())
     }
@@ -345,13 +347,9 @@ fn control_thread(
     cmd_rx: Receiver<Cmd>,
     stop: Arc<AtomicBool>,
 ) {
-    let mut target_hz: Option<u64> = None;
-    let mut sent_for: Option<u64> = None;
-    let mut target_mode: Option<FirmwareMode> = None;
     let mut last_send = Instant::now() - Duration::from_secs(10);
     let mut pending: Vec<u8> = Vec::new();
     let mut buf = [0u8; 2048];
-    let mut saw_error = false;
 
     while !stop.load(Ordering::Relaxed) {
         let mut stream = match TcpStream::connect((host.as_str(), port)) {
@@ -370,11 +368,12 @@ fn control_thread(
         };
         set_status(&shared, None);
         let _ = write.write_all(&[atsmini::monitor_toggle() as u8]);
+        // Pending work is per connection: a fresh session starts with none.
         pending.clear();
-        target_hz = None;
-        sent_for = None;
-        target_mode = None;
-        saw_error = false;
+        let mut target_hz: Option<u64> = None;
+        let mut sent_for: Option<u64> = None;
+        let mut target_mode: Option<FirmwareMode> = None;
+        let mut saw_error = false;
 
         'session: while !stop.load(Ordering::Relaxed) {
             // Commands from the app.
