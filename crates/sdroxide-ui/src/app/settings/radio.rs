@@ -1151,6 +1151,7 @@ pub(in crate::app) fn settings_atsmini_tab(
     radio_edit: &mut Option<sdroxide_types::RadioConfig>,
     apply: &mut bool,
     can_probe: bool,
+    cmds: &mut Vec<Command>,
 ) {
     let Some(cfg) = radio_edit.as_mut() else {
         ui.label("Waiting for the configuration of the machine the radio is attached to.");
@@ -1223,6 +1224,36 @@ pub(in crate::app) fn settings_atsmini_tab(
                 .wrap(),
         );
     });
+
+    ui.add_space(10.0);
+    ui.separator();
+    ui.add_space(6.0);
+    ui.label(RichText::new("Live controls").strong());
+    ui.horizontal_wrapped(|ui| {
+        for (key, label) in
+            [("volume", "VOL"), ("agc", "AGC"), ("bandwidth", "BW"), ("step", "STEP")]
+        {
+            if ui.button(format!("{label} −")).clicked() {
+                cmds.push(Command::SetDeviceSetting {
+                    key: key.to_string(),
+                    value: "down".to_string(),
+                });
+            }
+            if ui.button(format!("{label} +")).clicked() {
+                cmds.push(Command::SetDeviceSetting {
+                    key: key.to_string(),
+                    value: "up".to_string(),
+                });
+            }
+        }
+    });
+    ui.label(
+        RichText::new(
+            "Sent to the radio at once. VOL is the receiver's own volume (its knob, and the \
+             Si4732's), not sdroxide's AF slider.",
+        )
+        .weak(),
+    );
     crate::app::settings::general::settings_rx_audio_gain(ui, cfg);
 }
 

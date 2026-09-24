@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use sdroxide_radio::rtrb;
-use sdroxide_radio::{Complex32, IqSource, Result};
+use sdroxide_radio::{Complex32, ControlUpdate, IqSource, Result};
 use sdroxide_types::Mode;
 use sdroxide_types::atsmini::{self, FirmwareMode, Telemetry};
 
@@ -35,10 +35,17 @@ const AUDIO_BW_HZ: f64 = 4000.0;
 /// telemetry is quantised to the step in use).
 const TUNED_TOLERANCE_HZ: f64 = 500.0;
 
+/// The smallest dial move treated as an out-of-band change rather than
+/// telemetry jitter. The coarsest step is 100 kHz and the finest a few Hz.
+const OUT_OF_BAND_MIN_HZ: i64 = 5;
+
 /// Commands the app sends the control thread.
 enum Cmd {
     Freq(f64),
     Mode(Mode),
+    /// One step command straight from a panel button (`V`/`v`, `A`/`a`,
+    /// `W`/`w`, `S`/`s`).
+    Raw(char),
 }
 
 /// State the control thread publishes for the source and UI to read.
@@ -58,6 +65,9 @@ pub struct AtsMiniSource {
 
     shared: Arc<Mutex<Shared>>,
     cmd_tx: std::sync::mpsc::Sender<Cmd>,
+    /// Out-of-band changes the radio made itself (its own knob/mode), drained
+    /// by [`IqSource::poll_control`].
+    control_rx: std::sync::mpsc::Receiver<ControlUpdate>,
     stop: Arc<AtomicBool>,
     _thread: Option<std::thread::JoinHandle<()>>,
 
@@ -108,6 +118,7 @@ impl AtsMiniSource {
 
         let shared = Arc::new(Mutex::new(Shared::default()));
         let (cmd_tx, cmd_rx) = std::sync::mpsc::channel();
+        let (control_tx, control_rx) = std::sync::mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
         let thread = std::thread::Builder::new()
             .name("atsmini-control".into())
@@ -115,7 +126,7 @@ impl AtsMiniSource {
                 let shared = Arc::clone(&shared);
                 let stop = Arc::clone(&stop);
                 let host = host.to_string();
-                move || control_thread(host, port, shared, cmd_rx, stop)
+                move || control_thread(host, port, shared, cmd_rx, control_tx, stop)
             })
             .ok();
 
@@ -131,6 +142,7 @@ impl AtsMiniSource {
             drops: DropWatch::started(Instant::now()),
             shared,
             cmd_tx,
+            control_rx,
             stop,
             _thread: thread,
             center: center_hz,
@@ -256,6 +268,38 @@ impl IqSource for AtsMiniSource {
         Ok(())
     }
 
+    /// Panel step buttons, by key. The radio's own volume/AGC/bandwidth/step are
+    /// relative on the wire (there is no "set volume to 12"), so the panel sends
+    /// a direction and the firmware steps.
+    fn set_device_setting(&mut self, key: &str, value: &str) -> Result<()> {
+        let up = value != "down";
+        let step = match key {
+            "volume" => atsmini::volume_step(up),
+            "agc" => atsmini::agc_step(up),
+            "bandwidth" => atsmini::bandwidth_step(up),
+            "step" => atsmini::tuning_step(up),
+            _ => return Ok(()),
+        };
+        let _ = self.cmd_tx.send(Cmd::Raw(step));
+        Ok(())
+    }
+
+    /// The radio's own knob and mode buttons reaching sdroxide. The control
+    /// thread reports a dial or mode it changed without being asked; a change
+    /// it did cause is suppressed there, so this never echoes our own tune.
+    fn poll_control(&mut self) -> Vec<ControlUpdate> {
+        let mut out = Vec::new();
+        while let Ok(u) = self.control_rx.try_recv() {
+            if let ControlUpdate::Freq(hz) = u {
+                // Adopt it here too, so the engine's echo of this change is not
+                // handed straight back as a tune command.
+                self.center = hz;
+            }
+            out.push(u);
+        }
+        out
+    }
+
     /// The only strength measurement there is: the audio arrives after the
     /// radio's own AGC, so the engine cannot measure the band itself. The
     /// firmware's RSSI is dBµV into 50 Ω, i.e. dBm = dBµV − 107.
@@ -289,6 +333,18 @@ fn firmware_mode(mode: Mode) -> Option<FirmwareMode> {
     }
 }
 
+/// The firmware's demodulator as an sdroxide receive mode, for reporting a
+/// mode the radio changed on its own.
+fn sdroxide_mode(mode: FirmwareMode) -> Mode {
+    match mode {
+        FirmwareMode::Am => Mode::Am,
+        FirmwareMode::Lsb => Mode::Lsb,
+        FirmwareMode::Usb => Mode::Usb,
+        // The Si4732's FM is wide broadcast FM.
+        FirmwareMode::Fm => Mode::Wfm,
+    }
+}
+
 /// The single `M`/`m` press that moves `current` toward `target` fastest, if
 /// both are on the three-mode cycle.
 fn mode_step_toward(current: FirmwareMode, target: FirmwareMode) -> Option<char> {
@@ -315,6 +371,16 @@ mod tests {
         assert_eq!(mode_step_toward(FirmwareMode::Fm, FirmwareMode::Am), None);
     }
 
+    /// The radio's own mode button reaching sdroxide maps back to a mode it
+    /// understands (FM is broadcast-wide here).
+    #[test]
+    fn firmware_modes_map_back_for_the_radio_kind() {
+        assert_eq!(sdroxide_mode(FirmwareMode::Am), Mode::Am);
+        assert_eq!(sdroxide_mode(FirmwareMode::Lsb), Mode::Lsb);
+        assert_eq!(sdroxide_mode(FirmwareMode::Usb), Mode::Usb);
+        assert_eq!(sdroxide_mode(FirmwareMode::Fm), Mode::Wfm);
+    }
+
     #[test]
     fn sdroxide_modes_map_to_the_radio_demodulator() {
         assert_eq!(firmware_mode(Mode::Am), Some(FirmwareMode::Am));
@@ -324,17 +390,6 @@ mod tests {
         assert_eq!(firmware_mode(Mode::Nfm), Some(FirmwareMode::Fm));
         // A mode the radio has no demodulator for: leave its mode alone.
         assert_eq!(firmware_mode(Mode::Cw), None);
-    }
-}
-
-/// One line off the control socket: telemetry, or an error to act on.
-fn handle_line(shared: &Mutex<Shared>, line: &str, saw_error: &mut bool) {
-    if let Some(t) = Telemetry::parse(line) {
-        if let Ok(mut s) = shared.lock() {
-            s.telemetry = Some(t);
-        }
-    } else if line.to_ascii_lowercase().contains("error") {
-        *saw_error = true;
     }
 }
 
@@ -351,6 +406,7 @@ fn control_thread(
     port: u16,
     shared: Arc<Mutex<Shared>>,
     cmd_rx: Receiver<Cmd>,
+    control_tx: std::sync::mpsc::Sender<ControlUpdate>,
     stop: Arc<AtomicBool>,
 ) {
     let mut last_send = Instant::now() - Duration::from_secs(10);
@@ -375,12 +431,17 @@ fn control_thread(
         set_status(&shared, None);
         tracing::info!("ATS Mini: connected to {host}:{port}");
         let _ = write.write_all(&[atsmini::monitor_toggle() as u8]);
-        // Pending work is per connection: a fresh session starts with none.
+        // Pending work is per connection: a fresh session starts with none, and
+        // no dial/mode baseline either — the first telemetry sets one.
         pending.clear();
         let mut target_hz: Option<u64> = None;
         let mut sent_for: Option<u64> = None;
         let mut target_mode: Option<FirmwareMode> = None;
         let mut saw_error = false;
+        let mut last_dial: Option<i64> = None;
+        let mut last_mode: Option<FirmwareMode> = None;
+        let mut commanded_hz: Option<i64> = None;
+        let mut commanded_mode: Option<FirmwareMode> = None;
 
         'session: while !stop.load(Ordering::Relaxed) {
             // Commands from the app.
@@ -391,6 +452,10 @@ fn control_thread(
                         sent_for = None;
                     }
                     Ok(Cmd::Mode(m)) => target_mode = firmware_mode(m),
+                    // A panel step button: send it now, no confirmation loop.
+                    Ok(Cmd::Raw(c)) => {
+                        let _ = write.write_all(&[c as u8]);
+                    }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {
                         stop.store(true, Ordering::Relaxed);
@@ -451,7 +516,50 @@ fn control_thread(
                     while let Some(pos) = pending.iter().position(|&b| b == b'\n') {
                         let line = String::from_utf8_lossy(&pending[..pos]).into_owned();
                         pending.drain(..=pos);
-                        handle_line(&shared, &line, &mut saw_error);
+                        if let Some(t) = Telemetry::parse(&line) {
+                            let dial = t.dial_hz().round() as i64;
+                            // A dial/mode the radio moved on its own reaches the
+                            // engine; one we commanded is suppressed, or the two
+                            // ends would echo each other.
+                            if let Some(prev) = last_dial
+                                && (dial - prev).abs() >= OUT_OF_BAND_MIN_HZ
+                            {
+                                let ours = target_hz.is_some_and(|th| {
+                                    (dial - th as i64).abs() <= TUNED_TOLERANCE_HZ as i64
+                                }) || commanded_hz
+                                    .is_some_and(|c| (dial - c).abs() <= TUNED_TOLERANCE_HZ as i64);
+                                if !ours {
+                                    let _ = control_tx.send(ControlUpdate::Freq(dial as f64));
+                                }
+                            }
+                            if let Some(prev) = last_mode
+                                && t.mode != prev
+                            {
+                                let ours =
+                                    target_mode == Some(t.mode) || commanded_mode == Some(t.mode);
+                                if !ours {
+                                    let _ =
+                                        control_tx.send(ControlUpdate::Mode(sdroxide_mode(t.mode)));
+                                }
+                            }
+                            // A command of ours has landed: remember where, so it
+                            // is not mistaken for the operator's own move next time.
+                            if target_hz.is_some_and(|th| {
+                                (dial - th as i64).abs() <= TUNED_TOLERANCE_HZ as i64
+                            }) {
+                                commanded_hz = Some(dial);
+                            }
+                            if target_mode == Some(t.mode) {
+                                commanded_mode = Some(t.mode);
+                            }
+                            last_dial = Some(dial);
+                            last_mode = Some(t.mode);
+                            if let Ok(mut s) = shared.lock() {
+                                s.telemetry = Some(t);
+                            }
+                        } else if line.to_ascii_lowercase().contains("error") {
+                            saw_error = true;
+                        }
                     }
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {}

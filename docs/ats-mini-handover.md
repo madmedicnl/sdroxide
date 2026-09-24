@@ -146,9 +146,22 @@ from AM, `m` (down) is one step, `M` (up) is two.
     only sdroxide → radio is live); `set_control_filter` / bandwidth;
     volume/AGC/step controls in the panel; the telemetry-derived S-meter is
     exposed (`rx_signal_dbm`) but not yet shown as a live readout.
-- **Phase 2 — panel + dial/S-meter.** Settings → Radio → ATS Mini tab (host/port,
-  sound card, band/mode/step/BW/AGC/volume); dial sync both ways; S-meter from
-  RSSI/SNR; sdroxide mode ↔ firmware mode.
+- **Phase 2 — two-way sync, S-meter, live controls (done).**
+  - `poll_control` reports a dial/mode the radio moved on its own as a
+    `ControlUpdate`; a change we commanded is suppressed (the thread tracks
+    `commanded_hz`/`commanded_mode`), and `poll_control` adopts the dial into
+    `self.center` so the engine's echo is not sent back as a tune. sdroxide's
+    own band/mode/frequency controls already drive the radio through
+    `set_center_hz`/`set_control_mode`.
+  - The S-meter comes free from `rx_signal_dbm` (RSSI dBµV − 107): the engine's
+    `Meters` path prefers a source's own report for an audio-mode front end.
+  - **VOL / AGC / BW / STEP** step buttons in the Settings → Radio → ATS Mini
+    tab, via `Command::SetDeviceSetting` → `AtsMiniSource::set_device_setting`
+    → a `Cmd::Raw` character. They are relative (the wire has no absolute set).
+  - Not done: `set_control_filter` (mapping the app's filter edges to a
+    firmware bandwidth index is guesswork — the labels are strings, the list
+    per-mode), and *showing* the current volume/BW/AGC/S-meter values as live
+    text (telemetry has them; the tab renders config, not telemetry).
 - **Phase 3 — SWL extras.** 99 memories (`$`/`#`) import/export; the broadcast
   schedule tunes the radio; band menu ↔ firmware bands; battery voltage.
 - **Phase 4 — optional firmware.** Direct band-select (`C<index>`) or
