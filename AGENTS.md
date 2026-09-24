@@ -444,10 +444,17 @@ comes from the period exactly as FST4's and Q65's do, and `Mode::slot_timing`
 answers `None`. Tested with synthetic pings and the fork's own generator
 (`a_clean_ping_decodes_to_its_message`, `a_mistuned_ping_is_refined_and_decoded`,
 `a_weak_ping_still_decodes`, `a_single_tone_ping_is_the_shorthand`,
-`noise_alone_does_not_decode`, plus the digi adapter round trip); **not verified
-off air** — a real 6 m/2 m meteor ping is the bench check. Offered upstream as
-an "isolate it" PR, **#555**, branch `upstream-pr/fsk441` (upstream's
-`PROTO_VERSION` 165 → 166 there).
+`noise_alone_does_not_decode`, plus the digi adapter round trip). **Checked
+against an off-air recording:** the Sigidwiki *FSK441Burst* sample — a received
+meteor ping from **YO2NAA** — decodes to `YO2NAA` and its `RRR` rogers through
+the ignored fixture test `an_off_air_burst_decodes`
+(`SDROXIDE_FSK441_SAMPLE=…`, a mono 11 025 Hz WAV; convert a capture with
+`ffmpeg -i capture.mp3 -ac 1 -ar 11025 burst.wav`). The *FSK441TX* sample is a
+**continuous** transmission rather than received pings, so the burst search does
+not report it — that is what a ping detector is for — but its front end reads
+`CQ` and callsign fragments through the heavy clipping. A live 6 m/2 m ping is
+still the bench check. Offered upstream as an "isolate it" PR, **#555**, branch
+`upstream-pr/fsk441` (upstream's `PROTO_VERSION` 165 → 166 there).
 
 ### The (tr)uSDX family
 
