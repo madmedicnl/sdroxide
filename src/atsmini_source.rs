@@ -174,6 +174,12 @@ impl IqSource for AtsMiniSource {
         self.center
     }
     fn set_center_hz(&mut self, hz: f64) -> Result<()> {
+        // The engine re-asserts the dial on unrelated state changes; do not
+        // hand the radio the same tune again. Every `F` it receives writes NVS
+        // and can glitch its audio, so repeats are not free.
+        if (hz - self.center).abs() < 1.0 {
+            return Ok(());
+        }
         self.center = hz;
         let _ = self.cmd_tx.send(Cmd::Freq(hz));
         Ok(())
@@ -367,6 +373,7 @@ fn control_thread(
             continue;
         };
         set_status(&shared, None);
+        tracing::info!("ATS Mini: connected to {host}:{port}");
         let _ = write.write_all(&[atsmini::monitor_toggle() as u8]);
         // Pending work is per connection: a fresh session starts with none.
         pending.clear();
@@ -429,6 +436,7 @@ fn control_thread(
                     }
                 }
                 if let Some(bytes) = out {
+                    tracing::debug!(cmd = %bytes.trim_end(), "ATS Mini > command");
                     if write.write_all(bytes.as_bytes()).is_err() {
                         break 'session;
                     }
@@ -451,6 +459,7 @@ fn control_thread(
             }
         }
         set_status(&shared, Some("ATS Mini disconnected".into()));
+        tracing::warn!("ATS Mini: control link {host}:{port} closed; reconnecting");
         std::thread::sleep(Duration::from_millis(1000));
     }
 }
