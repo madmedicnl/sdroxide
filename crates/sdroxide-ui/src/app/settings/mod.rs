@@ -831,6 +831,9 @@ fn free_device_probe(backend: sdroxide_types::Backend) -> Option<sdroxide_types:
     Some(match backend {
         B::Cat => P::RadioAudio,
         B::UsbAudio => P::RadioAudio,
+        // The ATS Mini's receive audio is a sound card too; without this its
+        // tab sits on "Waiting for the sound cards" forever.
+        B::AtsMini => P::RadioAudio,
         B::RtlSdr => P::RtlSdr,
         B::Rx888 => P::Rx888,
         B::AirspyHf => P::AirspyHf,

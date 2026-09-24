@@ -1176,22 +1176,28 @@ pub(in crate::app) fn settings_atsmini_tab(
     ui.separator();
     ui.add_space(6.0);
     ui.label(RichText::new("Radio audio (sound card)").strong());
-    let Some((inputs, _outputs)) = devices else {
-        ui.label(
-            RichText::new("Waiting for the sound cards on the machine the radio is plugged into.")
-                .weak(),
-        );
-        return;
-    };
     let ci = cfg.radio_audio_in.clone();
     egui::Grid::new("atsmini-audio").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
         ui.label("Receive (radio → PC)").on_hover_text(
             "The PC input the receiver's headphone jack is wired to. Everything on the \
-             panadapter and in the decoders arrives here.",
+             panadapter and in the decoders arrives here — the ATS Mini has no digital audio.",
         );
-        probe_only(ui, can_probe, |ui| {
-            device_combo(ui, "ats-in", inputs, &ci, |n| cfg.radio_audio_in = n)
-        });
+        // The list arrives as an answer; until then say so rather than leave the
+        // combo empty. It must not skip the Apply button below, which is the
+        // whole reason the host/port fields above are editable at all.
+        match devices {
+            Some((inputs, _outputs)) => probe_only(ui, can_probe, |ui| {
+                device_combo(ui, "ats-in", inputs, &ci, |n| cfg.radio_audio_in = n)
+            }),
+            None => {
+                ui.label(
+                    RichText::new(
+                        "Waiting for the sound cards on the machine the radio is attached to.",
+                    )
+                    .weak(),
+                );
+            }
+        }
         ui.end_row();
     });
 
