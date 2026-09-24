@@ -521,7 +521,9 @@ and (b) whether a **CAT command is safe while the stream runs** in nG (the nG
 notes advertise "improved CAT audio streaming"). A **raw hex capture** of the
 serial stream while receiving would settle both directly; a compiled firmware
 binary does not help (nothing to run it on). See
-`tools/trusdx-probe/README.md` §nG for the checks named there.
+`tools/trusdx-probe/README.md` §nG for the checks named there, and
+**`tools/trusdx-probe/HANDOVER-ng.md`** for the bench plan written when an nG
+radio was due on the bench (transient — fold it in and delete it).
 
 ### The (tr)uSDX family
 
