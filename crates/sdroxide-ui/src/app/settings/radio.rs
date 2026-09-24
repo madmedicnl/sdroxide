@@ -1164,7 +1164,9 @@ pub(in crate::app) fn settings_atsmini_tab(
         ui.label("Host").on_hover_text(
             "The receiver's ad hoc TCP server: `atsmini.local` (mDNS) or its IP. On the \
              radio, Settings → TCP Port → Ad hoc, with Wi-Fi in Connect, AP+Connect or \
-             AP Only.",
+             AP Only.\n\n`atsmini.local` needs an mDNS resolver (Avahi/nss-mdns) on this \
+             machine. If the control link does not come up, its IP is shown on the radio's \
+             Wi-Fi screen — enter that instead.",
         );
         ui.text_edit_singleline(&mut cfg.atsmini.host);
         ui.end_row();

@@ -236,8 +236,17 @@ impl IqSource for AtsMiniSource {
         self.label.clone()
     }
 
+    /// The audio warning *plus* the control link's own state, so a link that
+    /// never opens is visible (a settings tab that cannot reach the radio used
+    /// to look exactly like one that could).
     fn open_status(&self) -> Option<String> {
-        self.status.clone()
+        let link = self.shared.lock().ok().and_then(|s| s.status.clone());
+        match (self.status.clone(), link) {
+            (Some(a), Some(b)) => Some(format!("{a}\n{b}")),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        }
     }
 
     fn needs_reopen(&self) -> bool {
