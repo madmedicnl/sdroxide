@@ -6286,8 +6286,14 @@ meteor trail appears it catches part of one. The decoder scans the whole period
 for those captures; there is no slot-aligned decode the way FT8 has, and a
 whole period may pass with nothing.
 
-**Receive only.** Transmit is not wired in this build, as for MSK144 and the JT
-modes. What the panel does is copy the pings that arrive.
+**Transmitting.** FSK441 is worked by sending the message over and over: you
+hold transmit and the message repeats for the length of the over, so a meteor's
+brief trail catches whatever part of it is passing. The **TX** row under the
+decode list is a single line — type the message (`W1ABC W9XYZ FN42`, or one of
+the shorthand words `R26`/`R27`/`RRR`/`73`) and press **TX**; **CALL CQ** fills
+the box with a CQ and starts it. The message loops until you unkey. There is no
+automatic sequencing and no station being called: a meteor-scatter contact is
+arranged by ear and by the shorthand, which is what the mode has always been.
 
 ## 4. Skimmers
 
@@ -16563,7 +16569,7 @@ using. Bind them under **Speech** on the Controls tab:
 | MSK144 | Meteor scatter on 6 m and 2 m: continuous-phase binary MSK at 2000 baud in a 15-second period, carrying the same 77-bit message as FT8. The decoder hunts the period for meteor-trail bursts. Receive only in this build. See [3.24](#324-msk144). |
 | Q65 | The modern WSJT weak-signal mode for EME, ionoscatter, rainscatter and troposcatter: 65-tone FSK in a 15/30/60/120/300-second T/R period, with a tone-spacing letter A–E for Doppler spread. Carries the same 77-bit message as FT8. Receive only in this build. See [3.25](#325-q65). |
 | UVPACKET | A packet protocol for private amateur VHF/UHF groups: a short π/4-DQPSK burst carrying an application byte pipe (app type, sequence, 1–32 payload blocks) rather than a WSJT message. The sub-mode is detected from the preamble. Receive only in this build. See [3.26](#326-uvpacket). |
-| FSK441 | The original meteor-scatter mode on 6 m and 2 m: 4-FSK at 441 baud carrying free text and the `R26`/`R27`/`RRR`/`73` single-tone shorthand, in a 15/30-second period. The decoder hunts the period for meteor-trail pings. Receive only in this build. See [3.27](#327-fsk441). |
+| FSK441 | The original meteor-scatter mode on 6 m and 2 m: 4-FSK at 441 baud carrying free text and the `R26`/`R27`/`RRR`/`73` single-tone shorthand, in a 15/30-second period. The decoder hunts the period for meteor-trail pings; transmit repeats the message for the length of the over. See [3.27](#327-fsk441). |
 | OLIVIA | Robust MFSK keyboard mode (selectable tones/bandwidth). |
 | THOR | DominoEX-family IFK keyboard mode with FEC (THOR4…THOR32). |
 | FSQ | Fast Simple QSO — 33-tone IFK with directed (FSQCALL) messaging and images. |

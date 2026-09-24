@@ -397,9 +397,11 @@ pub enum Mode {
     /// leaves, so a decode carries the time *into* the slot it was found at.
     /// The period is an operator setting ([`crate::Fsk441Period`]), not part of
     /// the mode, so [`Mode::slot_timing`] answers `None` and the clock comes
-    /// from the chosen period — the same shape as FST4's. Receive only in this
-    /// build, as [`Mode::Fst4`] is. Appended for the same reason as
-    /// [`Mode::Hell`].
+    /// from the chosen period — the same shape as FST4's. Appended for the same
+    /// reason as [`Mode::Hell`].
+    ///
+    /// Transmit is the mode's own shape: the operator holds the key and the
+    /// message repeats for the length of the over.
     Fsk441,
 }
 
@@ -903,6 +905,9 @@ impl Mode {
                 | Mode::Pi4
                 // JT65/JT9, FST4 and MSK144 are QSO modes, but transmit is not
                 // wired in this build — the panel is the decode list alone.
+                // FSK441 is *not* here: its transmit is wired (the message loops
+                // for the length of the over), so it offers a transmit row under
+                // its decode list.
                 | Mode::Jt65
                 | Mode::Jt9
                 | Mode::Fst4
@@ -911,6 +916,7 @@ impl Mode {
                 | Mode::UvPacket
         )
     }
+
     /// True for Hellschreiber. Forks the digi panel to the scrolling raster UI:
     /// unlike the keyboard modems there is nothing to decode into text, so it
     /// gets its own controller and panel rather than joining `is_text_modem`.
