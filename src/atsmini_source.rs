@@ -426,16 +426,27 @@ fn control_thread(
     let mut last_send = Instant::now() - Duration::from_secs(10);
     let mut pending: Vec<u8> = Vec::new();
     let mut buf = [0u8; 2048];
+    let mut last_error: Option<String> = None;
 
     while !stop.load(Ordering::Relaxed) {
         let mut stream = match TcpStream::connect((host.as_str(), port)) {
             Ok(s) => s,
             Err(e) => {
-                set_status(&shared, Some(format!("ATS Mini {host}:{port} unreachable ({e})")));
+                // Said out loud, once per distinct error: a host that does not
+                // resolve (`atsmini.local` with no mDNS resolver) otherwise
+                // leaves the link silently dead and the tab looking no
+                // different from one that works.
+                let msg = format!("ATS Mini {host}:{port} unreachable ({e})");
+                if last_error.as_deref() != Some(msg.as_str()) {
+                    tracing::warn!("{msg}");
+                    last_error = Some(msg.clone());
+                }
+                set_status(&shared, Some(msg));
                 std::thread::sleep(Duration::from_millis(1500));
                 continue;
             }
         };
+        last_error = None;
         let _ = stream.set_read_timeout(Some(Duration::from_millis(200)));
         let _ = stream.set_nodelay(true);
         let Ok(mut write) = stream.try_clone() else {
