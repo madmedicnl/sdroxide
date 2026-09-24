@@ -1168,7 +1168,21 @@ pub(in crate::app) fn settings_atsmini_tab(
              machine. If the control link does not come up, its IP is shown on the radio's \
              Wi-Fi screen — enter that instead.",
         );
-        ui.text_edit_singleline(&mut cfg.atsmini.host);
+        ui.horizontal(|ui| {
+            ui.text_edit_singleline(&mut cfg.atsmini.host);
+            // mDNS is not dependable (no resolver, or multicast not crossing
+            // the Wi-Fi), so offer to find the radio by its control port
+            // instead. A click blocks for a fraction of a second.
+            #[cfg(not(target_arch = "wasm32"))]
+            if ui
+                .button("Find")
+                .on_hover_text("Scan this machine's network for the receiver's control port")
+                .clicked()
+                && let Some(ip) = find_atsmini()
+            {
+                cfg.atsmini.host = ip;
+            }
+        });
         ui.end_row();
         ui.label("TCP port").on_hover_text("The firmware defaults to 60000.");
         ui.add(egui::DragValue::new(&mut cfg.atsmini.port).range(1..=65535).speed(1.0));
@@ -8517,4 +8531,56 @@ pub(in crate::app) fn settings_lime_tab(
         )
         .weak(),
     );
+}
+
+/// Find an ATS Mini on this machine's own /24 by its control port, returning
+/// the first address that answers.
+///
+/// mDNS is the documented way to reach the radio, but it needs a resolver the
+/// host may not have and multicast that the Wi-Fi may not carry; the port scan
+/// does not. It blocks for a fraction of a second and is native-only (a browser
+/// has no raw sockets). The local /24 comes from whichever address would carry
+/// this machine's outbound traffic, which is the one the radio is reachable
+/// over.
+#[cfg(not(target_arch = "wasm32"))]
+fn find_atsmini() -> Option<String> {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream, UdpSocket};
+    use std::time::Duration;
+
+    let probe = UdpSocket::bind("0.0.0.0:0").ok()?;
+    probe.connect("1.1.1.1:80").ok()?;
+    let local = match probe.local_addr().ok()? {
+        SocketAddr::V4(a) => *a.ip(),
+        _ => return None,
+    };
+    let base = u32::from_be_bytes(local.octets()) & 0xffff_ff00;
+    let me = u32::from_be_bytes(local.octets());
+
+    let found = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
+    let mut workers = Vec::new();
+    for lane in 0..64u32 {
+        let found = std::sync::Arc::clone(&found);
+        workers.push(std::thread::spawn(move || {
+            for host in 1..=254u32 {
+                if host % 64 != lane {
+                    continue;
+                }
+                let ip = Ipv4Addr::from((base | host).to_be_bytes());
+                if (base | host) == me || found.lock().map(|f| f.is_some()).unwrap_or(true) {
+                    continue;
+                }
+                let addr = SocketAddr::new(IpAddr::V4(ip), sdroxide_types::atsmini::DEFAULT_PORT);
+                if TcpStream::connect_timeout(&addr, Duration::from_millis(300)).is_ok()
+                    && let Ok(mut f) = found.lock()
+                {
+                    *f = Some(ip.to_string());
+                    return;
+                }
+            }
+        }));
+    }
+    for w in workers {
+        let _ = w.join();
+    }
+    found.lock().ok().and_then(|f| f.clone())
 }
