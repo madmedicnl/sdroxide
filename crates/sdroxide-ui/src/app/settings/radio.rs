@@ -1228,6 +1228,14 @@ pub(in crate::app) fn settings_atsmini_tab(
         )
         .weak(),
     );
+    ui.label(
+        RichText::new(
+            "Tuning follows the receiver's own band cycle, so the dial lags your scroll by a \
+             moment — most when the frequency crosses into another band. Let it settle before \
+             scrolling on, and it will always land on the frequency you asked for.",
+        )
+        .weak(),
+    );
     ui.horizontal(|ui| {
         if ui
             .button("Apply / reconnect")

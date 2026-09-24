@@ -212,3 +212,23 @@ from AM, `m` (down) is one step, `M` (up) is two.
   radio's mode, not just its own.)
 - Bandwidth/AGC indices are opaque numbers; surface them by stepping + reading
   back the label, or map? (Labels are strings like `3.0k`, `Auto`.)
+
+## Open items (2026-09-25)
+
+- **ATS Mini tuning lag — carry on tomorrow.** Tuning steps the receiver's own
+  band cycle, so the app's dial leads the radio by a moment (worst crossing
+  bands). Two behaviours seen on the bench:
+  - The app adopting the radio's *intermediate* band dials during a burst. The
+    fix landed: a settle window after a band burst suppresses out-of-band dial
+    reports, `commanded_hz` is pinned to the requested frequency (not the dial
+    read back at acceptance), and acceptance only clears when the outstanding
+    `F` is for the current target. Re-test the fast-scroll-then-wait case.
+  - The lag itself is inherent. A clear UI indication is wanted ("the dial lags
+    your scroll"); the settings tab has a line, but consider something nearer
+    the dial/progress. Open: should the app lock its dial to the requested
+    frequency until the radio confirms, or show the lag? Decide and finish.
+- **SWL mode: the main screen's LOG button opens the QSO log, not the SWL log.**
+  Reported from the bench while trying to log a pirate station: the listener's
+  LOG should open the SWL log (the reception log), not the QSO log, whenever the
+  radio is in SWL/listen mode. Needs finding the button's dispatch and the SWL
+  log's own window, and a test. Not ATS-Mini-specific — general fork behaviour.

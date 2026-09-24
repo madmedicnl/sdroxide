@@ -484,6 +484,10 @@ fn control_thread(
         // The frequency whose band we have already put the radio in, so the
         // band is ensured once per tune rather than per F.
         let mut band_ensured_for: Option<u64> = None;
+        // While a band burst (or a single step) is settling, the dial passes
+        // through every intermediate band; those are ours, not the operator's,
+        // and must not reach the app as out-of-band moves.
+        let mut settle_until: Option<Instant> = None;
         // A dump in progress: when it started and the slots gathered so far.
         let mut collecting: Option<(Instant, Vec<sdroxide_types::atsmini::AtsMiniMemory>)> = None;
 
@@ -529,6 +533,7 @@ fn control_thread(
                 {
                     if cur != idx {
                         out = Some(band_burst(cur, idx));
+                        settle_until = Some(Instant::now() + Duration::from_millis(900));
                     }
                     pending_band = None;
                 }
@@ -549,6 +554,7 @@ fn control_thread(
                                 && want != cur
                             {
                                 out = Some(band_burst(cur, want));
+                                settle_until = Some(Instant::now() + Duration::from_millis(900));
                             }
                             band_ensured_for = Some(hz);
                         }
@@ -562,11 +568,16 @@ fn control_thread(
                             cur.unwrap_or(0),
                             (cur.unwrap_or(0) + 1) % atsmini::BANDS.len(),
                         ));
+                        settle_until = Some(Instant::now() + Duration::from_millis(900));
                     } else if sent_for != Some(hz) {
                         // Send the tune once; its acceptance is judged by the
                         // absence of an error by the next telemetry, not by the
                         // dial matching — the radio clamps to its own step.
                         sent_for = Some(hz);
+                        // Where we *asked* it to go, not where it was when the
+                        // answer arrived: otherwise the move our own F caused is
+                        // read back as an out-of-band change.
+                        commanded_hz = Some(hz as i64);
                         out = Some(atsmini::set_frequency(hz));
                     }
                     // else: the `F` is out and its answer has not arrived.
@@ -606,9 +617,11 @@ fn control_thread(
                             // error, not on the dial matching, because the radio
                             // clamps to its own step (1.001 MHz on a 9 kHz step
                             // becomes 1.000, which no dial comparison settles).
-                            if target_hz.is_some() && sent_for.is_some() && !saw_error {
+                            if let (Some(hz), Some(sent)) = (target_hz, sent_for)
+                                && sent == hz
+                                && !saw_error
+                            {
                                 target_hz = None;
-                                commanded_hz = Some(dial);
                             }
                             // A dial/mode the radio moved on its own reaches the
                             // engine; one we commanded is suppressed, or the two
@@ -623,6 +636,7 @@ fn control_thread(
                                 // small knob step is mistaken for our own command
                                 // and swallowed.
                                 let ours = target_hz.is_some()
+                                    || settle_until.is_some_and(|t| Instant::now() < t)
                                     || commanded_hz
                                         .is_some_and(|c| (dial - c).abs() <= OUT_OF_BAND_MIN_HZ);
                                 if !ours {
