@@ -31,10 +31,6 @@ use crate::audio_cat_source::DropWatch;
 /// filter decides what is really there.
 const AUDIO_BW_HZ: f64 = 4000.0;
 
-/// A frequency closer than this to the requested one counts as tuned (the
-/// telemetry is quantised to the step in use).
-const TUNED_TOLERANCE_HZ: f64 = 500.0;
-
 /// The smallest dial move treated as an out-of-band change rather than
 /// telemetry jitter. The coarsest step is 100 kHz and the finest a few Hz.
 const OUT_OF_BAND_MIN_HZ: i64 = 5;
@@ -475,6 +471,7 @@ fn control_thread(
                     Ok(Cmd::Freq(hz)) => {
                         target_hz = Some(hz.max(0.0) as u64);
                         sent_for = None;
+                        saw_error = false;
                     }
                     Ok(Cmd::Mode(m)) => target_mode = firmware_mode(m),
                     // A panel step button: send it now, no confirmation loop.
@@ -493,27 +490,21 @@ fn control_thread(
             if last_send.elapsed() > Duration::from_millis(150) {
                 let mut out: Option<String> = None;
                 if let Some(hz) = target_hz {
-                    let cur = shared
-                        .lock()
-                        .ok()
-                        .and_then(|s| s.telemetry.as_ref().map(Telemetry::dial_hz));
-                    match cur {
-                        Some(cur) if (cur - hz as f64).abs() <= TUNED_TOLERANCE_HZ => {
-                            target_hz = None;
-                        }
-                        // Out-of-band error seen for this target: step the band
-                        // and try again. `sent_for` tells the two apart, else a
-                        // stale error would cycle forever.
-                        _ if sent_for == Some(hz) && saw_error => {
-                            saw_error = false;
-                            sent_for = None;
-                            out = Some(atsmini::band_step(true).to_string());
-                        }
-                        Some(_) | None => {
-                            sent_for = Some(hz);
-                            out = Some(atsmini::set_frequency(hz));
-                        }
+                    if saw_error && sent_for == Some(hz) {
+                        // Outside the current band: step the band and offer it
+                        // again. `sent_for` scopes the error to this target, so
+                        // a stale one cannot cycle forever.
+                        saw_error = false;
+                        sent_for = None;
+                        out = Some(atsmini::band_step(true).to_string());
+                    } else if sent_for != Some(hz) {
+                        // Send the tune once; its acceptance is judged by the
+                        // absence of an error by the next telemetry, not by the
+                        // dial matching — the radio clamps to its own step.
+                        sent_for = Some(hz);
+                        out = Some(atsmini::set_frequency(hz));
                     }
+                    // else: the `F` is out and its answer has not arrived.
                 } else if let Some(tm) = target_mode {
                     let cur = shared.lock().ok().and_then(|s| s.telemetry.as_ref().map(|t| t.mode));
                     match cur {
@@ -543,6 +534,17 @@ fn control_thread(
                         pending.drain(..=pos);
                         if let Some(t) = Telemetry::parse(&line) {
                             let dial = t.dial_hz().round() as i64;
+                            // A tune of ours that the radio did not reject has
+                            // landed: it answers an out-of-band `F` with an error
+                            // line straight away, so the first telemetry after an
+                            // accepted one is the confirmation. Judged on the
+                            // error, not on the dial matching, because the radio
+                            // clamps to its own step (1.001 MHz on a 9 kHz step
+                            // becomes 1.000, which no dial comparison settles).
+                            if target_hz.is_some() && sent_for.is_some() && !saw_error {
+                                target_hz = None;
+                                commanded_hz = Some(dial);
+                            }
                             // A dial/mode the radio moved on its own reaches the
                             // engine; one we commanded is suppressed, or the two
                             // ends would echo each other.
@@ -578,13 +580,6 @@ fn control_thread(
                                     let _ =
                                         control_tx.send(ControlUpdate::Mode(sdroxide_mode(t.mode)));
                                 }
-                            }
-                            // A command of ours has landed: remember where, so it
-                            // is not mistaken for the operator's own move next time.
-                            if target_hz.is_some_and(|th| {
-                                (dial - th as i64).abs() <= TUNED_TOLERANCE_HZ as i64
-                            }) {
-                                commanded_hz = Some(dial);
                             }
                             if target_mode == Some(t.mode) {
                                 commanded_mode = Some(t.mode);
