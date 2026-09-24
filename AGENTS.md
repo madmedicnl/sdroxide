@@ -507,6 +507,28 @@ bump. Offered upstream as PR **#558** (there without the DSC/UVPacket branches,
 those modes being separate PRs). APRS and AtCHAT logs are the one gap left —
 they have their own status structs and were not wired in this cut.
 
+### The band menu's clarity pass (fork-only, 2026-09-24)
+
+The fork's band popup had outgrown its own information architecture: the
+**HF/VHF/UHF** filter chips and the **ALL** (`Band::Gen`) clear-band chip sat on
+one unnamed row and read as one control though they do different things; the
+OPERATE tab drew a **Primary modes** row and then a **Mode** row repeating the
+same four chips; and the LISTEN tab's metre-band shortcuts looked like bands.
+The pass renames the filters `HF BANDS`/`VHF BANDS`/`UHF BANDS` under a **Show
+bands** caption, moves the clear-band action out to its own **ALL — no band**
+chip with a hover saying it is not the filter, gives the metre bands an **SW
+metre bands** caption, and folds the four reach-for modes into the Mode row
+behind a divider. No behaviour change; the tests
+`all_clears_the_range_filter_too` and
+`the_band_filter_says_it_filters_and_toggles_off` pin it.
+
+**Fork-only on purpose — do not offer this upstream.** Upstream's band menu is a
+single flat band row: no `BandFilter`, no LISTEN/OPERATE tabs, no Primary-modes
+row, no metre-band shortcuts. Every problem this fixes was introduced by the
+fork's own additions, so there is nothing for the maintainer to take. (Checked
+2026-09-24: the cherry-pick onto `upstream/main` conflicts structurally because
+`band_mode_menu` there is a different, simpler function.)
+
 ### The (tr)uSDX nG feedback (DL2MAN, 2026-09-24)
 
 DL2MAN reports that against a real nG radio the one-cable mode connects and
