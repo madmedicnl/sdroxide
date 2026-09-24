@@ -227,6 +227,14 @@ from AM, `m` (down) is one step, `M` (up) is two.
     your scroll"); the settings tab has a line, but consider something nearer
     the dial/progress. Open: should the app lock its dial to the requested
     frequency until the radio confirms, or show the lag? Decide and finish.
+- **Sidebands on every AM band.** Every band the receiver offers AM on also
+  accepts LSB and USB — the firmware's mode cycle is `LSB → USB → AM`, so the
+  sidebands are reachable wherever AM is. This matters because most DX on the
+  broadcast/Broadcast-metre bands is on a sideband. Make sure LSB and USB are
+  always *selectable* on those bands (and selecting one drives the radio's mode,
+  not just sdroxide's) — never greyed by a band rule. The custom popup uses the
+  LISTEN chips (never greyed) and `firmware_mode` maps both to the radio; pin it
+  with a test so a later band rule cannot take it away.
 - **SWL mode: the main screen's LOG button opens the QSO log, not the SWL log.**
   Reported from the bench while trying to log a pirate station: the listener's
   LOG should open the SWL log (the reception log), not the QSO log, whenever the
