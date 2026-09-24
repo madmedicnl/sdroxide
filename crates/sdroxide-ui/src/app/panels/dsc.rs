@@ -91,6 +91,7 @@ impl SdroxideApp {
             .on_hover_text("Sequences that reached their end marker, and how cleanly \
                             the two tones separate.");
             self.clear_rx_chip(ui, cmds);
+            self.save_rx_chip(ui);
         });
 
         ui.horizontal_wrapped(|ui| {

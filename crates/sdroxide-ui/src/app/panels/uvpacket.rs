@@ -77,6 +77,7 @@ impl SdroxideApp {
             )
             .on_hover_text("Frames decoded since the receiver started.");
             self.clear_rx_chip(ui, cmds);
+            self.save_rx_chip(ui);
         });
 
         ui.horizontal_wrapped(|ui| {
