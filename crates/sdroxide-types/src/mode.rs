@@ -909,10 +909,8 @@ impl Mode {
                 | Mode::Msk144
                 | Mode::Q65
                 | Mode::UvPacket
-                | Mode::Fsk441
         )
     }
-
     /// True for Hellschreiber. Forks the digi panel to the scrolling raster UI:
     /// unlike the keyboard modems there is nothing to decode into text, so it
     /// gets its own controller and panel rather than joining `is_text_modem`.
