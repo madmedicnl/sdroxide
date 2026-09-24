@@ -903,6 +903,23 @@ It is session-only and never persisted. "New" is
 `LogIndex::novelty(..).new_call` for now; wiring in `check-dupe.php` is the
 follow-up.
 
+### The ATS Mini (SWL extras, fork-only, in progress)
+
+A cheap, ubiquitous SWL receiver — ESP32-S3 + **Si4732**, firmware
+[`esp32-si4732/ats-mini`](https://github.com/esp32-si4732/ats-mini) (MIT) — to be
+driven from sdroxide as a receive-only source: control band and frequency from
+the computer, do all the demod-dependent listening and decoding on the PC. It is
+**audio-only** (the Si4732 demodulates in hardware, no I/Q), so `audio_mode`
+applies and the wideband lanes are out. Control is the firmware's "ad hoc"
+character protocol over **TCP 60000**; **audio is analog into the host sound
+card** and always will be — BLE is a UART service, the web server is config/OTA
+only, and the Si4732 audio is not routed to the ESP32 on V3 hardware. So the
+route is **sdroxide-side only, no firmware changes**. Planned as a dedicated
+`Backend::AtsMini` (receive-only, no TX UI), fork-only, `PROTO_VERSION` 176 →
+177. **Full spec, bench findings, decisions, phase plan and file anchors are in
+[`docs/ats-mini-handover.md`](docs/ats-mini-handover.md)**; the scratch probe
+(telemetry parser, band-cycle mapper, scanner) is `tools/atsmini-probe/`.
+
 ## Regenerating the quick-start PDFs
 
 `docs/cb-quickstart.{en,nl,fr,it}.md` is the source; the matching `.pdf` is
