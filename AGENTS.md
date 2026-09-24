@@ -472,9 +472,36 @@ rung that always holds the plan when any does. Large front ends are unchanged;
 768 k and 912 k now reach all fourteen. `plan.rs`'s own test only covered rates
 ≥ 2 Msps, which is how it slipped through — the sweep
 `every_wide_enough_front_end_reaches_the_whole_plan` is the guard now. Offered
-upstream as a PR. (The engine already reports the shortfall in `vdl2_degraded`
-— "reaches N of the 14 channels" — so check that sentence on a report before
-reaching for the arithmetic.)
+upstream as PR **#556**. (The engine already reports the shortfall in
+`vdl2_degraded` — "reaches N of the 14 channels" — so check that sentence on a
+report before reaching for the arithmetic.)
+
+### The recording silence auto-split
+
+The MP3 recorder taps post-squelch audio, but the tap is filled every block
+whether or not the squelch is open, so recording a quiet channel produced one
+file that grew all afternoon through the gaps (upstream issue **#546**). The
+REC popup now has an **Auto-record** row: armed, the recording follows the
+receiver's squelch — a file starts when it opens and closes after 2/3/5/10 s of
+silence — so each transmission becomes its own UTC/frequency/mode-stamped file
+(the naming already carried that; a continuous session never split to use it).
+It is **UI-owned and session-only**, the same shape as the "stop after"
+deadline from #520: `rec_gate_tick` is the whole decision, unit-tested as
+`rec_gate_splits_on_the_squelch`, and `poll_recording_gate` reconstructs the
+engine's squelch (`passband_dbfs >= squelch_db`) from the published meter — no
+wire type, no `PROTO_VERSION` bump. The squelch defines silence, so the chips
+are only offered when one is set; a CAT radio's squelch belongs to the radio
+and its meters carry no passband level, so it gets a sentence rather than a
+recorder that would never close. Offered upstream as PR **#557**.
+
+**Not started, investigated:** upstream issue **#533** (save decoded text). The
+only text export today is the FT8/FT4/FT2 (and JS8 *frames*) DECODES header's
+CSV/ADIF buttons; CW (panel + skimmer), PSK/RTTY/RTTY-FM/Olivia/THOR, FSQ
+messages, NAVTEX, ACARS, DSC, HFDL, VDL2, APRS, PACKET/PACKET-HF, AtCHAT,
+UVPacket, WSPR, PI4 and JS8's reassembled messages have no save at all. The
+shape is a shared **SAVE** chip per text panel calling the existing
+`download::save(name, bytes)` (native `rfd` dialog + browser Blob), structured
+logs as CSV/TXT and free-running text as its rolling buffer.
 
 ### The (tr)uSDX family
 
