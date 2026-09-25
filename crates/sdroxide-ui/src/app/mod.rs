@@ -30,6 +30,7 @@ pub(in crate::app) mod hfdl;
 pub(in crate::app) mod ism;
 pub(in crate::app) mod konami;
 pub(in crate::app) mod logbook;
+pub(in crate::app) mod morse;
 pub(in crate::app) mod recording_jobs;
 pub(in crate::app) mod schedule;
 pub(in crate::app) mod swl_log;
@@ -70,10 +71,8 @@ use self::panels::fsq::fsq_load_contacts;
 use self::panels::rf_paint::RfPaintUi;
 use self::panels::sstv::SstvUi;
 use self::persist::{
-    load_alerts_settings, load_broadcast_favourites, load_broadcast_stations, load_qso_log,
-    load_recording_jobs,
-    load_speech_settings, load_swl_log,
-    load_ui_settings,
+    load_alerts_settings, load_broadcast_favourites, load_broadcast_stations, load_morse_progress,
+    load_qso_log, load_recording_jobs, load_speech_settings, load_swl_log, load_ui_settings,
 };
 use self::settings::servers::TciServerStatus;
 use self::settings::{SatEditState, SettingsTab, TestOutcome};
@@ -874,6 +873,8 @@ pub struct SdroxideApp {
     flags: crate::flags::Flags,
     /// Logbook overlay open state, and the in-progress new/edit entry (if any).
     show_logbook: bool,
+    /// The Morse trainer window and its persisted progress.
+    morse: morse::MorseState,
     /// The Winlink mail window. Holds its own view state; the mailbox itself
     /// lives engine-side and is read a page at a time.
     pub(in crate::app) mail: winlink::MailUi,
@@ -1660,6 +1661,7 @@ impl SdroxideApp {
             digi_free_text: String::new(),
             flags: Default::default(),
             show_logbook: false,
+            morse: morse::MorseState::new(load_morse_progress(storage)),
             mail: winlink::MailUi::default(),
             log_edit: None,
 spots: Vec::new(),
