@@ -2,15 +2,21 @@
 //!
 //! Some USB keyer boxes have no keyer in them: they report the two paddle
 //! contacts and nothing else, often as the buttons of an otherwise useless
-//! "mouse". This opens one of the kernel's input devices, takes it exclusively
+//! "mouse". This opens one interface's input devices, takes them exclusively
 //! (`EVIOCGRAB`, so the contacts cannot also land as mouse clicks in whatever
 //! window has focus), runs [`sdroxide_dsp::CwKeyer`] on the contacts, and plays
 //! the sidetone locally. It never keys a radio.
+//!
+//! A composite HID keyer often registers two nodes for the one physical
+//! interface — a keyboard node and a mouse node — and which of them carries the
+//! contacts depends on the firmware. Both are opened and grabbed, and the
+//! dropdown lists one entry per interface rather than one per node.
 //!
 //! Native and Linux only: it is raw evdev, and the browser and the other
 //! platforms have no equivalent. The keyer itself is portable and lives in the
 //! DSP crate; this is only the part that touches a device.
 
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::AsRawFd;
@@ -30,29 +36,69 @@ const BTN_LEFT: u16 = 0x110;
 const BTN_RIGHT: u16 = 0x111;
 const BTN_MIDDLE: u16 = 0x112;
 
-/// Every candidate paddle device: the kernel's by-id names for the button half
-/// of a composite HID keyer. The by-id name is used rather than an event number
-/// because it is stable across replug.
+/// One entry per keyer interface, preferring its mouse node (where the contacts
+/// usually are) and falling back to its keyboard node.
 pub fn devices() -> Vec<PathBuf> {
-    let mut v = Vec::new();
+    let mut bases: BTreeMap<String, (Option<PathBuf>, Option<PathBuf>)> = BTreeMap::new();
     if let Ok(rd) = std::fs::read_dir("/dev/input/by-id") {
         for e in rd.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
-            if name.ends_with("-event-mouse") || name.ends_with("-event-kbd") {
-                v.push(e.path());
+            let (base, keyboard) = if let Some(b) = name.strip_suffix("-event-mouse") {
+                (b.to_string(), false)
+            } else if let Some(b) = name.strip_suffix("-event-kbd") {
+                (b.to_string(), true)
+            } else {
+                continue;
+            };
+            let slot = bases.entry(base).or_default();
+            if keyboard {
+                slot.1 = Some(e.path());
+            } else {
+                slot.0 = Some(e.path());
             }
         }
     }
-    v.sort();
-    v
+    bases.into_values().filter_map(|(mouse, kbd)| mouse.or(kbd)).collect()
 }
 
 /// The device to open by default: the one whose name says "key", so a real
 /// mouse is never grabbed by accident. `None` leaves it to the operator.
 pub fn default_device() -> Option<PathBuf> {
-    devices().into_iter().find(|p| {
-        p.file_name().map(|n| n.to_string_lossy().to_lowercase().contains("key")).unwrap_or(false)
-    })
+    let all = devices();
+    all.iter()
+        .find(|p| name_says_key(p) && is_mouse(p))
+        .or_else(|| all.iter().find(|p| name_says_key(p)))
+        .cloned()
+}
+
+fn name_says_key(p: &Path) -> bool {
+    p.file_name().map(|n| n.to_string_lossy().to_lowercase().contains("key")).unwrap_or(false)
+}
+
+fn is_mouse(p: &Path) -> bool {
+    p.file_name().map(|n| n.to_string_lossy().ends_with("-event-mouse")).unwrap_or(false)
+}
+
+/// The two nodes one interface may register. Both are opened, because which one
+/// carries the paddle contacts is the firmware's choice.
+fn siblings(path: &Path) -> Vec<PathBuf> {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let Some(base) = name.strip_suffix("-event-mouse").or_else(|| name.strip_suffix("-event-kbd"))
+    else {
+        return vec![path.to_path_buf()];
+    };
+    let dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let mut out = Vec::new();
+    for suffix in ["-event-mouse", "-event-kbd"] {
+        let p = dir.join(format!("{base}{suffix}"));
+        if p.exists() {
+            out.push(p);
+        }
+    }
+    if out.is_empty() {
+        out.push(path.to_path_buf());
+    }
+    out
 }
 
 /// How the two contacts map onto dit and dah, and how they are keyed.
@@ -98,10 +144,10 @@ impl CwKeySource {
         });
         let stop = Arc::new(AtomicBool::new(false));
         let (shared2, stop2) = (Arc::clone(&shared), Arc::clone(&stop));
-        let path2 = path.to_path_buf();
+        let paths = siblings(path);
         let thread = std::thread::Builder::new()
             .name("cw-key".into())
-            .spawn(move || run(path2, setup, &shared2, &stop2))
+            .spawn(move || run(paths, setup, &shared2, &stop2))
             .map_err(|e| format!("could not start the CW key thread: {e}"))?;
         Ok(CwKeySource { shared, stop, thread: Some(thread) })
     }
@@ -139,33 +185,45 @@ fn set_error(shared: &Shared, msg: String) {
     *shared.error.lock().unwrap() = Some(msg);
 }
 
-fn run(path: PathBuf, setup: KeySetup, shared: &Shared, stop: &AtomicBool) {
-    let file = match File::open(&path) {
-        Ok(f) => f,
-        Err(e) => {
-            set_error(shared, format!("cannot open {}: {e}", path.display()));
-            return;
+fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool) {
+    let mut files = Vec::new();
+    for path in &paths {
+        match File::open(path) {
+            Ok(f) => files.push((path.clone(), f)),
+            Err(e) => {
+                set_error(shared, format!("cannot open {}: {e}", path.display()));
+                return;
+            }
         }
-    };
-    let fd = file.as_raw_fd();
-    let grabbed = unsafe { libc::ioctl(fd, EVIOCGRAB, 1) } == 0;
-    if !grabbed {
+    }
+    let fds: Vec<libc::c_int> = files.iter().map(|(_, f)| f.as_raw_fd()).collect();
+    let mut any_ungrabbed = false;
+    for fd in &fds {
+        if unsafe { libc::ioctl(*fd, EVIOCGRAB, 1) } != 0 {
+            any_ungrabbed = true;
+        }
+    }
+    if any_ungrabbed {
         // Not fatal: the contacts are still readable, they just also arrive as
         // clicks. Say so instead of pretending the grab worked.
         set_error(
             shared,
-            "could not take the device exclusively — its buttons may also click \
+            "could not take the paddle exclusively — its contacts may also click \
              in other windows (is another program using it?)"
                 .into(),
         );
     }
-    unsafe { libc::fcntl(fd, libc::F_SETFL, libc::O_NONBLOCK) };
+    for fd in &fds {
+        unsafe { libc::fcntl(*fd, libc::F_SETFL, libc::O_NONBLOCK) };
+    }
 
     let (out, mut ring) = match start_output(None, 48_000) {
         Ok(v) => v,
         Err(e) => {
             set_error(shared, format!("no audio output for the sidetone: {e}"));
-            unsafe { libc::ioctl(fd, EVIOCGRAB, 0) };
+            for fd in &fds {
+                unsafe { libc::ioctl(*fd, EVIOCGRAB, 0) };
+            }
             return;
         }
     };
@@ -183,28 +241,30 @@ fn run(path: PathBuf, setup: KeySetup, shared: &Shared, stop: &AtomicBool) {
     let ev_size = std::mem::size_of::<libc::input_event>();
 
     while !stop.load(Ordering::Relaxed) {
-        loop {
-            match (&file).read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    for chunk in buf[..n].chunks_exact(ev_size) {
-                        let ev = unsafe {
-                            std::ptr::read_unaligned(chunk.as_ptr() as *const libc::input_event)
-                        };
-                        if ev.type_ != EV_KEY {
-                            continue;
-                        }
-                        let down = ev.value != 0;
-                        match ev.code {
-                            BTN_LEFT => dit = down,
-                            BTN_RIGHT => dah = down,
-                            BTN_MIDDLE => {}
-                            _ => {}
+        for (_, file) in &mut files {
+            loop {
+                match file.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        for chunk in buf[..n].chunks_exact(ev_size) {
+                            let ev = unsafe {
+                                std::ptr::read_unaligned(chunk.as_ptr() as *const libc::input_event)
+                            };
+                            if ev.type_ != EV_KEY {
+                                continue;
+                            }
+                            let down = ev.value != 0;
+                            match ev.code {
+                                BTN_LEFT => dit = down,
+                                BTN_RIGHT => dah = down,
+                                BTN_MIDDLE => {}
+                                _ => {}
+                            }
                         }
                     }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(_) => break,
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
-                Err(_) => break,
             }
         }
 
@@ -246,5 +306,7 @@ fn run(path: PathBuf, setup: KeySetup, shared: &Shared, stop: &AtomicBool) {
 
         std::thread::sleep(Duration::from_millis(1));
     }
-    unsafe { libc::ioctl(fd, EVIOCGRAB, 0) };
+    for fd in &fds {
+        unsafe { libc::ioctl(*fd, EVIOCGRAB, 0) };
+    }
 }
