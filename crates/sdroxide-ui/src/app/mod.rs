@@ -1089,6 +1089,11 @@ pub struct SdroxideApp {
     /// The ATS Mini's memory slots, from its last `memories-dump`; the
     /// settings tab's Memories section draws them. `None` until asked for.
     atsmini_memories: Option<Vec<sdroxide_types::atsmini::AtsMiniMemory>>,
+    /// The ATS Mini is still stepping its band cycle toward a requested tune,
+    /// so the dial on screen is ahead of the radio. Set by
+    /// [`sdroxide_types::RadioEvent::AtsMiniTuning`] and shown as a small note
+    /// under the frequency readout.
+    atsmini_tuning: bool,
     /// The sign-in screen a server that asks for a password puts up, in place
     /// of everything above.
     login: crate::login::LoginForm,
@@ -1739,6 +1744,7 @@ spots: Vec::new(),
             wefax: Default::default(),
             oob_tx_ack: ui_settings.oob_tx_dismissed,
             atsmini_memories: None,
+            atsmini_tuning: false,
             login: Default::default(),
             remote_access: persist::load_remote_access(),
             #[cfg(not(target_arch = "wasm32"))]
@@ -2191,6 +2197,12 @@ spots: Vec::new(),
         sdroxide_types::force_swl()
             || self.swl_start
             || self.radio_cfg.as_ref().is_some_and(|c| c.hide_tx)
+    }
+
+    /// Whether the active radio is an ATS Mini, whose dial can lag the one on
+    /// screen because it tunes by stepping its own band cycle.
+    pub(in crate::app) fn atsmini_active(&self) -> bool {
+        self.radio_cfg.as_ref().is_some_and(|c| c.backend == sdroxide_types::Backend::AtsMini)
     }
 
     /// Whether this radio has a transmitter at all.

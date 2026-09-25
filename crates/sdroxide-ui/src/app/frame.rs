@@ -1402,6 +1402,9 @@ impl SdroxideApp {
                 // The ATS Mini's memory table, answered to a `memories-dump`.
                 // Held for the settings tab's Memories section.
                 RadioEvent::AtsMiniMemories(m) => self.atsmini_memories = Some(m),
+                // The radio is still stepping toward a tune we sent; the note
+                // shows under the dial while it is true.
+                RadioEvent::AtsMiniTuning(on) => self.atsmini_tuning = on,
                 RadioEvent::Ft8Decodes(d) => {
                     if let Some(st) = self.digi_status.as_ref()
                         && self.focused

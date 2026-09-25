@@ -58,6 +58,10 @@ struct Shared {
     telemetry: Option<Telemetry>,
     /// A human-readable connection state, for the log/open banner.
     status: Option<String>,
+    /// A tune we sent is still in flight — the radio is stepping its band cycle
+    /// toward the requested dial. Read by `poll_control` and passed up so the
+    /// readout can say the dial is ahead of the radio.
+    tuning: bool,
 }
 
 /// ATS Mini receive source: sound-card audio plus the TCP control link.
@@ -78,6 +82,9 @@ pub struct AtsMiniSource {
     center: f64,
     label: String,
     status: Option<String>,
+    /// The last `Shared::tuning` handed to the engine, so the level is reported
+    /// once per change rather than every tick.
+    tuning_reported: bool,
     released: bool,
 }
 
@@ -152,6 +159,7 @@ impl AtsMiniSource {
             center: center_hz,
             label: format!("ATS Mini at {host}:{port} (audio on {dev_label})"),
             status,
+            tuning_reported: false,
             released: false,
         })
     }
@@ -334,6 +342,13 @@ impl IqSource for AtsMiniSource {
                 self.center = hz;
             }
             out.push(u);
+        }
+        // The tune-in-flight level, on a change only — it is read off the shared
+        // state every tick, so sending it every tick would be an event a frame.
+        let tuning = self.shared.lock().map(|s| s.tuning).unwrap_or(false);
+        if tuning != self.tuning_reported {
+            self.tuning_reported = tuning;
+            out.push(ControlUpdate::AtsMiniTuning(tuning));
         }
         out
     }
@@ -601,6 +616,19 @@ fn control_thread(
                 }
             }
 
+            // A tune is "in flight" while the `F` has not been confirmed or a
+            // band burst is still settling; the readout shows the requested
+            // dial throughout, so this is what lets it admit the radio has not
+            // arrived. Published under the shared lock `poll_control` reads.
+            {
+                let tuning = pending_band.is_some()
+                    || target_hz.is_some()
+                    || settle_until.is_some_and(|t| Instant::now() < t);
+                if let Ok(mut s) = shared.lock() {
+                    s.tuning = tuning;
+                }
+            }
+
             match stream.read(&mut buf) {
                 Ok(0) => break 'session,
                 Ok(n) => {
@@ -692,6 +720,11 @@ fn control_thread(
                 tracing::debug!(slots = mems.len(), "ATS Mini: memory dump");
                 let _ = control_tx.send(ControlUpdate::AtsMiniMemories(mems));
             }
+        }
+        // The link is gone, so nothing is still arriving: clear the in-flight
+        // flag rather than leaving the readout saying "tuning" forever.
+        if let Ok(mut s) = shared.lock() {
+            s.tuning = false;
         }
         set_status(&shared, Some("ATS Mini disconnected".into()));
         tracing::warn!("ATS Mini: control link {host}:{port} closed; reconnecting");

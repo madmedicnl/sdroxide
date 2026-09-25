@@ -6105,6 +6105,12 @@ impl Engine {
             ControlUpdate::AtsMiniMemories(v) => {
                 let _ = self.event_tx.send(RadioEvent::AtsMiniMemories(v));
             }
+            // Also not a control to apply: the dial is already where the
+            // operator asked, and this only says the radio has not caught up.
+            // The screen owns the note; forward it and be done.
+            ControlUpdate::AtsMiniTuning(on) => {
+                let _ = self.event_tx.send(RadioEvent::AtsMiniTuning(on));
+            }
             ControlUpdate::Mode(m) => {
                 let cur = self.state.rx[0].mode;
                 // Against the mode we *command*, not the one on screen: SSTV is

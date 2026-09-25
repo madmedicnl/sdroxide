@@ -397,6 +397,11 @@ pub enum RadioEvent {
     /// link is a local hardware concern, and the server bridge maps it to
     /// `None` like [`RadioEvent::Qo100Status`].
     AtsMiniMemories(Vec<crate::atsmini::AtsMiniMemory>),
+    /// The ATS Mini is still stepping its band cycle toward a requested tune.
+    /// The dial on screen is already the requested frequency; this says the
+    /// radio has not arrived yet, so the readout can admit it. Native-only, for
+    /// the same reason [`RadioEvent::AtsMiniMemories`] is.
+    AtsMiniTuning(bool),
 }
 
 /// Snapshot of the frontend's switchable sound devices (native clients).

@@ -1605,6 +1605,21 @@ impl SdroxideApp {
                     crate::theme::CYAN_DIM(),
                 );
             }
+            // The ATS Mini tunes by stepping its own band cycle, so the dial on
+            // screen can be a beat ahead of the radio. Say so, rather than
+            // leaving the operator to wonder why the signal has not followed —
+            // the dial is deliberately *not* dragged back, so this line is the
+            // only sign. Right-aligned so a memory name keeps the left.
+            if self.atsmini_tuning && self.atsmini_active() {
+                let r = readout.response.rect;
+                ui.painter().text(
+                    egui::pos2(r.right(), r.top() + full_h),
+                    egui::Align2::RIGHT_BOTTOM,
+                    "tuning — the radio is catching up",
+                    egui::FontId::proportional(10.0),
+                    crate::theme::CYAN_DIM(),
+                );
+            }
             if let Some(hz) = new_hz {
                 cmds.push(Command::SetVfo { vfo: active, hz: hz - offset });
             }

@@ -113,6 +113,15 @@ pub enum ControlUpdate {
     /// The ATS Mini answered a memory dump; the engine forwards it to the
     /// screen as [`sdroxide_types::RadioEvent::AtsMiniMemories`].
     AtsMiniMemories(Vec<sdroxide_types::atsmini::AtsMiniMemory>),
+
+    /// The ATS Mini is still stepping its own band cycle toward a tune we sent:
+    /// the requested dial is already on screen, but the radio has not arrived.
+    /// The engine forwards it as [`sdroxide_types::RadioEvent::AtsMiniTuning`]
+    /// so the readout can say the dial is ahead of the radio.
+    ///
+    /// Levelled, not one-shot, and only sent on a change: the source publishes
+    /// it at tick granularity but the engine sees it once when it flips.
+    AtsMiniTuning(bool),
 }
 
 /// Anything that produces a stream of complex baseband samples: a live

@@ -1247,6 +1247,9 @@ fn handle_event(shared: &Shared, ev: RadioEvent) {
             // answered on the machine the radio is attached to and is not on
             // the wire.
             RadioEvent::AtsMiniMemories(_) => None,
+            // Native-only too: the dial-ahead-of-the-radio note belongs to the
+            // machine the ATS Mini is attached to.
+            RadioEvent::AtsMiniTuning(_) => None,
             RadioEvent::Profiles(p) => {
                 latest.profiles = p.clone();
                 Some(ServerMsg::Profiles(p))

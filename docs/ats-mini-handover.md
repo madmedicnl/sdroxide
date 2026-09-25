@@ -215,18 +215,26 @@ from AM, `m` (down) is one step, `M` (up) is two.
 
 ## Open items (2026-09-25)
 
-- **ATS Mini tuning lag — carry on tomorrow.** Tuning steps the receiver's own
-  band cycle, so the app's dial leads the radio by a moment (worst crossing
-  bands). Two behaviours seen on the bench:
-  - The app adopting the radio's *intermediate* band dials during a burst. The
-    fix landed: a settle window after a band burst suppresses out-of-band dial
+- **ATS Mini tuning lag — finished (decision: lock the dial + a near-dial
+  note).** Tuning steps the receiver's own band cycle, so the app's dial leads
+  the radio by a moment (worst crossing bands). Two behaviours seen on the bench:
+  - The app adopting the radio's *intermediate* band dials during a burst. Fixed
+    earlier: a settle window after a band burst suppresses out-of-band dial
     reports, `commanded_hz` is pinned to the requested frequency (not the dial
     read back at acceptance), and acceptance only clears when the outstanding
-    `F` is for the current target. Re-test the fast-scroll-then-wait case.
-  - The lag itself is inherent. A clear UI indication is wanted ("the dial lags
-    your scroll"); the settings tab has a line, but consider something nearer
-    the dial/progress. Open: should the app lock its dial to the requested
-    frequency until the radio confirms, or show the lag? Decide and finish.
+    `F` is for the current target. **Still to re-test on the bench:** the
+    fast-scroll-then-wait case.
+  - The lag itself is inherent, and the decision is to **keep the dial locked to
+    the requested frequency** (it never chases the radio's intermediate dials)
+    and **say so near the dial**. The control thread publishes a `Shared::tuning`
+    level (a tune in flight: an unconfirmed `F` or a settling band burst);
+    `poll_control` sends `ControlUpdate::AtsMiniTuning` on a change; the engine
+    forwards `RadioEvent::AtsMiniTuning` (native-only, server maps it to `None`);
+    the top bar paints "tuning — the radio is catching up" under the readout
+    while `SdroxideApp::atsmini_tuning && atsmini_active()`. Pinned by
+    `a_source_tuning_level_reaches_the_screen`; the paint itself needs the app
+    and is not unit-tested here, and the live fast-scroll case is the bench
+    check.
 - **Sidebands on every AM band — done.** The popup's mode row is now one
   constant, `sdroxide_types::atsmini::DEMOD_MODES` (`Am`, `Lsb`, `Usb`, `Wfm`),
   drawn with the never-greyed LISTEN chips, and `firmware_mode` maps LSB and USB
