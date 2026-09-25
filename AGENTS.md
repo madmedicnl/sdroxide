@@ -1127,6 +1127,17 @@ un-grabbed device just clicks the GUI. The bench keyer here is a CH55x
 contacts and does no iambic of its own, which is why the keyer is in software.
 Not tested on other paddle hardware.
 
+The portable half is offered upstream as draft **#569** (branch
+`upstream-pr/cw-keyer`, from `upstream/main`), asking two shape questions in the
+body rather than assuming the answers: whether the keyer's key-down output
+should also drive the transmit path (it is exactly what a transmitter needs, and
+`Command::CwStraight` → `cw_controller::set_straight` is the existing seam — kept
+out of the draft because it is a transmit-path change that cannot be tested on
+the air here), and whether the same type should take a straight key (the
+opposite problem: pass the contact through and decode the operator's timing,
+which `CwSelfRx` already does). Do not build the transmit wiring here before the
+maintainer answers; it belongs in its own PR.
+
 ## Explore later
 
 - **NR2 (WDSP's Ephraim-Malah denoiser)** — **landed upstream on the 2026-09-20
