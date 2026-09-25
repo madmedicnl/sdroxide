@@ -56,6 +56,36 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   he applies our commits verbatim. He just wants them decomposed, and doing it
   ourselves saves the round trip. Anything with a `PROTO_VERSION` bump, a new
   decoder, a resampler or a transmit-path change is in the "isolate it" group.
+- **Review lessons — the maintainer's recurring points.** From his reviews of
+  #537, #557, #558 and #561 (2026-09-25). Each of these was a returned PR item,
+  so check them before opening, not after:
+  - **The wire enum is append-last, always.** A variant inserted mid-enum shifts
+    every discriminant below it, whatever its own note claims; #537 put
+    `ServerMsg::BandOpenings` after `Spots`. Bump `PROTO_VERSION`, say what
+    moved, and add a postcard round-trip test for the new variant.
+  - **A UI addition must respect the reserved width.** A chip's label is priced
+    by `RxChip::width_label`; changing `REC` to `REC AUTO` overflowed the RX
+    strip by 30 pt. Show a state with a tint, an outline or the hover instead of
+    widening the label, and add a phone-width layout test for every new chip row.
+  - **Carried state needs all its edges.** A per-frame gate must handle an
+    operator's manual stop (do not undo it next frame), a start that never took
+    (do not re-send it every frame), and every condition the engine itself uses
+    (the tone squelch and our own transmit, not only passband power).
+  - **Feed-derived state is per path, per band, and per radio.** PSK Reporter is
+    only polled for the band the dial is on, so a warm-up span is per (band ×
+    continent); a dedupe key must include a time bucket or a station still active
+    after the retention window counts as new again; and anything the manager
+    derives from the feeds must ride `adopt_spot_feed` or it is empty on every
+    tab but the station radio.
+  - **Declare levels honestly.** `fsk441_generate_audio` is full-scale, so
+    `tx_peak` must be 1.0 — the engine scales by `1/peak`, and a default 0.5
+    doubled it into the limiter. Releasing transmit must stop the loop, and an
+    empty box must refuse the key and say why.
+  - **Third-party code carries its licence.** A module adapted from an MIT
+    project includes that project's full notice in the file.
+  - **Do not trust feed order or leave caches unbounded**, and **no comments
+    that talk about the review, the fork, or a "first version"** — upstream code
+    should read as if it were always there.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
   upstream is at **170**, the fork's `main` at **177**. The fork's extras are
   the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
