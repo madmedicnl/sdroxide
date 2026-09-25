@@ -917,12 +917,25 @@ mod tests {
 
     /// 11 m WSJT-CB decodes reach the detector directly — there is no cluster
     /// or PSK-Reporter feed on the citizens' band — and a burst of them must
-    /// surface on the very next poll as an `M11` opening.
+    /// surface on the very next poll as an `M11` opening. The warm-up is per
+    /// path, so the test gives the path a quiet baseline first: a burst with no
+    /// history is the band being open, not a *change* on it.
     #[test]
     fn fed_eleven_metre_paths_surge_the_detector_on_the_next_poll() {
         let mut m = SpotManager::new();
         let now = now_utc();
-        let paths: Vec<BandPath> = (0..8)
+        let baseline: Vec<BandPath> = (0..6)
+            .map(|i| BandPath {
+                call: format!("G{}ABCD", i % 10),
+                band: Band::M11,
+                from_continent: "AS",
+                to_continent: "EU",
+                timestamp: now - 1000 - i * 500,
+                id: Some(format!("11m-base-{i}")),
+            })
+            .collect();
+        m.feed_openings(baseline, now);
+        let burst: Vec<BandPath> = (0..8)
             .map(|i| BandPath {
                 call: format!("JA{}ABCD", i % 10),
                 band: Band::M11,
@@ -932,7 +945,7 @@ mod tests {
                 id: Some(format!("11m|JA{}ABCD|{i}", i % 10)),
             })
             .collect();
-        m.feed_openings(paths, now);
+        m.feed_openings(burst, now);
         let openings = m.poll().into_iter().find_map(|e| match e {
             NetEvent::BandOpenings(o) => Some(o),
             _ => None,

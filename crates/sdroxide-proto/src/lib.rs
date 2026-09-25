@@ -1545,7 +1545,15 @@ use sdroxide_types::{
 /// v176 peer reads the extra `atsmini` bytes as the start of the next field
 /// and fails to decode every radio config — the same break as v176's appended
 /// `uvpacket`. Fork-only (an SWL extra), like the schedule and the log.
-pub const PROTO_VERSION: u16 = 177;
+///
+/// v178: FSK441's transmit half. `DigiStatus` gains `tx_refused`
+/// (`Option<String>`) on its tail — the reason a key-up was refused, an empty
+/// message box most often — so a panel can say why rather than looking armed
+/// and doing nothing. `DigiStatus` rides `RadioState` whole, so a v177 peer
+/// reads the extra bytes as the start of the next field and fails to decode
+/// every digital status. No new wire type: FSK441's transmit runs through the
+/// ordinary digi engine seam (`DigiTxText`/`DigiTxActive`).
+pub const PROTO_VERSION: u16 = 178;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

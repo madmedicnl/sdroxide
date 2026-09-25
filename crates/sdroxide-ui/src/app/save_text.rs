@@ -31,6 +31,12 @@ fn csv(s: &str) -> String {
     }
 }
 
+/// A field in one of the tab-separated `.txt` logs: tabs and line breaks are
+/// replaced rather than quoted, since there is no quoting in TSV.
+fn tsv(s: &str) -> String {
+    s.replace(['\n', '\r', '\t'], " ")
+}
+
 /// The mode's name lowercased and filesystem-safe, for the suggested filename.
 fn slug(status: &DigiStatus) -> String {
     status.mode.label().to_ascii_lowercase().replace(['/', ' '], "-")
@@ -49,6 +55,7 @@ pub fn digi_has_log(status: &DigiStatus) -> bool {
         || !status.fsq_messages.is_empty()
         || status.packet.as_ref().is_some_and(|p| !p.heard.is_empty())
         || status.js8.as_ref().is_some_and(|j| !j.messages.is_empty())
+        || status.aprs.as_ref().is_some_and(|a| !a.traffic.is_empty())
 }
 
 /// The current mode's decoded log as `(suggested file name, text)`, or `None`
@@ -80,15 +87,16 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
         return Some((format!("sdroxide-{}-log.txt", slug(status)), uvpacket_text(u)));
     }
     if !status.fsq_messages.is_empty() {
-        let mut out = String::from("utc\tdirection\tfrom\tto\ttext\n");
+        // FSQ messages carry no time, so there is no UTC column to write: a
+        // stamp(0) column read 1970 on every row.
+        let mut out = String::from("direction\tfrom\tto\ttext\n");
         for m in &status.fsq_messages {
             out.push_str(&format!(
-                "{}\t{}\t{}\t{}\t{}\n",
-                stamp(0),
+                "{}\t{}\t{}\t{}\n",
                 if m.to_me { "to-me" } else { "all" },
-                m.from,
-                m.to,
-                m.text
+                tsv(&m.from),
+                tsv(&m.to),
+                tsv(&m.text)
             ));
         }
         return Some((format!("sdroxide-{}-log.txt", slug(status)), out));
@@ -96,10 +104,12 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
     if let Some(p) = &status.packet
         && !p.heard.is_empty()
     {
-        let mut out = String::from("utc\tfrom\tto\tvia\tkind\tsent\ttext\n");
+        // Real CSV, matching the .csv name: commas and quoting, not tabs with
+        // CSV quoting glued on.
+        let mut out = String::from("utc,from,to,via,kind,sent,text\n");
         for h in &p.heard {
             out.push_str(&format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                "{},{},{},{},{},{},{}\n",
                 stamp(h.at),
                 csv(&h.from),
                 csv(&h.to),
@@ -114,10 +124,10 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
     if let Some(j) = &status.js8
         && !j.messages.is_empty()
     {
-        let mut out = String::from("utc\tfrom\tto\tsnr_db\taudio_hz\tcomplete\ttext\n");
+        let mut out = String::from("utc,from,to,snr_db,audio_hz,complete,text\n");
         for m in &j.messages {
             out.push_str(&format!(
-                "{}\t{}\t{}\t{}\t{:.0}\t{}\t{}\n",
+                "{},{},{},{},{:.0},{},{}\n",
                 stamp(m.first_slot_utc),
                 csv(&m.from),
                 csv(&m.to),
@@ -125,6 +135,24 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
                 m.audio_hz,
                 if m.complete { "complete" } else { "partial" },
                 csv(&m.text)
+            ));
+        }
+        return Some((format!("sdroxide-{}-log.csv", slug(status)), out));
+    }
+    if let Some(a) = &status.aprs
+        && !a.traffic.is_empty()
+    {
+        let mut out = String::from("utc,from,to,via,kind,sent,info\n");
+        for t in &a.traffic {
+            out.push_str(&format!(
+                "{},{},{},{},{},{},{}\n",
+                stamp(t.at),
+                csv(&t.from),
+                csv(&t.to),
+                csv(&t.via.join(",")),
+                csv(&t.kind),
+                if t.sent { "sent" } else { "heard" },
+                csv(&t.info)
             ));
         }
         return Some((format!("sdroxide-{}-log.csv", slug(status)), out));
@@ -156,7 +184,7 @@ fn dsc_text(d: &DscStatus) -> String {
             "{}\t{:09}\t{}\n",
             stamp(h.at),
             h.message.self_mmsi,
-            h.message.summary()
+            tsv(&h.message.summary())
         ));
     }
     out
@@ -172,7 +200,7 @@ fn navtex_text(n: &NavtexStatus) -> String {
             m.kind,
             m.serial,
             m.lost,
-            m.text.replace('\n', " ")
+            tsv(&m.text)
         ));
     }
     out
@@ -192,7 +220,7 @@ fn uvpacket_text(u: &UvPacketStatus) -> String {
             f.sequence,
             f.block_count,
             f.snr_db,
-            csv(&payload)
+            tsv(&payload)
         ));
     }
     out
@@ -239,11 +267,11 @@ pub fn hfdl_log_text(log: &[HfdlDecode]) -> String {
         out.push_str(&format!(
             "{}\t{}\t{}\t{}\t{}\t{}\n",
             stamp(d.unix),
-            csv(&d.kind),
-            csv(d.gs.as_deref().unwrap_or("")),
+            tsv(&d.kind),
+            tsv(d.gs.as_deref().unwrap_or("")),
             d.freq_khz,
             d.snr_db.map_or(String::new(), |v| format!("{v:.1}")),
-            d.details.replace(['\n', '\t'], " ")
+            tsv(&d.details)
         ));
     }
     out
@@ -258,7 +286,7 @@ pub fn vdl2_log_text(messages: &[Vdl2Message]) -> String {
             stamp(m.at),
             m.freq_hz / 1e6,
             m.snr_db,
-            m.summary().replace(['\n', '\t'], " ")
+            tsv(&m.summary())
         ));
     }
     out
@@ -272,10 +300,10 @@ pub fn skimmer_text(spots: &[SkimmerSpot]) -> String {
             "{}\t{:.4}\t{}\t{}\t{}\t{}\n",
             s.kind.label(),
             s.freq_hz / 1e6,
-            csv(s.callsign.as_deref().unwrap_or("")),
+            tsv(s.callsign.as_deref().unwrap_or("")),
             s.snr_db,
             s.wpm,
-            s.text.replace(['\n', '\t'], " ")
+            tsv(&s.text)
         ));
     }
     out
@@ -328,5 +356,46 @@ mod tests {
     fn an_empty_log_saves_nothing() {
         let st = DigiStatus::idle(sdroxide_types::DigiConfig::default());
         assert!(digi_log(&st).is_none());
+    }
+
+    /// The APRS panel carries the chip like every other text panel, so its
+    /// traffic log has to be gated and formatted.
+    #[test]
+    fn an_aprs_traffic_log_saves_and_is_gated() {
+        let mut st = DigiStatus::idle(sdroxide_types::DigiConfig::default());
+        st.mode = sdroxide_types::Mode::Aprs;
+        st.aprs = Some(Box::new(sdroxide_types::AprsStatus {
+            traffic: vec![sdroxide_types::AprsTraffic {
+                at: 1_700_000_000,
+                from: "W1ABC-9".into(),
+                to: "APRS".into(),
+                via: vec!["WIDE1-1".into()],
+                info: "!4210.00N/07100.00W>test".into(),
+                kind: "position".into(),
+                sent: false,
+            }],
+            ..Default::default()
+        }));
+        assert!(digi_has_log(&st), "APRS traffic must enable the SAVE chip");
+        let (name, text) = digi_log(&st).expect("something to save");
+        assert_eq!(name, "sdroxide-aprs-log.csv");
+        assert!(text.starts_with("utc,from,to,via,kind,sent,info\n"), "{text}");
+        assert!(text.contains("W1ABC-9"), "{text}");
+    }
+
+    /// FSQ messages carry no time, so the file must not invent one: the column
+    /// used to be a `stamp(0)`, i.e. 1970 on every row.
+    #[test]
+    fn fsq_has_no_bogus_1970_timestamp() {
+        let mut st = DigiStatus::idle(sdroxide_types::DigiConfig::default());
+        st.mode = sdroxide_types::Mode::Fsq;
+        st.fsq_messages = vec![sdroxide_types::FsqMsg {
+            from: "W1ABC".into(),
+            to: "ALLCALL".into(),
+            text: "hello".into(),
+            to_me: false,
+        }];
+        let (_, text) = digi_log(&st).expect("something to save");
+        assert_eq!(text, "direction\tfrom\tto\ttext\nall\tW1ABC\tALLCALL\thello\n");
     }
 }

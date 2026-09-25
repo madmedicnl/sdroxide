@@ -3586,8 +3586,8 @@ The panel has two halves:
   **Saving decoded text.** Every text mode's panel carries a **SAVE** chip
   beside its **CLEAR RX** (issue #533): CW and the keyboard modes write the
   receive text as it stands, and the message modes — ACARS, DSC, NAVTEX, VDL2,
-  HFDL, FSQ, UVPacket, packet and JS8 — write their log, one line per message
-  with the UTC time. WSPR, PI4 and the skimmer write their spot lists. The
+  HFDL, FSQ, UVPacket, packet, JS8 and APRS — write their log, one line per
+  message with the UTC time. WSPR, PI4 and the skimmer write their spot lists. The
   suggested name carries the mode, and the dialog is the same one the logbook
   and the ADIF export use, so the file lands wherever you choose. A mode with
   nothing decoded yet greys the chip rather than opening an empty file.
@@ -6291,9 +6291,13 @@ hold transmit and the message repeats for the length of the over, so a meteor's
 brief trail catches whatever part of it is passing. The **TX** row under the
 decode list is a single line — type the message (`W1ABC W9XYZ FN42`, or one of
 the shorthand words `R26`/`R27`/`RRR`/`73`) and press **TX**; **CALL CQ** fills
-the box with a CQ and starts it. The message loops until you unkey. There is no
-automatic sequencing and no station being called: a meteor-scatter contact is
-arranged by ear and by the shorthand, which is what the mode has always been.
+the box with a CQ and starts it. A shorthand word on its own is sent as its
+single tone rather than spelled out, which is how the mode works those replies.
+The message loops until you unkey, and unkeying ends the over — the loop does
+not run on. A key with an empty box is refused and says so rather than arming a
+transmitter that would sit on an empty carrier. There is no automatic
+sequencing and no station being called: a meteor-scatter contact is arranged by
+ear and by the shorthand, which is what the mode has always been.
 
 ## 4. Skimmers
 
