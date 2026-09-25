@@ -35,6 +35,20 @@ const AUDIO_BW_HZ: f64 = 4000.0;
 /// telemetry jitter. The coarsest step is 100 kHz and the finest a few Hz.
 const OUT_OF_BAND_MIN_HZ: i64 = 5;
 
+/// How long a popup band pick is given to land before its tune is sent anyway.
+///
+/// The firmware processes a `B`/`b` burst in well under a frame, but it only
+/// prints telemetry on a 500 ms cadence, so waiting for telemetry to *confirm*
+/// the band costs up to a second even when the radio is already there. This is
+/// the worst case with a margin — the debug log prints the real confirmation
+/// latency (`ATS Mini: band pick confirmed after N ms`) so the bench can set it
+/// from a measured full-cycle burst: after the deadline the tune goes out on the
+/// strength of the pick, and the tune path must not run its own band-ensure,
+/// whose view of the band is the same stale telemetry — that is what added one
+/// step and turned a pick of 49M into 60M. A confirmation that arrives sooner
+/// ends the wait early.
+const BAND_PICK_SETTLE: Duration = Duration::from_millis(1500);
+
 /// Commands the app sends the control thread.
 enum Cmd {
     Freq(f64),
@@ -503,6 +517,17 @@ fn control_thread(
         // The frequency whose band we have already put the radio in, so the
         // band is ensured once per tune rather than per F.
         let mut band_ensured_for: Option<u64> = None;
+        // A band picked from the popup, whose step burst is still settling.
+        // While it is set the tune path must not run its own band-ensure: it
+        // reads stale telemetry, decides the frequency is in the wrong band,
+        // and adds one step on top of the pick — which is how a pick of 49M
+        // from VHF ended on 60M. Cleared when telemetry confirms the pick, or
+        // when `band_pick_deadline` passes.
+        let mut band_pick: Option<usize> = None;
+        // When the pick stops being waited for, and when it was sent (for the
+        // measured confirmation latency in the log).
+        let mut band_pick_deadline: Option<Instant> = None;
+        let mut band_pick_sent: Option<Instant> = None;
         // While a band burst (or a single step) is settling, the dial passes
         // through every intermediate band; those are ours, not the operator's,
         // and must not reach the app as out-of-band moves.
@@ -560,6 +585,9 @@ fn control_thread(
                     if cur != idx {
                         out = Some(band_burst(cur, idx));
                         settle_until = Some(Instant::now() + Duration::from_millis(900));
+                        band_pick = Some(idx);
+                        band_pick_sent = Some(Instant::now());
+                        band_pick_deadline = Some(Instant::now() + BAND_PICK_SETTLE);
                     }
                     pending_band = None;
                 }
@@ -569,7 +597,22 @@ fn control_thread(
                     let cur = shared.lock().ok().and_then(|s| {
                         s.telemetry.as_ref().and_then(|t| atsmini::band_index(&t.band, t.dial_hz()))
                     });
-                    if band_ensured_for != Some(hz) {
+                    // A picked band is still stepping: wait for telemetry to
+                    // confirm it rather than second-guessing it below. If the
+                    // deadline passes first, trust the pick and tune anyway —
+                    // but skip band-ensure, which reads the same stale band.
+                    let pick_waiting = band_pick.is_some()
+                        && band_pick_deadline.is_some_and(|d| Instant::now() < d);
+                    if band_pick.is_some() && !pick_waiting {
+                        tracing::debug!("ATS Mini: band pick not confirmed in time; tuning anyway");
+                        band_pick = None;
+                        band_pick_deadline = None;
+                        band_pick_sent = None;
+                        band_ensured_for = Some(hz);
+                    }
+                    if pick_waiting {
+                        // Wait for the pick to land; no tune this tick.
+                    } else if band_ensured_for != Some(hz) {
                         // Put the radio in a band that holds the frequency before
                         // offering the `F`: `F` is band-locked, and a scroll that
                         // cycles bands one error at a time never catches the
@@ -655,6 +698,20 @@ fn control_thread(
                                 mode = %t.mode.as_str(),
                                 "ATS Mini: telemetry"
                             );
+                            // A picked band has arrived: let the tune path take
+                            // over again, now that `cur` is the band it picked
+                            // rather than a stale one.
+                            if let Some(cur) = atsmini::band_index(&t.band, t.dial_hz())
+                                && band_pick == Some(cur)
+                            {
+                                if let Some(ms) = band_pick_sent.map(|s| s.elapsed().as_millis()) {
+                                    tracing::debug!(ms, "ATS Mini: band pick confirmed after {ms} ms");
+                                }
+                                band_pick = None;
+                                band_pick_deadline = None;
+                                band_pick_sent = None;
+                                band_ensured_for = None;
+                            }
                             // A tune of ours that the radio did not reject has
                             // landed: it answers an out-of-band `F` with an error
                             // line straight away, so the first telemetry after an

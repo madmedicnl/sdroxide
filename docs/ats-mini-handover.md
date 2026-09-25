@@ -247,6 +247,18 @@ from AM, `m` (down) is one step, `M` (up) is two.
   from the popup also now sends the band's default dial along with the band
   step, so the readout follows the radio into the band instead of staying on the
   frequency it was showing.
+- **The band pick overshot by one — fixed.** With the default dial now sent too,
+  the tune path ran its *own* band-ensure right after the pick burst, reading
+  telemetry that was still on the old band (the monitor prints every 500 ms), so
+  it added one `B` on top of the pick: from VHF, a pick of 49M landed on 60M.
+  While a pick is settling the tune path now waits — `band_pick`, cleared by
+  telemetry when the picked band arrives, or by a `BAND_PICK_SETTLE` deadline if
+  the monitor is slow — and on the deadline it tunes without running
+  band-ensure, whose view of the band is the same stale one. The log prints the
+  real confirmation latency (`ATS Mini: band pick confirmed after N ms`); set
+  `BAND_PICK_SETTLE` from the longest a full-cycle burst takes on the bench,
+  with a margin. **Bench check:** a long pick (CB → VHF, or VHF → 49M) must land
+  on the picked band, and the confirmation latency lines say what to set.
 - **Sidebands on every AM band — done.** The popup's mode row is now one
   constant, `sdroxide_types::atsmini::DEMOD_MODES` (`Am`, `Lsb`, `Usb`, `Wfm`),
   drawn with the never-greyed LISTEN chips, and `firmware_mode` maps LSB and USB
