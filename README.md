@@ -107,8 +107,13 @@ been dropped from the table: **HD Radio (NRSC-5)**, **station profiles**, the
 **CW straight key**, **audible alerts**, the ten editor **themes**, the **USB
 sound-card** backend, the 11 m band and its digimode conventions, **EiBi**
 broadcast labelling, **AIS**, decode **CSV/ADIF export**, browser **ADIF/CHIRP
-import** and the step-row **snap** all live in upstream now. What the table
-lists is what this fork still adds on top.
+import** and the step-row **snap** all live in upstream now; so, since the
+2026-09-25 merge, do the **grey-line night shading**, the **meteor-shower
+calendar**, the **IBP beacons**, the **Kp history trend**, the weak-signal
+modes **MSK144 / JT65 / JT9 / FST4 / Q65 / FSK441**, the wide **VDL2 window
+rate**, and the **FT4/FT2/JS8 successive-interference cancellation**. What the
+table lists is what this fork still adds on top — plus, of those, **FSK441
+transmit**, DSC and UVPacket, which upstream has not taken.
 
 The full interface: the radio, receiver, display and system controls along the top, the waterfall with its level slider on the right.
 

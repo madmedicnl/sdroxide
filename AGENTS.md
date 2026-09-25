@@ -57,25 +57,40 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   ourselves saves the round trip. Anything with a `PROTO_VERSION` bump, a new
   decoder, a resampler or a transmit-path change is in the "isolate it" group.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at **165**, the fork's `main` at **175**. The fork's extras are
+  upstream is at **170**, the fork's `main` at **177**. The fork's extras are
   the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
   additions — the register's full story is documented in
   `crates/sdroxide-proto/src/lib.rs`. Upstream's v157/158 (SSTV styling and
-  the (tr)uSDX family), **v159 (NR2's three `NrLevel` variants)** and **v160
-  (`CwStatus::rig_keys_itself`)** are folded in, and **v165** (the
-  band-decoder relay outputs, #442) was folded in on the 2026-09-23 merge,
-  shifting the fork's own entries above it. Fork-only on top of that:
-  **v166**–**v175** — `auto_idle_stop_min`, `SpotKind::HeardMe`, the (tr)uSDX
-  nG family, `ServerMsg::BandOpenings`, DSC, JT65/JT9, FST4, MSK144, Q65 and
-  UVPacket. When merging, keep the number ahead of upstream's and fold its new
-  entries in rather than dropping them — the 2026-09-23 merge (upstream v165
-  inserted under the fork's register, everything above renumbered) is the
-  latest worked example, after the 2026-09-20 one.
+  the (tr)uSDX family), **v159 (NR2's three `NrLevel` variants)**, **v160
+  (`CwStatus::rig_keys_itself`)** and **v165** (the band-decoder relay outputs,
+  #442) were folded in by earlier merges. On the **2026-09-25 merge**
+  (`5ed9e2d3`) upstream's **v166–v170** folded in — MSK144, JT65/JT9, FST4,
+  Q65 and FSK441, the fork's own six modes that upstream took (see below) — so
+  the fork-only entries renumbered and now sit at **v171**–**v177**:
+  `auto_idle_stop_min`, `SpotKind::HeardMe`, the (tr)uSDX nG family,
+  `ServerMsg::BandOpenings`, DSC, UVPacket and the ATS Mini. When merging,
+  keep the number ahead of upstream's and fold its new entries in rather than
+  dropping them — the 2026-09-25 merge (upstream v166–v170 inserted under the
+  fork's register, everything above renumbered) is the latest worked example,
+  after the 2026-09-23 and 2026-09-20 ones.
 - Watch list:
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46
     accumulated commits made one merge twenty conflicted files.
+  - **The 2026-09-25 merge (`5ed9e2d3`) took a large batch upstream.** Upstream
+    merged the fork's **#541** (grey line), **#542** (meteor calendar),
+    **#543** (IBP beacons), **#544** (Kp history), **#549** (MSK144), **#550**
+    (JT65/JT9), **#551** (FST4), **#552** (Q65), **#555** (FSK441), **#556**
+    (VDL2 window rate) and **#562–#564** (FT4/FT2/JS8 successive-interference
+    cancellation), each with its own review commits. The fork's copies of the
+    features dropped out; the fork keeps its mfsk-core 0.11 pin (CB grammar and
+    UVPacket) so the reviewed FSK441 DSP was taken but the 0.10-coupled
+    controllers/modems were not. Still open upstream from this batch: **#545**
+    (draft, (tr)uSDX nG), **#554** (draft, UVPacket), **#557** (recording
+    silence split), **#558** (SAVE decoded text), **#559** (band-menu captions,
+    fork-only on purpose), **#561** (FSK441 transmit) and **#537** (band
+    openings).
   - `jl1nie/mfsk-core#373` — the fork's CB (11 m) grammar. **Declined and
     closed 2026-09-20.** The maintainer first asked for the feature to become a
     caller-supplied predicate, wrote that design up as #383, then withdrew even
@@ -168,12 +183,14 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     #537's detector lands, then the fork's copy drops out and only the 11 m
     feed and the WSPRnet wording remain.
   - **#514** (HD-on-AM, `upstream-pr/489-hd-am`) was **rebased on current
-    `upstream/main` on 2026-09-21 and marked ready for review**. The earlier
-    draft carried stray vendored gitlinks (`vendor/nrsc5`, `vendor/xng`), which
-    the rebase dropped — `vendor/xng` in particular belongs upstream now (from
-    #509) and deleting it would have broken the build. Read "no `libnrsc5` on
-    this machine, no decodable HD-on-AM station" as the standing caveat: the
-    pure parts are unit-tested, nothing end-to-end is.
+    `upstream/main` on 2026-09-21 and marked ready for review**, and was
+    **taken upstream on 2026-09-22** (`08:41`), so the fork's copy dropped out
+    (it is upstream's `HdRadio` AM wiring now). The earlier draft carried stray
+    vendored gitlinks (`vendor/nrsc5`, `vendor/xng`), which the rebase dropped —
+    `vendor/xng` in particular belongs upstream now (from #509) and deleting it
+    would have broken the build. Read "no `libnrsc5` on this machine, no
+    decodable HD-on-AM station" as the standing caveat: the pure parts are
+    unit-tested, nothing end-to-end is.
   - `dividebysandwich/sdroxide#495` — the IC-7610 LAN straight key. Diagnosed
     as **by design**, not a bug: the keyboard straight key is disabled when the
     rig is keyed by its own keyer (`cw_controller.rs`), which the LAN backend
@@ -217,7 +234,7 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     maintainer asked for `xng` to be vendored rather than a cargo git
     dependency, which is done (`vendor/xng`, a pinned submodule).
     PROTO_VERSION 158 -> 159 on that branch. (Related: #512 the frequency
-    type-in is now **taken upstream**; #514 the HD-on-AM wiring is still open.)
+    type-in and #514 the HD-on-AM wiring are both now **taken upstream**.)
   - `dividebysandwich/sdroxide#518` — a Hermes/ANAN reporter's PureSignal log.
     The HPSDR PureSignal startup warning fired on any board whenever
     `io_rx_input` was not the IO board's PureSignal jack, but that input is
@@ -454,7 +471,13 @@ the ignored fixture test `an_off_air_burst_decodes`
 not report it — that is what a ping detector is for — but its front end reads
 `CQ` and callsign fragments through the heavy clipping. A live 6 m/2 m ping is
 still the bench check. Offered upstream as an "isolate it" PR, **#555**, branch
-`upstream-pr/fsk441` (upstream's `PROTO_VERSION` 165 → 166 there).
+`upstream-pr/fsk441` (upstream's `PROTO_VERSION` 165 → 166 there). **Taken
+upstream on the 2026-09-25 merge** (`30af3e3a`), with review that tightened the
+detector — a run longer than a meteor ping is judged strictly so a steady
+carrier is never the shorthand, the noise floor comes from live blocks, the
+frequency search is ±200 Hz, and space is `033` — so the fork carries that DSP.
+What stays fork-only is **FSK441 transmit** (the message loops for the length of
+the over), still open upstream as **#561**.
 
 ### The VDL2 window on a narrow front end
 
@@ -472,9 +495,11 @@ rung that always holds the plan when any does. Large front ends are unchanged;
 768 k and 912 k now reach all fourteen. `plan.rs`'s own test only covered rates
 ≥ 2 Msps, which is how it slipped through — the sweep
 `every_wide_enough_front_end_reaches_the_whole_plan` is the guard now. Offered
-upstream as PR **#556**. (The engine already reports the shortfall in
-`vdl2_degraded` — "reaches N of the 14 channels" — so check that sentence on a
-report before reaching for the arithmetic.)
+upstream as PR **#556**, and **taken upstream on the 2026-09-25 merge**, with a
+review tweak to prefer the *narrowest* decimation rung that holds the plan. (The
+engine already reports the shortfall in `vdl2_degraded` — "reaches N of the 14
+channels" — so check that sentence on a report before reaching for the
+arithmetic.)
 
 ### The recording silence auto-split
 
@@ -585,8 +610,8 @@ operating guide §9) keeps 2.00x's `UA`/`US` audio-in-the-CAT-link framing but
 changes the transmit side and adds a level extension. It is a **separate
 `CatFamily::TrUsdxNg`** ("(tr)uSDX nG"), on branch `fork/trusdx-ng` and merged
 to fork `main` on 2026-09-22 (before any on-air confirmation — the user's call,
-it is niche and fixable after release), `PROTO_VERSION` **166 -> 167** on the
-fork. The profile is the
+it is niche and fixable after release); the 2026-09-25 merge renumbered it to
+**v173**. The profile is the
 same `trusdx.rs`, parameterized by generation (`TrUsdx::new_ng`), so the
 receive demultiplexer and the `UA`/`US` framing are shared code. Three transmit
 differences, each a silent failure if got wrong:
@@ -608,11 +633,10 @@ frame), and `UA2;` to switch the radio's own speaker off
 (`CatConfig::trusdx_ng_speaker`). nG answers neither command and stores neither,
 so they go out in `open_requests`.
 
-`PROTO_VERSION` **166 -> 167** on this branch now stands on fork `main`, so it
-collides with the band-openings branch (`upstream-pr/band-openings` /
-`fork/live-band-openings`), which also claims 167 — the band-openings copy
-renumbers if it lands on fork `main`, and drops entirely once #537 merges
-upstream.
+Upstream's form of this family is draft **PR #545**, still open; on fork `main`
+the family sits at **v173** and the band-openings addition (`ServerMsg::
+BandOpenings`) at **v174**, so they no longer collide. Band-openings is upstream
+**#537**, still open, and the fork's copy drops out once that lands.
 
 **Not tested on air here** — the fork's radio is not calibrated for nG, so the
 firmware could not be flashed. It is unit-tested structurally (16 tests in
@@ -789,20 +813,25 @@ equirectangular throughout, so it is a rework of `widgets/worldmap.rs` rather
 than a bolt-on).
 
 **Offered upstream 2026-09-23**, each a single commit branched from
-`upstream/main` (the fork's `main` was pushed at the same time, `1995973d`):
+`upstream/main` (the fork's `main` was pushed at the same time, `1995973d`).
+**All four non-draft PRs were taken on the 2026-09-25 merge** (`edbd2961`,
+`999292fc`, `ec959372`, `7e6a353b`, `830465e4`), each with review work, so the
+fork's copies dropped out:
 
 - **PR #541** (`upstream-pr/gray-line`) — the grey-line shading, no HEARD ME
   (fork-only) and no JS8 map (upstream has none), so it is just the two panels
-  upstream carries.
+  upstream carries. **Taken.**
 - **PR #542** (`upstream-pr/meteor-calendar`) — the IMO table and
-  `radiant_altaz`; cherry-picked clean.
-- **PR #543** (`upstream-pr/ibp-beacons`) — the 18-beacon schedule;
-  cherry-picked clean.
-- **PR #544** (`upstream-pr/space-weather-trends`) — the Kp observed history;
-  cherry-picked clean.
-- **PR #545** (`upstream-pr/trusdx-ng`), **draft** — the nG CAT family, marked
-  honestly untested on an nG radio with the on-air checks named in the body.
-  `PROTO_VERSION` 164 → 165 on that branch (upstream's register).
+  `radiant_altaz`; upstream corrected the Quadrantid rate and the Taurid and
+  Geminid windows and added the Daytime Arietids. **Taken.** The fork's per-label
+  hover fix (a `Label` swallows the row's hover) is still only ours.
+- **PR #543** (`upstream-pr/ibp-beacons`) — the 18-beacon schedule; upstream
+  placed the beacons at the NCDXF's published locators. **Taken.**
+- **PR #544** (`upstream-pr/space-weather-trends`) — the Kp observed history.
+  **Taken.**
+- **PR #545** (`upstream-pr/trusdx-ng`), **draft, still open** — the nG CAT
+  family, marked honestly untested on an nG radio with the on-air checks named
+  in the body. `PROTO_VERSION` 164 → 165 on that branch (upstream's register).
 
 **Local solar time is fork-only, not offered:** `broadcast::local_solar_hhmm`
 and the SOLAR TIME chip live on the SCHEDULE window, which upstream does not
@@ -831,8 +860,9 @@ Post-review follow-ups (2026-09-23), all merged into local `main` and pushed:
   `fork/live-band-openings` (the fork build with the 11 m decode feed). The
   merge took **PROTO_VERSION 167 → 168** for `ServerMsg::BandOpenings`: the
   (tr)uSDX nG family already held 167 on `main`, so band-openings moved up.
-  The `upstream-pr/band-openings` PR (upstream #537) stays at 165 and is still
-  the thing to land first; the fork's copy drops out once it does.
+  The `upstream-pr/band-openings` PR (upstream #537) is still open and is the
+  thing to land first; it will need a rebase onto the post-2026-09-25
+  `upstream/main` (the fork's copy is now v174).
 
 Second review round (2026-09-23), same branches now on `main`:
 
@@ -915,8 +945,11 @@ character protocol over **TCP 60000**; **audio is analog into the host sound
 card** and always will be — BLE is a UART service, the web server is config/OTA
 only, and the Si4732 audio is not routed to the ESP32 on V3 hardware. So the
 route is **sdroxide-side only, no firmware changes**. Planned as a dedicated
-`Backend::AtsMini` (receive-only, no TX UI), fork-only, `PROTO_VERSION` 176 →
-177. **Full spec, bench findings, decisions, phase plan and file anchors are in
+`Backend::AtsMini` (receive-only, no TX UI), fork-only. It has landed on `main`
+(`PROTO_VERSION` 176 → 177, the fork's current top), with the tune/mode/band
+work in `69cbd9de`, `1b2ed505`, `de381795` and the LSB/USB-on-AM note in
+`69cbd9de`; the handover's later phases may still be open. **Full spec, bench
+findings, decisions, phase plan and file anchors are in
 [`docs/ats-mini-handover.md`](docs/ats-mini-handover.md)**; the scratch probe
 (telemetry parser, band-cycle mapper, scanner) is `tools/atsmini-probe/`.
 
