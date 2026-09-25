@@ -1653,6 +1653,12 @@ fn mode_to_flex(m: Mode) -> &'static str {
         | Mode::Js8
         | Mode::Wspr
         | Mode::Pi4
+        | Mode::Msk144
+        | Mode::Jt65
+        | Mode::Jt9
+        | Mode::Fst4
+        | Mode::Q65
+        | Mode::Fsk441
         | Mode::Psk
         | Mode::Rtty
         | Mode::Olivia
@@ -1667,13 +1673,7 @@ fn mode_to_flex(m: Mode) -> &'static str {
         | Mode::Wefax
         | Mode::Navtex
         | Mode::Dsc
-        | Mode::Jt65
-        | Mode::Jt9
-        | Mode::Fst4
-        | Mode::Msk144
-        | Mode::Q65
         | Mode::UvPacket
-        | Mode::Fsk441
         | Mode::RfPaint
         | Mode::Spec => "USB",
     }

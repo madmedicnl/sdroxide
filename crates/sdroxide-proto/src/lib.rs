@@ -1455,91 +1455,87 @@ use sdroxide_types::{
 /// whole inside `Command::SetRelayConfig`, so a v164 peer reads the extra
 /// bytes as the start of the next field and fails to decode the command.
 ///
-/// v166: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
-/// — how long the unattended FT8/FT4/FT2 sequencer may run with no operator
-/// input before it disarms. Appended to `RadioConfig`'s tail, and it rides
-/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v165 peer
-/// handed one runs off the end of the struct. A downstream (fork) addition.
-///
-/// v167: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
-/// appended to that enum, so the `Spot` sets in `RadioEvent::Spots` shift — a
-/// v166 peer misreads them, and the two sides run in lockstep as always. The
-/// overlay itself is a client view toggle, not a config field: the engine
-/// polls the reports whenever the PSK feed is on, and the client decides
-/// whether to draw them. A downstream (fork) addition.
-///
-/// v168: the (tr)uSDX nG CAT family. `CatFamily::TrUsdxNg` is appended to that
-/// enum, so no surviving family moves; `CatConfig` gains the nG level fields
-/// (`trusdx_ng_volume`, `trusdx_ng_agc`, `trusdx_ng_speaker`) on its tail, and
-/// `CatConfig` rides `Command::SetCatConfig` and `ServerMsg::CatConfig` whole,
-/// so a v167 peer handed one runs off the end of the struct. A downstream
-/// (fork) addition.
-///
-/// v169: live band-opening detections, `ServerMsg::BandOpenings` appended to
-/// that enum (no surviving discriminant moves). Like every network update it is
-/// relay, not handshake, so a v168 peer simply never learns about openings —
-/// but the added variant shifts the message stream's encoding, hence the bump.
-/// A downstream (fork) addition.
-///
-/// v170: DSC, the marine Digital Selective Calling decoder. `Mode::Dsc` is
-/// appended to that enum and `DigiStatus` gains `dsc: Option<DscStatus>` on its
-/// tail (after `acars`), the same shape NAVTEX and ACARS already have — and
-/// `DigiStatus` rides whole, so a v169 peer reads the extra bytes as the start
-/// of the next field and fails to decode every digital status. Cannot be
-/// bundled upstream with the mode alone, so it is a downstream (fork) addition
-/// until the decoder is proven on a real burst.
-///
-/// v171: JT65 and JT9, the weak-signal slotted modes from mfsk-core.
-/// `Mode::Jt65` and `Mode::Jt9` are appended to that enum, so no surviving
-/// discriminant moves. No new wire type: a JT decode is an ordinary
-/// `Decode` and rides the existing `RadioEvent::Decodes` path, and the modes
-/// are receive-only so nothing else is added. `Mode` is postcard-encoded by
-/// declaration index and rides `RadioState`, so a v170 peer handed one runs
-/// off the end of the enum — the same break every appended `Mode` causes, and
-/// the same fix (the two sides run in lockstep). A downstream (fork) addition,
-/// and an "isolate it" upstream change when it is offered.
-///
-/// v172: FST4, the slow weak-signal mode. `Mode::Fst4` is appended to that
-/// enum and `DigiConfig` gains `fst4_period` (`Fst4Period`) on its tail, since
-/// the period is a setting rather than part of the mode. `DigiConfig` rides
-/// `Command::SetDigiConfig` and `DigiStatus` whole, so a v171 peer reads the
-/// extra bytes as the start of the next field and fails to decode every
-/// digital status — the same break as v162's appended CW settings. A downstream
-/// (fork) addition.
-///
-/// v173: MSK144, the meteor-scatter mode. `Mode::Msk144` is appended to that
+/// v166: MSK144, the meteor-scatter mode. `Mode::Msk144` is appended to that
 /// enum, so no surviving discriminant moves. No new wire type: a decode is an
 /// ordinary `Decode` with the burst's time into the slot as its `dt`, and the
-/// mode is receive-only. `Mode` rides `RadioState`, so a v172 peer handed one
+/// mode is receive-only. `Mode` rides `RadioState`, so a v165 peer handed one
 /// runs off the end of the enum — the same break every appended `Mode` causes.
-/// A downstream (fork) addition.
 ///
-/// v174: Q65, the modern weak-signal mode. `Mode::Q65` is appended to that
+/// v167: JT65 and JT9, the weak-signal slotted modes from mfsk-core.
+/// `Mode::Jt65` and `Mode::Jt9` are appended to that enum, so no surviving
+/// discriminant moves. No new wire type: a JT decode is an ordinary
+/// `Decode` and rides the existing `RadioEvent::Ft8Decodes` path, and the modes
+/// are receive-only so nothing else is added. `Mode` is postcard-encoded by
+/// declaration index and rides `RadioState`, so a v166 peer handed one runs
+/// off the end of the enum — the same break every appended `Mode` causes, and
+/// the same fix (the two sides run in lockstep).
+///
+/// v168: FST4, the slow weak-signal mode. `Mode::Fst4` is appended to that
+/// enum and `DigiConfig` gains `fst4_period` (`Fst4Period`) on its tail, since
+/// the period is a setting rather than part of the mode. `DigiConfig` rides
+/// `Command::SetDigiConfig` and `DigiStatus` whole, so a v167 peer reads the
+/// extra bytes as the start of the next field and fails to decode every
+/// digital status — the same break as v162's appended CW settings.
+///
+/// v169: Q65, the modern weak-signal mode. `Mode::Q65` is appended to that
 /// enum and `DigiConfig` gains `q65_mode` (`Q65Mode`) on its tail, since the
 /// sub-mode fixes the period and the tone spacing rather than being part of the
 /// mode. `DigiConfig` rides `Command::SetDigiConfig` and `DigiStatus` whole, so
-/// a v173 peer reads the extra bytes as the start of the next field and fails
-/// to decode every digital status — the same break as v172's appended
-/// `fst4_period`. A downstream (fork) addition.
+/// a v168 peer reads the extra bytes as the start of the next field and fails
+/// to decode every digital status — the same break as v162's appended CW
+/// settings.
 ///
-/// v175: UVPacket, the packet byte-pipe protocol. `Mode::UvPacket` is appended
-/// to that enum, so no surviving discriminant moves, and `DigiStatus` gains
-/// `uvpacket` (`Option<UvPacketStatus>`) on its tail, since a decoded frame
-/// carries an application tag and raw payload rather than a WSJT message.
-/// `DigiStatus` rides `RadioState` whole, so a v174 peer reads the extra bytes
-/// as the start of the next field and fails to decode every digital status —
-/// the same break as v174's appended `q65_mode`. A downstream (fork) addition.
-///
-/// v176: FSK441, the original meteor-scatter mode. `Mode::Fsk441` is appended
+/// v170: FSK441, the original meteor-scatter mode. `Mode::Fsk441` is appended
 /// to that enum and `DigiConfig` gains `fsk441_period` (`Fsk441Period`) on its
 /// tail, since the period is a setting rather than part of the mode. The
 /// decoder is the fork's own — mfsk-core has no FSK441 — so it lives in
 /// `sdroxide-dsp`; on the wire a decode is an ordinary `Decode` with the ping's
-/// time into the slot as its `dt`, exactly as MSK144's is. `DigiConfig` rides
-/// `Command::SetDigiConfig` and `DigiStatus` whole, so a v175 peer reads the
-/// extra bytes as the start of the next field and fails to decode every digital
-/// status — the same break as v175's appended `uvpacket`. A downstream (fork)
-/// addition, and an "isolate it" upstream change when it is offered.
+/// time into the slot as its `dt`. `DigiConfig` rides
+/// `Command::SetDigiConfig` and `DigiStatus` whole, so a v169 peer reads the
+/// extra bytes as the start of the next field and fails to decode every
+/// digital status — the same break as v162's appended CW settings.
+///
+/// v171: auto mode's per-radio inactivity stop, `RadioConfig::auto_idle_stop_min`
+/// — how long the unattended FT8/FT4/FT2 sequencer may run with no operator
+/// input before it disarms. Appended to `RadioConfig`'s tail, and it rides
+/// `ServerMsg::RadioConfig` and `Command::SetRadioConfig` whole, so a v170 peer
+/// handed one runs off the end of the struct. A downstream (fork) addition.
+///
+/// v172: the "who heard me" PSK Reporter overlay. A new `SpotKind::HeardMe`
+/// appended to that enum, so the `Spot` sets in `RadioEvent::Spots` shift — a
+/// v171 peer misreads them, and the two sides run in lockstep as always. The
+/// overlay itself is a client view toggle, not a config field: the engine
+/// polls the reports whenever the PSK feed is on, and the client decides
+/// whether to draw them. A downstream (fork) addition.
+///
+/// v173: the (tr)uSDX nG CAT family. `CatFamily::TrUsdxNg` is appended to that
+/// enum, so no surviving family moves; `CatConfig` gains the nG level fields
+/// (`trusdx_ng_volume`, `trusdx_ng_agc`, `trusdx_ng_speaker`) on its tail, and
+/// `CatConfig` rides `Command::SetCatConfig` and `ServerMsg::CatConfig` whole,
+/// so a v172 peer handed one runs off the end of the struct. A downstream
+/// (fork) addition.
+///
+/// v174: live band-opening detections, `ServerMsg::BandOpenings` appended to
+/// that enum (no surviving discriminant moves). Like every network update it is
+/// relay, not handshake, so a v173 peer simply never learns about openings —
+/// but the added variant shifts the message stream's encoding, hence the bump.
+/// A downstream (fork) addition.
+///
+/// v175: DSC, the marine Digital Selective Calling decoder. `Mode::Dsc` is
+/// appended to that enum and `DigiStatus` gains `dsc: Option<DscStatus>` on its
+/// tail (after `acars`), the same shape NAVTEX and ACARS already have — and
+/// `DigiStatus` rides whole, so a v174 peer reads the extra bytes as the start
+/// of the next field and fails to decode every digital status. Cannot be
+/// bundled upstream with the mode alone, so it is a downstream (fork) addition
+/// until the decoder is proven on a real burst.
+///
+/// v176: UVPacket, the packet byte-pipe protocol. `Mode::UvPacket` is appended
+/// to that enum, so no surviving discriminant moves, and `DigiStatus` gains
+/// `uvpacket` (`Option<UvPacketStatus>`) on its tail, since a decoded frame
+/// carries an application tag and raw payload rather than a WSJT message.
+/// `DigiStatus` rides `RadioState` whole, so a v175 peer reads the extra bytes
+/// as the start of the next field and fails to decode every digital status —
+/// the same break as v175's appended `dsc`. A downstream (fork) addition.
 ///
 /// v177: the ATS Mini receive source. `Backend::AtsMini` is appended to that
 /// enum and `RadioConfig` gains `atsmini` (`AtsMiniConfig`) on its tail. The
@@ -1548,7 +1544,7 @@ use sdroxide_types::{
 /// discriminant, so it may only go at the end; `RadioConfig` rides whole, so a
 /// v176 peer reads the extra `atsmini` bytes as the start of the next field
 /// and fails to decode every radio config — the same break as v176's appended
-/// `fsk441_period`. Fork-only (an SWL extra), like the schedule and the log.
+/// `uvpacket`. Fork-only (an SWL extra), like the schedule and the log.
 pub const PROTO_VERSION: u16 = 177;
 const VERSION_BYTE: u8 = 0x12;
 
@@ -2713,6 +2709,39 @@ mod tests {
         // And a mode with no entry still reaches the carrier default across the
         // wire, which is the property that makes the map need no migration.
         assert_eq!(s.config.tx_level_for(Mode::Psk), 1.0);
+    }
+
+    /// The settings the slotted weak-signal modes keep in `DigiConfig` — FST4's
+    /// period, Q65's sub-mode, FSK441's period — cross the wire at values other
+    /// than their defaults, as do the modes themselves. A field appended in the
+    /// wrong place, or a `Mode` discriminant that moved, decodes into the wrong
+    /// setting rather than failing; only a non-default value shows it.
+    #[test]
+    fn roundtrip_weak_signal_mode_settings() {
+        use sdroxide_types::{DigiConfig, Fsk441Period, Fst4Period, Mode, Q65Mode};
+
+        let cfg = DigiConfig {
+            my_call: "OE1XYZ".into(),
+            fst4_period: Fst4Period::P300,
+            q65_mode: Q65Mode::D120,
+            fsk441_period: Fsk441Period::P15,
+            ..DigiConfig::default()
+        };
+        let m = ClientMsg::Command(Command::SetDigiConfig(cfg.clone()));
+        assert_eq!(decode::<ClientMsg>(&encode(&m).unwrap()).unwrap(), m);
+
+        for mode in [Mode::Msk144, Mode::Jt65, Mode::Jt9, Mode::Fst4, Mode::Q65, Mode::Fsk441] {
+            let mut status = DigiStatus::idle(cfg.clone());
+            status.mode = mode;
+            let m = ServerMsg::Ft8Status(status);
+            let back = decode::<ServerMsg>(&encode(&m).unwrap()).unwrap();
+            assert_eq!(back, m, "{mode:?}");
+            let ServerMsg::Ft8Status(s) = back else { panic!("not a status") };
+            assert_eq!(s.mode, mode);
+            assert_eq!(s.config.fst4_period, Fst4Period::P300);
+            assert_eq!(s.config.q65_mode, Q65Mode::D120);
+            assert_eq!(s.config.fsk441_period, Fsk441Period::P15);
+        }
     }
 
     /// Why HD Radio is greyed out is the station's to say, and it reaches a

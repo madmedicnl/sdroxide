@@ -111,6 +111,16 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
             &["DECODES"]
         }
         Mode::RfPaint => &["TEXT", "IMAGE"],
+        // The decode list alone: the QSO pane is FT8's sequencer, which a
+        // receive-only MSK144 build has nothing to put in.
+        // The decode list alone: the QSO pane is FT8's sequencer, which a
+        // receive-only JT65/JT9 build has nothing to put in.
+        // The decode list alone: the QSO pane is FT8's sequencer, which a
+        // receive-only FST4 build has nothing to put in.
+        // The decode list alone: the QSO pane is FT8's sequencer, which a
+        // receive-only Q65 build has nothing to put in.
+        // The decode list alone: the QSO pane is FT8's sequencer, which a
+        // receive-only FSK441 build has nothing to put in.
         // The keyboard modes and RADE are one column already: receive above,
         // what you are sending below it.
         _ => &["PANEL"],

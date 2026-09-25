@@ -161,6 +161,8 @@ pub use dsc::{
 pub use entity::{
     EntityInfo, EntityPlace, all_entities, resolve_callsign, resolve_place, resolve_prefix,
 };
+pub use fsk441::Fsk441Period;
+pub use fst4::Fst4Period;
 pub use geo::{
     bearing_deg, distance_km, great_circle_points, grid_bearing, grid_distance_km, grid_to_latlon,
     latlon_to_grid,
@@ -186,9 +188,6 @@ pub use ism::{
     RTL433_BANDS_DEFAULT, RTL433_BANDWIDTH_AUTO, RTL433_BANDWIDTH_MIN_HZ, RTL433_BANDWIDTHS,
     Rtl433Settings, Rtl433Status,
 };
-pub use fsk441::Fsk441Period;
-pub use fst4::Fst4Period;
-pub use q65::Q65Mode;
 pub use uvpacket::{
     UVPACKET_AUDIO_CENTRE_HZ, UVPACKET_FRAME_MAX, UvPacketFrame, UvPacketMode, UvPacketStatus,
 };
@@ -225,6 +224,7 @@ pub use propagation::{
     obliquity_factor,
 };
 pub use publicsdr::{PublicSdrDirectory, PublicSdrEntry, PublicSdrNetwork};
+pub use q65::Q65Mode;
 pub use qo100::{QO100_BEACON_HZ, Qo100Settings, Qo100Status};
 pub use radio::{
     AirspyConfig, AirspyDevice, AirspyGain, AirspyHfConfig, AirspyHfDevice, AirspyHfModel,

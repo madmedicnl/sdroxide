@@ -326,9 +326,21 @@ pub enum Mode {
     /// below it — see [`Mode::standard_tone_offset_hz`]. Appended for the same
     /// reason as [`Mode::Hell`].
     Dsc,
-    /// JT65 — the classic EME (moonbounce) and weak-signal mode from WSJT:
-    /// 65-FSK, 2.69 baud, a 60-second slot, RS(63,12) error correction, and
-    /// the 72-bit JT message.
+    /// MSK144 — meteor scatter on 6 m and 2 m: continuous-phase binary MSK at
+    /// 2000 baud, LDPC(128,90), the same 77-bit message as FT8, in a 15-second
+    /// T/R period.
+    ///
+    /// Unlike the FT/JT family this is not a frame at a fixed offset: an
+    /// operator transmits continuously and the decoder hunts the 15-second
+    /// slot for the short ionised-trail bursts a meteor leaves, so a decode
+    /// carries the time *into* the slot it was found at. Receive only in this
+    /// build, as [`Mode::Pi4`] is. Appended for the same reason as
+    /// [`Mode::Hell`].
+    Msk144,
+    /// JT65 — the classic weak-signal mode from WSJT: 65-FSK, 2.69 baud, a
+    /// 60-second slot, RS(63,12) error correction, and the 72-bit JT message.
+    /// This is JT65A, the HF and 6 m sub-mode; the B and C sub-modes used for
+    /// moonbounce on 2 m and up are not decoded.
     ///
     /// A QSO mode, and a very slow one — a full exchange takes minutes — so
     /// its panel is the slotted decode list rather than a keyboard. Receive
@@ -349,20 +361,9 @@ pub enum Mode {
     /// The period is an operator setting ([`crate::Fst4Period`]), not part of
     /// the mode — exactly as JS8's speed is a [`crate::Js8Speed`] — so
     /// [`Mode::slot_timing`] answers `None` for it and the clock comes from
-    /// the chosen period. Receive only in this build, as [`Mode::Jt65`] is.
+    /// the chosen period. Receive only in this build, as [`Mode::Pi4`] is.
     /// Appended for the same reason as [`Mode::Hell`].
     Fst4,
-    /// MSK144 — meteor scatter on 6 m and 2 m: continuous-phase binary MSK at
-    /// 2000 baud, LDPC(128,90), the same 77-bit message as FT8, in a 15-second
-    /// T/R period.
-    ///
-    /// Unlike the FT/JT family this is not a frame at a fixed offset: an
-    /// operator transmits continuously and the decoder hunts the 15-second
-    /// slot for the short ionised-trail bursts a meteor leaves, so a decode
-    /// carries the time *into* the slot it was found at. Receive only in this
-    /// build, as [`Mode::Fst4`] is. Appended for the same reason as
-    /// [`Mode::Hell`].
-    Msk144,
     /// Q65 — WSJT-X's modern weak-signal mode for EME, ionoscatter, meteor
     /// scatter and other very low-SNR paths: 65-tone FSK with a Q-ary LDPC
     /// code, carrying the same 77-bit message as FT8.
@@ -371,9 +372,26 @@ pub enum Mode {
     /// (15/30/60/120/300 s) and the tone-spacing letter (A–E, wider for more
     /// Doppler), so like FST4's period it is a setting rather than part of the
     /// mode and [`Mode::slot_timing`] answers `None`. Receive only in this
-    /// build, as [`Mode::Fst4`] is. Appended for the same reason as
+    /// build, as [`Mode::Pi4`] is. Appended for the same reason as
     /// [`Mode::Hell`].
     Q65,
+    /// FSK441 — the original high-speed meteor-scatter mode, MSK144's older
+    /// sibling: 4-FSK at 441 baud on four tones 441 Hz apart (882/1323/1764/
+    /// 2205 Hz), carrying the 43-character PUA-43 alphabet plus the single-tone
+    /// `R26`/`R27`/`RRR`/`73` shorthand, in a 30-second T/R period (15 seconds
+    /// also used).
+    ///
+    /// Not a frame at a fixed offset: an operator transmits the message
+    /// repeatedly through the whole period and the decoder hunts the slot for
+    /// the short ionised-trail bursts a meteor leaves, so a decode carries the
+    /// time *into* the slot it was found at. The period is an operator setting
+    /// ([`crate::Fsk441Period`]), not part of the mode, so [`Mode::slot_timing`]
+    /// answers `None` and the clock comes from the chosen period. Appended for
+    /// the same reason as [`Mode::Hell`].
+    ///
+    /// Transmit is the mode's own shape: the operator holds the key and the
+    /// message repeats for the length of the over.
+    Fsk441,
     /// UVPacket — a packet protocol for private amateur VHF/UHF groups,
     /// carried as a short π/4-DQPSK burst with an application byte pipe rather
     /// than a WSJT message.
@@ -385,24 +403,6 @@ pub enum Mode {
     /// answers `None` — a frame can start anywhere. Receive only in this build,
     /// as [`Mode::Fst4`] is. Appended for the same reason as [`Mode::Hell`].
     UvPacket,
-    /// FSK441 — the original high-speed meteor-scatter mode, MSK144's older
-    /// sibling: 4-FSK at 441 baud on four tones 441 Hz apart (882/1323/1764/
-    /// 2205 Hz), carrying the 43-character PUA-43 alphabet plus the single-tone
-    /// `R26`/`R27`/`RRR`/`73` shorthand, in a 30-second T/R period (15 seconds
-    /// also used).
-    ///
-    /// Like [`Mode::Msk144`] this is not a frame at a fixed offset: an operator
-    /// transmits the message repeatedly through the whole period and the
-    /// decoder hunts the slot for the short ionised-trail bursts a meteor
-    /// leaves, so a decode carries the time *into* the slot it was found at.
-    /// The period is an operator setting ([`crate::Fsk441Period`]), not part of
-    /// the mode, so [`Mode::slot_timing`] answers `None` and the clock comes
-    /// from the chosen period — the same shape as FST4's. Appended for the same
-    /// reason as [`Mode::Hell`].
-    ///
-    /// Transmit is the mode's own shape: the operator holds the key and the
-    /// message repeats for the length of the over.
-    Fsk441,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -469,13 +469,13 @@ impl Mode {
         Mode::Rade,
         Mode::Hfdl,
         Mode::Dsc,
+        Mode::Msk144,
         Mode::Jt65,
         Mode::Jt9,
         Mode::Fst4,
-        Mode::Msk144,
         Mode::Q65,
-        Mode::UvPacket,
         Mode::Fsk441,
+        Mode::UvPacket,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -490,6 +490,12 @@ impl Mode {
         Mode::Js8,
         Mode::Wspr,
         Mode::Pi4,
+        Mode::Msk144,
+        Mode::Jt65,
+        Mode::Jt9,
+        Mode::Fst4,
+        Mode::Q65,
+        Mode::Fsk441,
         Mode::Psk,
         Mode::Rtty,
         Mode::RttyFm,
@@ -510,13 +516,7 @@ impl Mode {
         Mode::PacketHf,
         Mode::Aprs,
         Mode::Dsc,
-        Mode::Jt65,
-        Mode::Jt9,
-        Mode::Fst4,
-        Mode::Msk144,
-        Mode::Q65,
         Mode::UvPacket,
-        Mode::Fsk441,
     ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
@@ -718,9 +718,11 @@ impl Mode {
         self == Mode::AtChat
     }
 
-    /// True for the slotted FT8/FT4 modes, as opposed to the continuous
-    /// keyboard modems and the image modes. Drives the decode-list / callsign
-    /// overlays that only make sense for a slot-based decoder.
+    /// True for the slotted modes whose decodes are [`crate::Decode`]s — FT8,
+    /// FT4, FT2 and JS8, and the receive-only MSK144, JT65/JT9, FST4, Q65 and
+    /// FSK441 — as opposed to the continuous keyboard modems and the image
+    /// modes. Drives the decode-list / callsign overlays that only make sense
+    /// for a slot-based decoder.
     ///
     /// WSPR is slotted too and is deliberately *not* here: those overlays are
     /// built from [`crate::Decode`]s, and WSPR produces [`crate::WsprSpot`]s.
@@ -733,10 +735,10 @@ impl Mode {
                 | Mode::Ft4
                 | Mode::Ft2
                 | Mode::Js8
+                | Mode::Msk144
                 | Mode::Jt65
                 | Mode::Jt9
                 | Mode::Fst4
-                | Mode::Msk144
                 | Mode::Q65
                 | Mode::Fsk441
         )
@@ -821,6 +823,12 @@ impl Mode {
                 tx_offset_s: 0.0,
                 burst_s: crate::PI4_BURST_S,
             }),
+            // MSK144 is a 15-second T/R period and the operator transmits
+            // *continuously* through it: one 72 ms frame at 2000 baud, repeated
+            // back to back, so a meteor's brief trail catches part of one. The
+            // burst figure is one frame; the steady stream is why the decoder
+            // scans the whole slot rather than a fixed offset.
+            Mode::Msk144 => Some(SlotTiming { slot_s: 15.0, tx_offset_s: 0.0, burst_s: 0.072 }),
             // JT65A is 126 symbols of 4460/12000 s — 46.83 s — keyed one
             // second into a 60-second slot, the offset WSJT-X uses for the
             // whole JT65/JT9 family. The burst is short enough that the
@@ -829,12 +837,6 @@ impl Mode {
             // JT9 is 85 symbols of 6912/12000 s — 48.96 s — in the same
             // 60-second slot and at the same one-second offset.
             Mode::Jt9 => Some(SlotTiming { slot_s: 60.0, tx_offset_s: 1.0, burst_s: 48.96 }),
-            // MSK144 is a 15-second T/R period and the operator transmits
-            // *continuously* through it: one 72 ms frame at 2000 baud, repeated
-            // back to back, so a meteor's brief trail catches part of one. The
-            // burst figure is one frame; the steady stream is why the decoder
-            // scans the whole slot rather than a fixed offset.
-            Mode::Msk144 => Some(SlotTiming { slot_s: 15.0, tx_offset_s: 0.0, burst_s: 0.4 }),
             _ => None,
         }
     }
@@ -903,15 +905,15 @@ impl Mode {
                 // A decoder for a beacon network's signal, not a beacon
                 // implementation — see `Mode::Pi4`'s own doc comment.
                 | Mode::Pi4
-                // JT65/JT9, FST4 and MSK144 are QSO modes, but transmit is not
-                // wired in this build — the panel is the decode list alone.
-                // FSK441 is *not* here: its transmit is wired (the message loops
-                // for the length of the over), so it offers a transmit row under
-                // its decode list.
+                // MSK144, JT65/JT9, FST4 and Q65 are QSO modes, but transmit
+                // is not wired in this build — the panel is the decode list
+                // alone. FSK441 is *not* here: its transmit is wired (the
+                // message loops for the length of the over), so it offers a
+                // transmit row under its decode list. UVPacket is receive-only.
+                | Mode::Msk144
                 | Mode::Jt65
                 | Mode::Jt9
                 | Mode::Fst4
-                | Mode::Msk144
                 | Mode::Q65
                 | Mode::UvPacket
         )
@@ -1142,13 +1144,13 @@ impl Mode {
             | Mode::Ft4
             | Mode::Ft2
             | Mode::Js8
+            | Mode::Msk144
             | Mode::Jt65
             | Mode::Jt9
             | Mode::Fst4
-            | Mode::Msk144
             | Mode::Q65
-            | Mode::UvPacket
             | Mode::Fsk441
+            | Mode::UvPacket
             | Mode::Psk
             | Mode::Rtty
             | Mode::Sstv
@@ -2222,13 +2224,13 @@ mod tests {
             (Mode::Hfdl, 42),
             (Mode::Pi4, 43),
             (Mode::Dsc, 44),
-            (Mode::Jt65, 45),
-            (Mode::Jt9, 46),
-            (Mode::Fst4, 47),
-            (Mode::Msk144, 48),
+            (Mode::Msk144, 45),
+            (Mode::Jt65, 46),
+            (Mode::Jt9, 47),
+            (Mode::Fst4, 48),
             (Mode::Q65, 49),
-            (Mode::UvPacket, 50),
-            (Mode::Fsk441, 51),
+            (Mode::Fsk441, 50),
+            (Mode::UvPacket, 51),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2274,8 +2276,9 @@ mod tests {
         // checking is that it is a permutation of the enum, with nothing
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
-        // recently — not the one that reads last in the picker.
-        let last = Mode::Fsk441 as u8;
+        // recently — not the one that reads last in the picker. UVPacket is the
+        // fork's last appended variant, after the upstream FSK441 block.
+        let last = Mode::UvPacket as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");
@@ -2460,9 +2463,9 @@ mod tests {
                     | Mode::Ft2
                     | Mode::Wspr
                     | Mode::Pi4
+                    | Mode::Msk144
                     | Mode::Jt65
                     | Mode::Jt9
-                    | Mode::Msk144
             );
             assert_eq!(mode.slot_timing().is_some(), expected, "{mode:?}");
         }

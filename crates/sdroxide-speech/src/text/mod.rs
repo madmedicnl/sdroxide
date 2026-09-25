@@ -169,6 +169,7 @@ impl<'a> Speaker<'a> {
             Mode::Wspr => "whisper",
             // Spelt out like "F T eight" and "J S eight" above.
             Mode::Pi4 => "P I four",
+            // Spelt out like "F T eight" above.
             Mode::Drm => "D R M",
             Mode::HdRadio => "H D radio",
             Mode::Adsb => "A D S B",

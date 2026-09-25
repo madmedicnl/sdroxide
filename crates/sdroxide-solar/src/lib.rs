@@ -41,9 +41,14 @@ pub use aurora::{AuroraOval, HemisphericPower, KpPoint};
 pub use clouds::{Band, CloudField, ConvCell};
 pub use data::{SolarData, Source, SourceStatus};
 pub use donki::{CmeAnalysis, CmeEvent, FlareEvent};
-pub use ephem::{AU, EARTH_R, MOON_R, SUN_R, SunFrame, is_daylight_at, night_shade, night_shade_rgba, solar_elevation_deg};
+pub use ephem::{
+    AU, EARTH_R, MOON_R, SUN_R, SunFrame, is_daylight_at, night_shade, night_shade_rgba,
+    solar_elevation_deg,
+};
 #[cfg(not(target_arch = "wasm32"))]
-pub use feed::{FeedCmd, RawUpdate, SolarFeed, band_activity_cached, band_conditions_cached, psk_activity_cached};
+pub use feed::{
+    FeedCmd, RawUpdate, SolarFeed, band_activity_cached, band_conditions_cached, psk_activity_cached,
+};
 pub use imagery::{SdoChannel, SunImage};
 pub use impact::{Impact, earth_impact};
 pub use indices::{
@@ -51,7 +56,7 @@ pub use indices::{
     HfBandCondition, MufEstimate, SolarFlux, SpaceWeather, VhfCondition, XrayLevel,
     parse_psk_activity,
 };
-pub use meteor::{ActiveShower, Shower, active_at, radiant_altaz, SHOWERS};
+pub use meteor::{ActiveShower, SHOWERS, Shower, active_at, radiant_altaz};
 pub use planets::{Moon, Planet, Surface};
 pub use satellites::{Observation, Pass, PassSearch, SatState, Satellite};
 pub use satfreq::{Passband, SatFreqs, SatLink};
