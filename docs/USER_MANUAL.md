@@ -2125,6 +2125,22 @@ starts with two characters, plays each three times, and a run of ten correct
 answers adds the next; the score and how far the set has unlocked are remembered
 between sessions.
 
+**Sending with a real paddle (SEND).** The fourth pane reads a paddle that is
+plugged into the computer's USB — a keyer box that reports its two contacts
+(often, to the computer, as the buttons of a mouse that does nothing else). Pick
+it from the list, press **START KEY**, and key the character on the target:
+**NEW** asks for another, **REVERSE** swaps dit and dah for the switch on the
+paddle, and the tone and speed controls are the practice pane's. The keyer makes
+clean dits and dahs from your two contacts — you choose the paddles and the
+pauses — so a beginner's rhythm cannot turn a dah into a dit; this is where you
+learn the characters before the timing.
+
+While **START KEY** is on the paddle is taken exclusively, so its contacts
+cannot also click in other windows; it is released when you stop, leave the
+pane, or close the window. This pane is desktop Linux only: it reads the kernel
+input layer directly, and the browser and the other systems have no equivalent.
+It plays through this computer's speakers and **never keys the radio**.
+
 ### 2.15 Band conditions
 
 ![Band Conditions](images/bandconditions.jpg)

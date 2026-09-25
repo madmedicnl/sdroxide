@@ -1110,6 +1110,23 @@ table being native-only). Offered upstream as draft **#568** (branch
 `upstream-pr/morse-trainer`, from `upstream/main`); the fork carries it on
 `main` until it lands, then its copy drops out.
 
+A fourth pane, **SEND**, drills sending with a real USB paddle, and is
+**fork-only and Linux-only** — it is raw evdev, and the browser and the other
+systems have no equivalent. The portable half is `sdroxide_dsp::CwKeyer`
+(software iambic A/B over two contacts, `take_text`), which is general and a
+candidate to offer on its own. `crates/sdroxide-ui/src/app/cw_key.rs` is the
+device half: it opens a keyer interface's input nodes, takes them exclusively
+(`EVIOCGRAB`, so the contacts cannot also click in other windows), runs the
+keyer, and plays a local sidetone — it never keys the radio. Two things that
+cost a debugging round: a composite HID keyer registers **two** nodes for one
+interface (a keyboard and a mouse node) and the contacts are often on the mouse
+one, so the list is one entry per interface and both nodes are opened and
+grabbed; and the paddle contacts arrive as `BTN_LEFT`/`BTN_RIGHT`, so an
+un-grabbed device just clicks the GUI. The bench keyer here is a CH55x
+`1209:c550` ("-Yuan-3key", a CH55xduino default VID:PID) that reports the raw
+contacts and does no iambic of its own, which is why the keyer is in software.
+Not tested on other paddle hardware.
+
 ## Explore later
 
 - **NR2 (WDSP's Ephraim-Malah denoiser)** — **landed upstream on the 2026-09-20
