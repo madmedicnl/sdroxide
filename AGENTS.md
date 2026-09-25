@@ -1159,15 +1159,19 @@ key sent nothing — the bug that made the paddle look broken on a VOX rig.
 `effective_cw_keying` falls back to `Audio` for the chunk size and `cw_mcw`,
 while the commanded mode keeps the stored setting.
 
-**Still to offer, and it must wait for #569:** the user-facing package (Settings
-→ CW, the appended `DigiConfig` fields, the evdev source and the panel transmit
-wiring). It depends on `CwKeyer`, and across forks a PR's base can only be a
-branch in the upstream repo, so opening it now would duplicate #569's commits
-rather than stack on them. Open it from `upstream/main` once #569 lands, with the
-transmit half isolated in its own PR per the review lessons. The evdev source is
-**Linux-only raw evdev** and that is the design question to raise, not assume:
-`hidapi` is cross-platform but cannot take the device exclusively, so the
-contacts would also arrive as clicks.
+The user-facing package (Settings → CW, the appended `DigiConfig` fields, the
+evdev source and the panel transmit wiring) is draft **#573** (branch
+`upstream-pr/cw-key`). It carries #569's keyer commits **as well as** the new
+work, because a pull request's base can only be a branch in the upstream repo,
+so a fork cannot stack a PR on another fork PR's branch. The body says so
+plainly and asks the maintainer to review #569 first, then the delta. **When
+#569 lands, rebase #573 onto `main`** so the keyer commits drop out; do not let
+the duplicate lineage stand. The evdev source is **Linux-only raw evdev**, and
+that is a design question raised in the body, not assumed: `hidapi` is
+cross-platform but cannot take the device exclusively, so the contacts would
+also arrive as clicks. The branch's `cw_key.rs` is trimmed to `key_down` +
+`error` (the trainer's `take_text`/`contacts`/`marks` belong to #568's pane and
+are not in this PR).
 
 ## Explore later
 
