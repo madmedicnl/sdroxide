@@ -105,6 +105,12 @@ by name in `broadcast_favourites.json`, and a **★ FAVS** filter shows only the
      ordinary kind (feed it our I/Q, take audio, a panel), not a port of an
      app. It is still not started and still not costed, and it depends on the
      author doing the split; nothing here commits him or us.
+     **Drafted, 2026-09-25:** the split is open as draft PR
+     [`xoolive/desperado#52`](https://github.com/xoolive/desperado/pull/52)
+     (branch `lib/split-dabradio`): library modules exposed, `fdk-aac` made an
+     optional feature (the DAB+ super-frame layer always builds, so a consumer
+     plugs its own AAC — our **faad2**), the TUI/device deps behind a `bin`
+     feature. A high-level facade is left to the author's taste. Monitor it.
   2. **`fdk-aac` is a hard, non-optional dependency** for DAB+ audio, and we do
      not link it. The fork already vendors **faad2** (HE-AAC v2) via
      `crates/sdroxide-faad2`, so the swap is faad2 in place of fdk-aac — a real

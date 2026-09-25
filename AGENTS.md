@@ -346,9 +346,22 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     terminal is the work. **The crate question is largely answered: the author
     (`xoolive`) said on the issue (2026-09-21) he does not mind splitting
     `dabradio` into a library plus a thin executable, and is himself decoding
-    HD Radio with an eye to a shared lib for both DAB and NRSC-5.** The work is
-    still **not started and not costed** (the split is the author's to do;
-    nothing commits him). DAB Mode I needs the full **1.536 MHz** /
+    HD Radio with an eye to a shared lib for both DAB and NRSC-5.** **Drafted
+    2026-09-25 — monitor:** the split is open as draft PR
+    [`xoolive/desperado#52`](https://github.com/xoolive/desperado/pull/52)
+    (branch `lib/split-dabradio`, fork `madmedicnl/desperado`), no decoder
+    logic changed: `src/lib.rs` exposes the pipeline modules (the crate docs
+    moved there), `main.rs` keeps the TUI/device setup and the resampler and
+    uses `dabradio::…`; **`fdk-aac` becomes an optional feature** so the DAB+
+    super-frame layer (`audio::SuperframeDecoder` — Fire code, RS, Access
+    Units) always builds and a consumer with its own AAC decoder can take the
+    Access Units (sdroxide's **faad2** is exactly that caller); the TUI/device
+    deps move behind a default `bin` feature. 67 lib + 9 bin tests pass,
+    `--lib --no-default-features` passes the same 67 without fdk-aac, clippy
+    clean both ways. A high-level `DabDecoder::process(...) -> events` facade
+    is deliberately **left to the author's API taste** — he should shape it,
+    and the PR body says so. Still **not costed** and nothing commits either
+    side. DAB Mode I needs the full **1.536 MHz** /
     ~2.048 Msps, a wideband lane like ADS-B's rather than the 12 kHz `on_rx_iq`
     tap. No code, no commitment; still the maintainer's call. Interest
     re-confirmed 2026-09-21/22 — a `+1`, and **pvanderp offered to record
