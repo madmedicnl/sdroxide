@@ -138,7 +138,9 @@ fn rit_moves_the_receive_dial_without_moving_the_vfo() {
     assert_eq!(state.vfo_a_hz, 14_074_000.0);
     // The panadapter axis has to describe the audio the rig is really sending,
     // which comes from the dial — not from the VFO the offset was measured off.
-    assert_eq!(state.center_hz, 14_074_700.0 + 1_500.0, "USB: window starts at the dial");
+    // A demod-audio window is centred on the dial: see
+    // `Engine::update_display_center`.
+    assert_eq!(state.center_hz, 14_074_700.0, "the window is centred on the dial");
 }
 
 /// RIT switched off puts the dial back, rather than leaving the last offset

@@ -237,6 +237,15 @@ from AM, `m` (down) is one step, `M` (up) is two.
     Pinned by `a_source_tuning_level_reaches_the_screen`; the paint itself needs
     the app and is not unit-tested here, and the live fast-scroll case is the
     bench check.
+- **The dial now sits in the middle of the waterfall — fixed.** A demod-audio
+  front end has no RF panorama, and the engine anchored the window at the dial's
+  *edge* (`center = dial ± bw/2`), so the tuned frequency showed at the left
+  (USB/AM) or right (LSB). `update_display_center`, `audio_band` and the default
+  audio viewport now centre on the dial with the passband either side
+  (`dial ± bw`): real audio is symmetric about the carrier, so the dial belongs
+  under the cursor. The RF axis stays honest — USB's audio is above the dial,
+  LSB's below, the other half being the real signal's own mirror. The two
+  `scope_panadapter` tests that pinned the old edge-anchored window were updated.
 - **It did not adopt the radio's initial state — fixed.** On connect the engine
   opens the source at its *stored* dial, and `set_center_hz` skipped the tune
   because it matched that stored value; the radio sat on its own frequency with
@@ -252,13 +261,18 @@ from AM, `m` (down) is one step, `M` (up) is two.
   telemetry that was still on the old band (the monitor prints every 500 ms), so
   it added one `B` on top of the pick: from VHF, a pick of 49M landed on 60M.
   While a pick is settling the tune path now waits — `band_pick`, cleared by
-  telemetry when the picked band arrives, or by a `BAND_PICK_SETTLE` deadline if
-  the monitor is slow — and on the deadline it tunes without running
-  band-ensure, whose view of the band is the same stale one. The log prints the
-  real confirmation latency (`ATS Mini: band pick confirmed after N ms`); set
-  `BAND_PICK_SETTLE` from the longest a full-cycle burst takes on the bench,
-  with a margin. **Bench check:** a long pick (CB → VHF, or VHF → 49M) must land
-  on the picked band, and the confirmation latency lines say what to set.
+  telemetry when the picked band arrives, or by a deadline if the monitor is
+  slow — and on the deadline it tunes without running band-ensure, whose view of
+  the band is the same stale one. **Measured on the bench: the firmware steps a
+  band far slower than expected — about 330–450 ms a step** (an 11-step pick
+  from VHF to 49M took ~3.5 s), so the old fixed 900 ms settle expired mid-burst
+  and the intermediate bands leaked out as out-of-band dial moves. Both the
+  settle window and the pick deadline now scale with the step count
+  (`BAND_STEP_TIME`, `band_settle`, plus `BAND_SETTLE_MARGIN` for the 500 ms
+  monitor cadence), and any dial while `band_pick` stands is ignored. The log
+  prints `band pick confirmed after N ms`. **Bench check:** a long pick
+  (CB → VHF, VHF → 49M) lands on the picked band with no out-of-band dial
+  reports.
 - **Sidebands on every AM band — done.** The popup's mode row is now one
   constant, `sdroxide_types::atsmini::DEMOD_MODES` (`Am`, `Lsb`, `Usb`, `Wfm`),
   drawn with the never-greyed LISTEN chips, and `firmware_mode` maps LSB and USB

@@ -174,10 +174,11 @@ fn a_digital_mode_gets_the_audio_band_back() {
     // FT8 places stations by their audio offset within the passband. A 200 kHz
     // sweep at 421 Hz a bin cannot show one, so the scope stands aside.
     let (frame, state) = run(true, &[Command::SetMode { rx: RxId::Main, mode: Mode::Ft8 }]);
-    about(frame.span_hz, AUDIO_BW, "a digital mode must keep the audio-band window");
-    assert_eq!(state.sample_rate, AUDIO_BW);
-    // USB-side: audio f maps to dial + f, so the window hangs off the dial.
-    about(frame.center_hz, DIAL + AUDIO_BW / 2.0, "the audio window hangs off the dial");
+    about(frame.span_hz, AUDIO_BW * 2.0, "a digital mode must keep the audio-band window");
+    assert_eq!(state.sample_rate, AUDIO_BW * 2.0);
+    // Real audio is symmetric about the dial, which is shown in the middle: the
+    // passband sits either side of it.
+    about(frame.center_hz, DIAL, "the audio window is centred on the dial");
 }
 
 /// Zoom in far enough and the scope stops being the better picture.
@@ -238,6 +239,6 @@ fn a_session_without_a_scope_is_left_as_it_was() {
     // one. With no sweeps at all the main lane is the audio FFT, exactly as
     // before — a front end that publishes nothing must not lose its panadapter.
     let (frame, state) = run(false, &[Command::SetMode { rx: RxId::Main, mode: Mode::Cw }]);
-    about(frame.span_hz, AUDIO_BW, "the audio FFT is still the panadapter");
-    assert_eq!(state.sample_rate, AUDIO_BW);
+    about(frame.span_hz, AUDIO_BW * 2.0, "the audio FFT is still the panadapter");
+    assert_eq!(state.sample_rate, AUDIO_BW * 2.0);
 }

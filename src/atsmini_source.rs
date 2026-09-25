@@ -35,19 +35,17 @@ const AUDIO_BW_HZ: f64 = 4000.0;
 /// telemetry jitter. The coarsest step is 100 kHz and the finest a few Hz.
 const OUT_OF_BAND_MIN_HZ: i64 = 5;
 
-/// How long a popup band pick is given to land before its tune is sent anyway.
+/// How long the firmware takes to step one band on a `B`/`b` press.
 ///
-/// The firmware processes a `B`/`b` burst in well under a frame, but it only
-/// prints telemetry on a 500 ms cadence, so waiting for telemetry to *confirm*
-/// the band costs up to a second even when the radio is already there. This is
-/// the worst case with a margin — the debug log prints the real confirmation
-/// latency (`ATS Mini: band pick confirmed after N ms`) so the bench can set it
-/// from a measured full-cycle burst: after the deadline the tune goes out on the
-/// strength of the pick, and the tune path must not run its own band-ensure,
-/// whose view of the band is the same stale telemetry — that is what added one
-/// step and turned a pick of 49M into 60M. A confirmation that arrives sooner
-/// ends the wait early.
-const BAND_PICK_SETTLE: Duration = Duration::from_millis(1500);
+/// Each step retunes and writes NVS, and the radio answers far slower than the
+/// 150 ms we pace our own writes at: measured on the bench, an 11-step pick from
+/// VHF to 49M took about 3.5 s (≈ 330–450 ms a step). A burst's settle window
+/// has to cover the whole burst, or the intermediate bands leak out as
+/// out-of-band dial moves — and the pick's tune must wait for it.
+const BAND_STEP_TIME: Duration = Duration::from_millis(450);
+/// Extra room on top of the step time for the burst to be seen to land: the
+/// monitor prints every 500 ms, so the last step can go unreported that long.
+const BAND_SETTLE_MARGIN: Duration = Duration::from_millis(600);
 
 /// Commands the app sends the control thread.
 enum Cmd {
@@ -404,6 +402,22 @@ fn firmware_mode(mode: Mode) -> Option<FirmwareMode> {
     }
 }
 
+/// The number of steps a shorter-way-round band move takes.
+fn band_steps(from: usize, to: usize) -> usize {
+    let n = atsmini::BANDS.len();
+    let up = (to + n - from) % n;
+    let down = (from + n - to) % n;
+    up.min(down)
+}
+
+/// How long a burst of `steps` band steps takes to land — see
+/// [`BAND_STEP_TIME`]. The whole burst has to be covered before the radio is
+/// believed, whether we are suppressing its intermediate dials or holding a
+/// tune back for it.
+fn band_settle(steps: usize) -> Duration {
+    BAND_STEP_TIME * steps as u32 + BAND_SETTLE_MARGIN
+}
+
 /// The `B`/`b` presses that move the firmware's band cycle from `from` to `to`
 /// the shorter way round, as one string (a burst of steps, not a chat).
 fn band_burst(from: usize, to: usize) -> String {
@@ -583,11 +597,13 @@ fn control_thread(
                     && let Some(cur) = atsmini::band_index(&t.band, t.dial_hz())
                 {
                     if cur != idx {
+                        let steps = band_steps(cur, idx);
                         out = Some(band_burst(cur, idx));
-                        settle_until = Some(Instant::now() + Duration::from_millis(900));
+                        let settle = band_settle(steps);
+                        settle_until = Some(Instant::now() + settle);
                         band_pick = Some(idx);
                         band_pick_sent = Some(Instant::now());
-                        band_pick_deadline = Some(Instant::now() + BAND_PICK_SETTLE);
+                        band_pick_deadline = Some(Instant::now() + settle);
                     }
                     pending_band = None;
                 }
@@ -622,8 +638,9 @@ fn control_thread(
                             if let Some(want) = atsmini::band_for_tuning(hz as f64, Some(cur))
                                 && want != cur
                             {
+                                let steps = band_steps(cur, want);
                                 out = Some(band_burst(cur, want));
-                                settle_until = Some(Instant::now() + Duration::from_millis(900));
+                                settle_until = Some(Instant::now() + band_settle(steps));
                             }
                             band_ensured_for = Some(hz);
                         }
@@ -637,7 +654,7 @@ fn control_thread(
                             cur.unwrap_or(0),
                             (cur.unwrap_or(0) + 1) % atsmini::BANDS.len(),
                         ));
-                        settle_until = Some(Instant::now() + Duration::from_millis(900));
+                        settle_until = Some(Instant::now() + band_settle(1));
                     } else if sent_for != Some(hz) {
                         // Send the tune once; its acceptance is judged by the
                         // absence of an error by the next telemetry, not by the
@@ -757,6 +774,7 @@ fn control_thread(
                                     // swallowed.
                                     let ours = target_hz.is_some()
                                         || settle_until.is_some_and(|t| Instant::now() < t)
+                                        || band_pick.is_some()
                                         || commanded_hz
                                             .is_some_and(|c| (dial - c).abs() <= OUT_OF_BAND_MIN_HZ);
                                     if !ours {

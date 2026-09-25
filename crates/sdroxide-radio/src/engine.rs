@@ -6225,11 +6225,14 @@ impl Engine {
             self.state.sample_rate = span;
             return;
         }
+        // The dial is the *middle* of the window, not its edge. A demod-audio
+        // rig hands us real audio, whose spectrum is symmetric about the
+        // carrier it came from, and the operator has no RF panorama to read the
+        // band off — so the tuned frequency is what belongs under the cursor.
+        // The whole passband is shown either side of it.
         let dial = self.state.rx_freq_hz();
-        let lsb = self.state.rx[0].mode.is_lower_sideband_at(dial);
-        self.state.center_hz =
-            if lsb { dial - self.audio_bw / 2.0 } else { dial + self.audio_bw / 2.0 };
-        self.state.sample_rate = self.audio_bw;
+        self.state.center_hz = dial;
+        self.state.sample_rate = self.audio_bw * 2.0;
     }
 
     /// Follow the front end's centre after it reported a dial move of its own.
@@ -7785,12 +7788,11 @@ impl Engine {
     /// The RF window the rig's demodulated audio covers: its passband, on the
     /// side of the dial the mode puts it.
     fn audio_band(&self) -> (f64, f64) {
+        // Symmetric about the dial: see `update_display_center` for why an
+        // audio-only front end puts the tuned frequency in the middle, not at
+        // the edge.
         let dial = self.state.active_freq_hz();
-        if self.state.rx[0].mode.is_lower_sideband_at(dial) {
-            (dial - self.audio_bw, dial)
-        } else {
-            (dial, dial + self.audio_bw)
-        }
+        (dial - self.audio_bw, dial + self.audio_bw)
     }
 
     /// The viewport, when it lies inside the rig's own passband — and so when
@@ -7960,15 +7962,14 @@ impl Engine {
             if let Some((center_hz, span_hz)) = self.scope_main_window() {
                 return self.make_scope_frame(center_hz, span_hz);
             }
-            // The real audio's FFT is symmetric; the dial is audio-DC. USB maps
-            // audio f → dial+f (show the positive half); LSB → dial-f (negative
-            // half). Both give the correct RF window over `audio_bw`.
+            // The real audio's FFT is symmetric; the dial is audio-DC. It is
+            // shown centred — the whole passband either side of the dial — so
+            // the tuned frequency sits under the cursor on a front end with no
+            // RF panorama to read. USB's audio lands above the dial and LSB's
+            // below; the other half is the real signal's own mirror, which is
+            // what a real-audio spectrum has and no RF claim is made about it.
             let dial = self.state.active_freq_hz();
-            let vp = if self.state.rx[0].mode.is_lower_sideband_at(dial) {
-                (dial - self.audio_bw, dial)
-            } else {
-                (dial, dial + self.audio_bw)
-            };
+            let vp = (dial - self.audio_bw, dial + self.audio_bw);
             return self.analyzer.make_frame(
                 dial,
                 self.radio_fs,
