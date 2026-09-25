@@ -143,11 +143,7 @@ impl SwlEntry {
     pub fn report_text(&self, listener: &str, grid: &str, receiver: &str, antenna: &str) -> String {
         let mut out = String::from("Reception report\n\n");
         out.push_str(&format!("Station:    {}\n", self.station.trim()));
-        out.push_str(&format!(
-            "Frequency:  {}, {}\n",
-            self.frequency_text(),
-            self.mode.label()
-        ));
+        out.push_str(&format!("Frequency:  {}, {}\n", self.frequency_text(), self.mode.label()));
         out.push_str(&format!("Heard:      {}\n", self.utc_text()));
         let line = |out: &mut String, name: &str, value: &str| {
             if !value.trim().is_empty() {

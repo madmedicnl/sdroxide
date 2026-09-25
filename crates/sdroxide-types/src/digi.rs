@@ -1489,6 +1489,30 @@ impl Default for SstvStyle {
     }
 }
 
+/// Where the CW key comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum CwKeySource {
+    /// The computer keyboard, through the `CW straight key` binding (Space by
+    /// default). One contact: straight keying.
+    #[default]
+    Keyboard,
+    /// A paddle or key on a USB input device — a keyer box that reports its
+    /// contacts rather than keying a radio itself.
+    Usb,
+}
+
+/// What kind of key the operator is using.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum CwKeyMode {
+    /// One contact, the operator's own timing.
+    Straight,
+    /// Two contacts; element memory only while a paddle is held.
+    IambicA,
+    /// Two contacts; the modern default, remembers a released paddle.
+    #[default]
+    IambicB,
+}
+
 /// echoed to clients in [`DigiStatus`]. `#[serde(default)]` so an older
 /// `digi.json` without the newer fields still loads.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -2205,6 +2229,24 @@ pub struct DigiConfig {
     /// [`crate::Fsk441Period`].
     #[serde(default)]
     pub fsk441_period: crate::Fsk441Period,
+    /// CW: where the key comes from. See [`CwKeySource`].
+    #[serde(default)]
+    pub cw_key_source: CwKeySource,
+    /// CW: the USB device to read, as its `/dev/input/by-id` name. Empty picks
+    /// the first whose name says "key", so a real mouse is never grabbed.
+    #[serde(default)]
+    pub cw_key_device: String,
+    /// CW: what kind of key is in the operator's hand. See [`CwKeyMode`].
+    #[serde(default)]
+    pub cw_key_mode: CwKeyMode,
+    /// CW: swap dit and dah, for the switch on many paddles.
+    #[serde(default)]
+    pub cw_key_reverse: bool,
+    /// CW: let the key drive the transmitter through the ordinary manual-key
+    /// path (`CwStraight`/`CwKey`), rather than only the local trainer. Off for
+    /// a listener or a rig whose keyer the app cannot drive; on for MCW/VOX.
+    #[serde(default)]
+    pub cw_key_tx: bool,
 }
 
 fn cw_default_tx_idle_s() -> f32 {
@@ -2396,6 +2438,11 @@ impl Default for DigiConfig {
             cw_sidetone: true,
             cw_tx_idle_s: 5.0,
             sstv_style: SstvStyle::default(),
+            cw_key_source: CwKeySource::Keyboard,
+            cw_key_device: String::new(),
+            cw_key_mode: CwKeyMode::IambicB,
+            cw_key_reverse: false,
+            cw_key_tx: false,
         }
     }
 }

@@ -40,13 +40,8 @@ pub enum Fst4Period {
 impl Fst4Period {
     /// Every period, shortest slot first — the order a picker reads them in,
     /// and the *wire* order, since postcard numbers variants by declaration.
-    pub const ALL: [Fst4Period; 5] = [
-        Fst4Period::P15,
-        Fst4Period::P30,
-        Fst4Period::P60,
-        Fst4Period::P120,
-        Fst4Period::P300,
-    ];
+    pub const ALL: [Fst4Period; 5] =
+        [Fst4Period::P15, Fst4Period::P30, Fst4Period::P60, Fst4Period::P120, Fst4Period::P300];
 
     /// The label a chip or log row shows: the WSJT-X period number.
     pub fn label(self) -> &'static str {

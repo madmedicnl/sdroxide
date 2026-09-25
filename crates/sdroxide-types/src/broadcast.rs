@@ -541,10 +541,7 @@ pub fn metre_band(khz: f64) -> Option<&'static str> {
     if (225_100.0..=400_000.0).contains(&k) {
         return Some("MIL");
     }
-    METRE_BANDS
-        .iter()
-        .find(|&&(_, lo, hi)| (lo..=hi).contains(&k))
-        .map(|&(name, _, _)| name)
+    METRE_BANDS.iter().find(|&&(_, lo, hi)| (lo..=hi).contains(&k)).map(|&(name, _, _)| name)
 }
 
 /// Local mean solar time at a transmitter, `HH:MM`, for a UTC `HHMM` clock time

@@ -108,6 +108,10 @@ pub struct KeySetup {
     pub pitch_hz: f32,
     pub reverse: bool,
     pub mode: KeyerMode,
+    /// Play the sidetone here. Off when the caller already hears its own tone
+    /// (the CW panel's sidetone while the transmitter is keyed), so the two do
+    /// not double.
+    pub monitor: bool,
 }
 
 impl Default for KeySetup {
@@ -117,6 +121,7 @@ impl Default for KeySetup {
             pitch_hz: 700.0,
             reverse: false,
             mode: KeyerMode::Iambic(IambicMode::B),
+            monitor: true,
         }
     }
 }
@@ -160,6 +165,12 @@ impl CwKeySource {
     /// Characters decoded since the last call, in order.
     pub fn take_text(&self) -> String {
         std::mem::take(&mut *self.shared.text.lock().unwrap())
+    }
+
+    /// Whether the key is down at this instant, for the caller to turn into
+    /// `Command::CwKey` edges.
+    pub fn key_down(&self) -> bool {
+        self.shared.key_down.load(Ordering::Relaxed)
     }
 
     pub fn contacts(&self) -> (bool, bool) {
@@ -222,23 +233,33 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
         unsafe { libc::fcntl(*fd, libc::F_SETFL, libc::O_NONBLOCK) };
     }
 
-    let (out, mut ring) = match start_output(None, 48_000) {
-        Ok(v) => v,
-        Err(e) => {
-            set_error(shared, format!("no audio output for the sidetone: {e}"));
-            for fd in &fds {
-                unsafe { libc::ioctl(*fd, EVIOCGRAB, 0) };
+    // The sidetone is optional: a caller that keys a transmitter already hears
+    // its own tone.
+    let audio = if setup.monitor {
+        match start_output(None, 48_000) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                set_error(shared, format!("no audio output for the sidetone: {e}"));
+                for fd in &fds {
+                    unsafe { libc::ioctl(*fd, EVIOCGRAB, 0) };
+                }
+                return;
             }
-            return;
         }
+    } else {
+        None
     };
-    let rate = out.sample_rate;
-    let capacity = out.sample_rate as usize * 2;
+    let (out, mut ring) = match audio {
+        Some((out, ring)) => (Some(out), Some(ring)),
+        None => (None, None),
+    };
+    let rate = out.as_ref().map(|o| o.sample_rate).unwrap_or(48_000.0);
+    let capacity = rate as usize * 2;
     let inc = std::f64::consts::TAU * setup.pitch_hz as f64 / rate;
 
     let mut keyer = CwKeyer::new(setup.wpm);
     keyer.set_mode(setup.mode);
-    let (mut dit, mut dah) = (false, false);
+    let (mut dit, mut dah, mut middle) = (false, false, false);
     let mut phase = 0.0f64;
     let start = Instant::now();
     let mut generated: u64 = 0;
@@ -262,7 +283,7 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
                             match ev.code {
                                 BTN_LEFT => dit = down,
                                 BTN_RIGHT => dah = down,
-                                BTN_MIDDLE => {}
+                                BTN_MIDDLE => middle = down,
                                 _ => {}
                             }
                         }
@@ -274,7 +295,18 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
         }
 
         let now = start.elapsed().as_secs_f64();
-        let (d, a) = if setup.reverse { (dah, dit) } else { (dit, dah) };
+        let (d, a) = match setup.mode {
+            // A straight key is one contact — the straight jack if the box has
+            // one, else the dit contact.
+            KeyerMode::Straight => ((middle || dit), false),
+            KeyerMode::Iambic(_) => {
+                if setup.reverse {
+                    (dah, dit)
+                } else {
+                    (dit, dah)
+                }
+            }
+        };
         let down = keyer.poll(now, d, a);
         shared.key_down.store(down, Ordering::Relaxed);
         shared.dit.store(dit, Ordering::Relaxed);
@@ -294,6 +326,10 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
             to_gen = cap;
             generated = want - cap;
         }
+        let Some(ring) = ring.as_mut() else {
+            std::thread::sleep(Duration::from_millis(1));
+            continue;
+        };
         while to_gen > 0 {
             if ring.slots() + 2 > capacity {
                 break;
@@ -308,6 +344,7 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
             to_gen -= 1;
             generated += 1;
         }
+        let _ = &out;
 
         std::thread::sleep(Duration::from_millis(1));
     }

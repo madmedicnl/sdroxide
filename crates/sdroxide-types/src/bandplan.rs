@@ -835,14 +835,8 @@ mod tests {
         assert_eq!(older.region(Region::R1).containing(9_650_000.0), Band::Sw);
         assert_eq!(older.region(Region::R1).edges(Band::Fm), Some((87_500_000.0, 108_000_000.0)));
         // And the two airbands, which were the newest when this was written.
-        assert_eq!(
-            older.region(Region::R1).edges(Band::Air),
-            Some((108_100_000.0, 137_000_000.0))
-        );
-        assert_eq!(
-            older.region(Region::R2).edges(Band::Mil),
-            Some((225_100_000.0, 400_000_000.0))
-        );
+        assert_eq!(older.region(Region::R1).edges(Band::Air), Some((108_100_000.0, 137_000_000.0)));
+        assert_eq!(older.region(Region::R2).edges(Band::Mil), Some((225_100_000.0, 400_000_000.0)));
         assert_eq!(older.region(Region::R2).containing(243_000_000.0), Band::Mil);
 
         // Named in one region: the file decides 4 m everywhere from then on, so

@@ -1553,7 +1553,17 @@ use sdroxide_types::{
 /// reads the extra bytes as the start of the next field and fails to decode
 /// every digital status. No new wire type: FSK441's transmit runs through the
 /// ordinary digi engine seam (`DigiTxText`/`DigiTxActive`).
-pub const PROTO_VERSION: u16 = 178;
+///
+/// v179: the CW key. `DigiConfig` gains `cw_key_source`, `cw_key_device`,
+/// `cw_key_mode`, `cw_key_reverse` and `cw_key_tx` on its tail — which key the
+/// operator is using, whether a USB device and which, iambic or straight, the
+/// paddle-reverse switch, and whether the key drives the transmitter or only the
+/// local trainer. `DigiConfig` rides whole in `SetDigiConfig`/`DigiStatus`, so a
+/// v178 peer reads the extra bytes as the start of the next field and fails to
+/// decode every config — the same break as v178's appended status field. No new
+/// wire type: the key drives the existing manual-key seam
+/// (`CwStraight`/`CwKey`).
+pub const PROTO_VERSION: u16 = 179;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

@@ -162,8 +162,7 @@ mod tests {
                 t.tx_offset_s,
                 t.slot_s
             );
-            let (long, short) =
-                if t.slot_s >= 60.0 { (t.slot_s, 60.0) } else { (60.0, t.slot_s) };
+            let (long, short) = if t.slot_s >= 60.0 { (t.slot_s, 60.0) } else { (60.0, t.slot_s) };
             assert!((long / short).fract() < 1e-9, "Q65-{}: not a minute's worth", m.label());
         }
     }

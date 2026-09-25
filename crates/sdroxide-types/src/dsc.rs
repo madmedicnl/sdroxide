@@ -484,7 +484,9 @@ impl DscFramer {
     /// grid.
     fn hunt(&mut self) {
         let Some(inverted) = self.window_is_phasing() else { return };
-        if self.dx_seen && self.last_dx_inverted == inverted && self.nbits - self.last_dx_bit == DX_STRIDE
+        if self.dx_seen
+            && self.last_dx_inverted == inverted
+            && self.nbits - self.last_dx_bit == DX_STRIDE
         {
             self.state = Framed::Locked;
             self.inverted = inverted;
@@ -758,4 +760,3 @@ mod tests {
         assert_eq!(m.format, DscFormat::Distress);
     }
 }
-

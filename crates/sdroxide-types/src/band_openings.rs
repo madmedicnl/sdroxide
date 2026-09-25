@@ -197,7 +197,12 @@ impl BandOpeningTracker {
     }
 
     pub fn with_options(opts: OpenOptions) -> Self {
-        BandOpeningTracker { opts, spots: HashMap::new(), seen: HashMap::new(), states: HashMap::new() }
+        BandOpeningTracker {
+            opts,
+            spots: HashMap::new(),
+            seen: HashMap::new(),
+            states: HashMap::new(),
+        }
     }
 
     pub fn options(&self) -> OpenOptions {
@@ -311,8 +316,11 @@ impl BandOpeningTracker {
                         // same) but report the entry as `opening`. A path that
                         // closed and comes back is a new event, so its age starts
                         // here rather than inheriting the previous event's.
-                        let rec =
-                            StateRec { state: OpeningState::Active, since: now, closing_since: None };
+                        let rec = StateRec {
+                            state: OpeningState::Active,
+                            since: now,
+                            closing_since: None,
+                        };
                         self.states.insert(*key, rec);
                         state = Some((OpeningState::Opening, rec));
                     } else if let Some(p) = prev {
@@ -482,7 +490,8 @@ mod tests {
     fn key_burst(band: Band, from: &'static str, to: &'static str, count: usize) -> Vec<BandPath> {
         (0..count)
             .map(|i| {
-                let mut s = spot(&format!("DX{i}AA"), -1 - (i as i64 % 10), &[("n", i.to_string())]);
+                let mut s =
+                    spot(&format!("DX{i}AA"), -1 - (i as i64 % 10), &[("n", i.to_string())]);
                 s.band = band;
                 s.from_continent = from;
                 s.to_continent = to;
@@ -621,7 +630,11 @@ mod tests {
         t.ingest(&baseline_spots(10, &["G0AAA", "G0BBB", "G0CCC"]), NOW);
         let openings = t.analyze(NOW);
         assert_eq!(openings.len(), 1);
-        assert_eq!(openings[0].band, Band::M20, "the burst path, judged once its own baseline exists");
+        assert_eq!(
+            openings[0].band,
+            Band::M20,
+            "the burst path, judged once its own baseline exists"
+        );
     }
 
     #[test]
@@ -739,7 +752,10 @@ mod tests {
         t.ingest(&key_baseline(Band::M20, "EU", "NA"), NOW);
         t.ingest(&key_burst(Band::M40, "EU", "NA", 8), NOW);
         let res = t.analyze(NOW);
-        assert!(res.iter().all(|o| o.band != Band::M40), "40 m has no baseline of its own: {res:?}");
+        assert!(
+            res.iter().all(|o| o.band != Band::M40),
+            "40 m has no baseline of its own: {res:?}"
+        );
     }
 
     #[test]

@@ -625,6 +625,12 @@ pub struct SdroxideApp {
     /// Whether the Space bar was down the last frame, so a key press or
     /// release is told to the keyer once — never per frame.
     cw_key_down: bool,
+    /// The USB paddle, when one is the CW key and the panel has armed it.
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    cw_key: Option<cw_key::CwKeySource>,
+    /// A failed paddle start, said in the panel rather than swallowed.
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    cw_key_error: Option<String>,
     /// The FT8/FT4 transmit-offset box, as typed. Kept as text rather than a
     /// number so a half-finished figure survives between frames: parsing every
     /// keystroke would rewrite "8" to 200 before the 2 was pressed.
@@ -1632,6 +1638,10 @@ impl SdroxideApp {
             cw_macro_edit: false,
             cw_straight: false,
             cw_key_down: false,
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+            cw_key: None,
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+            cw_key_error: None,
             digi_tx_hz_edit: String::new(),
             digi_preview: None,
             auto_mode: false,

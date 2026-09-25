@@ -48,12 +48,12 @@ mod morse_trainer;
 mod netcfg;
 mod pi4;
 mod pictures;
-mod q65;
 mod probe;
 mod profile;
 mod prop_store;
 mod propagation;
 pub mod publicsdr;
+mod q65;
 mod qo100;
 mod radio;
 mod rds;
@@ -112,9 +112,7 @@ pub use awards::{
     compute_awards, counts, coverage_counts, entity_coverage, entity_name,
 };
 pub use band::Band;
-pub use band_openings::{
-    BandOpening, BandOpeningTracker, BandPath, OpenOptions, OpeningState,
-};
+pub use band_openings::{BandOpening, BandOpeningTracker, BandPath, OpenOptions, OpeningState};
 pub use band_segments::{
     APRS_DIALS, DigiChannel, DigiPreset, FSQ_DIALS, FT2_DIALS, FT4_DIALS, FT8_DIALS,
     FT8_DXPED_DIALS, FT8_VHF_DIALS, JS8_DIALS, PSK_DIALS, PSK_RANGES_R1, PSK_RANGES_R23,
@@ -130,24 +128,28 @@ pub use bandplan::{BandPlan, BandPlanError, RegionPlan, band_plan, set_band_plan
 pub use broadcast::{BroadcastStation, BroadcastStations};
 pub use callsign::{CallsignInfo, LoginTarget, LoginTestResult, UploadResult, UploadTarget};
 pub use caps::{DeviceCaps, DeviceSetting, Direction, GainElement, GainUnit, SettingKind};
+pub use cb::{CbPlan, cb_plan, cb_tx_allowed, set_cb_plan, set_cb_tx_allowed};
+pub use cb_callsign::is_cb_callsign;
+/// The first WSJT-CB-shaped callsign in a decoded message, for the spot
+/// reporters (see [`cb_country::cb_callsign_in`]).
+pub use cb_country::cb_callsign_in;
 pub use chirp::{chirp_csv_to_memories, memories_to_chirp_csv};
 pub use command::Command;
 pub use contacts::FsqContact;
 pub use controller::{AudioDevices, PeerRadio, RadioController, RadioEvent};
 pub use digi::{
     ACARS_MESSAGE_MAX, AcarsMessage, AcarsStatus, CONTEST_SERIAL_MAX, ClockHealth, ContestMode,
-    CwMacro, CwStatus, DSC_MESSAGE_MAX, DSC_TONE_HZ, Decode, DecodeSort, DigiConfig, DigiStatus,
-    DscHeard, DscStatus, DxpedMode, FOX_MAX_SLOTS,
-    FOX_ZONE_MAX_HZ, FoxCaller, FsqHeard, FsqMsg, HOUND_ZONE_MAX_HZ, HellVariant,
-    NAVTEX_MESSAGE_MAX, NAVTEX_TONE_HZ, NavtexMessage, NavtexStatus, PACKET_HEARD_MAX,
-    PACKET_TERM_LINE_MAX, PACKET_TERM_MAX, PacketBaud, PacketHeard, PacketLink, PacketLinkOwner,
-    PacketStatus, PacketTermKind, PacketTermLine, QsoLive, QsoRecord, QsoStep, QueuedCall,
-    RTTY_CENTER_HZ, RadeStatus, SstvStyle, TX_AUDIO_LEVEL_MIN, TX_AUDIO_LEVEL_MIN_DB, ThorMode,
-    TranscriptLine, adif_band, adif_records, adif_to_qso_log, adif_to_qso_log_counting_swl,
-    clock_health, cq_is_for_us, digi_decode_to_adif_record, digi_decodes_to_adif,
-    digi_decodes_to_csv, eu_vhf_rs, fmt_report, next_contest_serial, qso_log_to_adif,
-    qso_log_to_text, qso_to_adif_record, tx_level_db, tx_level_from_db, utc_ymd_hms, worked_before,
-    ymd_hms_to_unix,
+    CwKeyMode, CwKeySource, CwMacro, CwStatus, DSC_MESSAGE_MAX, DSC_TONE_HZ, Decode, DecodeSort,
+    DigiConfig, DigiStatus, DscHeard, DscStatus, DxpedMode, FOX_MAX_SLOTS, FOX_ZONE_MAX_HZ,
+    FoxCaller, FsqHeard, FsqMsg, HOUND_ZONE_MAX_HZ, HellVariant, NAVTEX_MESSAGE_MAX,
+    NAVTEX_TONE_HZ, NavtexMessage, NavtexStatus, PACKET_HEARD_MAX, PACKET_TERM_LINE_MAX,
+    PACKET_TERM_MAX, PacketBaud, PacketHeard, PacketLink, PacketLinkOwner, PacketStatus,
+    PacketTermKind, PacketTermLine, QsoLive, QsoRecord, QsoStep, QueuedCall, RTTY_CENTER_HZ,
+    RadeStatus, SstvStyle, TX_AUDIO_LEVEL_MIN, TX_AUDIO_LEVEL_MIN_DB, ThorMode, TranscriptLine,
+    adif_band, adif_records, adif_to_qso_log, adif_to_qso_log_counting_swl, clock_health,
+    cq_is_for_us, digi_decode_to_adif_record, digi_decodes_to_adif, digi_decodes_to_csv, eu_vhf_rs,
+    fmt_report, next_contest_serial, qso_log_to_adif, qso_log_to_text, qso_to_adif_record,
+    tx_level_db, tx_level_from_db, utc_ymd_hms, worked_before, ymd_hms_to_unix,
 };
 pub use drm::{
     DrmChannel, DrmCodec, DrmConstellation, DrmRobustness, DrmService, DrmStatus, DrmSync, DrmTime,
@@ -189,9 +191,6 @@ pub use ism::{
     RTL433_BANDS_DEFAULT, RTL433_BANDWIDTH_AUTO, RTL433_BANDWIDTH_MIN_HZ, RTL433_BANDWIDTHS,
     Rtl433Settings, Rtl433Status,
 };
-pub use uvpacket::{
-    UVPACKET_AUDIO_CENTRE_HZ, UVPACKET_FRAME_MAX, UvPacketFrame, UvPacketMode, UvPacketStatus,
-};
 pub use js8::{
     HB_BAND_HI_HZ, HB_BAND_LO_HZ, HB_SLOT_HZ, Js8FrameInfo, Js8FrameKind, Js8Heard, Js8Msg,
     Js8Speed, Js8Status,
@@ -230,28 +229,27 @@ pub use q65::Q65Mode;
 pub use qo100::{QO100_BEACON_HZ, Qo100Settings, Qo100Status};
 pub use radio::{
     AirspyConfig, AirspyDevice, AirspyGain, AirspyHfConfig, AirspyHfDevice, AirspyHfModel,
-    AtsMiniConfig, Backend,
-    BandDriveTrim, CAT_IQ_DC_BLOCK_MAX_HZ, CAT_IQ_RATES, CAT_SCOPE_MIN_BAUD,
-    CONVERTER_OFFSET_MAX_HZ, CONVERTER_PRESETS, CatConfig, CatFamily, ConverterTx, CwKeying,
-    DIV_FREEZE_ELEMENT, DIV_MODE_ELEMENT, DIV_RATE_ELEMENT, DIV_RESET_ELEMENT, DIV_TAPS_ELEMENT,
-    DIVERSITY_MAX_TAPS, DigiMode, DiversityMode, ELAD_ATTENUATOR_DB, ELAD_CAT_BAUDS,
-    ELAD_DEFAULT_CAT_BAUD, ELAD_DEFAULT_RATE_HZ, ELAD_SAMPLE_RATES, EladAntenna, EladConfig,
-    EladDevice, EladTxInput, FREQ_RANGE_MAX_HZ, FobosConfig, FobosDevice, FobosPort, HackRfConfig,
-    HackRfDevice, HpsdrConfig, HpsdrDevice, HpsdrFilterBoard, HpsdrIoRxInput, HpsdrOcPlan,
-    HpsdrOcRow, HydraSdrConfig, HydraSdrDevice, HydraSdrGain, HydraSdrPort, IcomModel,
-    IcomNetConfig, IcomRxSource, IcomScopeSpan, IfModeClass, KenwoodSend, KiwiConfig,
-    LimeAuxConfig, LimeAuxRole, LimeConfig, LimeDevice, LineState, MAX_TRANSVERTERS, ModeControl,
-    PANADAPTER_OFFSET_MAX_HZ, PanadapterAudio, PanadapterConfig, PanadapterTap, Parity, PlutoAgc,
-    PlutoConfig, PlutoDevice, PlutoDuplex, PlutoPtt, PttMethod, QMX_IQ_OFFSET_HZ, QMX_IQ_RATE_HZ,
-    RS_HFIQ_CAT_BAUD, RadioConfig, RtlSdrAgc, RtlSdrConfig, RtlSdrDevice, RtlSdrHfMode,
-    RtlTcpConfig, Rx888Config, Rx888Device, RxSite, SdrPlayAgc, SdrPlayConfig, SdrPlayDevice,
-    SdrPlayDuo, SdrPlayDuoRole, SdrPlayDuoTuner, SdrPlayHdrBw, SdrPlayModel, SerialConfig,
-    SmartSdrConfig, SmartSdrDevice, SoapyConfig, SoapyDeviceInfo, SoundFormat, SpyServerConfig,
-    SpyServerFormat, StopBits, TRUSDX_NG_TX_ESCAPE_TO, TRUSDX_NG_TX_RATE_HZ,
-    TRUSDX_NG_TX_START_BYTE, TRUSDX_RX_RATE_HZ, TRUSDX_TX_RATE_HZ, TciConfig, TrUsdxAudio,
-    TrUsdxNgAgc,
-    Transverter, cat_iq_offset_max_hz, converter_preset_name, diversity_cost_note, elad_cat_baud,
-    format_freq_ranges, hackrf_serial_matches, hpsdr_alex_oc, hpsdr_n2adr_oc, parse_freq_ranges,
+    AtsMiniConfig, Backend, BandDriveTrim, CAT_IQ_DC_BLOCK_MAX_HZ, CAT_IQ_RATES,
+    CAT_SCOPE_MIN_BAUD, CONVERTER_OFFSET_MAX_HZ, CONVERTER_PRESETS, CatConfig, CatFamily,
+    ConverterTx, CwKeying, DIV_FREEZE_ELEMENT, DIV_MODE_ELEMENT, DIV_RATE_ELEMENT,
+    DIV_RESET_ELEMENT, DIV_TAPS_ELEMENT, DIVERSITY_MAX_TAPS, DigiMode, DiversityMode,
+    ELAD_ATTENUATOR_DB, ELAD_CAT_BAUDS, ELAD_DEFAULT_CAT_BAUD, ELAD_DEFAULT_RATE_HZ,
+    ELAD_SAMPLE_RATES, EladAntenna, EladConfig, EladDevice, EladTxInput, FREQ_RANGE_MAX_HZ,
+    FobosConfig, FobosDevice, FobosPort, HackRfConfig, HackRfDevice, HpsdrConfig, HpsdrDevice,
+    HpsdrFilterBoard, HpsdrIoRxInput, HpsdrOcPlan, HpsdrOcRow, HydraSdrConfig, HydraSdrDevice,
+    HydraSdrGain, HydraSdrPort, IcomModel, IcomNetConfig, IcomRxSource, IcomScopeSpan, IfModeClass,
+    KenwoodSend, KiwiConfig, LimeAuxConfig, LimeAuxRole, LimeConfig, LimeDevice, LineState,
+    MAX_TRANSVERTERS, ModeControl, PANADAPTER_OFFSET_MAX_HZ, PanadapterAudio, PanadapterConfig,
+    PanadapterTap, Parity, PlutoAgc, PlutoConfig, PlutoDevice, PlutoDuplex, PlutoPtt, PttMethod,
+    QMX_IQ_OFFSET_HZ, QMX_IQ_RATE_HZ, RS_HFIQ_CAT_BAUD, RadioConfig, RtlSdrAgc, RtlSdrConfig,
+    RtlSdrDevice, RtlSdrHfMode, RtlTcpConfig, Rx888Config, Rx888Device, RxSite, SdrPlayAgc,
+    SdrPlayConfig, SdrPlayDevice, SdrPlayDuo, SdrPlayDuoRole, SdrPlayDuoTuner, SdrPlayHdrBw,
+    SdrPlayModel, SerialConfig, SmartSdrConfig, SmartSdrDevice, SoapyConfig, SoapyDeviceInfo,
+    SoundFormat, SpyServerConfig, SpyServerFormat, StopBits, TRUSDX_NG_TX_ESCAPE_TO,
+    TRUSDX_NG_TX_RATE_HZ, TRUSDX_NG_TX_START_BYTE, TRUSDX_RX_RATE_HZ, TRUSDX_TX_RATE_HZ, TciConfig,
+    TrUsdxAudio, TrUsdxNgAgc, Transverter, cat_iq_offset_max_hz, converter_preset_name,
+    diversity_cost_note, elad_cat_baud, format_freq_ranges, hackrf_serial_matches, hpsdr_alex_oc,
+    hpsdr_n2adr_oc, parse_freq_ranges,
 };
 pub use rds::{
     RdsClock, RdsData, RdsGroupLog, RdsStandard, RdsStats, RtPlus, af_code_hz, pi_callsign,
@@ -259,11 +257,6 @@ pub use rds::{
 };
 pub use recording::{JobAction, RecordingJob, RecordingKind};
 pub use region::{Region, region, set_region};
-pub use cb::{CbPlan, cb_plan, cb_tx_allowed, set_cb_plan, set_cb_tx_allowed};
-pub use cb_callsign::is_cb_callsign;
-/// The first WSJT-CB-shaped callsign in a decoded message, for the spot
-/// reporters (see [`cb_country::cb_callsign_in`]).
-pub use cb_country::cb_callsign_in;
 pub use relay::{
     DEFAULT_HOLD_MS, DEFAULT_LEAD_MS, FailSafe, MAX_CHANNEL, RelayBandRow, RelayChannel,
     RelayConfig, RelayDevice, RelayFamily, RelayLink, RelayRole, RelayStatus, SenseConfig,
@@ -300,7 +293,6 @@ pub use speech::{
 };
 pub use spot::{Spot, SpotKind};
 pub use sstv::{SstvMode, SstvStatus};
-pub use ui::{force_swl, set_force_swl};
 pub use state::{
     CESSB_MAX_DB, MAX_DECIMATION, MAX_MANUAL_GAIN_DB, MIN_DECIMATED_RATE_HZ, OffsetState,
     RadioState, RxId, RxState, SQUELCH_CLOSED_DB, SQUELCH_OPEN_DB, SWR_LIMIT_MAX, SWR_LIMIT_MIN,
@@ -308,12 +300,16 @@ pub use state::{
     panadapter_fft_ceiling, swr_tune_limit, zoom_lane_decimation,
 };
 pub use station::StationConfig;
-pub use swl::{Sio, Sinpo, SignalReport, SwlEntry};
+pub use swl::{SignalReport, Sinpo, Sio, SwlEntry};
 pub use tciserver::TciServerConfig;
 pub use tone::{CTCSS_TONES, SubTone};
 pub use ui::{
     BandplanKind, ChromeStyle, FontSize, LayoutMode, SmeterStyle, SpectrumDetail, Speed,
     UiSettings, UiTheme,
+};
+pub use ui::{force_swl, set_force_swl};
+pub use uvpacket::{
+    UVPACKET_AUDIO_CENTRE_HZ, UVPACKET_FRAME_MAX, UvPacketFrame, UvPacketMode, UvPacketStatus,
 };
 pub use vdl2::{
     VDL2_ALL_CHANNELS, VDL2_CHANNEL_LABELS, VDL2_CHANNEL_SPACING_HZ, VDL2_CHANNELS_HZ, VDL2_CSC_HZ,

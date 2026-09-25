@@ -267,10 +267,7 @@ pub struct WsjtCbConfig {
 
 impl Default for WsjtCbConfig {
     fn default() -> Self {
-        WsjtCbConfig {
-            report: false,
-            url: "https://xzgroup.net/spots/api/ingest.php".to_string(),
-        }
+        WsjtCbConfig { report: false, url: "https://xzgroup.net/spots/api/ingest.php".to_string() }
     }
 }
 
