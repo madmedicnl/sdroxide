@@ -1,5 +1,4 @@
 pub mod acars;
-pub mod dsc;
 mod adc;
 pub mod afsk;
 mod agc;
@@ -12,6 +11,7 @@ mod decim;
 mod demod;
 mod dfnr;
 mod diversity;
+pub mod dsc;
 mod eq;
 mod fec;
 mod fir;
@@ -61,7 +61,10 @@ pub use agc::Agc;
 pub use binaural::Binaural;
 pub use cessb::Cessb;
 pub use ctcss::{SubToneDetect, golay23_decode, golay23_encode};
-pub use cw::{CwDecoder, CwRx, CwSelfRx, CwTx, morse_decode, morse_encode, text_duration_s};
+pub use cw::{
+    CwDecoder, CwElement, CwKeyer, CwRx, CwSelfRx, CwTx, IambicMode, morse_decode, morse_encode,
+    text_duration_s,
+};
 pub use ddc::Ddc;
 pub use decim::{Decimator, FirDecim, HalfbandDecim, RealFirDecim, lowpass_taps};
 pub use demod::{
@@ -110,6 +113,7 @@ pub use olivia::{OliviaRx, OliviaTx};
 pub use predistort::{MAX_CORRECTION as PS_MAX_CORRECTION, PureSignal};
 pub use psk::{BpskCore, PskRx, PskTx, VaricodeRx};
 pub use rds::{RDS_MIN_RATE, RdsRx};
+pub use replay::ReplayBuffer;
 pub use resample::{ComplexResampler, MonoResampler, StereoResampler};
 pub use rifp::{RifpFrame, RifpRx, RifpTx, Tlv as RifpTlv};
 pub use rtty::{BaudotRx, RttyRx, RttyTx};
@@ -126,7 +130,6 @@ pub use wbddc::{WbDdc, clamp_center_hz, reachable_range_hz};
 pub use wbspectrum::WideSpectrum;
 pub use wefax::{Ioc as WefaxIoc, Lpm as WefaxLpm, WefaxEvent, WefaxRx};
 pub use window::blackman_harris;
-pub use replay::ReplayBuffer;
 
 pub type Complex32 = num_complex::Complex<f32>;
 
