@@ -5424,11 +5424,21 @@ impl SdroxideApp {
         // `system_top_row`, which is what sizes the box — the two have to agree
         // or the strip overflows (issue #211).
         let swl = self.swl_mode();
-        if chip_stretched(ui, self.show_logbook, log, extra)
-            .on_hover_text("Logbook — all QSOs (digital + manual)")
-            .clicked()
-        {
-            self.show_logbook = !self.show_logbook;
+        // One LOG chip, because "my log" is whichever log the operator keeps:
+        // a listener logging a pirate station wants the reception log, not the
+        // QSO logbook. So in SWL mode LOG opens the SWL log and says so.
+        let log_opens_swl = log_chip_opens_swl(swl);
+        let (log_open, log_hover) = if log_opens_swl {
+            (self.show_swl, "Reception log — stations heard, with SINPO/SIO")
+        } else {
+            (self.show_logbook, "Logbook — all QSOs (digital + manual)")
+        };
+        if chip_stretched(ui, log_open, log, extra).on_hover_text(log_hover).clicked() {
+            if log_opens_swl {
+                self.show_swl = !self.show_swl;
+            } else {
+                self.show_logbook = !self.show_logbook;
+            }
         }
         if swl
             && chip_stretched(ui, self.schedule.show, "SCHEDULE", extra)
@@ -5787,6 +5797,17 @@ const SYSTEM_CHIPS_TOP: [&str; 7] = ["LOG", "SPOTS", "AWARDS", "BANDS", "SAT", "
 
 /// The rest of them. See [`SYSTEM_CHIPS_TOP`].
 const SYSTEM_CHIPS_BOTTOM: [&str; 6] = ["MAIL", "MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"];
+
+/// Which log the main-screen LOG chip opens: the listener's reception log in
+/// SWL mode, the QSO logbook otherwise.
+///
+/// The operator's "my log" is whichever one they keep, so one chip opens it.
+/// Pulled out as a pure function so the policy is pinned without an `App` —
+/// see `the_log_chip_follows_listen_mode`. The chip's label is the same in both
+/// modes (see [`system_top_row`]), so the box is sized the same either way.
+fn log_chip_opens_swl(swl: bool) -> bool {
+    swl
+}
 
 /// The Display box's top row: the solar view, then the chips that choose what
 /// the panadapter draws — the last of those only on a front end with a
@@ -6805,7 +6826,7 @@ fn atsmini_band_menu(ui: &mut egui::Ui, state: &RadioState, cmds: &mut Vec<Comma
     ui.add_space(6.0);
     crate::chrome::menu_caption(ui, "Mode");
     ui.horizontal_wrapped(|ui| {
-        for m in [Mode::Am, Mode::Lsb, Mode::Usb, Mode::Wfm] {
+        for m in sdroxide_types::atsmini::DEMOD_MODES {
             mode_listen_chip(ui, state.rx[0].mode, m, state, cmds);
         }
     });
@@ -7898,6 +7919,15 @@ mod tests {
         // HFDL is a decode window, so it sits with the others in the bottom
         // row — where the simple interface keeps it, unlike radio email.
         assert_eq!(system_bottom_row(true), vec!["MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]);
+    }
+
+    /// The LOG chip opens the listener's reception log in SWL mode and the QSO
+    /// logbook otherwise — the operator's "my log" is whichever they keep. A
+    /// listener logging a pirate station was being handed the QSO log.
+    #[test]
+    fn the_log_chip_follows_listen_mode() {
+        assert!(!log_chip_opens_swl(false), "a transceiver's LOG opens the QSO logbook");
+        assert!(log_chip_opens_swl(true), "a listener's LOG opens the reception log");
     }
 
     fn system_box_and_chips() -> (f32, Vec<(&'static str, f32)>) {

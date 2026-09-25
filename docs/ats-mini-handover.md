@@ -227,16 +227,14 @@ from AM, `m` (down) is one step, `M` (up) is two.
     your scroll"); the settings tab has a line, but consider something nearer
     the dial/progress. Open: should the app lock its dial to the requested
     frequency until the radio confirms, or show the lag? Decide and finish.
-- **Sidebands on every AM band.** Every band the receiver offers AM on also
-  accepts LSB and USB — the firmware's mode cycle is `LSB → USB → AM`, so the
-  sidebands are reachable wherever AM is. This matters because most DX on the
-  broadcast/Broadcast-metre bands is on a sideband. Make sure LSB and USB are
-  always *selectable* on those bands (and selecting one drives the radio's mode,
-  not just sdroxide's) — never greyed by a band rule. The custom popup uses the
-  LISTEN chips (never greyed) and `firmware_mode` maps both to the radio; pin it
-  with a test so a later band rule cannot take it away.
-- **SWL mode: the main screen's LOG button opens the QSO log, not the SWL log.**
-  Reported from the bench while trying to log a pirate station: the listener's
-  LOG should open the SWL log (the reception log), not the QSO log, whenever the
-  radio is in SWL/listen mode. Needs finding the button's dispatch and the SWL
-  log's own window, and a test. Not ATS-Mini-specific — general fork behaviour.
+- **Sidebands on every AM band — done.** The popup's mode row is now one
+  constant, `sdroxide_types::atsmini::DEMOD_MODES` (`Am`, `Lsb`, `Usb`, `Wfm`),
+  drawn with the never-greyed LISTEN chips, and `firmware_mode` maps LSB and USB
+  to the radio. `every_band_offers_every_demodulator` pins that every band's
+  default demodulator is in the row and that an AM band keeps both sidebands, so
+  a later band rule cannot grey one out.
+- **SWL mode: the main screen's LOG button opens the QSO log, not the SWL log —
+  done.** `log_chip_opens_swl` in `top_bar.rs` now routes the LOG chip to
+  `show_swl` (the reception log) in SWL mode and `show_logbook` otherwise, with
+  a matching hover; `the_log_chip_follows_listen_mode` pins it. Not
+  ATS-Mini-specific — general fork behaviour.

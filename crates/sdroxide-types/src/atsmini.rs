@@ -66,6 +66,17 @@ impl FirmwareMode {
     }
 }
 
+/// The four demodulators the Si4732 has, as sdroxide receive modes.
+///
+/// This is the ATS Mini popup's mode row, in full and in one place: the radio
+/// is receive-only, so every band offers every one of them and no band rule may
+/// grey one out. In particular every band the firmware defaults to `AM` also
+/// accepts `LSB` and `USB` — the mode cycle is `LSB → USB → AM`, so the
+/// sidebands are reachable wherever AM is, and most broadcast DX is on a
+/// sideband. `every_band_offers_every_demodulator` pins it.
+pub const DEMOD_MODES: [crate::Mode; 4] =
+    [crate::Mode::Am, crate::Mode::Lsb, crate::Mode::Usb, crate::Mode::Wfm];
+
 /// One line of the 500 ms monitor, parsed.
 ///
 /// Field order from `remotePrintStatus`:
@@ -418,6 +429,34 @@ mod tests {
         assert_eq!(FirmwareMode::Lsb.as_rx_mode(), crate::Mode::Lsb);
         assert_eq!(FirmwareMode::Usb.as_rx_mode(), crate::Mode::Usb);
         assert_eq!(FirmwareMode::Fm.as_rx_mode(), crate::Mode::Wfm);
+    }
+
+    /// The ATS Mini is receive-only, so its mode row is the Si4732's four
+    /// demodulators on every band, and no band rule may drop one. In particular
+    /// every band the firmware defaults to AM also accepts both sidebands — its
+    /// mode cycle is `LSB → USB → AM`, so the sidebands are reachable wherever
+    /// AM is, and most broadcast DX is on a sideband. The popup draws this row
+    /// from [`DEMOD_MODES`], so pinning the constant is pinning the UI.
+    #[test]
+    fn every_band_offers_every_demodulator() {
+        assert_eq!(DEMOD_MODES.len(), 4, "the Si4732 has four demodulators");
+        for b in BANDS {
+            assert!(
+                DEMOD_MODES.contains(&b.mode.as_rx_mode()),
+                "{} defaults to {:?}, which the mode row does not offer",
+                b.name,
+                b.mode
+            );
+            if b.mode == FirmwareMode::Am {
+                for m in [crate::Mode::Lsb, crate::Mode::Usb] {
+                    assert!(
+                        DEMOD_MODES.contains(&m),
+                        "{} defaults to AM, so {m:?} must stay selectable",
+                        b.name
+                    );
+                }
+            }
+        }
     }
 
     #[test]
