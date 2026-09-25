@@ -2445,7 +2445,7 @@ fn apply_line(port: &mut dyn Link, forced: LineState, rts: bool) {
 /// mode before this took a frequency at all.
 fn commanded_mode(cfg: &CatConfig, app_mode: Mode, dial_hz: Option<f64>) -> Option<Mode> {
     let rides_digi_sideband = (app_mode.is_digital() && !app_mode.is_carrier_centered())
-        || (app_mode == Mode::Cw && effective_cw_keying(cfg) == CwKeying::Audio);
+        || (app_mode == Mode::Cw && cfg.cw_keying == CwKeying::Audio);
     if rides_digi_sideband {
         let lower = dial_hz.is_some_and(|hz| app_mode.is_lower_sideband_at(hz));
         return match cfg.digi_mode {
