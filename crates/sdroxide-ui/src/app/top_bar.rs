@@ -6372,15 +6372,15 @@ fn rx_chips(mode: Mode, listener: bool) -> Vec<RxChip> {
     // now sits beside the recording controls it belongs to, inside the REC
     // popup (issue #217). That is also one chip fewer on a strip that has to
     // fit on a 1366-pixel screen (issue #211).
-    let mut chips = vec![RxChip::Bw, RxChip::Nb, RxChip::Anc, RxChip::Nr, RxChip::Mute];
+    let mut chips = vec![RxChip::Bw, RxChip::Nb, RxChip::Anc, RxChip::Nr, RxChip::Mute, RxChip::Rec];
     // The receive-tone equalizer is a listener's control — broadcast and
     // utility audio wants a tone control the ham speech chain never needed —
     // and the ham RX strip has no room for another chip, so it is offered only
-    // on the listener's screen (SWL mode, or a radio that cannot transmit).
+    // on the listener's screen (SWL mode, or a radio that cannot transmit),
+    // after REC.
     if listener {
         chips.push(RxChip::Eq);
     }
-    chips.push(RxChip::Rec);
     // No auto-notch on broadcast audio, where what it cancels is the programme
     // (issue #434).
     if !mode.auto_notch_applies() {
@@ -8797,8 +8797,7 @@ mod tests {
             assert!(!rx_chips(Mode::Am, false).contains(&RxChip::Eq), "no EQ on a ham strip");
             let chips = rx_chips(Mode::Am, true);
             let eq = chips.iter().position(|c| *c == RxChip::Eq).expect("EQ on the listener strip");
-            assert_eq!(chips.get(eq.wrapping_sub(1)), Some(&RxChip::Mute), "EQ after MUTE");
-            assert_eq!(chips.get(eq + 1), Some(&RxChip::Rec), "EQ before REC");
+            assert_eq!(chips.get(eq.wrapping_sub(1)), Some(&RxChip::Rec), "EQ after REC");
 
             let avail = 1400.0 - 16.0 - 20.0;
             let mut boxes = cat_rig_strip_boxes(ui, Mode::Am);
