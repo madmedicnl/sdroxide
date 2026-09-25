@@ -241,6 +241,14 @@ impl SdroxideApp {
                     {
                         self.jobs.show = true;
                     }
+                    if crate::chrome::chip(ui, false, "SIG ID")
+                        .on_hover_text(
+                            "What is on this dial? A guide to signals by frequency, mode and bandwidth",
+                        )
+                        .clicked()
+                    {
+                        self.signal_id.show = true;
+                    }
                     let replay = self.state.replay;
                     if crate::chrome::chip(ui, replay, "REPLAY")
                         .on_hover_text(

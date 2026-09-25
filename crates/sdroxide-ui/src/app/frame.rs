@@ -422,6 +422,13 @@ impl eframe::App for SdroxideApp {
         let ism_labels = self.ism_overlay();
         // Likewise the memory marks along the bottom of the waterfall.
         let mem_marks = self.memory_overlay();
+        // A docked band/mode selector takes a column off the right of the
+        // panadapter before either draws. Shown here, after the top bar and the
+        // notices, so the column sits beside the waterfall rather than under the
+        // chrome.
+        if self.band_docked && self.band_dock_visible {
+            self.band_dock_panel(ui, &mut cmds);
+        }
         // Remaining space: the panadapter (+ FT8/FT4 operating panel).
         if let Some(err) = self.error.clone() {
             let offer_retry = self.ctrl.can_reconnect();
@@ -1089,6 +1096,7 @@ impl eframe::App for SdroxideApp {
         self.bands_window(&ctx);
         self.sat_window(&ctx, &mut cmds);
         self.morse_window(&ctx);
+        self.signal_id_window(&ctx);
         self.help.ui(&ctx);
         // Last, so it lands on top of everything else that opened this frame.
         self.oob_tx_window(&ctx);

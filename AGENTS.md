@@ -1173,6 +1173,39 @@ also arrive as clicks. The branch's `cw_key.rs` is trimmed to `key_down` +
 `error` (the trainer's `take_text`/`contacts`/`marks` belong to #568's pane and
 are not in this PR).
 
+## The signal-identification guide (fork-only, 2026-09-25)
+
+A listener tool, opened by the **SIG ID** chip in the LISTEN window. The pure
+half is `sdroxide_types::signal_id`: a `SignalProfile` catalogue
+(`name`, `family`, `modulation`, `bandwidth_hz`, `bands`, `frequencies_hz`,
+`modes`, `summary`, `sigidwiki` slug) of ~60 signals, and the ranker
+`identify(freq_hz, band, mode, bw_hz)`. The rank is **exact mode match first,
+then frequencies and bands, then passband closeness** — implemented as a
+`(mode_match, score)` sort, not one blended number, because a frequency hit
+alone must not outrank the mode the operator is actually in. `search_profiles`
+is the free-text search the window's **Find** box uses. The UI half is
+`crates/sdroxide-ui/src/app/signal_id.rs` (ranked list, search, **sigidwiki**
+link via `ctx.open_url`); no wire type and no `PROTO_VERSION` bump, so it is a
+plain fork feature.
+
+**Licence — the reason the catalogue is ours and the samples are linked, not
+bundled.** The obvious source is `AresValley/Artemis` (a Python signal-ID app,
+GPL-3 code) and its `Artemis-DB` crawler, but Artemis-DB has **no `LICENSE`
+file**, its README says "internal use only", and its content is crawled from
+**Sigidwiki**, whose own licence is unclear. Artemis's GPL covers its code, not
+that wiki content. So nothing from Artemis-DB or Sigidwiki is bundled here: the
+`SignalProfile` data is written from public band plans, modes and frequencies,
+and the **sigidwiki** link opens the sample in the browser. The slugs in
+`SignalProfile::sigidwiki` are the wiki's own page names (checked against
+`https://www.sigidwiki.com/wiki/Database`); a profile with no page is `None`.
+If the wiki's content is ever wanted offline, ask its admin (Carl Colena, on the
+Artemis team) — do not ship it first.
+
+**Not done, and the natural next step:** the plan's **ACF** (envelope/spectrum
+autocorrelation) as a measured DSP feature to feed identification. It is an
+"isolate it" DSP change and has no home until something computes it from the
+receive chain, so keep it separate from the catalogue.
+
 ## Explore later
 
 - **NR2 (WDSP's Ephraim-Malah denoiser)** — **landed upstream on the 2026-09-20

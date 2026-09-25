@@ -45,6 +45,7 @@ pub(in crate::app) mod save_text;
 pub(in crate::app) mod scanner;
 pub(in crate::app) mod schedule;
 pub(in crate::app) mod settings;
+pub(in crate::app) mod signal_id;
 pub(in crate::app) mod solar;
 pub(in crate::app) mod spectrum;
 pub(in crate::app) mod speech;
@@ -493,6 +494,11 @@ pub struct SdroxideApp {
     /// VHF, UHF or all). Session UI state: it does not move the dial and is not
     /// worth remembering across restarts.
     band_filter: top_bar::BandFilter,
+    /// Whether the band/mode selector is docked beside the panadapter rather
+    /// than popped up from the top-bar chip, and whether it is currently shown
+    /// while docked. Session UI state, like `band_filter`.
+    band_docked: bool,
+    band_dock_visible: bool,
     fft_popup_since: Option<f64>,
     skimmer_popup_since: Option<f64>,
     /// Fade clock for the SPEC popup's layer chips, like `skimmer_popup_since`.
@@ -883,6 +889,8 @@ pub struct SdroxideApp {
     show_logbook: bool,
     /// The Morse trainer window and its persisted progress.
     morse: morse::MorseState,
+    /// The signal-identification guide window.
+    pub(in crate::app) signal_id: signal_id::SignalIdState,
     /// The Winlink mail window. Holds its own view state; the mailbox itself
     /// lives engine-side and is read a page at a time.
     pub(in crate::app) mail: winlink::MailUi,
@@ -1537,6 +1545,8 @@ impl SdroxideApp {
             mode_popup_since: None,
             band_menu_tab: top_bar::BandMenuTab::Operate,
             band_filter: top_bar::BandFilter::default(),
+            band_docked: false,
+            band_dock_visible: false,
             fft_popup_since: None,
             skimmer_popup_since: None,
             layers_popup_since: None,
@@ -1674,6 +1684,7 @@ impl SdroxideApp {
             flags: Default::default(),
             show_logbook: false,
             morse: morse::MorseState::new(load_morse_progress(storage)),
+            signal_id: signal_id::SignalIdState::default(),
             mail: winlink::MailUi::default(),
             log_edit: None,
             spots: Vec::new(),

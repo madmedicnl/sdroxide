@@ -37,6 +37,7 @@ or connects to a remote sdroxide server.
 8. [Remote operation](#8-remote-operation)
 9. [Web operation](#9-web-operation)
 10. [Spotting, awards, and QSL upload](#10-spotting-awards-and-qsl-upload)
+    - [10.7 Signal identification](#107-signal-identification)
 11. [Winlink radio email](#11-winlink-radio-email)
 12. [Command-line reference](#12-command-line-reference)
 13. [Configuration files](#13-configuration-files)
@@ -333,6 +334,14 @@ and medium wave included), VHF 30–300 MHz, UHF above that — and the lit chip
 toggles itself back to all. **ALL** is general coverage: it clears the band so
 the dial can go anywhere. The filter only hides buttons and never moves the
 dial.
+
+On a desktop layout the popup's **DOCK** chip keeps the selector open as a
+resizable column beside the waterfall rather than a popup that closes on the
+next click — handy while working a band plan or a set of channels. In the
+column, **UNDOCK** returns it to the popup and **×** hides it until the top-bar
+band chip brings it back; while docked, that chip toggles the column. Docking is
+offered on the desktop layouts alone: a window narrow enough to be a phone
+undocks and keeps the popup.
 
 In the **OPERATE** tab a pair that cannot work is not offered: **a mode that
 does not apply on the current band is greyed**, with the reason on hover. FM
@@ -14688,6 +14697,33 @@ tools/gen_broadcast_codes.py --season b26
 Longwave and the HF standard-time stations are not in EiBi's file — it starts at
 2300 kHz and skips time signals — and are maintained by hand in
 `crates/sdroxide-types/src/broadcast_seed.json`.
+
+### 10.7 Signal identification
+
+**SIG ID**, beside **JOBS** in the LISTEN window, opens a guide to what is on the
+dial. It reads the dial frequency, the mode and the receiver's passband, ranks a
+built-in catalogue against them, and lists the candidates — what the signal is,
+what it is modulated with, how wide it is, and a one-line description. The
+**sigidwiki** link on a row opens the matching
+[sigidwiki](https://www.sigidwiki.com/) page for a waterfall and a recording.
+
+The ranking puts an exact mode match first, then the frequencies and bands the
+signal is known on, then how close the passband is to the signal's own width. So
+tuning to 14.074 in FT8 names FT8, tuning to 27.185 in AM names the channel, and
+tuning to 518 kHz in NAVTEX names NAVTEX. It is a guide rather than a verdict,
+and the entries under the top name are the ones it weighed against the dial.
+
+The **Find** box searches the whole catalogue instead of the dial — "weather",
+"aircraft", "meteor" — which is the way to reach a signal with no frequency to
+type, and reads as a map of what is out there rather than a description of what
+is playing.
+
+The catalogue is built into SDRoxide and describes signals, not stations: around
+sixty entries covering the amateur, broadcast, marine, aviation, utility, time
+and satellite services the receiver knows. It carries no waterfall images or
+audio samples and nothing copied from another identification database — the
+**sigidwiki** link opens that content in your browser rather than redistributing
+it here.
 
 ---
 

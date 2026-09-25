@@ -202,6 +202,15 @@ noted for 11 m:
    opening. **Not started** — the flat map widget is equirectangular
    throughout, so this is a rework of it rather than a bolt-on.
 
+**Signal-identification guide.** **Done** (2026-09-25) — the **SIG ID** window
+in the LISTEN window ranks a built-in ~60-signal `sdroxide_types::signal_id`
+catalogue against the dial's mode, frequency, band and passband, with a
+free-text search and a **sigidwiki** link for the sample. The catalogue is ours;
+the Artemis/Sigidwiki database is not licensed for redistribution (see AGENTS).
+**Still open:** an **ACF** (envelope/spectrum autocorrelation) measurement from
+the receive chain as a further identification feature — an "isolate it" DSP
+change in its own PR, with no home until something feeds it.
+
 ### Decoder candidates for version 2
 
 A survey (2026-09-23) of what this program does **not** decode yet, ranked for a

@@ -67,6 +67,7 @@ mod rotator;
 mod satcfg;
 mod satlock;
 mod scanner;
+mod signal_id;
 mod skimmer;
 mod spectrum;
 mod speech;
@@ -280,6 +281,9 @@ pub use satlock::{
     C_KM_S, SatLockConfig, SatPass, SatTrackStatus, SatUplink, doppler_rx_hz, doppler_tx_hz,
 };
 pub use scanner::{SCAN_STEPS_HZ, ScanKind, ScanResume, ScanState, ScannerConfig};
+pub use signal_id::{
+    PROFILES, SIGIDWIKI_BASE, SignalFamily, SignalProfile, identify, search_profiles,
+};
 pub use skimmer::{
     CW_SLOT_CHOICES, CW_SLOTS_DEFAULT, CwEngine, SkimmerKind, SkimmerSettings, SkimmerSpot,
 };
