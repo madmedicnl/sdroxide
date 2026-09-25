@@ -2407,6 +2407,7 @@ impl SdroxideApp {
             self.decim_range().is_some(),
             self.state.rx[0].agc == AgcMode::Off,
             self.state.rx[0].mode,
+            self.listener_screen(),
         )
     }
 
@@ -2543,7 +2544,7 @@ impl SdroxideApp {
     fn rx_controls(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>, narrow: bool) {
         let rx_gains = self.rx_gains();
         let rx_gain = rx_gains.first().cloned();
-        let chips = rx_chips(self.state.rx[0].mode);
+        let chips = rx_chips(self.state.rx[0].mode, self.listener_screen());
         // A menu column wraps its rows and is as wide as the menu around it,
         // so there is nothing to balance there: the run stays whole, under the
         // squelch rail, in the order it has always had.
@@ -2958,6 +2959,24 @@ impl SdroxideApp {
                     cmds.push(Command::SetMute { rx: RxId::Main, muted: !muted });
                 }
             }
+            RxChip::Eq => {
+                // The listener's equalizer: three shelves on the demodulated
+                // audio, in front of the speakers. Broadcast and utility audio
+                // wants a tone control the ham speech chain never needed, and
+                // the ear reaches for it beside MUTE.
+                let tone = &self.state.rx_tone;
+                let hover = if tone.enabled {
+                    format!(
+                        "Tone: bass {:+.0} dB, mid {:+.0} dB, treble {:+.0} dB",
+                        tone.low.gain_db, tone.mid.gain_db, tone.high.gain_db
+                    )
+                } else {
+                    "Tone — a three-band equalizer on the receive audio. Click to open"
+                        .to_string()
+                };
+                let resp = crate::chrome::chip(ui, tone.enabled, "EQ").on_hover_text(hover);
+                self.eq_popup(ui, cmds, &resp);
+            }
             RxChip::Rec => {
                 // Two things can be recorded and they are not the same thing:
                 // the audio of a QSO, and the band the receiver is hearing. The
@@ -3336,6 +3355,55 @@ impl SdroxideApp {
         }
         if stop {
             cmds.push(Command::SetRecording(false));
+        }
+    }
+
+    /// The tone popup behind the EQ chip: on/off and a shelf each for bass, mid
+    /// and treble, on [`sdroxide_types::RadioState::rx_tone`] — the same control
+    /// the LISTEN window offers, put where the ear reaches for it.
+    fn eq_popup(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>, btn: &egui::Response) {
+        let popup_id = egui::Popup::default_response_id(btn);
+        let now = ui.input(|i| i.time);
+        let alpha =
+            crate::chrome::popup_fade_alpha(ui.ctx(), popup_id, now, &mut self.eq_popup_since);
+        let resp = egui::Popup::from_toggle_button_response(btn)
+            .frame(crate::chrome::window_frame_alpha(alpha))
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| {
+                ui.set_opacity(alpha);
+                crate::chrome::window_body_bg(ui);
+                ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+                ui.set_max_width(250.0);
+                self.eq_controls(ui, cmds);
+            });
+        if let Some(r) = &resp {
+            crate::chrome::paint_popup_cut_border(ui.ctx(), &r.response, alpha);
+            if r.response.contains_pointer() {
+                self.eq_popup_since = Some(now);
+            }
+        }
+    }
+
+    /// The rows inside the EQ popup: three shelves and the on/off.
+    fn eq_controls(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+        crate::chrome::menu_caption(ui, "Tone");
+        let mut tone = self.state.rx_tone.clone();
+        let before = tone.clone();
+        let band = |ui: &mut egui::Ui, name: &str, b: &mut sdroxide_types::TxEqBand| {
+            ui.label(RichText::new(name).size(11.0));
+            ui.add(
+                egui::DragValue::new(&mut b.gain_db).speed(0.2).range(-12.0..=12.0).suffix(" dB"),
+            );
+        };
+        ui.horizontal(|ui| {
+            crate::chrome::checkbox(ui, &mut tone.enabled, "on");
+            band(ui, "Bass", &mut tone.low);
+            band(ui, "Mid", &mut tone.mid);
+            band(ui, "Treble", &mut tone.high);
+        });
+        if tone != before {
+            self.state.rx_tone = tone.clone();
+            cmds.push(Command::SetRxTone(Box::new(tone)));
         }
     }
 
@@ -5451,8 +5519,10 @@ impl SdroxideApp {
         let swl = self.swl_mode();
         // One LOG chip, because "my log" is whichever log the operator keeps:
         // a listener logging a pirate station wants the reception log, not the
-        // QSO logbook. So in SWL mode LOG opens the SWL log and says so.
-        let log_opens_swl = log_chip_opens_swl(swl);
+        // QSO logbook. SWL mode is one way to be a listener; a radio that
+        // cannot transmit at all (an SDR dongle, a public SDR, the ATS Mini) is
+        // the other, and its LOG belongs on the reception log too.
+        let log_opens_swl = log_chip_opens_swl(self.listener_screen());
         let (log_open, log_hover) = if log_opens_swl {
             (self.show_swl, "Reception log — stations heard, with SINPO/SIO")
         } else {
@@ -6101,6 +6171,8 @@ enum RxChip {
     /// Binaural (pseudo-stereo) CW audio.
     Bin,
     Mute,
+    /// The listener's receive-tone equalizer (bass/mid/treble).
+    Eq,
     Rec,
     /// WFM's stereo pilot.
     Stereo,
@@ -6137,7 +6209,7 @@ impl RxChip {
     /// (issue #388), so the answer lives here where the invariant can be
     /// tested rather than in three `if narrow` branches.
     fn inlined_in_a_menu(self) -> bool {
-        matches!(self, Self::Bw | Self::Rec)
+        matches!(self, Self::Bw | Self::Rec | Self::Eq)
     }
 
     /// The widest label the chip ever wears, which is what the box reserves
@@ -6155,6 +6227,7 @@ impl RxChip {
             Self::Nr => "NR",
             Self::Bin => "BIN",
             Self::Mute => "MUTE",
+            Self::Eq => "EQ",
             Self::Rec => "REC",
             Self::Stereo => "ST",
             Self::Rds => "RDS",
@@ -6294,13 +6367,20 @@ fn bw_chip_hint(mode: Mode, lo: f32, hi: f32) -> String {
 
 /// The RX box's chip run in a mode: the six every mode carries, then whatever
 /// the mode itself brings — a subcarrier to read, a tone to gate on.
-fn rx_chips(mode: Mode) -> Vec<RxChip> {
+fn rx_chips(mode: Mode, listener: bool) -> Vec<RxChip> {
     // MONO is not among them: it is the *recording's* channel layout, and it
     // now sits beside the recording controls it belongs to, inside the REC
     // popup (issue #217). That is also one chip fewer on a strip that has to
     // fit on a 1366-pixel screen (issue #211).
-    let mut chips =
-        vec![RxChip::Bw, RxChip::Nb, RxChip::Anc, RxChip::Nr, RxChip::Mute, RxChip::Rec];
+    let mut chips = vec![RxChip::Bw, RxChip::Nb, RxChip::Anc, RxChip::Nr, RxChip::Mute];
+    // The receive-tone equalizer is a listener's control — broadcast and
+    // utility audio wants a tone control the ham speech chain never needed —
+    // and the ham RX strip has no room for another chip, so it is offered only
+    // on the listener's screen (SWL mode, or a radio that cannot transmit).
+    if listener {
+        chips.push(RxChip::Eq);
+    }
+    chips.push(RxChip::Rec);
     // No auto-notch on broadcast audio, where what it cancels is the programme
     // (issue #434).
     if !mode.auto_notch_applies() {
@@ -6377,7 +6457,7 @@ impl RxRows {
 /// whose receive row is already full lifts nothing and is laid out exactly as
 /// before; a bare one comes out a third narrower, which is often the
 /// difference between the strip packing into two rows and taking a third.
-fn rx_rows(ui: &egui::Ui, gain: bool, decim: bool, agc_off: bool, mode: Mode) -> RxRows {
+fn rx_rows(ui: &egui::Ui, gain: bool, decim: bool, agc_off: bool, mode: Mode, listener: bool) -> RxRows {
     let g = MODULE_ROW_SPACING;
     // The Vol and SQL rails, which is what the box's stretch lengthens — so
     // they are priced at the floor they fall back to, not the style width.
@@ -6424,7 +6504,7 @@ fn rx_rows(ui: &egui::Ui, gain: bool, decim: bool, agc_off: bool, mode: Mode) ->
     // Then the run itself. Each chip is priced at its widest label, so the box
     // does not breathe as a decode comes and goes (see [`RxChip::width_label`])
     // and the run does not re-break under the operator's cursor.
-    let chips: Vec<f32> = rx_chips(mode).iter().map(|c| g + c.width(ui)).collect();
+    let chips: Vec<f32> = rx_chips(mode, listener).iter().map(|c| g + c.width(ui)).collect();
     let all: f32 = chips.iter().sum();
     // Ties keep a chip where it is, so the layout every rig has always had —
     // the whole run under the SQL rail — is what comes back unless lifting a
@@ -8564,7 +8644,7 @@ mod tests {
             + 2.0 * crate::chrome::MODULE_MARGIN_X
             + 4.0;
         let rx =
-            rx_rows(ui, false, false, false, mode).w() + 2.0 * crate::chrome::MODULE_MARGIN_X + 4.0;
+            rx_rows(ui, false, false, false, mode, false).w() + 2.0 * crate::chrome::MODULE_MARGIN_X + 4.0;
         // A CAT rig modulates our audio, so a digital mode there draws the
         // transmit-audio rail rather than the mic one — and it is the wider of
         // the two. It is also why no CESSB rail joins them: the envelope is
@@ -8706,6 +8786,37 @@ mod tests {
         .drop_without_applying_deltas();
     }
 
+    /// The listener's RX strip carries the equalizer chip and still fits the
+    /// desktop strip in two rows. The chip is gated to the listener's screen
+    /// (SWL mode, or a radio that cannot transmit) precisely so the ham strip
+    /// does not grow a third row for it.
+    #[test]
+    fn the_listener_equalizer_costs_the_desktop_strip_no_row() {
+        let (ctx, input) = desktop_ctx();
+        ctx.run_ui(input, |ui| {
+            assert!(!rx_chips(Mode::Am, false).contains(&RxChip::Eq), "no EQ on a ham strip");
+            let chips = rx_chips(Mode::Am, true);
+            let eq = chips.iter().position(|c| *c == RxChip::Eq).expect("EQ on the listener strip");
+            assert_eq!(chips.get(eq.wrapping_sub(1)), Some(&RxChip::Mute), "EQ after MUTE");
+            assert_eq!(chips.get(eq + 1), Some(&RxChip::Rec), "EQ before REC");
+
+            let avail = 1400.0 - 16.0 - 20.0;
+            let mut boxes = cat_rig_strip_boxes(ui, Mode::Am);
+            let rx = rx_rows(ui, false, false, false, Mode::Am, true).w()
+                + 2.0 * crate::chrome::MODULE_MARGIN_X
+                + 4.0;
+            boxes[3] = StripBox { w: rx, flex: 2.0, max_w: rx + RAIL_STRETCH_MAX };
+            let widths: Vec<f32> = boxes.iter().map(|b| b.w).collect();
+            assert_eq!(
+                rows_needed(avail, 8.0, &boxes),
+                2,
+                "the listener strip wants {n} rows of a {avail} pt pane; boxes {widths:?}",
+                n = rows_needed(avail, 8.0, &boxes),
+            );
+        })
+        .drop_without_applying_deltas();
+    }
+
     /// The rail issue #294 put back costs the desktop strip no row: on the
     /// widest shape that draws it — an SDR in sideband with a front-end gain,
     /// a decimation chip and its AGC switched off, so every receive control is
@@ -8720,7 +8831,7 @@ mod tests {
         ctx.run_ui(input, |ui| {
             let mut boxes = cat_rig_strip_boxes(ui, Mode::Lsb);
             // The receive box an SDR draws, in place of the CAT rig's.
-            let rx = rx_rows(ui, true, true, true, Mode::Lsb).w()
+            let rx = rx_rows(ui, true, true, true, Mode::Lsb, false).w()
                 + 2.0 * crate::chrome::MODULE_MARGIN_X
                 + 4.0;
             boxes[3] = StripBox { w: rx, flex: 2.0, max_w: rx + RAIL_STRETCH_MAX };
@@ -9255,8 +9366,8 @@ mod tests {
                             // reserved for them, so the rows are laid out here
                             // at the same figure.
                             ui.spacing_mut().slider_width = STRIP_RAIL_W;
-                            let rows = rx_rows(ui, gain, decim, agc_off, mode);
-                            let chips = rx_chips(mode);
+                            let rows = rx_rows(ui, gain, decim, agc_off, mode, false);
+                            let chips = rx_chips(mode, false);
                             let (mut vol, mut db) = (0.5f32, -88.8f32);
                             // The deepest threshold, which is the longest the
                             // readout beside the rail reads.
@@ -9373,7 +9484,7 @@ mod tests {
     #[test]
     fn every_mode_keeps_room_for_the_defaults_chip() {
         for mode in Mode::ALL {
-            assert_eq!(rx_chips(mode).last(), Some(&RxChip::Defaults), "{mode:?}");
+            assert_eq!(rx_chips(mode, false).last(), Some(&RxChip::Defaults), "{mode:?}");
         }
     }
 

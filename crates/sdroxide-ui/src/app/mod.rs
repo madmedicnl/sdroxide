@@ -510,6 +510,8 @@ pub struct SdroxideApp {
     /// Fade clock for the noise-reduction picker, like `tone_popup_since`.
     nr_popup_since: Option<f64>,
     rec_popup_since: Option<f64>,
+    /// Fade clock for the receive-tone (EQ) popup, like `rec_popup_since`.
+    eq_popup_since: Option<f64>,
     /// When the running MP3 recording should stop, Unix UTC seconds, and the
     /// preset in minutes that asked for it — armed by the REC popup's "stop
     /// after" chips. UI-owned: the engine's
@@ -1535,6 +1537,7 @@ impl SdroxideApp {
             uvpacket_open: None,
             nr_popup_since: None,
             rec_popup_since: None,
+            eq_popup_since: None,
             recording_stop_at: None,
             rec_gate_s: None,
             rec_gate: Default::default(),
@@ -2203,6 +2206,14 @@ spots: Vec::new(),
         sdroxide_types::force_swl()
             || self.swl_start
             || self.radio_cfg.as_ref().is_some_and(|c| c.hide_tx)
+    }
+
+    /// Whether this radio's screen is the listener's: SWL mode, or a radio that
+    /// cannot transmit at all (an SDR dongle, a public SDR, the ATS Mini). The
+    /// receive-tone equalizer is a listener's control and is offered there, and
+    /// the LOG chip opens the reception log there rather than the QSO logbook.
+    pub(in crate::app) fn listener_screen(&self) -> bool {
+        self.swl_mode() || self.caps.as_ref().is_some_and(|c| !c.is_transmit_capable())
     }
 
     /// Whether the active radio is an ATS Mini, whose dial can lag the one on

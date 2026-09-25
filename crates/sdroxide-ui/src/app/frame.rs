@@ -656,6 +656,8 @@ impl eframe::App for SdroxideApp {
             // radio (or any stalled stream) freezes instead.
             let live = frame.is_some() && now - self.last_spectrum_at < STREAM_STALE_S;
             self.note_panadapter_width(ui);
+            // Read here: the waterfall call below borrows `self`'s fields mutably.
+            let atsmini = self.atsmini_active();
             let wf_tuning = self.wf_tick(live, ui.ctx().pixels_per_point());
             if show_wf {
                 ui.allocate_ui(egui::vec2(width, wf_h), |ui| {
@@ -703,7 +705,13 @@ impl eframe::App for SdroxideApp {
                         // signal lands on the pair, exactly as CW does.
                         Some(spectrum_view::AudioCursor {
                             hz: audio_hz,
-                            click_sets_offset: !mode.holds_standard_tones(),
+                            // A click sets the digital TX offset in the modes
+                            // that have one. It does not on a listening source
+                            // with no transmitter: there is no offset to set,
+                            // and a click is the only way to nudge the dial
+                            // inside the passband a hardware-demodulated radio
+                            // hands over — so it tunes, as it does in CW.
+                            click_sets_offset: !mode.holds_standard_tones() && !atsmini,
                             // CW only for now: RTTY and WEFAX sit off their
                             // dials too and could follow, but each wants
                             // checking against real signals first.

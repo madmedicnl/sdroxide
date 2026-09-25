@@ -1232,7 +1232,10 @@ pub(in crate::app) fn settings_atsmini_tab(
         RichText::new(
             "Tuning follows the receiver's own band cycle, so the dial lags your scroll by a \
              moment — most when the frequency crosses into another band. Let it settle before \
-             scrolling on, and it will always land on the frequency you asked for.",
+             scrolling on, and it will always land on the frequency you asked for.\n\nThe \
+             receiver's tuning step is its own (the STEP control above): a change finer than \
+             that step rounds away on the radio, and the dial snaps back to the step it \
+             actually landed on.",
         )
         .weak(),
     );
