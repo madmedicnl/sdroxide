@@ -2112,6 +2112,19 @@ along with the setting that changes it.
 > with the rig in CW, or the keyed tone as audio (MCW) with the rig held on a
 > sideband ([§6.2.2](#622-cat-radios-serial-control--usb-audio)).
 
+**A paddle on the radio.** Settings → **CW** chooses where the key comes from:
+the keyboard's `CW straight key` binding, or a **USB paddle** — a keyer box that
+reports its two contacts, with the app making the iambic timing. Pick the
+device, the key type (**Straight**, **Iambic A** or **Iambic B**), the
+**REVERSE** switch the paddle carries, and the keyer speed. With **KEY THE
+TRANSMITTER** on, the CW panel's **KEY** arms the key and the paddle sends: it is
+the same manual-key path the keyboard straight key uses, so the band lockout and
+the 30 s watchdog apply unchanged. A rig that keys itself from text refuses
+hand-keying by design — set Settings → Radio → **CW keying** to **Sound card
+(MCW)** for a rig keyed by audio or VOX. With the transmitter off, the paddle
+drives only the trainer's SEND drill and never keys anything. A **USB paddle**
+pane is desktop Linux only.
+
 **Learning Morse (the trainer).** The **TRAINER** chip in the CW panel opens a
 learning tool, not a sending one: it plays Morse through
 this computer's speakers only and **never keys the radio**, so it works on a

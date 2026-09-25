@@ -1110,6 +1110,24 @@ table being native-only). Offered upstream as draft **#568** (branch
 `upstream-pr/morse-trainer`, from `upstream/main`); the fork carries it on
 `main` until it lands, then its copy drops out.
 
+The key is configured in **Settings → CW** (`crates/sdroxide-ui/src/app/
+settings/mod.rs`, `settings_cw_usb`): source keyboard or USB, the device, key
+type straight / iambic A / iambic B, the reverse switch, the keyer speed, and
+`cw_key_tx`. The five fields are appended to `DigiConfig` (v179). The CW panel
+(`panels/cw.rs`) runs the paddle only while **KEY** is armed and `cw_key_tx` is
+on: it reads `CwKeySource::key_down()` each frame and turns it into
+`Command::CwKey(down/up)` edges, arming `CwStraight(true)` through the existing
+toggle — so transmit is the ordinary manual-key path and the band lockout, the
+30 s watchdog and the `CwSelfRx` read-back all apply. The likely-recurring
+mistake is expecting a rig that keys itself to hand-key: `cw_keying = Cat`
+leaves `rig_keys_itself` true and `set_straight` refuses by design, so a
+paddle/SWL test needs **CW keying = Sound card (MCW)** (the VOX/audio route the
+CRT SS9900v is set up for). Known limit: the keyer runs in the UI's evdev thread
+but the key-down is sampled once per frame and the engine applies commands once
+per ~10 ms loop, so element edges are quantised; running the keyer in
+`cw_controller` (a `Command` carrying contacts, a `PROTO_VERSION` bump) is the
+refinement if a report says the sending is ragged at speed.
+
 A fourth pane, **SEND**, drills sending with a real USB paddle, and is
 **fork-only and Linux-only** — it is raw evdev, and the browser and the other
 systems have no equivalent. The portable half is `sdroxide_dsp::CwKeyer`
