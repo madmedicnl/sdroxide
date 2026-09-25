@@ -27,7 +27,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use sdroxide_audio::start_output;
-use sdroxide_dsp::{CwKeyer, IambicMode};
+use sdroxide_dsp::{CwKeyer, IambicMode, KeyerMode};
 
 /// `_IOW('E', 0x90, int)` — take the device exclusively.
 const EVIOCGRAB: libc::c_ulong = 0x4004_4590;
@@ -107,12 +107,17 @@ pub struct KeySetup {
     pub wpm: f32,
     pub pitch_hz: f32,
     pub reverse: bool,
-    pub mode: IambicMode,
+    pub mode: KeyerMode,
 }
 
 impl Default for KeySetup {
     fn default() -> Self {
-        KeySetup { wpm: 20.0, pitch_hz: 700.0, reverse: false, mode: IambicMode::B }
+        KeySetup {
+            wpm: 20.0,
+            pitch_hz: 700.0,
+            reverse: false,
+            mode: KeyerMode::Iambic(IambicMode::B),
+        }
     }
 }
 
