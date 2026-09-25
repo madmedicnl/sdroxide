@@ -10,7 +10,7 @@
 //! Upstream reference: `esp32-si4732/ats-mini`, `Remote.cpp` (`remoteDoCommand`,
 //! `remotePrintStatus`) and `docs/source/remote.md`. The protocol is from the
 //! firmware's own source, reimplemented here; see
-//! `docs/ats-mini-handover.md` for the bench notes.
+//! See AGENTS.md, "The ATS Mini", for the bench notes.
 
 /// Default TCP port of the firmware's ad hoc control server.
 pub const DEFAULT_PORT: u16 = 60000;

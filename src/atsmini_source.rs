@@ -6,7 +6,7 @@
 //! over the firmware's "ad hoc" protocol on a TCP socket
 //! ([`sdroxide_types::atsmini`]). So this is the audio half of
 //! [`crate::audio_cat_source::AudioCatSource`] with a bespoke TCP control link
-//! instead of a CAT serial port. See `docs/ats-mini-handover.md`.
+//! instead of a CAT serial port. See AGENTS.md, "The ATS Mini".
 //!
 //! The firmware rejects a frequency outside the *current* band and offers no
 //! direct band-select, so a tune tries `F<hz>`, cycles `B` on the out-of-range

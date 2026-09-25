@@ -1143,7 +1143,7 @@ pub(in crate::app) fn settings_usb_audio_tab(
 
 /// The ATS Mini: a Wi-Fi/serial controlled Si4732 pocket receiver whose audio
 /// arrives on a sound card. The control link is the firmware's "ad hoc" TCP
-/// protocol (see `docs/ats-mini-handover.md`); receive only, so no TX device is
+/// protocol (see AGENTS.md, "The ATS Mini"); receive only, so no TX device is
 /// offered — the Si4732 demodulates in hardware and there is nothing to key.
 pub(in crate::app) fn settings_atsmini_tab(
     ui: &mut egui::Ui,

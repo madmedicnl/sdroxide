@@ -7377,7 +7377,7 @@ pub struct ParkedRanges {
     pub tx: Vec<(f64, f64)>,
 }
 
-/// ATS Mini (ESP32-S3 + Si4732) receive source. See `docs/ats-mini-handover.md`.
+/// ATS Mini (ESP32-S3 + Si4732) receive source. See AGENTS.md, "The ATS Mini".
 ///
 /// The sound card is the radio-wide `radio_audio_in`; this is the control link
 /// only — the firmware's "ad hoc" protocol on a TCP port.

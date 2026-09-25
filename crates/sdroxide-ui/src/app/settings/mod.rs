@@ -809,7 +809,7 @@ fn iface_opts(soapy_supported: bool) -> Vec<sdroxide_types::Backend> {
     // std::net to the radio's TCP control port plus the same sound-card audio,
     // so nothing to install here either. The audio is the radio's headphone
     // jack into one of the PC's inputs; the control link is the firmware's
-    // "ad hoc" protocol (see docs/ats-mini-handover.md).
+    // "ad hoc" protocol (see AGENTS.md, "The ATS Mini").
     opts.push(sdroxide_types::Backend::AtsMini);
     // Case-folded so HackRF lands under H beside HPSDR rather than after
     // it, which a byte-order sort would do.

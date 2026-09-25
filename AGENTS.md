@@ -87,7 +87,7 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     that talk about the review, the fork, or a "first version"** — upstream code
     should read as if it were always there.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at **170**, the fork's `main` at **177**. The fork's extras are
+  upstream is at **170**, the fork's `main` at **178**. The fork's extras are
   the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
   additions — the register's full story is documented in
@@ -99,7 +99,9 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   Q65 and FSK441, the fork's own six modes that upstream took (see below) — so
   the fork-only entries renumbered and now sit at **v171**–**v177**:
   `auto_idle_stop_min`, `SpotKind::HeardMe`, the (tr)uSDX nG family,
-  `ServerMsg::BandOpenings`, DSC, UVPacket and the ATS Mini. When merging,
+  `ServerMsg::BandOpenings`, DSC, UVPacket and the ATS Mini, with **v178**
+  (`DigiStatus::tx_refused`, the FSK441 transmit review fix ported to `main`)
+  on top. When merging,
   keep the number ahead of upstream's and fold its new entries in rather than
   dropping them — the 2026-09-25 merge (upstream v166–v170 inserted under the
   fork's register, everything above renumbered) is the latest worked example,
@@ -963,25 +965,62 @@ It is session-only and never persisted. "New" is
 `LogIndex::novelty(..).new_call` for now; wiring in `check-dupe.php` is the
 follow-up.
 
-### The ATS Mini (SWL extras, fork-only, in progress)
+### The ATS Mini (SWL extras, fork-only)
 
 A cheap, ubiquitous SWL receiver — ESP32-S3 + **Si4732**, firmware
-[`esp32-si4732/ats-mini`](https://github.com/esp32-si4732/ats-mini) (MIT) — to be
+[`esp32-si4732/ats-mini`](https://github.com/esp32-si4732/ats-mini) (MIT) —
 driven from sdroxide as a receive-only source: control band and frequency from
 the computer, do all the demod-dependent listening and decoding on the PC. It is
 **audio-only** (the Si4732 demodulates in hardware, no I/Q), so `audio_mode`
-applies and the wideband lanes are out. Control is the firmware's "ad hoc"
-character protocol over **TCP 60000**; **audio is analog into the host sound
-card** and always will be — BLE is a UART service, the web server is config/OTA
-only, and the Si4732 audio is not routed to the ESP32 on V3 hardware. So the
-route is **sdroxide-side only, no firmware changes**. Planned as a dedicated
-`Backend::AtsMini` (receive-only, no TX UI), fork-only. It has landed on `main`
-(`PROTO_VERSION` 176 → 177, the fork's current top), with the tune/mode/band
-work in `69cbd9de`, `1b2ed505`, `de381795` and the LSB/USB-on-AM note in
-`69cbd9de`; the handover's later phases may still be open. **Full spec, bench
-findings, decisions, phase plan and file anchors are in
-[`docs/ats-mini-handover.md`](docs/ats-mini-handover.md)**; the scratch probe
-(telemetry parser, band-cycle mapper, scanner) is `tools/atsmini-probe/`.
+applies and the wideband lanes are out. `Backend::AtsMini` is appended last,
+receive-only (no TX UI). The scratch probe (telemetry parser, band-cycle mapper,
+scanner) is `tools/atsmini-probe/`.
+
+**Audio is analog, always.** There is no digital audio path in the stock
+firmware — BLE is a Nordic UART service, the web server is config/OTA only, and
+the Si4732 audio is not routed back to the ESP32 on V3 hardware — so the audio
+runs 3.5 mm → a sound card on the PC. The route is **sdroxide-side only, no
+firmware changes**. **The receive sound card must be chosen explicitly**: left on
+the system default the source captures the mic, and the waterfall is flat while
+the FT8 controller warns "no receive audio". That tab only offered a card at all
+after `free_device_probe` gained a `Backend::AtsMini => DeviceProbe::RadioAudio`
+arm.
+
+**Control** is the firmware's "ad hoc" character protocol over **TCP
+`atsmini.local:60000`** (or serial, or BLE), no auth, and **one controller at a
+time**. `F<Hz>\r` sets frequency and is **band-locked** — rejected with an error
+unless the frequency is in the *current* band — and there is **no direct band
+select**, only `B`/`b` cycling, so the source tries `F` and, on the out-of-range
+error, steps the band cycle until it is accepted, confirming from telemetry. `t`
+turns on a 500 ms CSV telemetry monitor: `version, freq, bfo, bandCal, band,
+mode, step, bw, agc, volume, rssi, snr, tuningCap, voltage, seq` (`freq` is
+10 kHz units in FM and kHz in AM/SSB; `rssi` dBµV, `snr` dB, `voltage` already in
+volts). Two band names to keep apart: the firmware's **`11M` is the
+25.6–26.1 MHz broadcast band**, **`CB` is 27 MHz**; `ALL` is the 15–30 MHz
+catch-all.
+
+Tuning has no fast path: **each `B` writes NVS and takes ~370–450 ms a step**,
+measured on the bench (an 11-step VHF→49M pick took ~3.5 s). So a band pick's
+settle window *and* its tune deadline scale with the step count (`BAND_STEP_TIME`,
+`band_settle`), the tune waits for the burst, and any dial arriving while a pick
+is in flight is ignored — a fixed 900 ms once let a step leak out and a pick of
+49M land on 60M. On connect the source **adopts the radio's first telemetry**
+(dial and mode), because the engine opens it on the stored dial; the app then
+starts where the radio is. The dial is shown **centred** in the waterfall — a
+demod-audio front end has no RF panorama — a click on the waterfall **tunes the
+dial** (there is no digital offset to set on a listening source), and the
+receiver's own coarse step is called out in the settings tab, because a finer
+change rounds away and the dial snaps back. The tune-in-flight note
+("tuning — the radio is catching up") is drawn centred on the panadapter. Still
+open: **battery voltage** (needs a `Meters` field) and the opaque bandwidth/AGC
+indices.
+
+**Two listener controls land here.** The **EQ** chip (after REC, on
+`RadioState::rx_tone` — bass/mid/treble shelves) and the **LOG** chip opening the
+**reception log** are both gated on `listener_screen()` — SWL mode, or a radio
+that cannot transmit — because the ham RX strip has no room for another chip (a
+desktop-strip two-row test pins it) and a listener's log is the reception one.
+The same EQ is also on the LISTEN window's Tone row.
 
 ## Regenerating the quick-start PDFs
 
