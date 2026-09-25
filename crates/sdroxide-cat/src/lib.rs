@@ -1731,6 +1731,37 @@ fn with_family_serial_limits(mut cfg: CatConfig) -> CatConfig {
 }
 
 /// Spawn the serial CAT thread from a persisted [`CatConfig`].
+/// Whether this configuration names a link at all — a serial port or a network
+/// address to open. A configuration can carry a CAT family and a CW-keying
+/// choice with no cable behind either.
+pub fn link_configured(cfg: &CatConfig) -> bool {
+    if cfg.family.is_network() {
+        let addr = match cfg.family {
+            CatFamily::Flrig => &cfg.flrig_addr,
+            _ => &cfg.rigctld_addr,
+        };
+        !addr.trim().is_empty()
+    } else {
+        !cfg.serial.path.trim().is_empty()
+    }
+}
+
+/// The keying route the radio can actually use, as opposed to the one stored.
+///
+/// `CwKeying::Cat` hands the text to the rig's own keyer, which needs a control
+/// link to put it on. With the family set but no cable, the stored choice is
+/// impossible: taken literally it makes the radio report `rig_keys_itself`, so
+/// the panel's key is disabled and nothing can be sent at all. Fall back to
+/// audio (MCW), which is what a rig with no control cable has anyway.
+pub fn effective_cw_keying(cfg: &CatConfig) -> CwKeying {
+    if cfg.cw_keying == CwKeying::Cat && !link_configured(cfg) {
+        CwKeying::Audio
+    } else {
+        cfg.cw_keying
+    }
+}
+
+/// Spawn the serial CAT thread from a persisted [`CatConfig`].
 pub fn spawn(cfg: CatConfig) -> CatHandle {
     let cfg = with_family_serial_limits(cfg);
     let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
@@ -1739,8 +1770,11 @@ pub fn spawn(cfg: CatConfig) -> CatHandle {
     let (signal_tx, signal_rx) = crossbeam_channel::unbounded();
     // Asked of the framing before it goes to the thread, so the keyer can size
     // its chunks to the rig without reaching across the channel to find out.
-    let cw_chunk_len =
-        if cfg.cw_keying == CwKeying::Cat { make_protocol(&cfg).cw_chunk_len() } else { 0 };
+    let cw_chunk_len = if effective_cw_keying(&cfg) == CwKeying::Cat {
+        make_protocol(&cfg).cw_chunk_len()
+    } else {
+        0
+    };
     // Same reason: the engine asks whether this rig's power can be commanded
     // before it commands anything.
     let commands_power = make_protocol(&cfg).commands_power();
@@ -2411,7 +2445,7 @@ fn apply_line(port: &mut dyn Link, forced: LineState, rts: bool) {
 /// mode before this took a frequency at all.
 fn commanded_mode(cfg: &CatConfig, app_mode: Mode, dial_hz: Option<f64>) -> Option<Mode> {
     let rides_digi_sideband = (app_mode.is_digital() && !app_mode.is_carrier_centered())
-        || (app_mode == Mode::Cw && cfg.cw_keying == CwKeying::Audio);
+        || (app_mode == Mode::Cw && effective_cw_keying(cfg) == CwKeying::Audio);
     if rides_digi_sideband {
         let lower = dial_hz.is_some_and(|hz| app_mode.is_lower_sideband_at(hz));
         return match cfg.digi_mode {
@@ -4637,5 +4671,36 @@ mod tests {
         // Not a number is not a power.
         assert_eq!(pc_parse(""), None);
         assert_eq!(pc_parse("abc"), None);
+    }
+}
+
+#[cfg(test)]
+mod effective_keying_tests {
+    use super::*;
+
+    #[test]
+    fn cat_keying_without_a_link_falls_back_to_audio() {
+        let mut cfg = CatConfig::default();
+        cfg.cw_keying = CwKeying::Cat;
+        cfg.serial.path.clear();
+        assert!(!link_configured(&cfg));
+        assert_eq!(effective_cw_keying(&cfg), CwKeying::Audio);
+    }
+
+    #[test]
+    fn cat_keying_with_a_serial_port_is_kept() {
+        let mut cfg = CatConfig::default();
+        cfg.cw_keying = CwKeying::Cat;
+        cfg.serial.path = "/dev/ttyUSB0".into();
+        assert!(link_configured(&cfg));
+        assert_eq!(effective_cw_keying(&cfg), CwKeying::Cat);
+    }
+
+    #[test]
+    fn audio_keying_is_never_changed() {
+        let mut cfg = CatConfig::default();
+        cfg.cw_keying = CwKeying::Audio;
+        cfg.serial.path.clear();
+        assert_eq!(effective_cw_keying(&cfg), CwKeying::Audio);
     }
 }
