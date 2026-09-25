@@ -1146,15 +1146,28 @@ contacts and does no iambic of its own, which is why the keyer is in software.
 Not tested on other paddle hardware.
 
 The portable half is offered upstream as draft **#569** (branch
-`upstream-pr/cw-keyer`, from `upstream/main`), asking two shape questions in the
-body rather than assuming the answers: whether the keyer's key-down output
-should also drive the transmit path (it is exactly what a transmitter needs, and
-`Command::CwStraight` → `cw_controller::set_straight` is the existing seam — kept
-out of the draft because it is a transmit-path change that cannot be tested on
-the air here), and whether the same type should take a straight key (the
-opposite problem: pass the contact through and decode the operator's timing,
-which `CwSelfRx` already does). Do not build the transmit wiring here before the
-maintainer answers; it belongs in its own PR.
+`upstream-pr/cw-keyer`, from `upstream/main`), asking whether the keyer's
+key-down output should also drive the transmit path. That seam is **confirmed
+working on air**: a USB paddle keyed a CRT SS9900v (11 m CB) over MCW/VOX
+through `Command::CwStraight`/`CwKey`, iambic and straight, so the body now
+answers the question with that evidence. Straight mode is in the same draft.
+The other upstream piece is the no-control-link fallback as draft **#572**
+(branch `upstream-pr/cw-keying-no-link`): a stored `cw_keying = Cat` with no
+serial path or network address made the source report `cw_text_keying() =
+Some`, so `rig_keys_itself` went true, the panel's KEY was disabled and a hand
+key sent nothing — the bug that made the paddle look broken on a VOX rig.
+`effective_cw_keying` falls back to `Audio` for the chunk size and `cw_mcw`,
+while the commanded mode keeps the stored setting.
+
+**Still to offer, and it must wait for #569:** the user-facing package (Settings
+→ CW, the appended `DigiConfig` fields, the evdev source and the panel transmit
+wiring). It depends on `CwKeyer`, and across forks a PR's base can only be a
+branch in the upstream repo, so opening it now would duplicate #569's commits
+rather than stack on them. Open it from `upstream/main` once #569 lands, with the
+transmit half isolated in its own PR per the review lessons. The evdev source is
+**Linux-only raw evdev** and that is the design question to raise, not assume:
+`hidapi` is cross-platform but cannot take the device exclusively, so the
+contacts would also arrive as clicks.
 
 ## Explore later
 
