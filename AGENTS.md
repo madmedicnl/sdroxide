@@ -1095,6 +1095,21 @@ publishes a `nightly` ref as a **pre-release** with a dated title, so
 `/releases/latest` and the README's stable download links keep pointing at a
 tagged release rather than at last week's build.
 
+## The Morse trainer (offered upstream as #568)
+
+A learning tool, receive-only by construction. `sdroxide_types::MorseProgress`
+the Koch curriculum (order, run-to-unlock, score) and `crates/sdroxide-ui/src/
+app/morse.rs` the **morse_window** (TRANSLATE / PRACTICE / LEARN), opened by the
+CW panel's **TRAINER** chip. It plays through `sdroxide_audio::start_output` —
+the alerts' cpal path — with `sdroxide_dsp::CwTx` as the keyer, and never touches
+the engine, so no `PROTO_VERSION` bump and no wire type. Progress persists
+through the logbook's native/wasm `persist` split. Native-only playback: the
+`sdroxide-dsp` dependency is behind `cfg(not(target_arch = "wasm32"))`, so the
+browser build gets the drill without a speaker (and no TRANSLATE pane, the Morse
+table being native-only). Offered upstream as draft **#568** (branch
+`upstream-pr/morse-trainer`, from `upstream/main`); the fork carries it on
+`main` until it lands, then its copy drops out.
+
 ## Explore later
 
 - **NR2 (WDSP's Ephraim-Malah denoiser)** — **landed upstream on the 2026-09-20

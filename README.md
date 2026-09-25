@@ -94,6 +94,7 @@ rest.
 | **DSC** | — | the marine Digital Selective Calling system on VHF channel 70 and the MF/HF distress channels (2187.5, 4207.5, 8414.5 kHz …): 1200-baud FFSK carrying distress alerts (MMSI, nature, position, time) and routine calls, with a message panel and a raw-symbol view; receive only |
 | **MW/SW DX tools** | SAM and the ham audio chain | **ECSS-U / ECSS-L** presets on SAM and a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
+| **Morse trainer** | — | a **TRAINER** window on the CW panel: text to Morse and back, paced playback with **Farnsworth** spacing, and a **Koch drill** that unlocks a character at a time and remembers the score. It plays through this computer's speakers and never keys the radio, so it works on a listening set |
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. A receive-only radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning banner, which switches it to this screen. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
 | **Per-radio identity** | one station callsign | a **callsign per radio** (Settings → Radio), falling back to the station callsign on the General tab — a CB callsign on the 11 m set and an amateur callsign on the HF rig at the same time |
 | **Simple interface** | — | hides the advanced chips |
@@ -113,7 +114,8 @@ calendar**, the **IBP beacons**, the **Kp history trend**, the weak-signal
 modes **MSK144 / JT65 / JT9 / FST4 / Q65 / FSK441**, the wide **VDL2 window
 rate**, and the **FT4/FT2/JS8 successive-interference cancellation**. What the
 table lists is what this fork still adds on top — plus, of those, **FSK441
-transmit**, DSC and UVPacket, which upstream has not taken.
+transmit**, DSC and UVPacket, which upstream has not taken. The **Morse
+trainer** is offered upstream as [#568](https://github.com/dividebysandwich/sdroxide/pull/568).
 
 The full interface: the radio, receiver, display and system controls along the top, the waterfall with its level slider on the right.
 
