@@ -92,7 +92,11 @@ enum Place {
     /// itself out at its natural size and then takes at least this, so the
     /// stack reads as one column rather than a ragged edge. A panel wider than
     /// `w` keeps its width — text is never clipped to fit a house style.
-    Corner { scene: egui::Rect, top: f32, w: f32 },
+    Corner {
+        scene: egui::Rect,
+        top: f32,
+        w: f32,
+    },
     Inline,
 }
 
@@ -2516,10 +2520,8 @@ fn bands_info_panel(
 ) -> Option<egui::Rect> {
     use sdroxide_types::Band;
 
-    let daylight = st
-        .qth
-        .map(|(lat, lon)| sdroxide_solar::is_daylight_at(lat, lon, now))
-        .unwrap_or(true);
+    let daylight =
+        st.qth.map(|(lat, lon)| sdroxide_solar::is_daylight_at(lat, lon, now)).unwrap_or(true);
     let conditions = st.band_conditions.as_ref();
     if conditions.is_none() && st.band_activity.is_none() && st.psk_activity.is_none() {
         return None;
@@ -2548,11 +2550,7 @@ fn bands_info_panel(
     let dim = theme::LINE_LIT();
 
     let fmt_paths = |n: u64| {
-        if n >= 10_000 {
-            format!("{:.0}k", n as f64 / 1000.0)
-        } else {
-            n.to_string()
-        }
+        if n >= 10_000 { format!("{:.0}k", n as f64 / 1000.0) } else { n.to_string() }
     };
 
     // Headings, and one gellery of cells per band.

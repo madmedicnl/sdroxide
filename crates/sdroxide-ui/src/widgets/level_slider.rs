@@ -104,13 +104,12 @@ pub fn show(ui: &mut Ui, area: Rect, view: &mut ViewState) -> bool {
     // The window, and a bright rule at each end of it.
     let y_ceil = y_for(track, view.db_ceil);
     let y_floor = y_for(track, view.db_floor);
-    let band = Rect::from_min_max(
-        egui::pos2(track.left(), y_ceil),
-        egui::pos2(track.right(), y_floor),
-    );
+    let band =
+        Rect::from_min_max(egui::pos2(track.left(), y_ceil), egui::pos2(track.right(), y_floor));
     painter.rect_filled(band, 2.0, crate::theme::CYAN().gamma_multiply(0.30));
     let rule = Stroke::new(1.0, crate::theme::CYAN());
-    painter.line_segment([egui::pos2(track.left(), y_ceil), egui::pos2(track.right(), y_ceil)], rule);
+    painter
+        .line_segment([egui::pos2(track.left(), y_ceil), egui::pos2(track.right(), y_ceil)], rule);
     painter.line_segment(
         [egui::pos2(track.left(), y_floor), egui::pos2(track.right(), y_floor)],
         rule,

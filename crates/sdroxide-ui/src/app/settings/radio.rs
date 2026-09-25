@@ -1292,11 +1292,7 @@ pub(in crate::app) fn settings_atsmini_tab(
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.label(RichText::new("Memories").strong());
-        if ui
-            .button("Refresh")
-            .on_hover_text("Read the 99 slots from the receiver")
-            .clicked()
-        {
+        if ui.button("Refresh").on_hover_text("Read the 99 slots from the receiver").clicked() {
             cmds.push(Command::SetDeviceSetting {
                 key: "memories-dump".into(),
                 value: String::new(),

@@ -146,10 +146,7 @@ fn opening_row(ui: &mut egui::Ui, o: &sdroxide_types::BandOpening, now: i64) {
         sdroxide_types::OpeningState::Closing => ("CLOSING", crate::theme::gray(170)),
     };
     let gray = crate::theme::gray(140);
-    let factor = o
-        .factor
-        .map(|f| format!("{f:.1}×"))
-        .unwrap_or_else(|| "∞×".to_string());
+    let factor = o.factor.map(|f| format!("{f:.1}×")).unwrap_or_else(|| "∞×".to_string());
     egui::Frame::new()
         .fill(crate::theme::ROW_BG())
         .inner_margin(egui::Margin { left: 8, right: 6, top: 3, bottom: 3 })
@@ -169,16 +166,12 @@ fn opening_row(ui: &mut egui::Ui, o: &sdroxide_types::BandOpening, now: i64) {
                 col(
                     ui,
                     56.0,
-                    egui::Label::new(
-                        RichText::new(state_tag).size(10.0).strong().color(state_col),
-                    ),
+                    egui::Label::new(RichText::new(state_tag).size(10.0).strong().color(state_col)),
                 );
                 col(
                     ui,
                     46.0,
-                    egui::Label::new(
-                        RichText::new(o.band.label()).size(11.0).strong().color(gray),
-                    ),
+                    egui::Label::new(RichText::new(o.band.label()).size(11.0).strong().color(gray)),
                 );
                 col(
                     ui,
@@ -204,9 +197,7 @@ fn opening_row(ui: &mut egui::Ui, o: &sdroxide_types::BandOpening, now: i64) {
                     ui,
                     74.0,
                     egui::Label::new(
-                        RichText::new(format!("{} calls", o.short_calls))
-                            .size(10.5)
-                            .color(gray),
+                        RichText::new(format!("{} calls", o.short_calls)).size(10.5).color(gray),
                     ),
                 );
                 col(
@@ -371,8 +362,9 @@ impl SdroxideApp {
 
     /// Re-read the operator's own station file and lay it over the schedule.
     pub(in crate::app) fn reload_broadcast_stations(&mut self) {
-        self.broadcast =
-            sdroxide_types::broadcast::with_utilities(crate::app::persist::load_broadcast_stations());
+        self.broadcast = sdroxide_types::broadcast::with_utilities(
+            crate::app::persist::load_broadcast_stations(),
+        );
         self.broadcast_minute = -1;
     }
 
@@ -565,8 +557,7 @@ impl SdroxideApp {
                 // sloughing off. `avail_h` is everything left below this
                 // point, and the openings share and the handle subtract from
                 // it, leaving the rest to the spots.
-                let show_openings =
-                    self.view.spots_openings && !self.band_openings.is_empty();
+                let show_openings = self.view.spots_openings && !self.band_openings.is_empty();
                 let avail_h = ui.available_height().max(130.0);
                 const HANDLE_H: f32 = 7.0;
                 let openings_h = if show_openings {
@@ -613,9 +604,8 @@ impl SdroxideApp {
                         None,
                     );
                     if h.dragged() {
-                        self.view.spots_openings_fraction = ((openings_h + h.drag_delta().y)
-                            / avail_h.max(1.0))
-                            .clamp(0.08, 0.8);
+                        self.view.spots_openings_fraction =
+                            ((openings_h + h.drag_delta().y) / avail_h.max(1.0)).clamp(0.08, 0.8);
                     }
                     let rest = (avail_h - openings_h - HANDLE_H).max(0.0);
                     ui.allocate_ui_with_layout(
@@ -623,13 +613,25 @@ impl SdroxideApp {
                         egui::Layout::top_down(egui::Align::Min),
                         |ui| {
                             spot_rows_pane(
-                                ui, &rows, query, visible.len(), now, &worked_entities, &mut clicked,
+                                ui,
+                                &rows,
+                                query,
+                                visible.len(),
+                                now,
+                                &worked_entities,
+                                &mut clicked,
                             );
                         },
                     );
                 } else {
                     spot_rows_pane(
-                        ui, &rows, query, visible.len(), now, &worked_entities, &mut clicked,
+                        ui,
+                        &rows,
+                        query,
+                        visible.len(),
+                        now,
+                        &worked_entities,
+                        &mut clicked,
                     );
                 }
             });

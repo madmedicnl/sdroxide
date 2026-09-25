@@ -36,6 +36,7 @@ enum Tab {
     Translate,
     Practice,
     Learn,
+    Send,
 }
 
 impl Tab {
@@ -44,6 +45,7 @@ impl Tab {
             Tab::Translate => "TRANSLATE",
             Tab::Practice => "PRACTICE",
             Tab::Learn => "LEARN",
+            Tab::Send => "SEND",
         }
     }
 }
@@ -76,6 +78,21 @@ pub(in crate::app) struct MorseState {
     /// A failed device open, said in the pane rather than swallowed.
     #[cfg(not(target_arch = "wasm32"))]
     audio_error: Option<String>,
+    /// Send pane: the paddle picked, whether the contacts are reversed, and the
+    /// running key source.
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    key_source: Option<super::cw_key::CwKeySource>,
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    key_devices: Vec<std::path::PathBuf>,
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    key_pick: usize,
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    key_error: Option<String>,
+    key_reverse: bool,
+    send_target: Option<char>,
+    /// (correct, target, sent) for the last character keyed.
+    send_feedback: Option<(bool, char, char)>,
+    send_last: String,
 }
 
 impl MorseState {
@@ -99,6 +116,18 @@ impl MorseState {
             audio: None,
             #[cfg(not(target_arch = "wasm32"))]
             audio_error: None,
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+            key_source: None,
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+            key_devices: Vec::new(),
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+            key_pick: 0,
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+            key_error: None,
+            key_reverse: false,
+            send_target: None,
+            send_feedback: None,
+            send_last: String::new(),
         }
     }
 
@@ -159,6 +188,67 @@ impl MorseState {
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.audio = None;
+        }
+        self.stop_key();
+    }
+
+    /// Release the paddle, if one is running.
+    fn stop_key(&mut self) {
+        #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+        {
+            self.key_source = None;
+        }
+    }
+
+    /// Start the paddle source on the picked device. Stops the practice player
+    /// first: both would open the same sound card.
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    fn start_key(&mut self) {
+        use super::cw_key::{CwKeySource, KeySetup};
+        self.stop();
+        if self.key_devices.is_empty() {
+            self.key_devices = super::cw_key::devices();
+            if let Some(i) = super::cw_key::default_device()
+                .and_then(|d| self.key_devices.iter().position(|p| *p == d))
+            {
+                self.key_pick = i;
+            }
+        }
+        let Some(path) = self.key_devices.get(self.key_pick).cloned() else {
+            self.key_error = Some("no paddle found — connect one, then reopen this pane".into());
+            return;
+        };
+        let setup = KeySetup {
+            wpm: self.wpm,
+            pitch_hz: self.pitch_hz,
+            reverse: self.key_reverse,
+            ..KeySetup::default()
+        };
+        match CwKeySource::start(&path, setup) {
+            Ok(s) => {
+                self.key_error = None;
+                self.key_source = Some(s);
+                self.send_last.clear();
+                self.send_feedback = None;
+            }
+            Err(e) => self.key_error = Some(e),
+        }
+    }
+
+    /// Score a character the paddle just sent.
+    fn on_sent(&mut self, text: String) {
+        let got = text.chars().find(|c| !c.is_whitespace() && !c.is_ascii_control());
+        self.send_last = text;
+        let (Some(want), Some(got)) = (self.send_target, got) else { return };
+        let before = self.progress.unlocked;
+        let verdict = self.progress.answer(want, &got.to_string());
+        let correct = verdict != Answer::Wrong;
+        self.send_feedback = Some((correct, want, got));
+        if self.progress.unlocked != before {
+            super::persist::persist_morse_progress(&self.progress);
+        }
+        if correct {
+            self.send_target = Some(self.next_target());
         }
     }
 }
@@ -359,18 +449,161 @@ impl super::SdroxideApp {
         }
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            for tab in [Tab::Translate, Tab::Practice, Tab::Learn] {
+            for tab in [Tab::Translate, Tab::Practice, Tab::Learn, Tab::Send] {
                 if crate::chrome::chip(ui, self.morse.tab == tab, tab.label()).clicked() {
                     self.morse.tab = tab;
                 }
             }
         });
         ui.separator();
+        if self.morse.tab != Tab::Send {
+            self.morse.stop_key();
+        }
+        #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+        {
+            let (text, err) = match self.morse.key_source.as_ref() {
+                Some(s) => (s.take_text(), s.error()),
+                None => (String::new(), None),
+            };
+            if let Some(e) = err {
+                self.morse.key_source = None;
+                self.morse.key_error = Some(e);
+            }
+            if !text.is_empty() {
+                self.morse.on_sent(text);
+            }
+        }
         match self.morse.tab {
             Tab::Translate => self.morse_translate(ui),
             Tab::Practice => self.morse_practice(ui),
             Tab::Learn => self.morse_learn(ui),
+            Tab::Send => self.morse_send(ui),
         }
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    fn morse_send(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new("Send with a paddle — played here, never on the air")
+                .size(11.0)
+                .color(crate::theme::gray(170)),
+        );
+        if self.morse.key_devices.is_empty() {
+            self.morse.key_devices = super::cw_key::devices();
+        }
+        if self.morse.key_devices.is_empty() {
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(
+                    "No paddle found in /dev/input/by-id. Connect one and reopen this pane.                      A keyer box that reports its two contacts (often as a mouse's buttons)                      works; one that does its own iambic keying and sends touches does not.",
+                )
+                .size(10.0)
+                .weak(),
+            );
+            return;
+        }
+        ui.horizontal_wrapped(|ui| {
+            let names: Vec<String> = self
+                .morse
+                .key_devices
+                .iter()
+                .map(|p| {
+                    p.file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| p.display().to_string())
+                })
+                .collect();
+            let pick = self.morse.key_pick.min(names.len() - 1);
+            egui::ComboBox::from_id_salt(crate::layout::salted_id(ui.ctx(), "MorsePaddle"))
+                .selected_text(names[pick].clone())
+                .width(240.0)
+                .show_ui(ui, |ui| {
+                    for (i, n) in names.iter().enumerate() {
+                        if ui.selectable_label(i == pick, n).clicked() && i != self.morse.key_pick {
+                            self.morse.key_pick = i;
+                            self.morse.stop_key();
+                        }
+                    }
+                });
+            if crate::chrome::chip(ui, self.morse.key_reverse, "REVERSE").on_hover_text(
+                "Swap dit and dah. The switch on many paddles does this on the key itself;                  this is for when it is in the other position.",
+            ).clicked()
+            {
+                self.morse.key_reverse = !self.morse.key_reverse;
+                self.morse.stop_key();
+            }
+        });
+        self.morse_tone_controls(ui);
+        ui.add_space(4.0);
+        let running = self.morse.key_source.is_some();
+        ui.horizontal_wrapped(|ui| {
+            if crate::chrome::chip(ui, running, if running { "STOP KEY" } else { "START KEY" })
+                .clicked()
+            {
+                if running {
+                    self.morse.stop_key();
+                } else {
+                    self.morse.start_key();
+                }
+            }
+            if let Some(src) = self.morse.key_source.as_ref() {
+                let (d, a) = src.contacts();
+                let (dc, ac) = (
+                    if d { crate::theme::GREEN() } else { crate::theme::gray(120) },
+                    if a { crate::theme::GREEN() } else { crate::theme::gray(120) },
+                );
+                ui.label(RichText::new("dit").color(dc).size(10.5));
+                ui.label(RichText::new("dah").color(ac).size(10.5));
+                ui.label(RichText::new(format!("{} elements", src.marks())).size(10.0).weak());
+            }
+        });
+        if let Some(e) = &self.morse.key_error {
+            ui.label(RichText::new(e).size(10.0).color(crate::theme::ALERT()));
+        }
+        ui.add_space(4.0);
+        if running && self.morse.send_target.is_none() {
+            self.morse.send_target = Some(self.morse.next_target());
+        }
+        ui.horizontal_wrapped(|ui| {
+            if crate::chrome::chip(ui, false, "NEW").clicked() {
+                self.morse.send_target = Some(self.morse.next_target());
+                self.morse.send_feedback = None;
+                self.morse.send_last.clear();
+            }
+            if crate::chrome::chip(ui, self.morse.reveal, "REVEAL").clicked() {
+                self.morse.reveal = !self.morse.reveal;
+            }
+            if let Some(c) = self.morse.send_target.filter(|_| self.morse.reveal) {
+                ui.label(RichText::new(c.to_string()).size(16.0).strong());
+            }
+            if let Some((ok, want, got)) = self.morse.send_feedback {
+                let (text, color) = if ok {
+                    (format!("correct: {want}"), crate::theme::GREEN())
+                } else {
+                    (format!("heard {got}, wanted {want}"), crate::theme::ALERT())
+                };
+                ui.label(RichText::new(text).size(12.0).color(color));
+            }
+        });
+        ui.label(
+            RichText::new(
+                "Key the character above. The keyer makes the dits and dahs clean — you                  choose which paddle and how long to pause. A tap is one element; hold to                  repeat.",
+            )
+            .size(10.0)
+            .weak(),
+        );
+        if !self.morse.send_last.is_empty() {
+            ui.label(RichText::new(format!("received: {}", self.morse.send_last)).size(12.0));
+        }
+    }
+
+    #[cfg(not(all(not(target_arch = "wasm32"), target_os = "linux")))]
+    fn morse_send(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new("The sending drill needs a Linux desktop and a paddle.")
+                .size(11.0)
+                .weak(),
+        );
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -575,7 +808,6 @@ impl super::SdroxideApp {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(e) = &self.morse.audio_error {
             ui.label(RichText::new(e).size(10.0).color(crate::theme::ALERT()));
-            return;
         }
         #[cfg(target_arch = "wasm32")]
         ui.label(RichText::new("Playback is available in the desktop build.").size(10.0).weak());

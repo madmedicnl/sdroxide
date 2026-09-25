@@ -55,12 +55,16 @@ pub(in crate::app) fn persist_swl_log(_log: &[SwlEntry]) {
 
 // ── Broadcast favourites (native: config-dir JSON; wasm: eframe storage) ─────
 #[cfg(not(target_arch = "wasm32"))]
-pub(in crate::app) fn load_broadcast_favourites(_storage: Option<&dyn eframe::Storage>) -> Vec<String> {
+pub(in crate::app) fn load_broadcast_favourites(
+    _storage: Option<&dyn eframe::Storage>,
+) -> Vec<String> {
     sdroxide_config::load_broadcast_favourites()
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(in crate::app) fn load_broadcast_favourites(storage: Option<&dyn eframe::Storage>) -> Vec<String> {
+pub(in crate::app) fn load_broadcast_favourites(
+    storage: Option<&dyn eframe::Storage>,
+) -> Vec<String> {
     storage.and_then(|s| eframe::get_value(s, "broadcast_favourites")).unwrap_or_default()
 }
 
@@ -78,12 +82,16 @@ pub(in crate::app) fn persist_broadcast_favourites(_names: &[String]) {
 
 // ── Recording jobs (native: config-dir JSON; wasm: eframe storage) ───────────
 #[cfg(not(target_arch = "wasm32"))]
-pub(in crate::app) fn load_recording_jobs(_storage: Option<&dyn eframe::Storage>) -> Vec<RecordingJob> {
+pub(in crate::app) fn load_recording_jobs(
+    _storage: Option<&dyn eframe::Storage>,
+) -> Vec<RecordingJob> {
     sdroxide_config::load_recording_jobs()
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(in crate::app) fn load_recording_jobs(storage: Option<&dyn eframe::Storage>) -> Vec<RecordingJob> {
+pub(in crate::app) fn load_recording_jobs(
+    storage: Option<&dyn eframe::Storage>,
+) -> Vec<RecordingJob> {
     storage.and_then(|s| eframe::get_value(s, "recording_jobs")).unwrap_or_default()
 }
 

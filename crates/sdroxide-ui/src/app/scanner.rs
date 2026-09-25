@@ -456,9 +456,7 @@ impl SdroxideApp {
                 )
             {
                 ui.label(
-                    RichText::new(format!("· {}", st.name))
-                        .color(crate::theme::TEXT())
-                        .strong(),
+                    RichText::new(format!("· {}", st.name)).color(crate::theme::TEXT()).strong(),
                 );
             }
             crate::chrome::row_tail(ui, |ui| {

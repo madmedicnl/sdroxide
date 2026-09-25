@@ -128,20 +128,18 @@ fn activity_cell(
 ) {
     match table.and_then(|t| t.for_band(band)) {
         Some(a) => {
-            ui.label(
-                RichText::new(count_short(a.paths)).size(10.5).color(activity_color(a.paths)),
-            )
-            .on_hover_text(format!(
-                "Global activity on {} in the last 15 minutes, from {source}:\n\
+            ui.label(RichText::new(count_short(a.paths)).size(10.5).color(activity_color(a.paths)))
+                .on_hover_text(format!(
+                    "Global activity on {} in the last 15 minutes, from {source}:\n\
                  {} reception reports · {} transmitters · {} receivers\n\n\
                  {note}\n\n\
                  Shown brighter the busier the band is; it says the band is being heard \
                  somewhere, not that it is open to you.",
-                band.label(),
-                a.paths,
-                a.tx,
-                a.rx,
-            ));
+                    band.label(),
+                    a.paths,
+                    a.tx,
+                    a.rx,
+                ));
         }
         None => {
             ui.label(dim_ink_text());
@@ -345,7 +343,9 @@ impl SdroxideApp {
         }
         let dim = |s: &str| RichText::new(s.to_string()).size(9.5).color(dim_ink());
         ui.add_space(12.0);
-        ui.label(RichText::new("METEOR SHOWERS").size(10.0).strong().color(crate::theme::CYAN_DIM()));
+        ui.label(
+            RichText::new("METEOR SHOWERS").size(10.0).strong().color(crate::theme::CYAN_DIM()),
+        );
         ui.add_space(2.0);
         ui.label(dim(&format!("radiants placed for {lat:.0}°, {lon:.0}°")));
         ui.add_space(3.0);
@@ -371,10 +371,8 @@ impl SdroxideApp {
                 ui.label(dim(s.code)).on_hover_text(&hover);
                 ui.label(RichText::new(format!("ZHR {}", s.zhr)).size(10.5)).on_hover_text(&hover);
                 if a.at_peak() {
-                    ui.label(
-                        RichText::new("PEAK").size(9.5).strong().color(crate::theme::GREEN()),
-                    )
-                    .on_hover_text(&hover);
+                    ui.label(RichText::new("PEAK").size(9.5).strong().color(crate::theme::GREEN()))
+                        .on_hover_text(&hover);
                 }
                 if a.radiant_up() {
                     ui.label(

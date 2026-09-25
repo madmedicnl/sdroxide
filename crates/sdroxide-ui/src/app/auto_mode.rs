@@ -85,8 +85,7 @@ impl SdroxideApp {
         // message, and waiting out that hold would idle an unattended run for
         // five minutes a contact. It is free once no re-send is owed — while
         // one is, the engine is about to transmit and must be left to it.
-        let free = step == QsoStep::Idle
-            || (step == QsoStep::Confirming && !status_tx_next);
+        let free = step == QsoStep::Idle || (step == QsoStep::Confirming && !status_tx_next);
         if !free {
             self.auto_resume_at = None;
             return;

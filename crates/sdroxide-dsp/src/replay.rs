@@ -30,13 +30,7 @@ impl ReplayBuffer {
     /// `cap` samples — `audio_rate * seconds`. At 48 kHz, two minutes is
     /// 5.76 M samples, about 23 MB.
     pub fn new(cap: usize) -> Self {
-        ReplayBuffer {
-            buf: vec![0.0; cap.max(1)],
-            write: 0,
-            filled: 0,
-            read: None,
-            on: false,
-        }
+        ReplayBuffer { buf: vec![0.0; cap.max(1)], write: 0, filled: 0, read: None, on: false }
     }
 
     pub fn on(&self) -> bool {

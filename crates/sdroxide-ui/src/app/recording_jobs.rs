@@ -115,7 +115,11 @@ impl SdroxideApp {
     }
 
     /// The RECORDINGS window: the jobs list and its form.
-    pub(in crate::app) fn recordings_window(&mut self, ctx: &egui::Context, cmds: &mut Vec<Command>) {
+    pub(in crate::app) fn recordings_window(
+        &mut self,
+        ctx: &egui::Context,
+        cmds: &mut Vec<Command>,
+    ) {
         if !self.jobs.show {
             return;
         }
@@ -143,7 +147,9 @@ impl SdroxideApp {
                         ui.label(RichText::new(s).size(11.0).color(crate::theme::CYAN()));
                     }
                     if self.jobs.running.is_some() {
-                        ui.label(RichText::new("● recording").size(11.0).color(crate::theme::ALERT()));
+                        ui.label(
+                            RichText::new("● recording").size(11.0).color(crate::theme::ALERT()),
+                        );
                     }
                 });
                 if self.jobs.edit.is_some() {
@@ -291,7 +297,9 @@ impl SdroxideApp {
                     ui.label("Frequency");
                     ui.horizontal(|ui| {
                         let mut khz = (j.freq_hz / 1e3).round() as i64;
-                        if ui.add(egui::DragValue::new(&mut khz).speed(1.0).range(0..=1_000_000)).changed()
+                        if ui
+                            .add(egui::DragValue::new(&mut khz).speed(1.0).range(0..=1_000_000))
+                            .changed()
                         {
                             j.freq_hz = khz as f64 * 1e3;
                         }

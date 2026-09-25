@@ -242,9 +242,7 @@ impl SdroxideApp {
         &mut self,
         ctx: &egui::Context,
     ) -> Option<eframe::egui::TextureId> {
-        self.view
-            .map_night
-            .then(|| self.night_shade.texture(ctx, crate::time::now_unix()))
+        self.view.map_night.then(|| self.night_shade.texture(ctx, crate::time::now_unix()))
     }
 
     /// The NIGHT toggle on its own, for a panel whose map has no propagation
@@ -914,8 +912,11 @@ impl SdroxideApp {
             })
             .clicked()
             {
-                let call =
-                    if self.digi_cfg_edit.my_call.is_empty() { "NOCALL".into() } else { self.digi_cfg_edit.my_call.clone() };
+                let call = if self.digi_cfg_edit.my_call.is_empty() {
+                    "NOCALL".into()
+                } else {
+                    self.digi_cfg_edit.my_call.clone()
+                };
                 let cq = format!("CQ CQ CQ DE {call} {call} {call} PSE K");
                 cmds.push(Command::DigiAbortTx);
                 self.text_tx = cq.clone();

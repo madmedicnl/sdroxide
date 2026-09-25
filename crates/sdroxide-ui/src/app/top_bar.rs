@@ -1803,7 +1803,9 @@ impl SdroxideApp {
             .then(|| sdroxide_types::broadcast::metre_band(self.state.rx_freq_hz() / 1e3))
             .flatten();
         match metre {
-            Some(m) => format!("{} {m} · {}", self.state.band.label(), self.state.rx[0].mode.label()),
+            Some(m) => {
+                format!("{} {m} · {}", self.state.band.label(), self.state.rx[0].mode.label())
+            }
             None => format!("{} · {}", self.state.band.label(), self.state.rx[0].mode.label()),
         }
     }
@@ -2971,8 +2973,7 @@ impl SdroxideApp {
                         tone.low.gain_db, tone.mid.gain_db, tone.high.gain_db
                     )
                 } else {
-                    "Tone — a three-band equalizer on the receive audio. Click to open"
-                        .to_string()
+                    "Tone — a three-band equalizer on the receive audio. Click to open".to_string()
                 };
                 let resp = crate::chrome::chip(ui, tone.enabled, "EQ").on_hover_text(hover);
                 self.eq_popup(ui, cmds, &resp);
@@ -5361,9 +5362,8 @@ impl SdroxideApp {
         // off this button. "FFT" not "VIEW": the box has to fit the desktop
         // strip — "VIEW" measures ten points wider and was what pushed the
         // display box, and with it the strip, onto a third row.
-        let fft_btn = chip_stretched(ui, false, view, extra).on_hover_text(
-            "Waterfall levels and contrast, FFT size, and the scroll direction",
-        );
+        let fft_btn = chip_stretched(ui, false, view, extra)
+            .on_hover_text("Waterfall levels and contrast, FFT size, and the scroll direction");
         let fft_id = egui::Popup::default_response_id(&fft_btn);
         let now = ui.input(|i| i.time);
         let alpha =
@@ -5550,7 +5550,9 @@ impl SdroxideApp {
             self.show_swl = !self.show_swl;
         }
         if chip_stretched(ui, self.show_spots, spots, extra)
-            .on_hover_text("Live spots — PSK Reporter (and, outside SWL mode, the DX cluster, POTA and SOTA)")
+            .on_hover_text(
+                "Live spots — PSK Reporter (and, outside SWL mode, the DX cluster, POTA and SOTA)",
+            )
             .clicked()
         {
             self.show_spots = !self.show_spots;
@@ -5659,12 +5661,7 @@ impl SdroxideApp {
     }
 
     /// The remaining window chips — the condensed System box's bottom row.
-    fn system_chips_bottom(
-        &mut self,
-        ui: &mut egui::Ui,
-        extra: f32,
-        cmds: &mut Vec<Command>,
-    ) {
+    fn system_chips_bottom(&mut self, ui: &mut egui::Ui, extra: f32, cmds: &mut Vec<Command>) {
         let [mail, mem, scan_label, hfdl_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
         let simple = self.ui_settings.simple_ui;
         if !simple
@@ -6372,7 +6369,8 @@ fn rx_chips(mode: Mode, listener: bool) -> Vec<RxChip> {
     // now sits beside the recording controls it belongs to, inside the REC
     // popup (issue #217). That is also one chip fewer on a strip that has to
     // fit on a 1366-pixel screen (issue #211).
-    let mut chips = vec![RxChip::Bw, RxChip::Nb, RxChip::Anc, RxChip::Nr, RxChip::Mute, RxChip::Rec];
+    let mut chips =
+        vec![RxChip::Bw, RxChip::Nb, RxChip::Anc, RxChip::Nr, RxChip::Mute, RxChip::Rec];
     // The receive-tone equalizer is a listener's control — broadcast and
     // utility audio wants a tone control the ham speech chain never needed —
     // and the ham RX strip has no room for another chip, so it is offered only
@@ -6457,7 +6455,14 @@ impl RxRows {
 /// whose receive row is already full lifts nothing and is laid out exactly as
 /// before; a bare one comes out a third narrower, which is often the
 /// difference between the strip packing into two rows and taking a third.
-fn rx_rows(ui: &egui::Ui, gain: bool, decim: bool, agc_off: bool, mode: Mode, listener: bool) -> RxRows {
+fn rx_rows(
+    ui: &egui::Ui,
+    gain: bool,
+    decim: bool,
+    agc_off: bool,
+    mode: Mode,
+    listener: bool,
+) -> RxRows {
     let g = MODULE_ROW_SPACING;
     // The Vol and SQL rails, which is what the box's stretch lengthens — so
     // they are priced at the floor they fall back to, not the style width.
@@ -6910,11 +6915,9 @@ fn mode_band_chip(
     let resp = if !enabled {
         resp.on_disabled_hover_text(match station_why {
             Some(why) => why.to_string(),
-            None => format!(
-                "{} is not used on {} — pick a band it belongs to",
-                m.label(),
-                band.label()
-            ),
+            None => {
+                format!("{} is not used on {} — pick a band it belongs to", m.label(), band.label())
+            }
         })
     } else {
         resp
@@ -7072,8 +7075,7 @@ fn band_mode_menu(
                 *filter = if lit { BandFilter::All } else { f };
             }
         }
-        if *filter != BandFilter::All
-            && crate::chrome::chip(ui, false, "show every band").clicked()
+        if *filter != BandFilter::All && crate::chrome::chip(ui, false, "show every band").clicked()
         {
             *filter = BandFilter::All;
         }
@@ -7307,9 +7309,8 @@ fn band_mode_menu(
                 // has its own lane, no QSO and no transmitter. They are digital
                 // signals all the same, and this is where an operator looks for
                 // one.
-                for m in Mode::DIGITAL
-                    .into_iter()
-                    .chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
+                for m in
+                    Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
                 {
                     mode_band_chip(ui, mode, m, band, state, cmds);
                 }
@@ -7351,9 +7352,8 @@ fn band_mode_menu(
             ui.add_space(6.0);
             crate::chrome::menu_caption(ui, "Digital");
             ui.horizontal_wrapped(|ui| {
-                for m in Mode::DIGITAL
-                    .into_iter()
-                    .chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
+                for m in
+                    Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
                 {
                     mode_listen_chip(ui, mode, m, state, cmds);
                 }
@@ -8643,8 +8643,9 @@ mod tests {
         let vfo = chip_row_w(ui, &vfo_chip_labels(true)).max(vfo_offsets_w(ui, true))
             + 2.0 * crate::chrome::MODULE_MARGIN_X
             + 4.0;
-        let rx =
-            rx_rows(ui, false, false, false, mode, false).w() + 2.0 * crate::chrome::MODULE_MARGIN_X + 4.0;
+        let rx = rx_rows(ui, false, false, false, mode, false).w()
+            + 2.0 * crate::chrome::MODULE_MARGIN_X
+            + 4.0;
         // A CAT rig modulates our audio, so a digital mode there draws the
         // transmit-audio rail rather than the mic one — and it is the wider of
         // the two. It is also why no CESSB rail joins them: the envelope is

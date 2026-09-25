@@ -102,8 +102,7 @@ fn card_texture(ctx: &egui::Context) -> egui::TextureHandle {
         .map(|d| d.to_rgba8())
         .unwrap_or_else(|_| image::RgbaImage::new(1, 1));
     let (w, h) = image.dimensions();
-    let pixels =
-        egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], image.as_raw());
+    let pixels = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], image.as_raw());
     ctx.load_texture("distant sail", pixels, egui::TextureOptions::LINEAR)
 }
 

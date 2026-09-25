@@ -23,8 +23,7 @@ impl SdroxideApp {
         cmds: &mut Vec<Command>,
         panel_h: f32,
     ) {
-        let st: Option<UvPacketStatus> =
-            self.digi_status.as_ref().and_then(|s| s.uvpacket.clone());
+        let st: Option<UvPacketStatus> = self.digi_status.as_ref().and_then(|s| s.uvpacket.clone());
         let Some(st) = st else {
             ui.label(RichText::new("starting the UVPacket receiver…").weak());
             return;
@@ -119,10 +118,7 @@ impl SdroxideApp {
                                 .color(theme::CYAN_DIM()),
                         );
                         ui.label(
-                            RichText::new(f.mode.label())
-                                .monospace()
-                                .strong()
-                                .color(theme::CYAN()),
+                            RichText::new(f.mode.label()).monospace().strong().color(theme::CYAN()),
                         );
                         ui.label(
                             RichText::new(format!("app {} · seq {}", f.app_type, f.sequence))
@@ -165,11 +161,7 @@ impl SdroxideApp {
 
         ui.horizontal(|ui| {
             ui.label(RichText::new("FRAME").strong().color(theme::CYAN()));
-            ui.label(
-                RichText::new(f.mode.label())
-                    .monospace()
-                    .color(theme::CYAN()),
-            );
+            ui.label(RichText::new(f.mode.label()).monospace().color(theme::CYAN()));
             ui.label(
                 RichText::new(format!("{} bps net", f.mode.net_bps()))
                     .size(10.0)

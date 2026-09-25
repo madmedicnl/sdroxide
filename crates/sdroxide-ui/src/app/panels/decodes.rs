@@ -1117,11 +1117,8 @@ impl SdroxideApp {
         // The listener gets the whole range rather than a dragged share: there
         // is no QSO form below to leave room for, and a fraction of the range
         // would just leave the rest of the column empty.
-        let map_budget = if swl {
-            map_hi
-        } else {
-            map_lo + (map_hi - map_lo) * self.view.digi_map_fraction
-        };
+        let map_budget =
+            if swl { map_hi } else { map_lo + (map_hi - map_lo) * self.view.digi_map_fraction };
         let my_grid = status.as_ref().map(|s| s.config.my_grid.clone()).unwrap_or_default();
         // Feed the shared station store every frame, whether or not the flat map
         // is drawn: the 3D globe's time-lapse replays this same history, and

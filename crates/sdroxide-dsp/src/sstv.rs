@@ -1634,12 +1634,7 @@ mod tests {
                 }
             }
             assert_eq!(detected, Some(mode), "{} VIS not recovered", mode.label());
-            assert_eq!(
-                lines,
-                h as usize,
-                "{}: decoded {lines} of {h} rows",
-                mode.label()
-            );
+            assert_eq!(lines, h as usize, "{}: decoded {lines} of {h} rows", mode.label());
             assert!(complete, "{}: ImageComplete never fired", mode.label());
             // Sample the middle of each colour bar, a third of the way down,
             // and check the right channel is the dominant one.

@@ -21,10 +21,7 @@ fn main() {
     let spec = r.spec();
     assert_eq!(spec.channels, 1, "SSTV fixture must be mono");
     let rate = spec.sample_rate as f64;
-    let audio: Vec<f32> = r
-        .samples::<i16>()
-        .map(|s| s.expect("sample") as f32 / 32768.0)
-        .collect();
+    let audio: Vec<f32> = r.samples::<i16>().map(|s| s.expect("sample") as f32 / 32768.0).collect();
 
     let mut rx = SstvRx::new(rate);
     let mut events = Vec::new();
@@ -62,10 +59,7 @@ fn main() {
     }
 
     let (w, h) = dims;
-    println!(
-        "detected {:?}, {w}x{h}, {lines} lines, complete {complete}",
-        mode
-    );
+    println!("detected {:?}, {w}x{h}, {lines} lines, complete {complete}", mode);
     if mode.is_none() || lines == 0 {
         std::process::exit(1);
     }

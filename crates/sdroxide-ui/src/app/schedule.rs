@@ -122,12 +122,15 @@ impl SdroxideApp {
                         && s.matches_query(&f.query)
                         && broadcast::contains_ascii_ci(&s.lang, &f.lang)
                         && broadcast::contains_ascii_ci(&s.target, &f.target)
-                        && (f.band.is_empty() || broadcast::metre_band(s.freq_khz) == Some(f.band.as_str()))
+                        && (f.band.is_empty()
+                            || broadcast::metre_band(s.freq_khz) == Some(f.band.as_str()))
                         && (!f.favourites_only || self.broadcast_favs.iter().any(|n| n == &s.name))
                 })
                 .cloned()
                 .collect();
-            v.sort_by(|a, b| a.freq_khz.partial_cmp(&b.freq_khz).unwrap_or(std::cmp::Ordering::Equal));
+            v.sort_by(|a, b| {
+                a.freq_khz.partial_cmp(&b.freq_khz).unwrap_or(std::cmp::Ordering::Equal)
+            });
             v
         };
         let count = rows.len();
@@ -233,9 +236,10 @@ impl SdroxideApp {
                     .color(crate::theme::gray(150)),
                 );
                 ui.separator();
-                egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("sched-list").show(
-                    ui,
-                    |ui| {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .id_salt("sched-list")
+                    .show(ui, |ui| {
                         for s in &rows {
                             ui.horizontal(|ui| {
                                 ui.label(
@@ -243,11 +247,9 @@ impl SdroxideApp {
                                         .monospace(),
                                 );
                                 ui.label(
-                                    RichText::new(
-                                        broadcast::metre_band(s.freq_khz).unwrap_or(""),
-                                    )
-                                    .size(11.0)
-                                    .color(crate::theme::CYAN()),
+                                    RichText::new(broadcast::metre_band(s.freq_khz).unwrap_or(""))
+                                        .size(11.0)
+                                        .color(crate::theme::CYAN()),
                                 );
                                 ui.label(RichText::new(truncate(&s.name, 30)).strong());
                                 ui.label(
@@ -269,8 +271,10 @@ impl SdroxideApp {
                                     && let Some(lon) = s.lon
                                 {
                                     let (_, _, _, h, mi, _) = sdroxide_types::utc_ymd_hms(now);
-                                    let local =
-                                        broadcast::local_solar_hhmm(h as u16 * 100 + mi as u16, lon);
+                                    let local = broadcast::local_solar_hhmm(
+                                        h as u16 * 100 + mi as u16,
+                                        lon,
+                                    );
                                     ui.label(
                                         RichText::new(local.clone())
                                             .size(11.0)
@@ -282,8 +286,7 @@ impl SdroxideApp {
                                         s.site,
                                     ));
                                 }
-                                let fav =
-                                    self.broadcast_favs.iter().any(|n| n == &s.name);
+                                let fav = self.broadcast_favs.iter().any(|n| n == &s.name);
                                 if ui
                                     .small_button(if fav { "★" } else { "☆" })
                                     .on_hover_text("Favourite this station")
@@ -299,8 +302,7 @@ impl SdroxideApp {
                                 }
                             });
                         }
-                    },
-                );
+                    });
             });
         if let Some(r) = &resp {
             crate::chrome::paint_window_border(ctx, &r.response);

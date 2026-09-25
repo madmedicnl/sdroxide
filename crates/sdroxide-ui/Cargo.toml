@@ -94,6 +94,11 @@ pollster = "1.0"
 # winit from — and the version can never drift from the one eframe links.
 egui-winit = { version = "0.36", default-features = false }
 
+# Raw evdev ioctls (EVIOCGRAB) for the CW paddle input. Linux only, and only
+# when native: it is the kernel input layer, which the browser does not have.
+[target.'cfg(all(not(target_arch = "wasm32"), target_os = "linux"))'.dependencies]
+libc = "0.2"
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

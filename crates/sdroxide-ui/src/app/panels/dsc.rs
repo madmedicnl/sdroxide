@@ -88,8 +88,10 @@ impl SdroxideApp {
                     .size(10.0)
                     .color(theme::CYAN_DIM()),
             )
-            .on_hover_text("Sequences that reached their end marker, and how cleanly \
-                            the two tones separate.");
+            .on_hover_text(
+                "Sequences that reached their end marker, and how cleanly \
+                            the two tones separate.",
+            );
             self.clear_rx_chip(ui, cmds);
             self.save_rx_chip(ui);
         });
@@ -137,7 +139,9 @@ impl SdroxideApp {
                             RichText::new(h.message.format.label()).monospace().strong().color(ink),
                         );
                         if h.message.self_mmsi != 0 {
-                            ui.label(RichText::new(format!("{:09}", h.message.self_mmsi)).monospace());
+                            ui.label(
+                                RichText::new(format!("{:09}", h.message.self_mmsi)).monospace(),
+                            );
                         }
                         if h.message.format == DscFormat::Distress {
                             let nature = h.message.nature.label();
@@ -176,11 +180,11 @@ impl SdroxideApp {
 
         ui.horizontal(|ui| {
             ui.label(RichText::new("READING").strong().color(theme::CYAN()));
-            ui.label(
-                RichText::new(m.format.label())
-                    .monospace()
-                    .color(if m.clean { theme::CYAN() } else { theme::YELLOW() }),
-            );
+            ui.label(RichText::new(m.format.label()).monospace().color(if m.clean {
+                theme::CYAN()
+            } else {
+                theme::YELLOW()
+            }));
             if !m.clean {
                 ui.label(RichText::new("MARGINAL").size(10.0).color(theme::YELLOW()))
                     .on_hover_text(
@@ -224,11 +228,7 @@ impl SdroxideApp {
                 // at when a decode is marginal, so it is shown as it came in.
                 ui.label(
                     RichText::new(
-                        m.raw_symbols
-                            .iter()
-                            .map(|s| s.to_string())
-                            .collect::<Vec<_>>()
-                            .join(" "),
+                        m.raw_symbols.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(" "),
                     )
                     .monospace()
                     .size(10.5),

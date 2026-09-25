@@ -134,7 +134,8 @@ fn centred_waterfall_note(ui: &egui::Ui, area: egui::Rect, text: &str) {
     let ink = egui::Color32::LIGHT_GRAY;
     let font = egui::FontId::proportional(14.0);
     let galley = p.layout_no_wrap(text.to_owned(), font, ink);
-    let box_rect = egui::Rect::from_center_size(area.center(), galley.size() + egui::vec2(20.0, 10.0));
+    let box_rect =
+        egui::Rect::from_center_size(area.center(), galley.size() + egui::vec2(20.0, 10.0));
     p.rect_filled(box_rect, 4.0, egui::Color32::from_black_alpha(180));
     p.galley(box_rect.center() - galley.size() / 2.0, galley, ink);
 }
@@ -327,8 +328,8 @@ impl eframe::App for SdroxideApp {
         // transmit UI is clutter for them. The offer is the per-radio listening
         // screen (`hide_tx`), which is exactly "hide the transmit controls";
         // like the SWR latch, an operator who has said no is not asked again.
-        let rx_only = !self.swl_mode()
-            && self.caps.as_ref().is_some_and(|c| !c.is_transmit_capable());
+        let rx_only =
+            !self.swl_mode() && self.caps.as_ref().is_some_and(|c| !c.is_transmit_capable());
         let notice = self.radio_notice.clone().or_else(|| {
             (rx_only && !self.rx_only_nudge_dismissed).then(|| {
                 "This radio is receive-only — it has no transmitter. Hide the transmit \

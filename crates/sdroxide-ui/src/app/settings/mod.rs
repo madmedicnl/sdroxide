@@ -2140,20 +2140,16 @@ impl SdroxideApp {
                     // listening set stays a listener's while the transceiver
                     // beside it keeps its PTT.
                     ui.label(RichText::new("Transmit controls").strong());
-                    crate::chrome::checkbox(
-                        ui,
-                        &mut cfg.hide_tx,
-                        "hide them all (SWL mode)",
-                    )
-                    .on_hover_text(
-                        "Hide every transmit control for *this* radio — the PTT, CALL CQ, TX \
+                    crate::chrome::checkbox(ui, &mut cfg.hide_tx, "hide them all (SWL mode)")
+                        .on_hover_text(
+                            "Hide every transmit control for *this* radio — the PTT, CALL CQ, TX \
                          level, SEND, BEACON, all of it — and swap the strip's ham extras \
                          (spots, awards) for the listener's (SCHEDULE, LISTEN). Per radio: a \
                          listening dongle on the long wire can sit in this mode while the \
                          transceiver beside it keeps its transmitter.\n\nThe hardware can \
                          still transmit; this only hides the controls. `--swl` forces it on \
                          for every radio for the run.\n\nTakes effect on Apply.",
-                    );
+                        );
                     ui.end_row();
 
                     // Auto mode's inactivity stop. Per radio because one set
@@ -2179,7 +2175,9 @@ impl SdroxideApp {
                             cfg.auto_idle_stop_min = mins;
                         }
                         ui.label(
-                            RichText::new("stop after no input").size(10.5).color(crate::theme::gray(140)),
+                            RichText::new("stop after no input")
+                                .size(10.5)
+                                .color(crate::theme::gray(140)),
                         );
                     })
                     .response

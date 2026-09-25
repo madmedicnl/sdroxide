@@ -10,7 +10,7 @@
 //! changes. The engine is not involved.
 
 use eframe::egui::{self, RichText};
-use sdroxide_types::{Command, Mode, SignalReport, Sio, Sinpo, SwlEntry};
+use sdroxide_types::{Command, Mode, SignalReport, Sinpo, Sio, SwlEntry};
 
 use crate::app::SdroxideApp;
 use crate::app::persist::persist_swl_log;
@@ -179,13 +179,7 @@ impl SwlEditForm {
     }
 
     fn to_entry(&self) -> SwlEntry {
-        let freq_hz = self
-            .freq_khz
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .map(|k| k * 1e3)
-            .unwrap_or(0.0);
+        let freq_hz = self.freq_khz.trim().parse::<f64>().ok().map(|k| k * 1e3).unwrap_or(0.0);
         let cl = |v: u8| v.clamp(1, 5);
         let report = self.judged.then(|| {
             if self.sinpo {
@@ -271,12 +265,7 @@ impl SdroxideApp {
                             {
                                 let grid = self.my_grid();
                                 let listener = self.report_identity();
-                                let text = e.report_text(
-                                    &listener,
-                                    &grid,
-                                    "sdroxide",
-                                    "",
-                                );
+                                let text = e.report_text(&listener, &grid, "sdroxide", "");
                                 crate::download::save("reception-report.txt", text.as_bytes());
                             }
                         });
@@ -350,7 +339,9 @@ impl SdroxideApp {
                     let day = utc[..10].to_string();
                     if day != last_day {
                         ui.add_space(4.0);
-                        ui.label(RichText::new(&day).size(11.0).strong().color(crate::theme::CYAN()));
+                        ui.label(
+                            RichText::new(&day).size(11.0).strong().color(crate::theme::CYAN()),
+                        );
                         last_day = day;
                     }
                     let report = e
@@ -370,9 +361,7 @@ impl SdroxideApp {
                         if ui.selectable_label(is_sel, RichText::new(label).monospace()).clicked() {
                             selected = Some(e.id);
                         }
-                        ui.label(
-                            RichText::new(&utc).size(10.5).color(crate::theme::gray(140)),
-                        );
+                        ui.label(RichText::new(&utc).size(10.5).color(crate::theme::gray(140)));
                         if !e.notes.is_empty() {
                             ui.label(
                                 RichText::new(truncate(&e.notes, 48))
@@ -512,9 +501,7 @@ impl SdroxideApp {
                                 ui.horizontal(|ui| {
                                     let fig = |ui: &mut egui::Ui, name: &str, v: &mut u8| {
                                         ui.label(name);
-                                        ui.add(
-                                            egui::DragValue::new(v).speed(0.1).range(1..=5u8),
-                                        );
+                                        ui.add(egui::DragValue::new(v).speed(0.1).range(1..=5u8));
                                     };
                                     fig(ui, "S", &mut f.s);
                                     fig(ui, "I", &mut f.i);
@@ -561,9 +548,7 @@ impl SdroxideApp {
                 f.smeter_dbm = s;
             }
         }
-        if save
-            && let Some(f) = self.swl_edit.take()
-        {
+        if save && let Some(f) = self.swl_edit.take() {
             let mut entry = f.to_entry();
             if entry.id == 0 {
                 entry.id = self.swl_log.iter().map(|e| e.id).max().unwrap_or(0) + 1;

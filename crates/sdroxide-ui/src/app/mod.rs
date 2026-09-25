@@ -23,6 +23,8 @@ pub(in crate::app) mod alerts;
 pub(in crate::app) mod auto_mode;
 pub(in crate::app) mod awards;
 pub(in crate::app) mod bands;
+#[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+pub(in crate::app) mod cw_key;
 pub(in crate::app) mod drm;
 pub(in crate::app) mod frame;
 pub(in crate::app) mod hd;
@@ -31,23 +33,23 @@ pub(in crate::app) mod ism;
 pub(in crate::app) mod konami;
 pub(in crate::app) mod logbook;
 pub(in crate::app) mod morse;
-pub(in crate::app) mod recording_jobs;
-pub(in crate::app) mod schedule;
-pub(in crate::app) mod swl_log;
 pub(in crate::app) mod net;
 pub(in crate::app) mod panels;
 pub(crate) mod persist;
 pub(in crate::app) mod publicsdr;
 pub(in crate::app) mod qo100;
 pub(in crate::app) mod rds;
+pub(in crate::app) mod recording_jobs;
 pub(in crate::app) mod sat;
 pub(in crate::app) mod save_text;
 pub(in crate::app) mod scanner;
+pub(in crate::app) mod schedule;
 pub(in crate::app) mod settings;
 pub(in crate::app) mod solar;
 pub(in crate::app) mod spectrum;
 pub(in crate::app) mod speech;
 pub(in crate::app) mod spots;
+pub(in crate::app) mod swl_log;
 pub(in crate::app) mod top_bar;
 pub(crate) mod util;
 pub(in crate::app) mod windows;
@@ -1664,7 +1666,7 @@ impl SdroxideApp {
             morse: morse::MorseState::new(load_morse_progress(storage)),
             mail: winlink::MailUi::default(),
             log_edit: None,
-spots: Vec::new(),
+            spots: Vec::new(),
             band_openings: Vec::new(),
             net_status: None,
             spots_gen: 0,
@@ -1836,9 +1838,7 @@ spots: Vec::new(),
 
     /// Multi-radio: the network spots and feed status this tab holds, and the
     /// generation they are at.
-    pub(crate) fn spot_feed(
-        &self,
-    ) -> (u64, &[Spot], Option<&str>, &[sdroxide_types::BandOpening]) {
+    pub(crate) fn spot_feed(&self) -> (u64, &[Spot], Option<&str>, &[sdroxide_types::BandOpening]) {
         (self.spots_gen, &self.spots, self.net_status.as_deref(), &self.band_openings)
     }
 

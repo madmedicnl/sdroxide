@@ -5538,6 +5538,7 @@ dependencies = [
  "ewebsock",
  "image",
  "js-sys",
+ "libc",
  "naga",
  "pollster 1.0.1",
  "rfd",
