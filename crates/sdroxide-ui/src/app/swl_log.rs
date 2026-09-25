@@ -37,6 +37,26 @@ fn utc_text(unix: u64) -> String {
     format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02} UTC")
 }
 
+/// A SINPO strength figure, 1–5, for a receiver S-meter reading.
+///
+/// The meter reads dBm, where S9 is −73 dBm and an S-unit is 6 dB; the five
+/// SINPO grades are coarser, so the boundaries sit a few S-units apart. Only
+/// the strength can come from the meter — interference, noise and propagation
+/// are the operator's judgement.
+fn sinpo_strength(dbm: f32) -> u8 {
+    if dbm >= -73.0 {
+        5
+    } else if dbm >= -83.0 {
+        4
+    } else if dbm >= -93.0 {
+        3
+    } else if dbm >= -103.0 {
+        2
+    } else {
+        1
+    }
+}
+
 fn truncate(s: &str, n: usize) -> String {
     if s.chars().count() <= n {
         s.to_string()
@@ -467,7 +487,22 @@ impl SdroxideApp {
 
                             ui.label("Report");
                             ui.horizontal(|ui| {
-                                crate::chrome::checkbox(ui, &mut f.judged, "judged");
+                                let judged = crate::chrome::checkbox(ui, &mut f.judged, "judged");
+                                if judged.clicked() && f.judged {
+                                    // A ticked report starts filled in: the
+                                    // strength is the one figure the meter can
+                                    // give, and the rest start at 5 — a clean
+                                    // signal — for the operator to adjust. The
+                                    // point is not to judge for them but to
+                                    // save retyping five figures per station.
+                                    if let Some(db) = f.smeter_dbm {
+                                        f.s = sinpo_strength(db);
+                                    }
+                                    f.i = 5;
+                                    f.n = 5;
+                                    f.p = 5;
+                                    f.o = 5;
+                                }
                                 ui.add_enabled_ui(f.judged, |ui| {
                                     ui.selectable_value(&mut f.sinpo, true, "SINPO");
                                     ui.selectable_value(&mut f.sinpo, false, "SIO");
@@ -541,5 +576,21 @@ impl SdroxideApp {
         if cancel {
             self.swl_edit = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sinpo_strength;
+
+    /// The meter grades into the five SINPO figures, strongest at S9 and up.
+    #[test]
+    fn the_meter_grades_into_sinpo_strength() {
+        assert_eq!(sinpo_strength(-60.0), 5, "S9+10 is a 5");
+        assert_eq!(sinpo_strength(-73.0), 5, "S9 is a 5");
+        assert_eq!(sinpo_strength(-76.0), 4);
+        assert_eq!(sinpo_strength(-86.0), 3);
+        assert_eq!(sinpo_strength(-96.0), 2);
+        assert_eq!(sinpo_strength(-120.0), 1, "the noise floor is a 1");
     }
 }
