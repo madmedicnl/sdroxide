@@ -126,6 +126,19 @@ fn paint_panadapter_chrome(ui: &egui::Ui, area: egui::Rect) {
     crate::chrome::corner_brackets(painter, area, crate::theme::scope().chrome);
 }
 
+/// A short note centred on the panadapter, over a dark pill so it reads on any
+/// waterfall. Used for the ATS Mini's tune-in-flight line, which belongs where
+/// an audio-only source's eye already is.
+fn centred_waterfall_note(ui: &egui::Ui, area: egui::Rect, text: &str) {
+    let p = ui.painter_at(area);
+    let ink = egui::Color32::LIGHT_GRAY;
+    let font = egui::FontId::proportional(14.0);
+    let galley = p.layout_no_wrap(text.to_owned(), font, ink);
+    let box_rect = egui::Rect::from_center_size(area.center(), galley.size() + egui::vec2(20.0, 10.0));
+    p.rect_filled(box_rect, 4.0, egui::Color32::from_black_alpha(180));
+    p.galley(box_rect.center() - galley.size() / 2.0, galley, ink);
+}
+
 impl eframe::App for SdroxideApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
@@ -732,6 +745,18 @@ impl eframe::App for SdroxideApp {
                         show_panel,
                         &mut cmds,
                     );
+                    // The ATS Mini tunes by stepping its own band cycle, so the
+                    // dial can be a beat ahead of the radio. It hands us audio
+                    // only, so the waterfall is where the eye already is: say it
+                    // here, centred, rather than under a dial the radio has not
+                    // reached.
+                    if self.atsmini_tuning && self.atsmini_active() {
+                        centred_waterfall_note(
+                            &spec_ui,
+                            spec_area,
+                            "tuning — the radio is catching up",
+                        );
+                    }
                     if let Some(l) = level
                         && crate::widgets::level_slider::show(ui, l, &mut self.view)
                     {
@@ -968,6 +993,18 @@ impl eframe::App for SdroxideApp {
                         show_panel,
                         &mut cmds,
                     );
+                    // The ATS Mini tunes by stepping its own band cycle, so the
+                    // dial can be a beat ahead of the radio. It hands us audio
+                    // only, so the waterfall is where the eye already is: say it
+                    // here, centred, rather than under a dial the radio has not
+                    // reached.
+                    if self.atsmini_tuning && self.atsmini_active() {
+                        centred_waterfall_note(
+                            &spec_ui,
+                            spec_area,
+                            "tuning — the radio is catching up",
+                        );
+                    }
                     if let Some(l) = level
                         && crate::widgets::level_slider::show(ui, l, &mut self.view)
                     {

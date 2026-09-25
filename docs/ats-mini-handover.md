@@ -226,15 +226,27 @@ from AM, `m` (down) is one step, `M` (up) is two.
     fast-scroll-then-wait case.
   - The lag itself is inherent, and the decision is to **keep the dial locked to
     the requested frequency** (it never chases the radio's intermediate dials)
-    and **say so near the dial**. The control thread publishes a `Shared::tuning`
-    level (a tune in flight: an unconfirmed `F` or a settling band burst);
-    `poll_control` sends `ControlUpdate::AtsMiniTuning` on a change; the engine
-    forwards `RadioEvent::AtsMiniTuning` (native-only, server maps it to `None`);
-    the top bar paints "tuning — the radio is catching up" under the readout
-    while `SdroxideApp::atsmini_tuning && atsmini_active()`. Pinned by
-    `a_source_tuning_level_reaches_the_screen`; the paint itself needs the app
-    and is not unit-tested here, and the live fast-scroll case is the bench
-    check.
+    and **say so in the waterfall**, because an audio-only source has no
+    panadapter to read and the waterfall is where the eye already is. The control
+    thread publishes a `Shared::tuning` level (a tune in flight: an unconfirmed
+    `F` or a settling band burst); `poll_control` sends
+    `ControlUpdate::AtsMiniTuning` on a change; the engine forwards
+    `RadioEvent::AtsMiniTuning` (native-only, server maps it to `None`); the
+    frame paints "tuning — the radio is catching up" centred on the panadapter,
+    over a dark pill, while `SdroxideApp::atsmini_tuning && atsmini_active()`.
+    Pinned by `a_source_tuning_level_reaches_the_screen`; the paint itself needs
+    the app and is not unit-tested here, and the live fast-scroll case is the
+    bench check.
+- **It did not adopt the radio's initial state — fixed.** On connect the engine
+  opens the source at its *stored* dial, and `set_center_hz` skipped the tune
+  because it matched that stored value; the radio sat on its own frequency with
+  nothing to reconcile them, and the operator had to tune before anything
+  matched. The source now adopts the **first telemetry after a connect** as the
+  radio's state: it reports both the dial (`ControlUpdate::Freq`) and the mode
+  (`ControlUpdate::Mode`), so the app starts where the radio is. Picking a band
+  from the popup also now sends the band's default dial along with the band
+  step, so the readout follows the radio into the band instead of staying on the
+  frequency it was showing.
 - **Sidebands on every AM band — done.** The popup's mode row is now one
   constant, `sdroxide_types::atsmini::DEMOD_MODES` (`Am`, `Lsb`, `Usb`, `Wfm`),
   drawn with the never-greyed LISTEN chips, and `firmware_mode` maps LSB and USB

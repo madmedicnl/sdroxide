@@ -202,8 +202,10 @@ impl IqSource for AtsMiniSource {
         // hand the radio the same tune again. Every `F` it receives writes NVS
         // and can glitch its audio, so repeats are not free.
         if (hz - self.center).abs() < 1.0 {
+            tracing::debug!(hz, center = self.center, "ATS Mini: tune request already at the dial");
             return Ok(());
         }
+        tracing::debug!(hz, from = self.center, "ATS Mini: tune requested");
         self.center = hz;
         let _ = self.cmd_tx.send(Cmd::Freq(hz));
         Ok(())
@@ -293,6 +295,7 @@ impl IqSource for AtsMiniSource {
     /// relative on the wire (there is no "set volume to 12"), so the panel sends
     /// a direction and the firmware steps.
     fn set_device_setting(&mut self, key: &str, value: &str) -> Result<()> {
+        tracing::debug!(key, value, "ATS Mini: device setting");
         // A band pick names an index into the firmware's own table; the control
         // thread steps its cycle to reach it.
         if key == "band-index" {
@@ -348,6 +351,7 @@ impl IqSource for AtsMiniSource {
         let tuning = self.shared.lock().map(|s| s.tuning).unwrap_or(false);
         if tuning != self.tuning_reported {
             self.tuning_reported = tuning;
+            tracing::debug!(tuning, "ATS Mini: tune-in-flight note {}", if tuning { "on" } else { "off" });
             out.push(ControlUpdate::AtsMiniTuning(tuning));
         }
         out
@@ -511,13 +515,20 @@ fn control_thread(
             loop {
                 match cmd_rx.try_recv() {
                     Ok(Cmd::Freq(hz)) => {
+                        tracing::debug!(hz, "ATS Mini: thread got Freq");
                         target_hz = Some(hz.max(0.0) as u64);
                         sent_for = None;
                         saw_error = false;
                         band_ensured_for = None;
                     }
-                    Ok(Cmd::Mode(m)) => target_mode = firmware_mode(m),
-                    Ok(Cmd::BandIndex(i)) => pending_band = Some(i),
+                    Ok(Cmd::Mode(m)) => {
+                        tracing::debug!(mode = %m.label(), "ATS Mini: thread got Mode");
+                        target_mode = firmware_mode(m);
+                    }
+                    Ok(Cmd::BandIndex(i)) => {
+                        tracing::debug!(index = i, "ATS Mini: thread got BandIndex");
+                        pending_band = Some(i);
+                    }
                     Ok(Cmd::DumpMemories) => {
                         let _ = write.write_all(&[atsmini::dump_memories() as u8]);
                         collecting = Some((Instant::now(), Vec::new()));
@@ -638,6 +649,12 @@ fn control_thread(
                         pending.drain(..=pos);
                         if let Some(t) = Telemetry::parse(&line) {
                             let dial = t.dial_hz().round() as i64;
+                            tracing::debug!(
+                                hz = dial,
+                                band = %t.band,
+                                mode = %t.mode.as_str(),
+                                "ATS Mini: telemetry"
+                            );
                             // A tune of ours that the radio did not reject has
                             // landed: it answers an out-of-band `F` with an error
                             // line straight away, so the first telemetry after an
@@ -654,26 +671,47 @@ fn control_thread(
                             // A dial/mode the radio moved on its own reaches the
                             // engine; one we commanded is suppressed, or the two
                             // ends would echo each other.
-                            if let Some(prev) = last_dial
-                                && (dial - prev).abs() >= OUT_OF_BAND_MIN_HZ
-                            {
-                                // While a tune is in flight every dial change is
-                                // ours (the band cycle steps through frequencies);
-                                // afterwards compare against where we left it with a
-                                // *tight* tolerance, not the convergence one, or a
-                                // small knob step is mistaken for our own command
-                                // and swallowed.
-                                let ours = target_hz.is_some()
-                                    || settle_until.is_some_and(|t| Instant::now() < t)
-                                    || commanded_hz
-                                        .is_some_and(|c| (dial - c).abs() <= OUT_OF_BAND_MIN_HZ);
-                                if !ours {
+                            match last_dial {
+                                // The first telemetry since this connect. The
+                                // radio's own dial and mode are the state the app
+                                // has never seen: it opened on its stored dial,
+                                // which the radio does not share, and the
+                                // `set_center_hz` the engine sent at open was
+                                // skipped against that stored value, so nothing
+                                // else would ever reconcile them. Report both and
+                                // let the app start where the radio actually is.
+                                None => {
                                     tracing::debug!(
                                         hz = dial,
-                                        "ATS Mini: radio dial moved out-of-band"
+                                        mode = t.mode.as_str(),
+                                        "ATS Mini: adopting the radio's initial state"
                                     );
                                     let _ = control_tx.send(ControlUpdate::Freq(dial as f64));
+                                    let _ =
+                                        control_tx.send(ControlUpdate::Mode(t.mode.as_rx_mode()));
                                 }
+                                Some(prev) if (dial - prev).abs() >= OUT_OF_BAND_MIN_HZ => {
+                                    // While a tune is in flight every dial change
+                                    // is ours (the band cycle steps through
+                                    // frequencies); afterwards compare against
+                                    // where we left it with a *tight* tolerance,
+                                    // not the convergence one, or a small knob step
+                                    // is mistaken for our own command and
+                                    // swallowed.
+                                    let ours = target_hz.is_some()
+                                        || settle_until.is_some_and(|t| Instant::now() < t)
+                                        || commanded_hz
+                                            .is_some_and(|c| (dial - c).abs() <= OUT_OF_BAND_MIN_HZ);
+                                    if !ours {
+                                        tracing::debug!(
+                                            hz = dial,
+                                            "ATS Mini: radio dial moved out-of-band"
+                                        );
+                                        let _ =
+                                            control_tx.send(ControlUpdate::Freq(dial as f64));
+                                    }
+                                }
+                                _ => {}
                             }
                             if let Some(prev) = last_mode
                                 && t.mode != prev
