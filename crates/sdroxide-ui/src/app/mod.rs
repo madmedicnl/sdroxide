@@ -599,6 +599,12 @@ pub struct SdroxideApp {
     pub(in crate::app) show_swl: bool,
     pub(in crate::app) swl_edit: Option<crate::app::swl_log::SwlEditForm>,
     pub(in crate::app) swl_selected: Option<u64>,
+    /// The antenna the listener is using, in their own words, for the
+    /// reception report's **Antenna:** line. Session-only and free text, set
+    /// once when a listening session starts: an aerial is swapped far more
+    /// often than a setting is opened, so it is not worth a trip to Settings —
+    /// and it is not a property of the radio, so it does not ride the wire.
+    pub(in crate::app) swl_antenna: String,
     /// The broadcast schedule window and its filters.
     pub(in crate::app) schedule: crate::app::schedule::ScheduleUi,
     /// Favourite broadcast stations, by name (`broadcast_favourites.json`).
@@ -1583,6 +1589,7 @@ impl SdroxideApp {
             show_swl: false,
             swl_edit: None,
             swl_selected: None,
+            swl_antenna: String::new(),
             schedule: Default::default(),
             broadcast_favs: load_broadcast_favourites(storage),
             recording_jobs: load_recording_jobs(storage),

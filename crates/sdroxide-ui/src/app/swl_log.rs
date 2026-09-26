@@ -91,6 +91,9 @@ pub(in crate::app) struct SwlEditForm {
     site: String,
     /// The receiving station's Maidenhead locator. See [`SwlEntry::recv_grid`].
     recv_grid: String,
+    /// The antenna in use, from the LISTEN window's session field. See
+    /// [`SwlEntry::antenna`].
+    antenna: String,
     notes: String,
     /// The listener marked this reception as an unlicensed ("pirate")
     /// broadcast. See [`SwlEntry::pirate`].
@@ -116,6 +119,7 @@ impl Default for SwlEditForm {
             smeter_dbm: None,
             site: String::new(),
             recv_grid: String::new(),
+            antenna: String::new(),
             notes: String::new(),
             pirate: false,
         }
@@ -125,12 +129,14 @@ impl Default for SwlEditForm {
 impl SwlEditForm {
     /// A fresh entry, pre-filled from the dial so logging a station found by
     /// tuning is a name and a judgement. `grid` is the receiving station's
-    /// Maidenhead locator, which the log keeps as *where it was heard*.
+    /// Maidenhead locator, which the log keeps as *where it was heard*, and
+    /// `antenna` the aerial in use, which the log keeps for the report.
     pub(in crate::app) fn new(
         freq_hz: f64,
         mode: Mode,
         smeter_dbm: Option<f32>,
         grid: String,
+        antenna: String,
     ) -> Self {
         SwlEditForm {
             id: 0,
@@ -139,6 +145,7 @@ impl SwlEditForm {
             mode,
             smeter_dbm,
             recv_grid: grid,
+            antenna,
             sinpo: true,
             s: 3,
             i: 3,
@@ -159,8 +166,9 @@ impl SwlEditForm {
         site: &str,
         smeter_dbm: Option<f32>,
         grid: String,
+        antenna: String,
     ) -> Self {
-        let mut f = Self::new(freq_hz, mode, smeter_dbm, grid);
+        let mut f = Self::new(freq_hz, mode, smeter_dbm, grid, antenna);
         f.station = station.to_string();
         f.language = language.to_string();
         f.site = site.to_string();
@@ -190,6 +198,7 @@ impl SwlEditForm {
             smeter_dbm: e.smeter_dbm,
             site: e.site.clone(),
             recv_grid: e.recv_grid.clone(),
+            antenna: e.antenna.clone(),
             notes: e.notes.clone(),
             pirate: e.pirate,
         }
@@ -222,6 +231,7 @@ impl SwlEditForm {
             smeter_dbm: self.smeter_dbm,
             site: self.site.trim().to_string(),
             recv_grid: self.recv_grid.trim().to_uppercase(),
+            antenna: self.antenna.trim().to_string(),
             notes: self.notes.trim().to_string(),
             pirate: self.pirate,
         }
@@ -253,7 +263,8 @@ impl SdroxideApp {
                         let mode = self.state.rx[0].mode;
                         let s = self.meters.map(|m| m.s_dbm);
                         let grid = self.my_grid();
-                        self.swl_edit = Some(SwlEditForm::new(freq, mode, s, grid));
+                        let antenna = self.swl_antenna.clone();
+                        self.swl_edit = Some(SwlEditForm::new(freq, mode, s, grid, antenna));
                     }
                     if crate::chrome::chip(ui, false, "JOBS")
                         .on_hover_text("Scheduled recordings — record a band at a set time")
@@ -291,9 +302,18 @@ impl SdroxideApp {
                                 .clicked()
                                 && let Some(e) = selected
                             {
-                                let grid = self.my_grid();
                                 let listener = self.report_identity();
-                                let text = e.report_text(&listener, &grid, "sdroxide", "");
+                                // Where it was heard and the aerial that heard
+                                // it come from the entry, which captured both at
+                                // logging time; only an entry too old to have a
+                                // locator falls back to the current grid.
+                                let grid = if e.recv_grid.is_empty() {
+                                    self.my_grid()
+                                } else {
+                                    e.recv_grid.clone()
+                                };
+                                let text =
+                                    e.report_text(&listener, &grid, "sdroxide_SWL", &e.antenna);
                                 crate::download::save("reception-report.txt", text.as_bytes());
                             }
                         });
@@ -303,6 +323,20 @@ impl SdroxideApp {
                                 .color(crate::theme::gray(150)),
                         );
                     });
+                });
+                // The aerial, in the listener's own words, for the reception
+                // report. Session state set once — an aerial is swapped far
+                // more often than a settings page is opened, and it is not a
+                // property of the radio, so it does not ride the wire.
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Antenna").size(11.0).color(crate::theme::gray(150)));
+                    crate::chrome::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut self.swl_antenna)
+                            .desired_width(240.0)
+                            .hint_text("Longwire 20 m, MLA-30 loop, mini-whip …"),
+                    )
+                    .on_hover_text("Goes on the reception report's Antenna: line");
                 });
                 // The listener's tone control: shelves on the demodulated
                 // audio, in front of the speakers. Broadcast audio wants a
@@ -671,7 +705,7 @@ mod tests {
     /// reception, not of the session that logged it.
     #[test]
     fn the_pirate_tick_survives_the_form_and_an_edit() {
-        let mut f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into());
+        let mut f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into(), String::new());
         assert!(!f.to_entry().pirate, "off unless the listener ticks it");
         f.pirate = true;
         let e = f.to_entry();
@@ -684,7 +718,16 @@ mod tests {
     /// listener typing `jo22` means `JO22`.
     #[test]
     fn the_reception_grid_is_carried_and_upper_cased() {
-        let f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "jo22".into());
+        let f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "jo22".into(), String::new());
         assert_eq!(f.to_entry().recv_grid, "JO22");
+    }
+
+    /// The session antenna — the aerial the operator typed in the LISTEN window
+    /// — is captured into the entry at log time, so a report of a later
+    /// reception does not name the aerial that heard an earlier one.
+    #[test]
+    fn the_session_antenna_is_captured_into_the_entry() {
+        let f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into(), "MLA-30".into());
+        assert_eq!(f.to_entry().antenna, "MLA-30");
     }
 }

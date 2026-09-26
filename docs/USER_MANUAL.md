@@ -14713,6 +14713,16 @@ knows it, and the one source that does is the schedule, which fills it in when a
 row is **LOG**ged. It rides on the saved entry and shows on the row's hover when
 it is there, beside the notes.
 
+The **Antenna** box at the top of the LISTEN window is the aerial in use, in your
+own words — "Longwire 20 m", "MLA-30 loop", a mini-whip. It is session state, set
+once when you start listening, because an aerial is swapped far more often than a
+settings page is opened; and it is not a property of the radio, so it stays on
+this screen rather than in Settings. Each reception captures it when it is
+logged. **REPORT** writes that reception out as a text report to save and send —
+the numbers, the **received-at** locator and the aerial, signed with your report
+identity — and names the program there as **sdroxide_SWL**, so a broadcaster can
+tell it apart from the amateur build.
+
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,
 four minutes a degree from the site's longitude — and deliberately not a civil

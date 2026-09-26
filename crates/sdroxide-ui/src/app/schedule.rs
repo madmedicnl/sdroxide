@@ -326,6 +326,7 @@ impl SdroxideApp {
         if let Some(s) = log {
             let smeter = self.meters.map(|m| m.s_dbm);
             let grid = self.my_grid();
+            let antenna = self.swl_antenna.clone();
             self.swl_edit = Some(SwlEditForm::from_station(
                 s.freq_hz(),
                 s.mode(),
@@ -334,6 +335,7 @@ impl SdroxideApp {
                 &s.site,
                 smeter,
                 grid,
+                antenna,
             ));
             self.show_swl = true;
         }

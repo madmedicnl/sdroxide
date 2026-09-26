@@ -104,6 +104,12 @@ pub struct SwlEntry {
     /// spot heard it, and a propagation comparison between two evenings needs
     /// it. Pre-filled from the screen's own grid, editable per entry.
     pub recv_grid: String,
+    /// The antenna in use when it was heard, in the listener's own words,
+    /// captured from the LISTEN window's session field at the moment of
+    /// logging. It goes on the reception report's **Antenna:** line, and it is
+    /// kept per entry so a report of an older reception names the aerial that
+    /// actually heard it.
+    pub antenna: String,
     /// Programme notes — what was on, what was said.
     pub notes: String,
     /// The listener marked this as an **unlicensed ("pirate") broadcast** — a
@@ -127,6 +133,7 @@ impl Default for SwlEntry {
             smeter_dbm: None,
             site: String::new(),
             recv_grid: String::new(),
+            antenna: String::new(),
             notes: String::new(),
             pirate: false,
         }
@@ -147,10 +154,14 @@ impl SwlEntry {
 
     /// A reception report, ready to paste into an email or a station's web
     /// form. `listener`, `grid`, `receiver` and `antenna` describe the
-    /// *listening* station and come from the screen, not the entry. `listener`
-    /// is the listener's own identity — an SWL number, a club number, a name —
-    /// kept apart from the transmitting callsign so that reporting a broadcast
-    /// never keys a CB transmitter with it.
+    /// *listening* station: `listener` comes from the screen and `receiver` is
+    /// the program's own name, while `grid` and `antenna` are usually this
+    /// entry's own [`Self::recv_grid`] and [`Self::antenna`], captured when it
+    /// was logged — pass them from the entry so a report names the place and
+    /// the aerial that actually made the reception. `listener` is the
+    /// listener's own identity — an SWL number, a club number, a name — kept
+    /// apart from the transmitting callsign so that reporting a broadcast never
+    /// keys a CB transmitter with it.
     ///
     /// Empty lines are left out rather than shown blank, and an unjudged
     /// reception says so instead of printing a row of zeroes.
@@ -194,6 +205,7 @@ mod tests {
             smeter_dbm: Some(-73.0),
             site: "Tamsui".into(),
             recv_grid: "JO22".into(),
+            antenna: "Longwire 20 m".into(),
             notes: "News, then music".into(),
             pirate: true,
         }
