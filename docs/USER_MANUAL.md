@@ -14689,6 +14689,11 @@ FAVS**, which shows only the stations you have starred. A row can be **TUNE**d
 (the same tune as clicking its label on the waterfall) or **LOG**ged straight
 into the reception log with the station, language and site already filled in.
 
+The entry form carries a **Pirate** tick for an unlicensed — "pirate" —
+broadcast, the kind of catch shortwave listeners go looking for. It is the
+listener's judgement and nothing infers it. A reception so marked wears a small
+**Jolly Roger** in the log list, and the tick survives editing the entry later.
+
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,
 four minutes a degree from the site's longitude — and deliberately not a civil

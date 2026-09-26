@@ -90,6 +90,9 @@ pub(in crate::app) struct SwlEditForm {
     smeter_dbm: Option<f32>,
     site: String,
     notes: String,
+    /// The listener marked this reception as an unlicensed ("pirate")
+    /// broadcast. See [`SwlEntry::pirate`].
+    pirate: bool,
 }
 
 impl Default for SwlEditForm {
@@ -111,6 +114,7 @@ impl Default for SwlEditForm {
             smeter_dbm: None,
             site: String::new(),
             notes: String::new(),
+            pirate: false,
         }
     }
 }
@@ -175,6 +179,7 @@ impl SwlEditForm {
             smeter_dbm: e.smeter_dbm,
             site: e.site.clone(),
             notes: e.notes.clone(),
+            pirate: e.pirate,
         }
     }
 
@@ -205,6 +210,7 @@ impl SwlEditForm {
             smeter_dbm: self.smeter_dbm,
             site: self.site.trim().to_string(),
             notes: self.notes.trim().to_string(),
+            pirate: self.pirate,
         }
     }
 }
@@ -368,6 +374,9 @@ impl SdroxideApp {
                         let is_sel = selected == Some(e.id);
                         if ui.selectable_label(is_sel, RichText::new(label).monospace()).clicked() {
                             selected = Some(e.id);
+                        }
+                        if e.pirate {
+                            crate::flags::pirate(ui, 14.0);
                         }
                         ui.label(RichText::new(&utc).size(10.5).color(crate::theme::gray(140)));
                         if !e.notes.is_empty() {
@@ -534,7 +543,11 @@ impl SdroxideApp {
                                     .hint_text("programme notes"),
                             );
                             ui.label("");
-                            ui.label("");
+                            crate::chrome::checkbox(ui, &mut f.pirate, "Pirate")
+                                .on_hover_text(
+                                    "An unlicensed broadcast — a station transmitting outside any \
+                                     allocation. The log marks it with a pirate flag.",
+                                );
                             ui.end_row();
                         },
                     );
@@ -574,7 +587,8 @@ impl SdroxideApp {
 
 #[cfg(test)]
 mod tests {
-    use super::sinpo_strength;
+    use super::{sinpo_strength, SwlEditForm};
+    use sdroxide_types::Mode;
 
     /// The meter grades into the five SINPO figures, strongest at S9 and up.
     #[test]
@@ -585,5 +599,18 @@ mod tests {
         assert_eq!(sinpo_strength(-86.0), 3);
         assert_eq!(sinpo_strength(-96.0), 2);
         assert_eq!(sinpo_strength(-120.0), 1, "the noise floor is a 1");
+    }
+
+    /// The pirate tick travels from the form into the record and back into the
+    /// form when the entry is edited again — the flag is a property of the
+    /// reception, not of the session that logged it.
+    #[test]
+    fn the_pirate_tick_survives_the_form_and_an_edit() {
+        let mut f = SwlEditForm::new(6_185_000.0, Mode::Am, None);
+        assert!(!f.to_entry().pirate, "off unless the listener ticks it");
+        f.pirate = true;
+        let e = f.to_entry();
+        assert!(e.pirate);
+        assert!(SwlEditForm::from_entry(&e).pirate, "reopens ticked");
     }
 }

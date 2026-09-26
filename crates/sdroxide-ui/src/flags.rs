@@ -336,3 +336,49 @@ impl Flags {
         Some(ui.add(img))
     }
 }
+
+/// The Jolly Roger a reception the listener marked as a **pirate broadcast**
+/// wears in the log.
+///
+/// Painted rather than shipped as an image or typed as a glyph: it is a dozen
+/// shapes at row size, the emblem is the whole of the recognition, and a font
+/// is not to be counted on for a symbol. Black cloth inside a light outline, so
+/// the flag reads on a dark row and a light one alike — the skull is white on
+/// the cloth, and the cloth is outlined so it does not vanish into a dark theme.
+pub fn pirate(ui: &mut egui::Ui, h: f32) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(h * 1.2, h), egui::Sense::hover());
+    let tip = "Pirate transmission — an unlicensed broadcast";
+    if !ui.is_rect_visible(rect) {
+        return resp.on_hover_text(tip);
+    }
+    let p = ui.painter();
+    let cloth = egui::Color32::from_rgb(18, 18, 22);
+    let white = egui::Color32::from_gray(240);
+    p.rect(
+        rect.shrink(0.5),
+        egui::CornerRadius::ZERO,
+        cloth,
+        egui::Stroke::new(1.0, egui::Color32::from_gray(170)),
+        egui::StrokeKind::Inside,
+    );
+    let c = rect.center();
+    // Skull above the bones; both flattened a little, which is what the emblem
+    // is, and what tells it from a plain spot at this size.
+    let bone = egui::Stroke::new((h * 0.08).max(1.0), white);
+    let d = h * 0.32;
+    let by = c.y + h * 0.15;
+    p.line_segment(
+        [egui::pos2(c.x - d, by - h * 0.08), egui::pos2(c.x + d, by + h * 0.08)],
+        bone,
+    );
+    p.line_segment(
+        [egui::pos2(c.x - d, by + h * 0.08), egui::pos2(c.x + d, by - h * 0.08)],
+        bone,
+    );
+    let head = c.y - h * 0.16;
+    p.circle_filled(egui::pos2(c.x, head), h * 0.22, white);
+    let eye = h * 0.055;
+    p.circle_filled(egui::pos2(c.x - h * 0.075, head), eye, cloth);
+    p.circle_filled(egui::pos2(c.x + h * 0.075, head), eye, cloth);
+    resp.on_hover_text(tip)
+}

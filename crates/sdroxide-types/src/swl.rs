@@ -100,6 +100,12 @@ pub struct SwlEntry {
     pub site: String,
     /// Programme notes — what was on, what was said.
     pub notes: String,
+    /// The listener marked this as an **unlicensed ("pirate") broadcast** — a
+    /// station transmitting outside any allocation, which is a thing shortwave
+    /// listeners deliberately hunt. Its own flag rather than a word in the
+    /// notes, so the log can show it and a future filter can use it. Off by
+    /// default, and nothing infers it: it is the listener's judgement.
+    pub pirate: bool,
 }
 
 impl Default for SwlEntry {
@@ -115,6 +121,7 @@ impl Default for SwlEntry {
             smeter_dbm: None,
             site: String::new(),
             notes: String::new(),
+            pirate: false,
         }
     }
 }
@@ -180,6 +187,7 @@ mod tests {
             smeter_dbm: Some(-73.0),
             site: "Tamsui".into(),
             notes: "News, then music".into(),
+            pirate: true,
         }
     }
 
@@ -189,6 +197,17 @@ mod tests {
         let text = serde_json::to_string(&e).unwrap();
         let back: SwlEntry = serde_json::from_str(&text).unwrap();
         assert_eq!(e, back);
+    }
+
+    /// A log written before the flag existed has no `pirate` field; it must
+    /// load as "not a pirate" rather than fail to parse — the whole reason the
+    /// field is `#[serde(default)]`-covered.
+    #[test]
+    fn an_entry_without_the_flag_loads_as_not_a_pirate() {
+        let mut v = serde_json::to_value(entry()).unwrap();
+        v.as_object_mut().unwrap().remove("pirate");
+        let back: SwlEntry = serde_json::from_value(v).unwrap();
+        assert!(!back.pirate);
     }
 
     /// An entry written by an older build, before a field existed, must load:
