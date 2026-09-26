@@ -14701,12 +14701,17 @@ It sets the mode through the listener's route, so a recalled catch always comes
 back as it was logged rather than being refused by the band rule that governs
 what may be *transmitted*.
 
-The form and the row also keep the **receiving station's locator** — where the
-reception was made, which is not the transmitter's site — pre-filled from your
-own grid on the General tab and editable per entry. It is the comparison that
-matters when the same station is heard from two places, or from two aerials. On
-the row it takes the place the notes used to occupy; the notes are now a hover
-over the station name, so a long one no longer pushes the row about.
+The form and the row keep the **receiving station's locator** — where the
+reception was made — pre-filled from your own grid on the **General** tab and
+editable per entry. It is the comparison that matters when the same station is
+heard from two places, or from two aerials. On the row it takes the place the
+notes used to occupy; the notes are a hover over the station name, so a long one
+no longer pushes the row about.
+
+The **transmitter site** is deliberately not a field: a listener almost never
+knows it, and the one source that does is the schedule, which fills it in when a
+row is **LOG**ged. It rides on the saved entry and shows on the row's hover when
+it is there, beside the notes.
 
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,

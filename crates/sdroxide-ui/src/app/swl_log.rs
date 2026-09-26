@@ -392,13 +392,22 @@ impl SdroxideApp {
                         // The notes are a hover now, not a column: a long line of
                         // them shoved the rest of the row about, and the row
                         // needs its one line for the things read at a glance.
-                        // Hovering the station shows what was on.
+                        // Hovering the station shows what was on, and what the
+                        // schedule told us about the transmitter where it did.
+                        let mut tip = e.notes.clone();
+                        if !e.site.is_empty() {
+                            if !tip.is_empty() {
+                                tip.push('\n');
+                            }
+                            tip.push_str("transmitted from ");
+                            tip.push_str(&e.site);
+                        }
                         let station =
                             ui.selectable_label(is_sel, RichText::new(label).monospace());
-                        let station = if e.notes.is_empty() {
+                        let station = if tip.is_empty() {
                             station
                         } else {
-                            station.on_hover_text(&e.notes)
+                            station.on_hover_text(tip)
                         };
                         if station.clicked() {
                             selected = Some(e.id);
@@ -519,13 +528,11 @@ impl SdroxideApp {
                                         }
                                     });
                             });
-                            ui.label("Site");
-                            crate::chrome::field(
-                                ui,
-                                egui::TextEdit::singleline(&mut f.site)
-                                    .desired_width(160.0)
-                                    .hint_text("transmitter"),
-                            );
+                            // The transmitter site is deliberately not a field:
+                            // a listener almost never knows it, and the one
+                            // place it comes from is the schedule, which fills
+                            // it in on LOG. It rides along on the saved entry
+                            // and shows on the row's hover when it is known.
                             ui.label("Received");
                             crate::chrome::field(
                                 ui,
