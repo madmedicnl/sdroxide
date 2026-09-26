@@ -1250,8 +1250,13 @@ are not in this PR).
 
 ## The signal-identification guide (fork-only, 2026-09-25)
 
-A listener tool, opened by the **SIG ID** chip in the LISTEN window. The pure
-half is `sdroxide_types::signal_id`: a `SignalProfile` catalogue
+A listener tool, opened by the **SIG ID** chip in the LISTEN window — and, in
+SWL mode, by the System box's bottom row, where it **replaces the MAIL chip**:
+radio email is a transmitting ham's tool with nothing for a listener, while
+"what is on this dial?" is exactly the listener's question. The swap is in
+`system_chips_bottom`/`system_bottom_row`, and the box re-prices its own width
+for the wider label. The pure half is `sdroxide_types::signal_id`: a
+`SignalProfile` catalogue
 (`name`, `family`, `modulation`, `bandwidth_hz`, `bands`, `frequencies_hz`,
 `modes`, `summary`, `sigidwiki` slug) of ~60 signals, and the ranker
 `identify(freq_hz, band, mode, bw_hz)`. The rank is **exact mode match first,

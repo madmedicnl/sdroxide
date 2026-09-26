@@ -5774,7 +5774,21 @@ impl SdroxideApp {
     fn system_chips_bottom(&mut self, ui: &mut egui::Ui, extra: f32, cmds: &mut Vec<Command>) {
         let [mail, mem, scan_label, hfdl_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
         let simple = self.ui_settings.simple_ui;
-        if !simple
+        // The MAIL slot. SWL mode offers the signal-identification guide there
+        // instead — the same window the LISTEN strip opens — because radio email
+        // is a transmitting ham's tool with nothing for a listener, while
+        // "what is on this dial?" is exactly a listener's question. The labels
+        // here are mirrored by `system_bottom_row`, which sizes the box.
+        if self.swl_mode() {
+            if chip_stretched(ui, self.signal_id.show, "SIG ID", extra)
+                .on_hover_text(
+                    "What is on this dial? A guide to signals by frequency, mode and bandwidth",
+                )
+                .clicked()
+            {
+                self.signal_id.show = !self.signal_id.show;
+            }
+        } else if !simple
             && chip_stretched(ui, self.mail.open, mail, extra)
                 .on_hover_text("Winlink radio email")
                 .clicked()
@@ -5883,7 +5897,7 @@ impl SdroxideApp {
         let inner = w - 2.0 * crate::chrome::MODULE_MARGIN_X;
         let simple = self.ui_settings.simple_ui;
         let top = system_top_row(simple, self.swl_mode());
-        let bottom = system_bottom_row(simple);
+        let bottom = system_bottom_row(simple, self.swl_mode());
         let extra1 = ((inner - chip_row_w(ui, &top)) / top.len() as f32).max(0.0);
         let extra2 = ((inner - chip_row_w(ui, &bottom)) / bottom.len() as f32).max(0.0);
         crate::chrome::module_bare_h(ui, w, crate::chrome::MODULE_TALL_H, |ui| {
@@ -6823,7 +6837,8 @@ fn accent_chip_stretched(
 /// rather than fixed, because a touched layout pads every chip out past its
 /// desktop width — see `the_condensed_system_box_fits_its_chips`.
 fn system_rows_w(ui: &egui::Ui, simple: bool, swl: bool) -> f32 {
-    chip_row_w(ui, &system_top_row(simple, swl)).max(chip_row_w(ui, &system_bottom_row(simple)))
+    chip_row_w(ui, &system_top_row(simple, swl))
+        .max(chip_row_w(ui, &system_bottom_row(simple, swl)))
         + 2.0 * crate::chrome::MODULE_MARGIN_X
 }
 
@@ -6846,13 +6861,19 @@ fn system_top_row(simple: bool, swl: bool) -> Vec<&'static str> {
     v
 }
 
-/// The System box's bottom-row labels. Simple drops Winlink radio email.
-fn system_bottom_row(simple: bool) -> Vec<&'static str> {
+/// The System box's bottom-row labels.
+///
+/// The first slot is MAIL — Winlink radio email, a transmitting ham's tool. SWL
+/// mode puts **SIG ID** there instead: "what is on this dial?" is the listener's
+/// question, and the signal guide answers it. It stays even in the simple
+/// interface, because it is a listening tool rather than the ham extras simple
+/// drops (radio email included).
+fn system_bottom_row(simple: bool, swl: bool) -> Vec<&'static str> {
     SYSTEM_CHIPS_BOTTOM
         .iter()
         .enumerate()
-        .filter(|(i, _)| !(simple && *i == 0))
-        .map(|(_, l)| *l)
+        .filter(|(i, _)| !(simple && !swl && *i == 0))
+        .map(|(i, l)| if swl && i == 0 { "SIG ID" } else { *l })
         .collect()
 }
 
@@ -8218,7 +8239,7 @@ mod tests {
     #[test]
     fn the_simple_interface_drops_the_advanced_system_chips() {
         assert_eq!(system_top_row(false, false), SYSTEM_CHIPS_TOP.to_vec());
-        assert_eq!(system_bottom_row(false), SYSTEM_CHIPS_BOTTOM.to_vec());
+        assert_eq!(system_bottom_row(false, false), SYSTEM_CHIPS_BOTTOM.to_vec());
         assert_eq!(system_top_row(true, false), vec!["LOG", "SPOTS", "BANDS", "PUBLIC SDR"]);
         // SWL mode keeps the SPOTS chip (the receive-only networks are a
         // listener's tool) and drops only award tracking, the ham feed being
@@ -8229,7 +8250,20 @@ mod tests {
         );
         // HFDL is a decode window, so it sits with the others in the bottom
         // row — where the simple interface keeps it, unlike radio email.
-        assert_eq!(system_bottom_row(true), vec!["MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]);
+        assert_eq!(
+            system_bottom_row(true, false),
+            vec!["MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]
+        );
+        // SWL mode puts the signal guide in the MAIL slot, and keeps it even
+        // when the simple interface would have dropped radio email.
+        assert_eq!(
+            system_bottom_row(false, true),
+            vec!["SIG ID", "MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]
+        );
+        assert_eq!(
+            system_bottom_row(true, true),
+            vec!["SIG ID", "MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]
+        );
     }
 
     /// The LOG chip opens the listener's reception log in SWL mode and the QSO
@@ -8241,12 +8275,14 @@ mod tests {
         assert!(log_chip_opens_swl(true), "a listener's LOG opens the reception log");
     }
 
-    fn system_box_and_chips() -> (f32, Vec<(&'static str, f32)>) {
+    fn system_box_and_chips(simple: bool, swl: bool) -> (f32, Vec<(&'static str, f32)>) {
         let (ctx, input) = desktop_ctx();
         let mut out = None;
         ctx.run_ui(input, |ui| {
             let mut chips = Vec::new();
-            let width = system_rows_w(ui, false, false);
+            let width = system_rows_w(ui, simple, swl);
+            let top = system_top_row(simple, swl);
+            let bottom = system_bottom_row(simple, swl);
             let room =
                 crate::chrome::module_bare_h(ui, width, crate::chrome::MODULE_TALL_H, |ui| {
                     // Read before the rows are drawn: egui grows a Ui's
@@ -8259,7 +8295,7 @@ mod tests {
                     ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                         ui.spacing_mut().item_spacing =
                             egui::vec2(MODULE_ROW_SPACING, MODULE_ROW_SPACING);
-                        for row in [&SYSTEM_CHIPS_TOP[..], &SYSTEM_CHIPS_BOTTOM[..]] {
+                        for row in [&top[..], &bottom[..]] {
                             ui.horizontal(|ui| {
                                 for label in row {
                                     let right = chip_stretched(ui, false, label, 0.0).rect.right();
@@ -8289,12 +8325,17 @@ mod tests {
     /// — they were drawn every frame, just past the edge of the window.
     #[test]
     fn the_condensed_system_box_fits_its_chips() {
-        let (room, chips) = system_box_and_chips();
-        for (label, right) in chips {
-            assert!(
-                right <= room + 0.5,
-                "{label} reaches {right} pt into a box with room for {room}"
-            );
+        // SWL mode swaps the MAIL chip for the wider SIG ID, so the box has to
+        // re-price its own width; check every interface and every mode.
+        for (simple, swl) in [(false, false), (true, false), (false, true), (true, true)] {
+            let (room, chips) = system_box_and_chips(simple, swl);
+            for (label, right) in chips {
+                assert!(
+                    right <= room + 0.5,
+                    "{label} reaches {right} pt into a box with room for {room} \
+                     (simple={simple}, swl={swl})"
+                );
+            }
         }
     }
 
