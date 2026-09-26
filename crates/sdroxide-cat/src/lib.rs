@@ -152,7 +152,21 @@ pub fn signal_max_age(cfg: &CatConfig) -> Duration {
 /// Clamped at both ends: below 0.2 Hz the readout stops being a readout, and
 /// above ~33 Hz there is no room left between frames anyway (see `FRAME_GAP`).
 fn poll_period(cfg: &CatConfig) -> Duration {
-    Duration::from_secs_f32((1.0 / cfg.poll_hz.max(0.2)).min(5.0))
+    poll_period_at(cfg.poll_hz)
+}
+
+/// [`poll_period`] with the family's own ceiling taken into account — see
+/// [`Protocol::poll_hz_ceiling`]. A family that asks to be polled no faster
+/// than some rate is honoured however high the operator wound `poll_hz`.
+fn poll_period_with_ceiling(cfg: &CatConfig, ceiling_hz: Option<f32>) -> Duration {
+    match ceiling_hz {
+        Some(cap) => poll_period_at(cfg.poll_hz.min(cap)),
+        None => poll_period(cfg),
+    }
+}
+
+fn poll_period_at(hz: f32) -> Duration {
+    Duration::from_secs_f32((1.0 / hz.max(0.2)).min(5.0))
 }
 
 /// A change the rig reported (external dial/mode movement) or that we read back.
@@ -255,6 +269,19 @@ trait Protocol: Send {
     fn dial_requests(&self) -> Vec<Vec<u8>> {
         self.poll_requests()
     }
+
+    /// The fastest this family is willing to be polled, in Hz, or `None` to
+    /// leave the configured rate alone.
+    ///
+    /// A family whose receive audio rides the same link as its control frames
+    /// pays for every poll with a splice in that audio — the firmware pauses
+    /// the stream to answer and drops the samples it produces meanwhile — so
+    /// it caps the poll below what an ordinary CAT rig would take, however
+    /// high the operator has wound the setting.
+    fn poll_hz_ceiling(&self) -> Option<f32> {
+        None
+    }
+
     /// Frames requesting TX telemetry (SWR / power), polled only while keyed.
     /// Empty for families with no such read.
     fn tx_telemetry_requests(&self) -> Vec<Vec<u8>> {
@@ -588,13 +615,27 @@ trait Protocol: Send {
         false
     }
 
+    /// Whether a control frame written while the in-band stream runs must be
+    /// bracketed by [`Self::stream_pause`] and [`Self::stream_resume`].
+    ///
+    /// True for the (tr)uSDX 2.00x generation, whose firmware kills its stream
+    /// outright if a CAT command lands inside it — there the pause and resume
+    /// are the only way to get a command accepted at all. False for the nG
+    /// generation, which pauses the stream itself around an answer and resumes
+    /// with `US`: bracketing it there is a needless stop and restart of a
+    /// healthy stream, which is heard as a gap and shown as a notch in the
+    /// waterfall.
+    fn brackets_commands(&self) -> bool {
+        false
+    }
+
     /// The frame that suspends the in-band stream, and the one that resumes it.
     ///
     /// Written on either side of every control command on a family that cannot
-    /// take a CAT frame while its stream is running — an audio-first link,
-    /// where a command *into* the stream kills it outright (the (tr)uSDX).
-    /// Empty on every other family, where control frames go out whenever they
-    /// like and these are never consulted.
+    /// take a CAT frame while its stream is running ([`Self::brackets_commands`])
+    /// — an audio-first link, where a command *into* the stream kills it
+    /// outright (the (tr)uSDX 2.00x). Empty on every other family, where
+    /// control frames go out whenever they like and these are never consulted.
     fn stream_pause(&self) -> Vec<u8> {
         Vec::new()
     }
@@ -2045,10 +2086,17 @@ fn write_frame(
 ) -> bool {
     // A family whose audio rides this link cannot be handed a control frame
     // while its stream is running: the frame kills the stream rather than
-    // pausing it, and the stream does not come back (the (tr)uSDX). So a
+    // pausing it, and the stream does not come back (the (tr)uSDX 2.00x). So a
     // control frame is bracketed — suspend, command, resume — and the two
     // bracketing frames are written raw, without being bracketed themselves.
-    if protocol.streams_audio() && protocol.stream_active() && !frame.is_empty() {
+    // nG is exempt (`brackets_commands` is false there): it pauses its own
+    // stream around an answer and resumes with `US`, so bracketing it would
+    // stop and restart a healthy stream on every command.
+    if protocol.streams_audio()
+        && protocol.stream_active()
+        && protocol.brackets_commands()
+        && !frame.is_empty()
+    {
         let pause = protocol.stream_pause();
         let resume = protocol.stream_resume();
         let is_bracket = frame == pause.as_slice() || frame == resume.as_slice();
@@ -2574,7 +2622,7 @@ fn serial_thread(
     // transmit stream is paced to the radio's own rate (its family's
     // `tx_audio_rate_hz`) rather than to however fast the machine happens to be.
     let mut tx_pace = TxPace::default();
-    let poll_period = poll_period(&cfg);
+    let poll_period = poll_period_with_ceiling(&cfg, protocol.poll_hz_ceiling());
     // The meters follow the poll rate too. They used to run at a fixed 5 Hz,
     // which made the setting a half-measure: an operator turning the control
     // traffic down to quieten a shared USB bus took away the dial poll and left
@@ -4429,6 +4477,25 @@ mod tests {
             let cfg = CatConfig { poll_hz: hz, ..CatConfig::default() };
             assert!(mode_poll_period(&cfg) >= poll_period(&cfg), "{hz} Hz");
         }
+    }
+
+    /// A family whose audio rides the control link caps its own poll rate below
+    /// whatever the operator set — every poll is a splice in that audio (the
+    /// (tr)uSDX nG). The cap applies to the dial only; every other family is
+    /// left exactly as it was.
+    #[test]
+    fn a_poll_ceiling_slows_the_dial_without_touching_the_other_families() {
+        let cfg = CatConfig { poll_hz: 2.0, ..CatConfig::default() };
+        // No ceiling: the configured rate, exactly as before.
+        assert_eq!(poll_period_with_ceiling(&cfg, None), Duration::from_millis(500));
+        // A 1 Hz ceiling: one second, however fast the operator wound it.
+        assert_eq!(poll_period_with_ceiling(&cfg, Some(1.0)), Duration::from_secs(1));
+        let fast = CatConfig { poll_hz: 20.0, ..cfg.clone() };
+        assert_eq!(poll_period_with_ceiling(&fast, Some(1.0)), Duration::from_secs(1));
+        // It is a cap, not a floor: a configured rate slower than the ceiling
+        // is left alone.
+        let slow = CatConfig { poll_hz: 0.5, ..cfg };
+        assert_eq!(poll_period_with_ceiling(&slow, Some(1.0)), Duration::from_secs(2));
     }
 
     /// Issue #282: an IC-9700 worked over a network took the CW the panel sent

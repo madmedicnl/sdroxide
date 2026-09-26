@@ -54,14 +54,18 @@
 //!   DTR resets it again. So DTR is held high for the whole session and never
 //!   offered as a keying line — a PTT on DTR would reboot the radio on every
 //!   over.
-//! * **A CAT command written while the stream is running kills it.** Not
-//!   pauses it — kills it. Measured on the bench: a single `FA;` mid-stream
-//!   took the rate from ~6 kB/s to zero, and re-sending `UA1;` over the dead
-//!   stream made it worse. The stream only comes back when it is stopped
-//!   (`UA0;`) and started again. So this profile polls nothing at all
-//!   ([`TrUsdx::poll_requests`] is empty), and every control frame is
-//!   bracketed `UA0;` … `UA1;` by the serial thread. The radio's own dial and
-//!   mode are therefore not followed, and each command costs a brief gap.
+//! * **A CAT command written while the stream is running kills it** — on the
+//!   **2.00x** generation. Not pauses it — kills it. Measured on the bench: a
+//!   single `FA;` mid-stream took the rate from ~6 kB/s to zero, and re-sending
+//!   `UA1;` over the dead stream made it worse. The stream only comes back when
+//!   it is stopped (`UA0;`) and started again. So the 2.00x in-band mode polls
+//!   nothing at all ([`TrUsdx::poll_requests`] is empty there), and every
+//!   control frame is bracketed `UA0;` … `UA1;` by the serial thread. The
+//!   radio's own dial and mode are therefore not followed, and each command
+//!   costs a brief gap. **nG does not share this**: it takes a command
+//!   mid-stream, pausing its own stream around the answer and resuming with
+//!   `US`, so it is polled, its controls are followed, and its control frames
+//!   go out bare (see [`TrUsdx::brackets_commands`]).
 //!
 //! Written against a bench radio running DL2MAN firmware 2.x, and against the
 //! open uSDX firmware (`threeme3/usdx`) for the framing the two share. The
@@ -73,22 +77,37 @@
 //!
 //! The same profile also drives DL2MAN's rewritten **nG** firmware
 //! ([`TrUsdx::new_ng`], chosen by [`sdroxide_types::CatFamily::TrUsdxNg`]). The
-//! receive side and the `UA`/`US` framing are unchanged — 7812.5 B/s, the same
-//! receive escape — so the demultiplexer below is the same code. Three things
-//! on the transmit side differ, and each is a silent failure if got wrong:
+//! receive side is the same — 7812.5 B/s, the same receive escape, the same
+//! demultiplexer below — but nG differs from 2.00x in **four** places, and each
+//! is a silent failure (or a visible one: distorted audio, a waterfall that is
+//! only a sliver, a dial that will not follow) if got wrong:
 //!
-//! * the rate is **4807.69 B/s** (the transmit slot is `20 MHz / (64 × 65)`),
-//!   not 2.00x's 11520 — see [`sdroxide_types::TRUSDX_NG_TX_RATE_HZ`];
-//! * the delimiter escape is **`0x3B → 0x3A`**, where 2.00x shifts up to
-//!   `0x3C` — see [`sdroxide_types::TRUSDX_NG_TX_ESCAPE_TO`];
-//! * the stream opens on the first byte **≥ `0x80`**, so a leading `0x80`
+//! * **It accepts a CAT command mid-stream.** A query pauses the stream, the
+//!   reply follows, and `US` resumes it: `[audio] ; FAnnnnnnnnnnn; US [audio]`.
+//!   So the dial poll runs — capped to about once a second, because each poll
+//!   is a splice in the audio — and control frames are written **bare**, with
+//!   no `UA0;`/`UA1;` bracket (see [`TrUsdx::brackets_commands`]).
+//! * **The reply carries a trailing `;`** where 2.00x omits it: nG answers
+//!   `FA…; US`, 2.00x answers `FA… US`. [`TrUsdx::parse`] takes either.
+//! * The transmit **rate** is **4807.69 B/s** (the transmit slot is
+//!   `20 MHz / (64 × 65)`), not 2.00x's 11520 — see
+//!   [`sdroxide_types::TRUSDX_NG_TX_RATE_HZ`].
+//! * The transmit **delimiter escape** is **`0x3B → 0x3A`**, where 2.00x shifts
+//!   up to `0x3C` — see [`sdroxide_types::TRUSDX_NG_TX_ESCAPE_TO`]; and the
+//!   stream opens on the first byte **≥ `0x80`**, so a leading `0x80`
 //!   (silence) is emitted when the first real sample is low — see
-//!   [`sdroxide_types::TRUSDX_NG_TX_START_BYTE`].
+//!   [`sdroxide_types::TRUSDX_NG_TX_START_BYTE`]. `;` ends the transmit stream,
+//!   and there is no `US` after `TX0;`.
 //!
 //! nG also adds a level extension the profile uses: `AG0nn;` (volume 00–31)
 //! and `GTn;` (gain control 0 off / 1 on / 2 DIGI), neither answered nor
 //! stored, so they are re-asserted whenever the link opens; and it accepts
 //! `UA2;` to switch the radio's own speaker off while it streams.
+//!
+//! Receive at **3906.25 B/s** is possible too — CW with the 1450 Hz ("1K4")
+//! filter — but is modelled nowhere here: the nominal [`sdroxide_types::
+//! TRUSDX_RX_RATE_HZ`] is what the source resamples from, and an operator on
+//! that filter would need the half rate threaded through it.
 //!
 //! The nG figures come from DL2MAN's own notes for app developers and are
 //! **not** confirmed against an nG radio here — the firmware was not available
@@ -354,36 +373,62 @@ impl Protocol for TrUsdx {
         if on { b"TX;".to_vec() } else { b"RX;".to_vec() }
     }
 
-    /// The dial and the mode — but only when the audio is on a sound card.
+    /// The dial and the mode — but only when it is safe to ask.
     ///
-    /// In the in-band mode (`TrUsdxAudio::OneCable`) this is **nothing**, and
-    /// that is the heart of how that mode is driven. The firmware cannot take a
-    /// CAT command while its audio stream is running: writing one *into* the
-    /// stream does not pause it, it kills it, and the stream does not come back
-    /// — measured on the bench, a single `FA;` mid-stream took the rate from
-    /// ~6 kB/s to zero and the radio stayed silent until it was stopped and
-    /// re-enabled by hand. So a poll there, which is a CAT command every
-    /// half-second for the whole session, would leave a radio that streams for a
-    /// moment and then never again. Control frames only go out when the operator
-    /// asks for something, each bracketed with the stream's pause and resume
-    /// (see [`Protocol::stream_pause`]), and the cost is that the radio's own
-    /// knob and mode are not followed.
+    /// On the 2.00x generation in the in-band mode (`TrUsdxAudio::OneCable`)
+    /// this is **nothing**, and that is the heart of how that mode is driven.
+    /// The firmware cannot take a CAT command while its audio stream is
+    /// running: writing one *into* the stream does not pause it, it kills it,
+    /// and the stream does not come back — measured on the bench, a single
+    /// `FA;` mid-stream took the rate from ~6 kB/s to zero and the radio stayed
+    /// silent until it was stopped and re-enabled by hand. So a poll there,
+    /// which is a CAT command every half-second for the whole session, would
+    /// leave a radio that streams for a moment and then never again. Control
+    /// frames only go out when the operator asks for something, each bracketed
+    /// with the stream's pause and resume (see [`Protocol::stream_pause`]), and
+    /// the cost is that the radio's own knob and mode are not followed.
     ///
-    /// With the audio on a sound card there is no stream to protect, so the poll
-    /// is an ordinary one and the rig's own controls are followed like any other
-    /// CAT rig's.
+    /// **nG is the opposite**: it takes a command mid-stream, pausing its own
+    /// stream to answer and resuming with `US`, so the dial poll is an
+    /// ordinary one and the radio's own knob and mode *are* followed — which is
+    /// the whole of the "dial does not follow" report. It is capped to a slow
+    /// [`Self::poll_hz_ceiling`] because each poll is a splice in the audio.
+    ///
+    /// With the audio on a sound card there is no stream to protect in either
+    /// generation, so the poll is an ordinary one and the rig's own controls
+    /// are followed like any other CAT rig's.
     fn poll_requests(&self) -> Vec<Vec<u8>> {
-        if self.one_cable { Vec::new() } else { vec![b"FA;".to_vec(), b"MD;".to_vec()] }
+        if self.one_cable && !self.is_ng() {
+            Vec::new()
+        } else {
+            vec![b"FA;".to_vec(), b"MD;".to_vec()]
+        }
     }
 
     fn dial_requests(&self) -> Vec<Vec<u8>> {
-        if self.one_cable { Vec::new() } else { vec![b"FA;".to_vec()] }
+        if self.one_cable && !self.is_ng() { Vec::new() } else { vec![b"FA;".to_vec()] }
     }
 
-    /// The transmit-state read, sound-card mode only: `IF;` mid-stream is the
-    /// same poison the poll is.
+    /// The transmit-state read, skipped only where a poll would kill the stream:
+    /// the 2.00x in-band mode. nG takes it mid-stream like any other command.
     fn tx_state_requests(&self) -> Vec<Vec<u8>> {
-        if self.one_cable { Vec::new() } else { vec![b"IF;".to_vec()] }
+        if self.one_cable && !self.is_ng() { Vec::new() } else { vec![b"IF;".to_vec()] }
+    }
+
+    /// nG's receive audio rides the CAT link, so every control frame spliced
+    /// into it costs the samples the firmware produces while answering. DL2MAN
+    /// asks for the dial at about once a second; faster than that buys a knob
+    /// that is no more current and an audio stream with more gaps in it. The
+    /// 2.00x in-band mode polls nothing at all, so the cap is for nG only.
+    fn poll_hz_ceiling(&self) -> Option<f32> {
+        (self.one_cable && self.is_ng()).then_some(1.0)
+    }
+
+    /// nG suspends its own stream around an answer and resumes with `US`, so a
+    /// control frame goes out bare. 2.00x must be bracketed or the frame kills
+    /// the stream.
+    fn brackets_commands(&self) -> bool {
+        !self.is_ng()
     }
 
     /// Suspend the stream before a control command is written. The firmware
@@ -542,13 +587,34 @@ impl Protocol for TrUsdx {
             } else {
                 // Between frames. `US` puts the stream back into audio; a
                 // complete `…;` frame is parsed; anything short of either waits.
+                //
+                // A reply ends at the earlier of the `;` that closes it and the
+                // `US` that resumes the stream, because the two generations
+                // disagree on the delimiter: nG writes `FA…; US` (the `;` is
+                // there and the `US` follows it), 2.00x writes `FA… US` (no
+                // `;` at all, the `US` is the only boundary). A parser that
+                // waits for the `;` alone reads a 2.00x reply as the first half
+                // of the next one — or, with no `;` in the audio either, waits
+                // forever while the buffer grows.
                 if self.buf.starts_with(b"US") {
                     self.buf.drain(..2);
                     self.in_audio = true;
                     self.stream_on = true;
                     continue;
                 }
-                match self.buf.iter().position(|&b| b == b';') {
+                let semi = self.buf.iter().position(|&b| b == b';');
+                let us = find_resume(&self.buf);
+                if let Some(pos) = us
+                    && semi.is_none_or(|end| pos < end)
+                {
+                    let frame = String::from_utf8_lossy(&self.buf[..pos]).into_owned();
+                    self.buf.drain(..pos + 2);
+                    self.in_audio = true;
+                    self.stream_on = true;
+                    out.extend(self.parse_frame(&frame));
+                    continue;
+                }
+                match semi {
                     Some(end) => {
                         let frame = String::from_utf8_lossy(&self.buf[..end]).into_owned();
                         self.buf.drain(..=end);
@@ -566,6 +632,12 @@ impl Protocol for TrUsdx {
 /// so a bare `;` cannot end the stream, and the host turns it back.
 fn unescape(b: u8) -> u8 {
     if b == b';' + 1 { b';' } else { b }
+}
+
+/// The first `US` (the stream's resume marker) in `buf`, if one is there whole.
+/// A lone trailing `U` is not a match — its `S` may still be on the wire.
+fn find_resume(buf: &[u8]) -> Option<usize> {
+    buf.windows(2).position(|w| w == b"US")
 }
 
 impl TrUsdx {
@@ -877,5 +949,84 @@ mod tests {
         let on = ng(20, TrUsdxNgAgc::Auto, true);
         assert_eq!(on.stream_start(), b"UA0;UA1;".to_vec());
         assert_eq!(on.stream_resume(), b"UA1;".to_vec());
+    }
+
+    // ---- nG: a CAT command is safe inside the stream ----
+
+    /// The dial cannot follow a radio nothing ever asks. nG takes a command
+    /// mid-stream, so — unlike 2.00x in-band, which must ask nothing — it polls
+    /// the dial and the mode, and reads the transmit state.
+    #[test]
+    fn ng_one_cable_polls_so_the_dial_follows() {
+        let p = ng(20, TrUsdxNgAgc::Auto, true);
+        assert_eq!(p.poll_requests(), vec![b"FA;".to_vec(), b"MD;".to_vec()]);
+        assert_eq!(p.dial_requests(), vec![b"FA;".to_vec()]);
+        assert_eq!(p.tx_state_requests(), vec![b"IF;".to_vec()]);
+        // The 2.00x in-band mode, for the contrast: still nothing at all.
+        let p = TrUsdx::new(true);
+        assert!(p.poll_requests().is_empty());
+        assert!(p.dial_requests().is_empty());
+        assert!(p.tx_state_requests().is_empty());
+    }
+
+    /// Every nG poll is a splice in the receive audio — the firmware pauses the
+    /// stream to answer and drops the samples it produces meanwhile — so the
+    /// rate is capped to about one a second whatever the operator set. The cap
+    /// is about the in-band stream only: sound card audio has nothing to splice.
+    #[test]
+    fn only_ng_one_cable_caps_the_poll_rate() {
+        assert_eq!(ng(20, TrUsdxNgAgc::Auto, true).poll_hz_ceiling(), Some(1.0));
+        let sound_card = TrUsdx::new_ng(
+            false,
+            NgLevel { volume: 20, agc: TrUsdxNgAgc::Auto, speaker: true },
+        );
+        assert_eq!(sound_card.poll_hz_ceiling(), None);
+        // 2.00x polls nothing in-band and is uncapped on a sound card.
+        assert_eq!(TrUsdx::new(true).poll_hz_ceiling(), None);
+        assert_eq!(TrUsdx::new(false).poll_hz_ceiling(), None);
+    }
+
+    /// 2.00x must bracket a control frame with the stream's pause and resume or
+    /// the frame kills the stream; nG pauses its own stream around an answer, so
+    /// its frames go out bare. Getting this backwards on nG stops and restarts
+    /// a healthy stream on every poll — the distorted audio and sliver
+    /// waterfall of the first nG report.
+    #[test]
+    fn ng_control_frames_are_not_bracketed_where_legacy_is() {
+        assert!(TrUsdx::new(true).brackets_commands(), "2.00x in-band must bracket");
+        assert!(!ng(20, TrUsdxNgAgc::Auto, true).brackets_commands(), "nG must not");
+        // With the audio on a sound card there is no stream to bracket; the
+        // answer still reports the generation rather than the mode.
+        assert!(TrUsdx::new(false).brackets_commands());
+    }
+
+    /// The generations disagree on the reply delimiter — nG writes the trailing
+    /// `;`, 2.00x omits it — so the parser has to take a reply that only the
+    /// resuming `US` closes. A parser that waits for the `;` alone reads a
+    /// 2.00x answer as the first half of the next one, or waits forever.
+    #[test]
+    fn a_reply_without_a_delimiter_resumes_on_us() {
+        let mut p = TrUsdx::new(true);
+        feed(&mut p, b"US");
+        let mut stream = vec![0x80, 0x81];
+        stream.extend_from_slice(b";FA00014031000US");
+        stream.extend_from_slice(&[0x82]);
+        let out = feed(&mut p, &stream);
+        assert_eq!(out, vec![CatUpdate::Freq(14_031_000.0)]);
+        assert!(p.stream_active(), "the US resumes the stream");
+        let mut audio = Vec::new();
+        p.take_stream_audio(&mut audio);
+        assert_eq!(audio, vec![0x80, 0x81, 0x82], "audio on both sides survives");
+    }
+
+    /// A reply split right at the `US` waits for the `S` rather than reading
+    /// the half in hand and mistaking the lone `U` for part of a frame.
+    #[test]
+    fn a_reply_split_at_the_resume_marker_waits() {
+        let mut p = TrUsdx::new(true);
+        feed(&mut p, b"US");
+        assert!(feed(&mut p, b";FA00014031000U").is_empty());
+        assert_eq!(feed(&mut p, b"S"), vec![CatUpdate::Freq(14_031_000.0)]);
+        assert!(p.stream_active());
     }
 }

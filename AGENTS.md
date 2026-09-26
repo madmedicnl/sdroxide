@@ -599,23 +599,54 @@ fork's own additions, so there is nothing for the maintainer to take. (Checked
 2026-09-24: the cherry-pick onto `upstream/main` conflicts structurally because
 `band_mode_menu` there is a different, simpler function.)
 
-### The (tr)uSDX nG feedback (DL2MAN, 2026-09-24)
+### The (tr)uSDX nG feedback (DL2MAN, 2026-09-24) — fixed 2026-09-26
 
 DL2MAN reports that against a real nG radio the one-cable mode connects and
 streams, but **the audio is distorted and the waterfall shows only a sliver**,
 and **the dial does not follow the radio** (a 40 m radio showed as 20 m). The
-two standing assumptions this fork makes for nG are both now in doubt:
-`TRUSDX_RX_RATE_HZ = 7812` (taken as unchanged from 2.00x) and `poll_requests`
-being **empty** in one-cable mode because a mid-stream `FA;` was measured to
-kill 2.00x's stream. What to get before changing anything: DL2MAN's own answer
-on (a) the **nG receive audio rate** and whether the `UA`/`US` framing changed,
-and (b) whether a **CAT command is safe while the stream runs** in nG (the nG
-notes advertise "improved CAT audio streaming"). A **raw hex capture** of the
-serial stream while receiving would settle both directly; a compiled firmware
-binary does not help (nothing to run it on). See
-`tools/trusdx-probe/README.md` §nG for the checks named there, and
-**`tools/trusdx-probe/HANDOVER-ng.md`** for the bench plan written when an nG
-radio was due on the bench (transient — fold it in and delete it).
+two standing assumptions this fork made for nG were both wrong, and DL2MAN
+answered the two blocking questions (2026-09-26); the fix is in
+`crates/sdroxide-cat/src/trusdx.rs` and `src/lib.rs`, no wire type and no
+`PROTO_VERSION`:
+
+- **The nG receive rate is 7812.5 B/s** — the same as 2.00x, 8-bit unsigned
+  (mid = 128), `0x3B` escaped to `0x3C`, one byte per sample. So
+  `TRUSDX_RX_RATE_HZ = 7812` was **not** the problem and is unchanged. (His
+  earlier CAT table's "4812 samples/s" was wrong.) Exception: **CW with the
+  1450 Hz ("1K4") filter runs at 3906.25 B/s**, not modelled here — noted in
+  the module header.
+- **A CAT command is safe mid-stream in nG**, which is what broke both
+  symptoms. The framing is `[audio] ; FA00007074000; US [audio]` for a query:
+  nG pauses its own stream, writes the reply *with* the trailing `;`, and
+  resumes with `US`. 2.00x is the same shape but **omits the trailing `;`**
+  (`FA…US…`), which the old parser, written for a `;` on every reply, did not
+  take. So:
+  - `poll_requests`/`dial_requests`/`tx_state_requests` are now **non-empty for
+    nG one-cable** (the gate is `one_cable && !is_ng()`); before, the dial was
+    never asked and so never followed.
+  - The serial thread no longer brackets nG control frames `UA0; … UA1;`
+    (`Protocol::brackets_commands` — 2.00x true, nG false). The old bracketing
+    stopped and restarted a healthy nG stream on every poll, which is exactly
+    the distorted audio and sliver waterfall.
+  - The nG poll is capped to ~1 Hz (`Protocol::poll_hz_ceiling`): each poll is
+    a splice in the audio, and the firmware drops the samples it produces while
+    answering.
+  - The demux now ends a reply at the earlier of the `;` and the resuming `US`,
+    so both generations parse.
+- The 2.00x in-band mode is **unchanged**: it still polls nothing and still
+  brackets its commands, because a command written into a 2.00x stream kills it
+  and it does not come back.
+
+**Still not tested on air here** — no nG radio on this bench, DL2MAN's own
+firmware could not be flashed. The fix is unit-tested structurally (the new
+tests are `ng_one_cable_polls_so_the_dial_follows`,
+`ng_control_frames_are_not_bracketed_where_legacy_is`,
+`only_ng_one_cable_caps_the_poll_rate`,
+`a_reply_without_a_delimiter_resumes_on_us`,
+`a_reply_split_at_the_resume_marker_waits` and the `lib.rs`
+`a_poll_ceiling_slows_the_dial…`). The on-air check is clean audio, a waterfall
+spanning the passband, and the dial following a frequency changed at the radio.
+`tools/trusdx-probe/README.md` §nG names the rest.
 
 ### The (tr)uSDX family
 
@@ -658,9 +689,16 @@ to fork `main` on 2026-09-22 (before any on-air confirmation — the user's call
 it is niche and fixable after release); the 2026-09-25 merge renumbered it to
 **v173**. The profile is the
 same `trusdx.rs`, parameterized by generation (`TrUsdx::new_ng`), so the
-receive demultiplexer and the `UA`/`US` framing are shared code. Three transmit
-differences, each a silent failure if got wrong:
+receive demultiplexer and the `UA`/`US` framing are shared code. What differs
+from 2.00x, each a silent failure (or a visible one) if got wrong:
 
+- **A CAT command is safe mid-stream.** nG pauses its own stream, answers with
+  the trailing `;`, and resumes with `US`; 2.00x kills its stream on any
+  command and omits the `;`. So nG is **polled** (dial/mode/tx-state,
+  `Protocol::brackets_commands` false there so the serial thread writes its
+  frames bare, and `Protocol::poll_hz_ceiling` caps it to ~1 Hz), while the
+  2.00x in-band mode polls nothing and is still bracketed `UA0; … UA1;`. See
+  the feedback section above.
 - **Transmit rate 4807.69 B/s** (`TRUSDX_NG_TX_RATE_HZ = 4808`), not 2.00x's
   11520 — the transmit slot is `20 MHz / (64 × 65)`, and 2.00x's surplus is
   thrown away. The serial thread's `TxPace` now takes the rate from
@@ -669,7 +707,8 @@ differences, each a silent failure if got wrong:
   2.00x shifts up to `0x3C`.
 - **The stream opens on the first byte ≥ `0x80`**; bytes below it are commands,
   so a leading `0x80` (silence) is emitted when the first sample is low
-  (`Protocol::on_tx_stream_start` + `TRUSDX_NG_TX_START_BYTE`).
+  (`Protocol::on_tx_stream_start` + `TRUSDX_NG_TX_START_BYTE`). `;` ends the
+  transmit stream and there is no `US` after `TX0;`.
 
 Level control (the user asked for it): `AG0nn;` volume 00–31
 (`CatConfig::trusdx_ng_volume`), `GTn;` gain 0 off / 1 on / 2 DIGI
