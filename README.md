@@ -35,6 +35,7 @@ rest.
 
 - **[User Manual](docs/USER_MANUAL.md)** — the complete guide.
 - **[CB quick-start](docs/cb-quickstart.en.md)** ([Nederlands](docs/cb-quickstart.nl.md) · [Français](docs/cb-quickstart.fr.md) · [Italiano](docs/cb-quickstart.it.md)).
+- **[FT8 on 11 m quick-start](docs/ft8-11m-quickstart.en.md)** ([Nederlands](docs/ft8-11m-quickstart.nl.md) · [Français](docs/ft8-11m-quickstart.fr.md) · [Italiano](docs/ft8-11m-quickstart.it.md)).
 - **[QO-100 Quick-start Guide](docs/qo100-quickstart.en.md)** ([Türkçe](docs/qo100-quickstart.tr.md)).
 - **[ROADMAP.md](ROADMAP.md)** — where the listener work goes next.
 

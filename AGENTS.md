@@ -1122,17 +1122,21 @@ The same EQ is also on the LISTEN window's Tone row.
 
 ## Regenerating the quick-start PDFs
 
-`docs/cb-quickstart.{en,nl,fr,it}.md` is the source; the matching `.pdf` is
-generated and can drift. The TeX engines on this machine are unusable
+`docs/cb-quickstart.{en,nl,fr,it}.md` and
+`docs/ft8-11m-quickstart.{en,nl,fr,it}.md` are the sources; each matching
+`.pdf` is generated and can drift. The TeX engines on this machine are unusable
 (`xelatex.fmt` and `latex.fmt` are missing), so render through HTML and headless
-Edge instead. From the repo root, once per language (`en`, `nl`, `fr`, `it`) —
-the stylesheet is `docs/cb-quickstart-pdf.css`:
+Edge instead. Write the HTML **beside the stylesheet** — `-c` writes a relative
+link, so an HTML in `/tmp` never finds `docs/cb-quickstart-pdf.css` — then
+delete it. From the repo root, once per file (the example is the English CB one;
+swap the stem for any other):
 
 ```sh
-pandoc docs/cb-quickstart.en.md -s -c docs/cb-quickstart-pdf.css -o /tmp/cb-en.html
+pandoc docs/cb-quickstart.en.md -s -c cb-quickstart-pdf.css -o docs/cb-quickstart.en.html
 /opt/microsoft/msedge/msedge --headless=new --disable-gpu --no-sandbox \
   --user-data-dir=/tmp/edge-pdf --print-to-pdf=docs/cb-quickstart.en.pdf \
-  --no-pdf-header-footer file:///tmp/cb-en.html
+  --no-pdf-header-footer "file:///home/druid/sdroxide/docs/cb-quickstart.en.html"
+rm docs/cb-quickstart.en.html
 ```
 
 Commit the `.md` and the regenerated `.pdf` together, and say so if the `.md`
