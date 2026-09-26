@@ -1335,10 +1335,13 @@ whole of a bug class, and each fix was a round:
   `inner_position`, which a Wayland client is not given — so the capture reads
   `content_rect()` (the toolkit's `inner_size`) instead, and `outer_rect` for the
   position, which is also `None` on Wayland. X11/Windows/macOS report both.
-- **One window, owned by one radio.** `solar3d_owner(ctx)` records the radio
-  whose window was opened; only that radio keeps it alive when hidden, and
-  opening the 3D on another radio takes it over, so N radios cannot leave N
-  scenes rendering. `Solar3d::was_open` catches the open edge.
+- **One window, owned by the visible radio that has it open.** `solar3d_owner
+  (ctx)` is claimed every frame a shown radio's 3D is open (not just on the open
+  edge — claiming on the edge let the previous owner and the returning tab each
+  hold a window), and only the owner keeps its window alive when hidden. A radio
+  left with `open` set from an earlier visit emits nothing while it is the shown
+  tab only if it is not the owner; showing it again takes the one window back,
+  so N radios cannot leave N scenes rendering.
 
 The honest smell: the window is owned by a per-radio app, keyed by a per-radio
 salt, but created and destroyed on the shell's say-so. The real fix is a

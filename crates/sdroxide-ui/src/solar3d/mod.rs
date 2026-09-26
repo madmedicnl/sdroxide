@@ -156,10 +156,6 @@ pub struct Solar3d {
     /// Whether the window should exist this frame. Toggled by the Display-box
     /// chip and cleared when the OS window is closed.
     pub open: bool,
-    /// Whether `open` was true the last time [`Self::viewport`] ran. Used to
-    /// catch the frame the window is opened, which claims the one 3D window for
-    /// this radio (see [`solar3d_owner`]).
-    was_open: bool,
     state: Arc<Mutex<SolarUi>>,
     /// Shared wgpu state, stashed so the GPU resources can be built on first
     /// open rather than at app construction — most sessions never open this
@@ -187,7 +183,6 @@ impl Solar3d {
     pub fn new(render_state: Option<RenderState>, view: Solar3dView) -> Self {
         Solar3d {
             open: view.open,
-            was_open: false,
             state: Arc::new(Mutex::new(SolarUi::new(view))),
             render_state,
             gpu_ready: false,
@@ -272,7 +267,6 @@ impl Solar3d {
         sat_lock: Option<u64>,
     ) -> Option<LockChange> {
         if !self.open {
-            self.was_open = false;
             // Dropping the feed disconnects the worker's channel, which is how
             // it learns to stop. Closing the window therefore ends all network
             // activity, which is the behaviour the manual promises.
@@ -286,13 +280,13 @@ impl Solar3d {
             }
             return None;
         }
-        // The frame a window is opened claims the one 3D window for this radio;
-        // opening it on another radio takes it over, so N radios cannot leave N
-        // scenes rendering. See [`solar3d_owner`].
-        if !self.was_open {
-            set_solar3d_owner(ctx, crate::layout::radio_salt(ctx));
-            self.was_open = true;
-        }
+        // The one 3D window belongs to the program, not the tab: the visible
+        // radio with the 3D open owns it, so this claims it every such frame.
+        // A radio left with `open` set from an earlier visit does not get a
+        // second window — its tab, when shown again, takes the one window back
+        // (see [`solar3d_owner`]). Claiming only on the open edge let the old
+        // owner and the visible tab both hold a window.
+        set_solar3d_owner(ctx, crate::layout::radio_salt(ctx));
 
         if !self.gpu_ready {
             if let Some(rs) = &self.render_state {
