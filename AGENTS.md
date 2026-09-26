@@ -1126,8 +1126,9 @@ The same EQ is also on the LISTEN window's Tone row.
 
 ## Regenerating the quick-start PDFs
 
-`docs/cb-quickstart.{en,nl,fr,it}.md` and
-`docs/ft8-11m-quickstart.{en,nl,fr,it}.md` are the sources; each matching
+`docs/cb-quickstart.{en,nl,fr,it}.md`,
+`docs/ft8-11m-quickstart.{en,nl,fr,it}.md` and
+`docs/sstv-11m-quickstart.{en,nl,fr,it}.md` are the sources; each matching
 `.pdf` is generated and can drift. The TeX engines on this machine are unusable
 (`xelatex.fmt` and `latex.fmt` are missing), so render through HTML and headless
 Edge instead. Write the HTML **beside the stylesheet** — `-c` writes a relative
