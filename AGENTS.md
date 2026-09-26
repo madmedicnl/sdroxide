@@ -203,6 +203,16 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     check"** (`c01d27bc`) is **kept**: the merge base and upstream both carry
     the update banner, so the resolution had to drop upstream's newer wording
     rather than reintroduce it — the one file where "take upstream" is wrong.
+  - `dividebysandwich/sdroxide#575` — **the band/mode dock**, opened
+    2026-09-26 from `upstream/main` (branch `upstream-pr/band-dock`, one
+    commit). A `DOCK` chip in the Band/Mode popup moves the same
+    `band_mode_menu` into a resizable column beside the waterfall, with
+    UNDOCK/× in its header and the band chip toggling the column; desktop and
+    tablet only (`band_dock_allowed`). **Adapted, not copied**: upstream's
+    `band_mode_menu` is the simple three-row one, so the fork's own dock
+    (`17467d57`, tangled with the fork-only band-menu clarity — tabs, filter,
+    metre bands) does **not** drop out when this lands; they are two different
+    menus, and the fork keeps its version until it rebases onto this one.
   - `dividebysandwich/sdroxide#537` — **the band-opening detector**, opened
     2026-09-22 from `upstream/main` (branch `upstream-pr/band-openings`, based
     on the current `upstream/main`, no 11 m feed). A pure
