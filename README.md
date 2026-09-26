@@ -11,11 +11,14 @@
 > Every amateur ("ham") radio feature is here — the whole transceiver, all the
 > digital modes, the logbook, awards, rig control. What the fork changes is its
 > **focus**: it is tuned for two audiences the original does not serve, the
-> **11 m citizens' band (CB)** and the **shortwave listener (SWL)**. Use it as a
-> ham radio and you have upstream plus a few conveniences; point it at CB or at
-> a listening dongle and that is what it is for. All credit for the original
-> belongs to upstream — when something is not CB/SWL-specific it is upstream's
-> work and is best read there.
+> **11 m citizens' band (CB)** and the **shortwave listener (SWL)**. CB is a
+> two-way band, not a listening exercise — it is used here to the full, voice
+> and the digital modes, and in most countries the CEPT channels need no
+> licence. Use the fork as a ham radio and you have upstream plus a few
+> conveniences; point it at CB and it is a first-class citizens'-band rig; point
+> it at a listening dongle and it is a listener's receiver. All credit for the
+> original belongs to upstream — when something is not CB/SWL-specific it is
+> upstream's work and is best read there.
 
 sdroxide is a PowerSDR/Thetis-style software-defined-radio client in Rust, with
 pluggable radio backends, an [egui](https://github.com/emilk/egui) GUI and a
@@ -65,8 +68,10 @@ rest.
    frequency, so switching back and forth is one click.
 5. **On CB.** Pick the **11 m** band: the channelised dial reads `CH nn`, the
    per-country channel plans are on the General tab, and the WSJT-CB digital
-   exchange (with country flags) works like FT8 does. Transmitting on 11 m is a
-   deliberate opt-in behind a one-time warning.
+   exchange (with country flags) works like FT8 does. CB is a two-way band:
+   switch on **Allow transmit on 11 m (CB)** once and it transmits and receives
+   like any other band. To send the digital modes you need a transceiver, keyed
+   by **VOX** or **CAT** — a receive-only dongle can hear but not send.
 6. **Listening (SWL).** Turn on **SWL mode** for that radio (Settings → Radio →
    Transmit controls, or start every radio with `--swl`) and its transmit
    controls disappear. Then: browse the **SCHEDULE**
@@ -82,9 +87,9 @@ rest.
 
 | | Upstream (`dividebysandwich/sdroxide`) | This fork |
 | --- | --- | --- |
-| **Focus** | amateur (ham) transceiver | **CB and shortwave listening**; transmit stays behind explicit switches |
+| **Focus** | amateur (ham) transceiver | **CB used in full (voice and digital), SWL and decoding**; 11 m transmit is a one-time opt-in only because the ham lockout is generic |
 | **Amateur bands** | 160 m … 3 cm, by IARU region, with band-plan lockout | identical, untouched |
-| **11 m / citizens' band** | the band itself (26.965–27.860 MHz) and its digimode conventions | **per-country channel plans** (`WORLD EU DE UK US AU`) with the channels and modes each allows, **CB country flags**, the transmit opt-in behind a one-time warning, and opt-in **spotting to the WSJT-CB spot server** |
+| **11 m / citizens' band** | the band itself (26.965–27.860 MHz) and its digimode conventions | **per-country channel plans** (`WORLD EU DE UK US AU`) with the channels and modes each allows, **CB country flags**, a one-time transmit opt-in so the band is used in full, and opt-in **spotting to the WSJT-CB spot server** |
 | **LOG11DX logbook** | — | uploads each logged QSO straight to the 11 m [LOG11DX](https://log11dx.com/) logbook — no separate bridge program, which its own WSJT-X integration otherwise needs |
 | **Broadcast & utility bands** | general coverage only | **LW / MW / SW / FM**, the VHF civil **AIR**band (108–137 MHz, AM) and the **MIL**itary UHF airband (225–400 MHz, AM) on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
 | **Broadcast schedule** | EiBi transmitters labelled on the waterfall | plus a **SCHEDULE** window that filters them by time, band, language and target and tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |

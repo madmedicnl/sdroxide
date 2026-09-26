@@ -370,8 +370,9 @@ The **OPERATE** tab's rows:
   in the other two. `6CM` reads `5CM` outside Region 1, which is what the band
   plans there call it.
 
-  **`11M` is the citizens' band** — not an amateur allocation, so the transmit
-  lockout holds there until the station opts in with **Allow transmit on 11 m
+  **`11M` is the citizens' band** — a two-way band, used to the full here, with
+  its own service rules rather than an amateur allocation. The generic ham
+  lockout holds until the station opts in once with **Allow transmit on 11 m
   (CB)** ([6.1](#61-general-station-audio-and-remote-access)).
   **`LW`, `MW`, `SW` and `FM` are the broadcast services** a short-wave
   listener tunes: longwave 148.5–283.5 kHz, medium wave 526.5–1606.5 kHz (530–
@@ -4035,12 +4036,14 @@ everything the sequencer puts on the air changes:
   "East Germany", "Czechoslovakia", "Alaska" — come with it).
 - **Logging and permission.** A completed contact logs with an **empty ADIF
   band** — ADIF's enumeration runs 12 m, 10 m, 8 m with nothing in between —
-  and because the citizens' band is not an amateur allocation the amateur-band
-  lockout refuses to key up there until the station opts in: **Allow transmit
-  on 11 m (CB)** on the General tab, confirmed once behind a warning that CB is
-  a separate service governed by your own country's rules. That switch opens
-  11 m and nothing else; the broadcast bands stay receive-only. Both are the
-  band's bullet in [6.1](#61-general-station-audio-and-remote-access).
+  and because the citizens' band is a separate service rather than an amateur
+  allocation the generic amateur-band lockout refuses to key up there until the
+  station opts in: **Allow transmit on 11 m (CB)** on the General tab, confirmed
+  once. CB is a two-way band — it is meant to transmit — so this is a one-time
+  opt-in and not a restriction; it opens 11 m and nothing else, and the
+  broadcast bands stay receive-only. Sending the digital modes needs a
+  transceiver, keyed by VOX or CAT. Both are the band's bullet in
+  [6.1](#61-general-station-audio-and-remote-access).
 
 ### 3.3 PSK31 and RTTY
 
@@ -7062,14 +7065,15 @@ decides every band plan sdroxide draws and enforces:
   > permission** here, exactly as 11 m does not.
 
   **Allow transmit on 11 m (CB)** — sits under the CB plan, and is off by
-  default. The amateur-band lockout refuses every band that is not an amateur
-  allocation and 11 m is one, so this is the deliberate way to open it without
-  dropping the lockout for the broadcast bands too. Switching it on raises a
-  warning the first time — CB is not an amateur band, and its channels, modes,
-  power and required equipment are your country's law — and the permission is
-  not granted until that is confirmed; the confirmation is remembered per
-  screen. It opens 11 m and nothing else. A station setting (`cb_tx_allowed` in
-  `config.toml`), so it travels to every client along with the CB plan.
+  default only because the amateur-band lockout is generic and refuses every
+  band that is not an amateur allocation; 11 m is a separate service. It is the
+  deliberate way to open CB — a band made for two-way use — without dropping the
+  lockout for the broadcast bands too. Switching it on shows a one-time note (CB
+  is its own service, and its channels, modes, power and equipment are your
+  country's rules) and the permission stands once that is confirmed, remembered
+  per screen. It opens 11 m and nothing else. A station setting
+  (`cb_tx_allowed` in `config.toml`), so it travels to every client along with
+  the CB plan.
 - **Longwave, medium wave, shortwave and FM broadcast** — `LW`, `MW`, `SW` and
   `FM` are on the bar for the listener the way 11 m is for the CB operator.
   None is an amateur allocation, so with `tx_ham_only` set (the default) the

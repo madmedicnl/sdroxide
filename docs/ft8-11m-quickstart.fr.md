@@ -166,20 +166,30 @@ système.
 
 ---
 
-## Remarque sur l'émission
+## Émettre
 
-- **L'émission sur 11 m est désactivée par défaut.** Le verrouillage des bandes
-  amateurs refuse toute bande qui n'est pas une allocation amateur, et la CB
-  n'en est pas une : c'est un service radio distinct, avec ses propres règles et
-  son propre matériel homologué. Pour émettre sur 11 m, activez **Allow transmit
-  on 11 m (CB)** dans l'onglet General et confirmez l'avertissement une fois.
+- **La CB est faite pour émettre *et* recevoir, et dans la plupart des pays
+  elle ne demande aucune licence** — les canaux CEPT libres, à puissance
+  limitée. Ce fork traite la 11 m comme une vraie bande.
+- **Pour *émettre* la FT8 (ou la SSTV), il faut un transceiver**, manipulé par
+  **VOX** (un poste à carte son — le programme envoie l'audio à son entrée micro
+  et la radio se manipule toute seule) ou par **CAT**. Un dongle en réception
+  seule — la plupart des installations RTL-SDR, RX-888 et Airspy HF+ — décode la
+  bande magnifiquement mais ne peut pas émettre ; pour émettre il faut un
+  transceiver derrière.
+- **Pour émettre, activez Allow transmit on 11 m (CB)** dans l'onglet General
+  et confirmez la mention une fois. Ce n'est un interrupteur que parce que le
+  verrouillage des bandes amateurs du programme est générique et refuse toute
+  allocation non amateur ; la CB est un service radio distinct, donc on
+  l'active au lieu de la supposer.
 - L'interrupteur ouvre **la 11 m et rien d'autre** — les bandes de
   radiodiffusion restent en réception seule.
-- Le droit d'émettre en 11 m, et à quelle puissance et mode, varie selon le pays
-  (en France et en Belgique, les canaux CEPT libres avec une puissance
-  limitée). **Vérifiez la réglementation en vigueur — la responsabilité est la
-  vôtre.**
-- Ce fork est d'abord fait pour **recevoir et décoder**.
+- Tenez-vous aux canaux, à la puissance et aux modes de votre pays — la
+  courtoisie CB ordinaire. **Vérifiez la réglementation en vigueur où vous
+  êtes.**
+- Ce fork est fait pour toute la CB — la voix et les modes numériques — aux
+  côtés de l'écoute SWL et du décodage. La CB et le radioamateurisme sont
+  voisins sur le même spectre.
 
 ---
 

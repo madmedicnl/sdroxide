@@ -163,19 +163,29 @@ automatica dell'ora del sistema.
 
 ---
 
-## Nota sulla trasmissione
+## Trasmettere
 
-- **La trasmissione sugli 11 m è disattivata per impostazione predefinita.** Il
-  blocco delle bande amatoriali rifiuta ogni banda che non sia un'allocazione
-  amatoriale, e la CB non lo è: è un servizio radio separato, con regole proprie
-  e apparati omologati propri. Per trasmettere sugli 11 m attiva **Allow
-  transmit on 11 m (CB)** nella scheda General e conferma l'avviso una volta.
+- **La CB serve a trasmettere *e* a ricevere, e nella maggior parte dei paesi
+  non richiede licenza** — i canali CEPT liberi, a potenza limitata. Questo fork
+  tratta gli 11 m come una banda vera.
+- **Per *trasmettere* la FT8 (o la SSTV) serve un transceiver**, manipolato via
+  **VOX** (una radio con scheda audio — il programma manda l'audio al suo
+  ingresso microfono e la radio si manipola da sola) oppure via **CAT**. Un
+  dongle in sola ricezione — la maggior parte delle installazioni RTL-SDR,
+  RX-888 e Airspy HF+ — decodifica la banda benissimo ma non può trasmettere;
+  per trasmettere serve un transceiver dietro.
+- **Per trasmettere attiva Allow transmit on 11 m (CB)** nella scheda General e
+  conferma l'avviso una volta. È un interruttore solo perché il blocco delle
+  bande amatoriali del programma è generico e rifiuta ogni allocazione non
+  amatoriale; la CB è un servizio radio separato, quindi si abilita invece di
+  darla per scontata.
 - L'interruttore apre **solo gli 11 m** — le bande di diffusione restano in sola
   ricezione.
-- Se e come puoi trasmettere sugli 11 m, e con quale potenza e modo, dipende dal
-  paese (in Italia i canali CEPT liberi con potenza limitata). **Controlla la
-  normativa vigente — la responsabilità è tua.**
-- Questo fork è pensato innanzitutto per **ricevere e decodificare**.
+- Attieniti ai canali, alla potenza e ai modi del tuo paese — la normale
+  cortesia CB. **Controlla la normativa vigente dove ti trovi.**
+- Questo fork è per tutta la CB — voce e modi digitali — accanto all'ascolto
+  SWL e alla decodifica. La CB e il radioamatore sono vicini sullo stesso
+  spettro.
 
 ---
 

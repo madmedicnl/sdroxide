@@ -138,24 +138,33 @@ pour passer de « 11 m à la maison » à « écoute des ondes courtes ».
 
 ---
 
-## Remarque sur l'émission
+## Émettre en CB
 
-- **L'émission sur 11 m est désactivée par défaut.** Le verrouillage des bandes
-  amateurs refuse toute bande qui n'est pas une allocation amateur, et la CB en
-  est une : c'est un service radio distinct, avec ses propres règles et son
-  propre matériel homologué. Pour émettre sur 11 m, activez **Allow transmit on
-  11 m (CB)** dans l'onglet General. La première fois, vous devez confirmer un
-  avertissement : la CB n'est pas une bande amateur et son usage relève des
-  règles du pays où vous vous trouvez.
+- **La CB est faite pour émettre *et* recevoir, et dans la plupart des pays
+  elle ne demande aucune licence** — les canaux CEPT libres, à puissance
+  limitée. Ce fork traite la 11 m comme une vraie bande, pas comme un extra de
+  réception.
+- **Pour émettre, activez Allow transmit on 11 m (CB)** dans l'onglet General
+  et confirmez la mention une fois. Ce n'est un interrupteur que parce que le
+  verrouillage des bandes amateurs du programme est générique et refuse toute
+  bande qui n'est pas une allocation amateur ; la CB est un service radio
+  distinct, donc on l'active au lieu de la supposer. Ensuite, émettre en 11 m
+  marche comme sur n'importe quelle bande.
+- **Pour *émettre* les modes numériques (FT8, SSTV), il faut un transceiver**,
+  manipulé soit par **VOX** (un poste à carte son — le programme envoie l'audio
+  à son entrée micro et la radio se manipule toute seule), soit par **CAT**. Un
+  dongle en réception seule (la plupart des installations RTL-SDR, RX-888 et
+  Airspy HF+) les entend mais ne peut pas les émettre.
 - L'interrupteur ouvre **la 11 m et rien d'autre** — les bandes de
-  radiodiffusion restent en réception seule. La voie `--oob-tx` /
+  radiodiffusion restent en réception seule. (`--oob-tx` /
   `tx_ham_only = false` reste disponible pour l'émission hors bandes sous
-  licence, mais pour la CB c'est ce réglage qui compte.
-- Le droit d'émettre en 11 m, et à quelle puissance/mode, varie selon le pays
-  (en France et en Belgique, les canaux CEPT libres avec une puissance
-  limitée). **Vérifiez la réglementation en vigueur — la responsabilité est la
-  vôtre.**
-- Ce fork est d'abord conçu pour **recevoir et décoder**.
+  licence.)
+- Tenez-vous aux canaux, à la puissance et aux modes de votre pays — la
+  courtoisie CB ordinaire. **Vérifiez la réglementation en vigueur où vous
+  êtes.**
+- Ce fork est fait pour toute la CB — la voix et les modes numériques — aux
+  côtés de l'écoute SWL et du décodage. La CB et le radioamateurisme sont
+  voisins sur le même spectre ; ce programme sert volontiers les deux.
 
 ---
 

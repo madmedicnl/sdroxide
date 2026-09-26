@@ -136,21 +136,28 @@ between "11 m at home" and "listening to shortwave".
 
 ---
 
-## A note on transmitting
+## Sending on CB
 
-- **11 m transmit is off by default.** The amateur-band lockout refuses every
-  band that is not an amateur allocation, and CB is one: it is a separate radio
-  service with its own rules and its own type-approved equipment. To key up on
-  11 m, switch on **Allow transmit on 11 m (CB)** on the General tab. The first
-  time you do, you have to confirm a warning that CB is not an amateur band and
-  that using it is subject to the rules of the country you are in.
+- **CB is meant for sending *and* receiving, and in most countries it needs no
+  licence** — the licence-free CEPT channels, at limited power. This fork treats
+  11 m as a full band, not a receive-only extra.
+- **To transmit, switch on Allow transmit on 11 m (CB)** on the General tab and
+  confirm the note once. It is a switch only because the program's amateur-band
+  lockout is generic and refuses every band that is not an amateur allocation;
+  CB is a separate radio service, so it is opted into rather than assumed. After
+  that, transmitting on 11 m works like any other band.
+- **To *send* the digital modes (FT8, SSTV) you need a transceiver**, keyed
+  either by **VOX** (a sound-card rig — the program plays the audio to its mic
+  input and the radio keys itself) or over **CAT**. A receive-only dongle (most
+  RTL-SDR, RX-888 and Airspy HF+ setups) hears them but cannot send them.
 - The switch opens **11 m and nothing else** — the broadcast bands stay
-  receive-only. The `--oob-tx` / `tx_ham_only = false` route is still there for
-  licensed out-of-band use, but for CB the setting is the way.
-- Whether you may transmit on 11 m, and at what power/mode, differs by country
-  (in the Netherlands, the licence-free CEPT channels at limited power).
-  **Check the current rules — the responsibility is yours.**
-- This fork is first of all built to **receive and decode**.
+  receive-only. (`--oob-tx` / `tx_ham_only = false` remains for licensed
+  out-of-band use.)
+- Keep to your country's channels, power and modes — ordinary CB courtesy.
+  **Check the current rules where you are.**
+- This fork is for the whole of CB — voice and the digital modes — alongside
+  SWL and decoding. CB and amateur radio are neighbours on the same spectrum;
+  this program is glad to serve both.
 
 ---
 

@@ -137,22 +137,31 @@ tussen "thuis op de 11 m" en "luisteren op de kortegolf" te wisselen.
 
 ---
 
-## Let op — zenden
+## Zenden op de 11 meter
 
-- **Zenden op 11 m staat standaard uit.** De amateurband-lockout weigert elke
-  band die geen amateurallocatie is, en CB is dat niet: het is een aparte
-  radiodienst met eigen regels en eigen goedgekeurde apparatuur. Om op 11 m te
-  kunnen zenden zet je **Allow transmit on 11 m (CB)** aan op het tabblad
-  General. De eerste keer moet je een waarschuwing bevestigen dat CB geen
-  amateurband is en dat het gebruik onderworpen is aan de regels van het land
-  waar je bent.
+- **CB is bedoeld om te zenden *en* te ontvangen, en in de meeste landen heb je
+  geen vergunning nodig** — de vergunningvrije CEPT-kanalen, met beperkt
+  vermogen. Deze fork behandelt de 11 m als een volwaardige band, niet als een
+  extraatje voor de ontvangst.
+- **Om te zenden zet je Allow transmit on 11 m (CB)** aan op het tabblad
+  General en bevestig je de mededeling één keer. Het is alleen maar een
+  schakelaar omdat de amateurband-lockout van het programma generiek is en elke
+  band weigert die geen amateurallocatie is; CB is een aparte radiodienst en
+  wordt daarom aangezet in plaats van aangenomen. Daarna werkt zenden op de
+  11 m als op elke andere band.
+- **Om de digitale modes (FT8, SSTV) te *zenden* heb je een transceiver nodig**,
+  getast via **VOX** (een radio met geluidskaart — het programma speelt de audio
+  naar de microfooningang en de radio tast zichzelf) of via **CAT**. Een
+  dongle die alleen ontvangt (de meeste RTL-SDR-, RX-888- en
+  Airspy HF+-opstellingen) hoort ze wel maar kan ze niet zenden.
 - De schakelaar opent **alleen 11 m** — de omroepbanden blijven alleen
-  ontvangen. De route via `--oob-tx` / `tx_ham_only = false` blijft bestaan voor
-  gelicentieerd gebruik buiten de banden, maar voor CB is de instelling de weg.
-- Of je op de 11 m mag zenden, en met welk vermogen/mode, verschilt per land
-  (in Nederland de vergunningvrije CEPT-kanalen met beperkt vermogen).
-  **Controleer de actuele regelgeving — jij blijft verantwoordelijk.**
-- Deze fork is in de eerste plaats gemaakt om te **ontvangen en decoderen**.
+  ontvangen. (`--oob-tx` / `tx_ham_only = false` blijft bestaan voor
+  gelicentieerd gebruik buiten de banden.)
+- Houd je aan de kanalen, het vermogen en de modes van jouw land — gewone
+  CB-beleefdheid. **Controleer de actuele regelgeving waar je bent.**
+- Deze fork is voor het hele CB-gebruik — spraak en de digitale modes — naast
+  SWL en decoderen. CB en amateurradio zijn buren op hetzelfde spectrum; dit
+  programma bedient ze allebei graag.
 
 ---
 

@@ -3,11 +3,15 @@
 ## What this repository is
 
 A fork of [sdroxide](https://github.com/dividebysandwich/sdroxide) tuned for the
-**11 m citizens band** and for **shortwave listening**. Both live in one
-program: the CB band, its WSJT-CB interoperability and channel plans, and the
-listener's tools — the broadcast schedule, the SWL log, time-shift replay,
+**11 m citizens band**, **shortwave listening** and **decoding**. All live in
+one program: the **CB band used to the full** — voice and the digital modes, a
+two-way band that needs no licence for the CEPT channels in most countries, not
+a receive-only extra — with its WSJT-CB interoperability and channel plans; and
+the listener's tools — the broadcast schedule, the SWL log, time-shift replay,
 scheduled recordings, ECSS, the receive tone and the scan bands. Upstream is the
-original; everything here is upstream's program plus those additions.
+original; everything here is upstream's program plus those additions. CB is a
+first-class citizen of this fork, and CB and amateur radio are neighbours on the
+same spectrum rather than rivals.
 
 The listener work used to live in a listener-only fork,
 `madmedicnl/sdroxide-swl`. It has been **retired**: merged into this fork and
@@ -1372,8 +1376,10 @@ Two things worth keeping:
 
 ## House rules
 
-- Keep changes listener-first: when a choice is between a ham workflow and a
-  listening one, this fork takes the listening one.
+- Keep changes CB- and listener-first: when a choice is between a ham workflow
+  and a CB or listening one, this fork takes the CB/listening one. CB is a
+  two-way service, so "CB-first" means using the band in full — transmit and
+  the digital modes included — not a receive-only reading of it.
 - **Assume a beginner, and never leave them guessing why nothing happened.**
   The fork's listeners include people who will not know what an option does or
   why a number looks wrong, and the freedom to explore is the point — so the

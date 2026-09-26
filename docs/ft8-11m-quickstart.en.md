@@ -154,19 +154,26 @@ thing to check when nobody answers. Turn on your system's automatic time sync.
 
 ---
 
-## A note on transmitting
+## Sending
 
-- **11 m transmit is off by default.** The amateur-band lockout refuses every
-  band that is not an amateur allocation, and CB is not one: it is a separate
-  radio service with its own rules and its own type-approved equipment. To key
-  up on 11 m, switch on **Allow transmit on 11 m (CB)** on the General tab and
-  confirm the one-time warning.
+- **CB is meant for sending *and* receiving, and in most countries it needs no
+  licence** — the licence-free CEPT channels, at limited power. This fork treats
+  11 m as a full band.
+- **To *send* FT8 (or SSTV) you need a transceiver**, keyed by **VOX** (a
+  sound-card rig — the program plays the audio to its mic input and the radio
+  keys itself) or over **CAT**. A receive-only dongle — most RTL-SDR, RX-888 and
+  Airspy HF+ setups — decodes the band beautifully but cannot transmit; for
+  sending you need a transceiver behind it.
+- **To transmit, switch on Allow transmit on 11 m (CB)** on the General tab and
+  confirm the note once. It is a switch only because the program's amateur-band
+  lockout is generic and refuses every non-amateur allocation; CB is a separate
+  radio service, so it is opted into rather than assumed.
 - The switch opens **11 m and nothing else** — the broadcast bands stay
   receive-only.
-- Whether you may transmit on 11 m, and at what power and mode, differs by
-  country (in the Netherlands, the licence-free CEPT channels at limited power).
-  **Check the current rules — the responsibility is yours.**
-- This fork is first of all built to **receive and decode**.
+- Keep to your country's channels, power and modes — ordinary CB courtesy.
+  **Check the current rules where you are.**
+- This fork is for the whole of CB — voice and the digital modes — alongside
+  SWL and decoding. CB and amateur radio are neighbours on the same spectrum.
 
 ---
 
