@@ -14694,6 +14694,11 @@ broadcast, the kind of catch shortwave listeners go looking for. It is the
 listener's judgement and nothing infers it. A reception so marked wears a small
 **Jolly Roger** in the log list, and the tick survives editing the entry later.
 
+Each row in the reception log also carries an **rcl** button: it tunes back to
+that reception's frequency and mode in one click, the way **TUNE** does from the
+schedule, so a listener can check whether the station has returned on the same
+channel at the same time another evening.
+
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,
 four minutes a degree from the site's longitude — and deliberately not a civil

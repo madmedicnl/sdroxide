@@ -10,7 +10,7 @@
 //! changes. The engine is not involved.
 
 use eframe::egui::{self, RichText};
-use sdroxide_types::{Command, Mode, SignalReport, Sinpo, Sio, SwlEntry};
+use sdroxide_types::{Command, Mode, RxId, SignalReport, Sinpo, Sio, SwlEntry, Vfo};
 
 use crate::app::SdroxideApp;
 use crate::app::persist::persist_swl_log;
@@ -320,7 +320,7 @@ impl SdroxideApp {
                     self.swl_entry_form(ui);
                 }
                 ui.separator();
-                self.swl_list(ui);
+                self.swl_list(ui, cmds);
             });
         if let Some(r) = &resp {
             crate::chrome::paint_window_border(ctx, &r.response);
@@ -329,7 +329,7 @@ impl SdroxideApp {
     }
 
     /// The reception log list, newest first, grouped by day.
-    fn swl_list(&mut self, ui: &mut egui::Ui) {
+    fn swl_list(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
         // Moved out for the frame and put back after, so the list can be drawn
         // while `self` stays free to record a selection or a delete — without
         // cloning the whole log every frame.
@@ -338,6 +338,9 @@ impl SdroxideApp {
         let mut selected = self.swl_selected;
         let mut edit: Option<u64> = None;
         let mut delete: Option<u64> = None;
+        // A reception to tune back to: the frequency and mode, applied after the
+        // list is drawn so the borrow of `rows` is done with.
+        let mut recall: Option<(f64, Mode)> = None;
         egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("swl-list").show(
             ui,
             |ui| {
@@ -386,6 +389,17 @@ impl SdroxideApp {
                                     .color(crate::theme::gray(160)),
                             );
                         }
+                        if e.freq_hz > 0.0
+                            && ui
+                                .small_button("rcl")
+                                .on_hover_text(
+                                    "Tune back to this frequency and mode — see if the station \
+                                     has returned",
+                                )
+                                .clicked()
+                        {
+                            recall = Some((e.freq_hz, e.mode));
+                        }
                         if ui.small_button("edit").clicked() {
                             edit = Some(e.id);
                         }
@@ -397,6 +411,12 @@ impl SdroxideApp {
             },
         );
         self.swl_selected = selected;
+        if let Some((hz, mode)) = recall {
+            // The same two commands the schedule's TUNE sends: the dial and the
+            // mode, so the reception comes back exactly as it was logged.
+            cmds.push(Command::SetVfo { vfo: Vfo::A, hz });
+            cmds.push(Command::SetMode { rx: RxId::Main, mode });
+        }
         if let Some(id) = edit
             && let Some(e) = rows.iter().find(|e| e.id == id)
         {
