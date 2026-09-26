@@ -262,6 +262,27 @@ impl Solar3d {
             st.sat_lock = sat_lock;
         }
 
+        self.emit(ctx);
+
+        // egui tears the window down when we stop emitting the viewport — do
+        // *not* send `ViewportCommand::Close` as well.
+        let (close, refresh, lock_req, unlock_req) = self.drain();
+        if close {
+            self.open = false;
+        }
+        if refresh {
+            self.refresh();
+        }
+        if unlock_req {
+            return Some(LockChange::Unlock);
+        }
+        lock_req.map(LockChange::Lock)
+    }
+
+    /// Emit the window for this frame from the state already published. Split
+    /// out of [`Self::viewport`] so the shell can keep it up while its tab is
+    /// behind another — see [`Self::keep_alive`].
+    fn emit(&self, ctx: &egui::Context) {
         let state = Arc::clone(&self.state);
         let vid = viewport_id(crate::layout::radio_salt(ctx));
         // egui drops a viewport that was not emitted last frame, and the window
@@ -281,12 +302,12 @@ impl Solar3d {
         }
         ctx.show_viewport_deferred(vid, builder, move |ui, _class| {
             let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
-            // Remember the size for the next rebuild (a tab switch takes the
-            // viewport down and egui forgets it). `content_rect` is the window's
-            // inner size as the toolkit reported it, which on Wayland is the
-            // only size there is: `viewport().inner_rect` is `None` there,
-            // because Wayland gives a client no absolute window position for
-            // winit to build a rect from.
+            // Remember the size for the next rebuild, in case the window is
+            // ever taken down and remapped. `content_rect` is the window's inner
+            // size as the toolkit reported it, which on Wayland is the only
+            // size there is: `viewport().inner_rect` is `None` there, because
+            // Wayland gives a client no absolute window position for winit to
+            // build a rect from.
             let size = ui.ctx().content_rect().size();
             if size.x > 1.0 && size.y > 1.0 {
                 // Whole points, so a sub-point wobble is not read as a resize.
@@ -303,28 +324,47 @@ impl Solar3d {
             }
             overlay::ui(ui, &mut st);
         });
+    }
 
-        // egui tears the window down when we stop emitting the viewport — do
-        // *not* send `ViewportCommand::Close` as well.
-        let (close, refresh, lock_req, unlock_req) = {
-            let mut st = self.lock();
-            (
-                std::mem::take(&mut st.close_requested),
-                std::mem::take(&mut st.refresh_requested),
-                std::mem::take(&mut st.lock_requested),
-                std::mem::take(&mut st.unlock_requested),
-            )
-        };
+    /// Drain the window's own requests: `(close, refresh, lock, unlock)`.
+    fn drain(&self) -> (bool, bool, Option<u64>, bool) {
+        let mut st = self.lock();
+        (
+            std::mem::take(&mut st.close_requested),
+            std::mem::take(&mut st.refresh_requested),
+            std::mem::take(&mut st.lock_requested),
+            std::mem::take(&mut st.unlock_requested),
+        )
+    }
+
+    /// Keep the window up while this radio's tab is behind another.
+    ///
+    /// The shell draws only the visible tab, so a window it stops emitting is
+    /// torn down; when the tab returns the window is remapped, and to a tiling
+    /// Wayland compositor a remapped window is a *new* window, sized by the
+    /// compositor rather than left as the operator dragged it. Emitting it every
+    /// frame instead — from the inputs it last published, which the hidden tab
+    /// has no fresher version of — keeps the same window, so its geometry is
+    /// the compositor's to hold and nobody's to lose.
+    pub fn keep_alive(&mut self, ctx: &egui::Context) {
+        if !self.open {
+            return;
+        }
+        if !self.gpu_ready {
+            if let Some(rs) = &self.render_state {
+                gpu::init(rs);
+            }
+            self.gpu_ready = true;
+        }
+        self.ensure_feed(ctx);
+        self.emit(ctx);
+        let (close, refresh, _lock, _unlock) = self.drain();
         if close {
             self.open = false;
         }
         if refresh {
             self.refresh();
         }
-        if unlock_req {
-            return Some(LockChange::Unlock);
-        }
-        lock_req.map(LockChange::Lock)
     }
 
     /// Start the data feed on first open, and forward channel/resolution

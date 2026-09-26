@@ -1819,6 +1819,17 @@ impl SdroxideApp {
             }
             #[cfg(not(target_arch = "wasm32"))]
             self.input.discard_midi();
+            // A hidden tab's 3D window is a real OS window, and one the shell
+            // is no longer drawing: keep it emitted, or it is torn down and
+            // remapped on the next switch — a *new* window to a tiling
+            // compositor, sized by it rather than left as the operator had it.
+            #[cfg(not(target_arch = "wasm32"))]
+            if self.solar.open {
+                let prev = crate::layout::radio_salt(ctx);
+                crate::layout::set_radio_salt(ctx, self.radio_id);
+                self.solar.keep_alive(ctx);
+                crate::layout::set_radio_salt(ctx, prev);
+            }
         }
     }
 
