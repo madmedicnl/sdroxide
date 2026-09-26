@@ -64,6 +64,28 @@ fn viewport_id(salt: u32) -> egui::ViewportId {
     }
 }
 
+/// The size the solar-system window opens at: the operator's last size if there
+/// is one, otherwise 1180×760, either way shrunk to fit the monitor it is about
+/// to open on.
+///
+/// A window wider than the screen loses the controls along its right edge, and
+/// on some Linux systems a window larger than the monitor crashes the toolkit —
+/// the same bargain [`crate::layout::fit_inner_size`] strikes for the floating
+/// windows. The frame around the drawing area is not known before the window
+/// exists, so a title bar and borders are guessed; `fit_inner_size` keeps the
+/// rest of the margin for the desktop's own edges. Never grows a window: an
+/// operator who has sized theirs is not asking for it back.
+#[cfg(not(target_arch = "wasm32"))]
+fn solar3d_inner_size(monitor: Option<egui::Vec2>, remembered: Option<egui::Vec2>) -> egui::Vec2 {
+    let want = remembered.unwrap_or(egui::vec2(1180.0, 760.0));
+    let Some(monitor) = monitor.filter(|m| m.x > 1.0 && m.y > 1.0) else {
+        return want;
+    };
+    let chrome = egui::vec2(16.0, 40.0);
+    crate::layout::fit_inner_size(monitor, want + chrome, want, egui::vec2(520.0, 340.0))
+        .unwrap_or(want)
+}
+
 // Scene units are gigametres (10⁶ km): 1 AU ≈ 149.6, the Sun ≈ 0.696, the Earth
 // ≈ 0.0064. Everything the camera deals with then sits in [1e-3, 1e3], well
 // inside f32 range, while the ephemeris itself stays f64.
@@ -241,23 +263,41 @@ impl Solar3d {
         }
 
         let state = Arc::clone(&self.state);
-        ctx.show_viewport_deferred(
-            viewport_id(crate::layout::radio_salt(ctx)),
-            egui::ViewportBuilder::default()
-                .with_title("sdroxide — solar system")
-                .with_inner_size([1180.0, 760.0])
-                .with_min_inner_size([520.0, 340.0]),
-            move |ui, _class| {
-                let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
-                if ui.ctx().input(|i| i.viewport().close_requested()) {
-                    st.close_requested = true;
-                    // Wake the root pass so the chip un-lights promptly.
-                    ui.ctx().request_repaint_of(egui::ViewportId::ROOT);
-                    return;
+        let vid = viewport_id(crate::layout::radio_salt(ctx));
+        // egui drops a viewport that was not emitted last frame, and the window
+        // size it was remembering with it. `cumulative_pass_nr_for` is zero for
+        // an id that is not up, so this is the frame the window is (re)built
+        // on: seed the size — the operator's own if they have ever given it one,
+        // the fitted default otherwise. Every later frame leaves the size alone,
+        // so a live resize is never fought by our own request.
+        let mut builder = egui::ViewportBuilder::default()
+            .with_title("sdroxide — solar system")
+            .with_min_inner_size([520.0, 340.0])
+            .with_clamp_size_to_monitor_size(true);
+        if ctx.cumulative_pass_nr_for(vid) == 0 {
+            let remembered = self.lock().view.window_size.map(egui::Vec2::from);
+            let monitor = ctx.input(|i| i.viewport().monitor_size);
+            builder = builder.with_inner_size(solar3d_inner_size(monitor, remembered));
+        }
+        ctx.show_viewport_deferred(vid, builder, move |ui, _class| {
+            let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
+            // Remember the size for the next rebuild — a tab switch takes the
+            // viewport down and egui forgets it. Rounded to whole points so a
+            // sub-point wobble is not read as a resize.
+            if let Some(rect) = ui.ctx().input(|i| i.viewport().inner_rect) {
+                let size = [rect.width().round(), rect.height().round()];
+                if st.view.window_size != Some(size) {
+                    st.view.window_size = Some(size);
                 }
-                overlay::ui(ui, &mut st);
-            },
-        );
+            }
+            if ui.ctx().input(|i| i.viewport().close_requested()) {
+                st.close_requested = true;
+                // Wake the root pass so the chip un-lights promptly.
+                ui.ctx().request_repaint_of(egui::ViewportId::ROOT);
+                return;
+            }
+            overlay::ui(ui, &mut st);
+        });
 
         // egui tears the window down when we stop emitting the viewport — do
         // *not* send `ViewportCommand::Close` as well.
@@ -377,4 +417,39 @@ impl Solar3d {
 /// everywhere, so the whole scene can be scrubbed by offsetting this.
 fn wall_clock_unix() -> f64 {
     crate::time::now_unix_f64()
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    /// The default opens on a screen with room for it, and is shrunk to fit one
+    /// that is smaller rather than hanging off the edge — the tab-switch report
+    /// was a window wider than the screen coming straight back on every rebuild.
+    #[test]
+    fn the_solar_window_opens_within_the_monitor() {
+        let default = egui::vec2(1180.0, 760.0);
+        // Room to spare: the default is left alone...
+        assert_eq!(solar3d_inner_size(Some(egui::vec2(1920.0, 1080.0)), None), default);
+        // ...as it is before any monitor has been reported.
+        assert_eq!(solar3d_inner_size(None, None), default);
+        // A small screen shrinks it instead of overflowing.
+        let small = solar3d_inner_size(Some(egui::vec2(1280.0, 720.0)), None);
+        assert!(small.x <= 1280.0 && small.y <= 720.0, "{small:?} does not fit 1280x720");
+        assert!(small.x < default.x || small.y < default.y, "a small screen must shrink it");
+    }
+
+    /// A size the operator gave the window is honoured, but never grown past a
+    /// screen that has since become smaller.
+    #[test]
+    fn a_remembered_size_is_honoured_and_still_clamped() {
+        let remembered = egui::vec2(900.0, 600.0);
+        assert_eq!(
+            solar3d_inner_size(Some(egui::vec2(2560.0, 1440.0)), Some(remembered)),
+            remembered
+        );
+        let clamped =
+            solar3d_inner_size(Some(egui::vec2(800.0, 600.0)), Some(egui::vec2(1600.0, 1200.0)));
+        assert!(clamped.x <= 800.0 && clamped.y <= 600.0, "{clamped:?} does not fit 800x600");
+    }
 }
