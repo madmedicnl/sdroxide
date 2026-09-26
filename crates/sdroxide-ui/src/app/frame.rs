@@ -1494,6 +1494,26 @@ impl SdroxideApp {
                     }
                     // Prepend newest-slot decodes; keep a rolling window.
                     let dial = self.state.rx_freq_hz();
+                    // ...and fold them into the propagation field, so the 3D
+                    // globe's BANDS OPEN chart and the flat maps show this
+                    // station's own paths. The other source of the field is
+                    // the RBN skimmer feed, which never carries 11 m: without
+                    // this a CB tab has nothing to draw. `observe_decodes`
+                    // resolves a latteless CB callsign to its country for
+                    // exactly that case.
+                    {
+                        let v = self.view.solar3d;
+                        self.prop.set_halflife_min(v.prop_halflife_min);
+                        self.prop.set_sources(crate::prop_map::PropSources(v.prop_sources));
+                        let grid = self.my_grid();
+                        self.prop.observe_decodes(
+                            &d,
+                            sdroxide_types::PropSource::Ft8,
+                            dial,
+                            &grid,
+                            crate::time::now_unix(),
+                        );
+                    }
                     for dec in d.into_iter().rev() {
                         self.digi_decodes.insert(0, dec);
                         self.digi_decode_dials.insert(0, dial);
