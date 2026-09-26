@@ -455,17 +455,6 @@ pub struct Solar3dView {
     /// them to be looking at different evidence.
     #[serde(default = "prop_sources_default")]
     pub prop_sources: u16,
-    /// The inner size the operator last gave the solar-system window, in points,
-    /// or `None` before it has ever been sized.
-    ///
-    /// The window is a child viewport keyed per radio, so it is torn down when
-    /// its tab goes behind another and rebuilt when the tab comes back. egui
-    /// remembers a live window's size but forgets it the moment the viewport is
-    /// removed, so the size is carried here instead — otherwise every return to
-    /// the tab snapped the window back to its default width, however the
-    /// operator had sized it.
-    #[serde(default)]
-    pub window_size: Option<[f32; 2]>,
 }
 
 /// Default for [`Solar3dView::prop_mode`] — the combined view, which reads
@@ -566,7 +555,6 @@ impl Default for Solar3dView {
             prop_bands: prop_bands_default(),
             prop_sources: prop_sources_default(),
             prop_halflife_min: prop_halflife_default(),
-            window_size: None,
         }
     }
 }

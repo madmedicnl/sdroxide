@@ -1119,6 +1119,9 @@ impl eframe::App for SdroxideApp {
             } else {
                 Default::default()
             };
+            // The geometry the window should open at, from this screen's
+            // settings. Only consulted when the window is (re)built.
+            self.solar.set_window_seed(self.ui_settings.solar3d_window);
             let lock_change = self.solar.viewport(
                 &ctx,
                 &grid,
@@ -1131,6 +1134,11 @@ impl eframe::App for SdroxideApp {
                 std::sync::Arc::clone(&self.sat_cfg),
                 self.sat_track.as_ref().map(|t| t.norad_id),
             );
+            // ...and keep where it actually ended up, so the next open — after a
+            // restart, or after this one is closed — returns it there.
+            if let Some(geom) = self.solar.window_now() {
+                self.ui_settings.solar3d_window = Some(geom);
+            }
             self.view.solar3d = self.solar.persisted();
             // The pass window's LOCK button lands here: the 3D window has no
             // command path of its own, so the request is drained and acted on
@@ -1843,8 +1851,12 @@ impl SdroxideApp {
             // is no longer drawing: keep it emitted, or it is torn down and
             // remapped on the next switch — a *new* window to a tiling
             // compositor, sized by it rather than left as the operator had it.
+            //
+            // Only the radio that owns the one 3D window does this: a second
+            // radio opening its own takes ownership, and the first is let go, so
+            // hidden radios cannot accumulate rendering windows.
             #[cfg(not(target_arch = "wasm32"))]
-            if self.solar.open {
+            if self.solar.open && crate::solar3d::solar3d_owner(ctx) == Some(self.radio_id) {
                 let prev = crate::layout::radio_salt(ctx);
                 crate::layout::set_radio_salt(ctx, self.radio_id);
                 self.solar.keep_alive(ctx);

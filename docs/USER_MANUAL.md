@@ -13095,6 +13095,17 @@ the map at once — it controls nothing, so it does not take the single control
 connection — but they share one feed, so changing the SDO channel changes it for
 everyone watching.
 
+**The window itself.** There is **one** 3D window, and it belongs to the program
+rather than to a radio tab. Switching to another radio leaves it up; opening the
+3D on another radio moves it there and closes the previous one, so a session
+cannot accumulate them. Where you leave it — its size, and its position where
+the platform reports one — is remembered in this screen's settings and put back
+when it is opened again, fitted so it never comes up off the screen. On
+**Wayland** a client is not told where its windows are, so only the size is
+restored and the compositor chooses the place; on a **tiling** compositor the
+same applies, and the window keeps the tile you gave it precisely because a tab
+switch never closes and reopens it.
+
 > **If the browser crashes.** This view is the app's heaviest graphics
 > consumer — a depth buffer, multisampling and a few dozen draws a frame — and
 > browser WebGPU implementations vary in how well they take it. Firefox on Linux

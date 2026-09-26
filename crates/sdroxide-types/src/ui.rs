@@ -506,6 +506,22 @@ impl SmeterStyle {
     }
 }
 
+/// Where the solar-system 3D window was: its inner size and, where the platform
+/// reports one, its outer position — both in egui points.
+///
+/// Kept so opening it — the first time after a restart, or again after it was
+/// closed — puts it back where the operator left it rather than at the built-in
+/// size. `pos` is `None` on Wayland, which gives a client no absolute window
+/// position; the size still comes back and the compositor places the window.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Solar3dWindow {
+    /// Inner (drawing-area) size in points.
+    pub size: [f32; 2],
+    /// Outer (top-left, including decorations) position in points.
+    #[serde(default)]
+    pub pos: Option<[f32; 2]>,
+}
+
 /// User display preferences. All have defaults so a missing `[ui]` table loads.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -744,6 +760,13 @@ pub struct UiSettings {
     /// parts of it missing until they ask.
     #[serde(default)]
     pub simple_ui: bool,
+    /// Where the solar-system 3D window last was — see [`Solar3dWindow`].
+    ///
+    /// Here rather than in the operator's view state because window geometry is
+    /// a property of this screen, not of the radio: there is one 3D window, and
+    /// a remote client keeps its own.
+    #[serde(default)]
+    pub solar3d_window: Option<Solar3dWindow>,
 }
 
 /// Default for [`UiSettings::spot_colors`] — every kind on its stock tint.
@@ -849,6 +872,7 @@ impl Default for UiSettings {
             cb_tx_warning_ack: false,
             simple_ui: false,
             start_swl: false,
+            solar3d_window: None,
         }
     }
 }

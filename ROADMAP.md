@@ -340,6 +340,28 @@ Aero / Iridium need a front end most listeners do not have.
   fork's own copy was retired in the merge (it depends on `sdroxide-faad2`).
   Anything further here — the **AM-band variant**, the **HD-2/HD-3 subchannel**
   chips, the **album art / PSD** — is upstream's to take; offer it there first.
+- **Own the 3D window at the shell, not at the radio tab.** A long-lived OS
+  window (`Solar3d`) lives inside each per-radio `SdroxideApp`, its viewport id
+  is salted per radio, and the shell draws only the visible tab — so a hidden
+  tab's window is held open by `Solar3d::keep_alive`, capped to one owner
+  (`solar3d_owner`), with geometry kept per screen (`UiSettings::solar3d_window`).
+  It works, but the ownership is upside down: the thing that decides a window
+  exists (the shell) is not the thing that owns it.
+  The clean shape is a **shell-owned window manager** in `MultiApp`: stable
+  viewport ids, an explicit `owner: radio_id` per window, emitted every frame
+  regardless of which tab is focused, so nothing is destroyed on a tab switch and
+  `keep_alive`, the owner cap and the salt save/restore in `drain_events` all go
+  away. **Scope:** move the `Solar3d` handles from `SdroxideApp` into the shell,
+  route the per-frame inputs (qth, prop, decodes, sat lock) from the owning
+  radio to it, fix a split-view policy (one window per pane, capped), and
+  re-point the Display chip, the settings tab and the remote/browser path — a few
+  hundred lines across `multi.rs`, `solar3d/mod.rs`, `frame.rs` and `mod.rs`.
+  **Cost:** `keep_alive` already renders every open 3D window — that is what
+  makes a tiling compositor behave — and the cap bounds it to one, so the
+  refactor does not change steady-state GPU cost; it removes the per-frame
+  `show_viewport_deferred` call for hidden tabs and the fragile salt juggling.
+  Not urgent: do it if the window set grows past one, or if a second simultaneous
+  window is ever wanted.
 
 ## 11 m operating (CB)
 

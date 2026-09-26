@@ -1316,6 +1316,37 @@ autocorrelation) as a measured DSP feature to feed identification. It is an
 "isolate it" DSP change and has no home until something computes it from the
 receive chain, so keep it separate from the catalogue.
 
+### The 3D window in the multi-radio shell (2026-09-26)
+
+The solar-system view is a **native child viewport**, and the multi-radio shell
+draws only the **visible tab** — so a hidden tab's window stopped being emitted
+and eframe destroyed it, to be **remapped** when the tab returned. That is the
+whole of a bug class, and each fix was a round:
+
+- **A remapped window is a new window to a tiling compositor** (niri, sway), so
+  its size and place were the compositor's, not the operator's. `Solar3d::
+  keep_alive` (called from `drain_events` for a hidden tab) keeps the *same*
+  window mapped instead, which is the only thing that holds on a tiling WM.
+- **Geometry is per screen, not per radio.** Size and position live in
+  `UiSettings::solar3d_window` (`sdroxide_types::Solar3dWindow`), seeded into the
+  builder only on the frame the viewport is (re)built (`cumulative_pass_nr_for
+  (vid) == 0`), so a live resize is never fought.
+- **On Wayland `viewport().inner_rect` is `None`** — it is built from winit's
+  `inner_position`, which a Wayland client is not given — so the capture reads
+  `content_rect()` (the toolkit's `inner_size`) instead, and `outer_rect` for the
+  position, which is also `None` on Wayland. X11/Windows/macOS report both.
+- **One window, owned by one radio.** `solar3d_owner(ctx)` records the radio
+  whose window was opened; only that radio keeps it alive when hidden, and
+  opening the 3D on another radio takes it over, so N radios cannot leave N
+  scenes rendering. `Solar3d::was_open` catches the open edge.
+
+The honest smell: the window is owned by a per-radio app, keyed by a per-radio
+salt, but created and destroyed on the shell's say-so. The real fix is a
+shell-owned window manager with **stable** viewport ids and an explicit owner,
+emitted every frame regardless of focus; until that is done, `keep_alive` plus
+the owner cap is the patch. All geometry handling is a `ROADMAP.md` item if the
+window set ever grows past one.
+
 ## Explore later
 
 - **NR2 (WDSP's Ephraim-Malah denoiser)** — **landed upstream on the 2026-09-20

@@ -236,6 +236,14 @@ pub struct SolarUi {
     pub band_conditions: Option<sdroxide_solar::BandConditions>,
     pub band_activity: Option<sdroxide_solar::BandActivityTable>,
     pub psk_activity: Option<sdroxide_solar::BandActivityTable>,
+    /// The 3D window's remembered geometry, seeded from the screen's
+    /// `UiSettings`. The builder consults it only when the window is
+    /// (re)built, so a live resize is never fought.
+    pub window_seed: Option<sdroxide_types::Solar3dWindow>,
+    /// The geometry the window is actually at, written by the window's own pass
+    /// and read back into `UiSettings` by the host. `pos` is `None` on Wayland,
+    /// which reports no absolute window position.
+    pub window_now: Option<sdroxide_types::Solar3dWindow>,
     /// The propagation field resolved to RGBA, and what it was resolved from.
     ///
     /// Cached here rather than rebuilt per frame: it costs ten thousand pixels
@@ -420,6 +428,8 @@ impl SolarUi {
             band_conditions: None,
             band_activity: None,
             psk_activity: None,
+            window_seed: None,
+            window_now: None,
             prop_rgba: Default::default(),
             prop_rgba_key: None,
             prop_gen: 0,
