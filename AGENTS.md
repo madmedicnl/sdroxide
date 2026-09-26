@@ -207,6 +207,26 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     check"** (`c01d27bc`) is **kept**: the merge base and upstream both carry
     the update banner, so the resolution had to drop upstream's newer wording
     rather than reintroduce it — the one file where "take upstream" is wrong.
+  - `dividebysandwich/sdroxide#580` — **the 3D window's geometry across a
+    rebuild**, opened 2026-09-26 from `upstream/main` (branch
+    `upstream-pr/solar3d-window-geometry`, one commit). The solar-system
+    viewport is destroyed and rebuilt when its radio tab goes behind another, so
+    the window came back at the hardcoded 1180×760. The geometry is carried in
+    `UiSettings::solar3d_window` (`Solar3dWindow`), seeded only on the rebuild
+    frame, captured from `content_rect`/`outer_rect` (Wayland gives neither
+    rect, so only the size returns). The fork's copy is the same change plus the
+    owner cap and `keep_alive` (see "The 3D window in the multi-radio shell"),
+    which are **not** in this PR — the geometry half stands alone and is the one
+    Windows users feel. **The fork's `keep_alive`/owner cap is deliberately
+    held back (#2 of three); offer it separately if #580 lands and he wants the
+    window to survive a tab switch.**
+  - `dividebysandwich/sdroxide#579` — **decodes into the propagation field**,
+    opened 2026-09-26 from `upstream/main` (branch `upstream-pr/prop-decodes`,
+    one commit). `PropStore::observe_decodes` exists and places a decodes station
+    by grid or country, but nothing in the UI called it: the 3D globe's BANDS
+    OPEN chart read only the RBN feed, so it was empty on any band RBN does not
+    carry (11 m, freeband). The FT8-family decodes now fold in as
+    `PropSource::Ft8`. General, not CB-specific.
   - `dividebysandwich/sdroxide#575` — **the band/mode dock**, opened
     2026-09-26 from `upstream/main` (branch `upstream-pr/band-dock`, one
     commit). A `DOCK` chip in the Band/Mode popup moves the same
