@@ -14695,9 +14695,18 @@ listener's judgement and nothing infers it. A reception so marked wears a small
 **Jolly Roger** in the log list, and the tick survives editing the entry later.
 
 Each row in the reception log also carries an **rcl** button: it tunes back to
-that reception's frequency and mode in one click, the way **TUNE** does from the
-schedule, so a listener can check whether the station has returned on the same
-channel at the same time another evening.
+that reception's frequency and mode in one click, so a listener can check whether
+the station has returned on the same channel at the same time another evening.
+It sets the mode through the listener's route, so a recalled catch always comes
+back as it was logged rather than being refused by the band rule that governs
+what may be *transmitted*.
+
+The form and the row also keep the **receiving station's locator** — where the
+reception was made, which is not the transmitter's site — pre-filled from your
+own grid on the General tab and editable per entry. It is the comparison that
+matters when the same station is heard from two places, or from two aerials. On
+the row it takes the place the notes used to occupy; the notes are now a hover
+over the station name, so a long one no longer pushes the row about.
 
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,

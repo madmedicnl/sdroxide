@@ -98,6 +98,12 @@ pub struct SwlEntry {
     pub smeter_dbm: Option<f32>,
     /// Transmitter site, when the schedule supplied it.
     pub site: String,
+    /// The receiving station's Maidenhead locator when it was heard — *where
+    /// the reception was made*, which is not the transmitter's [`Self::site`].
+    /// A listener who moves the aerial (or the receiver) wants to know which
+    /// spot heard it, and a propagation comparison between two evenings needs
+    /// it. Pre-filled from the screen's own grid, editable per entry.
+    pub recv_grid: String,
     /// Programme notes — what was on, what was said.
     pub notes: String,
     /// The listener marked this as an **unlicensed ("pirate") broadcast** — a
@@ -120,6 +126,7 @@ impl Default for SwlEntry {
             report: None,
             smeter_dbm: None,
             site: String::new(),
+            recv_grid: String::new(),
             notes: String::new(),
             pirate: false,
         }
@@ -186,6 +193,7 @@ mod tests {
             report: Some(SignalReport::Sinpo(Sinpo { s: 4, i: 3, n: 3, p: 4, o: 4 })),
             smeter_dbm: Some(-73.0),
             site: "Tamsui".into(),
+            recv_grid: "JO22".into(),
             notes: "News, then music".into(),
             pirate: true,
         }

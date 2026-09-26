@@ -89,6 +89,8 @@ pub(in crate::app) struct SwlEditForm {
     o: u8,
     smeter_dbm: Option<f32>,
     site: String,
+    /// The receiving station's Maidenhead locator. See [`SwlEntry::recv_grid`].
+    recv_grid: String,
     notes: String,
     /// The listener marked this reception as an unlicensed ("pirate")
     /// broadcast. See [`SwlEntry::pirate`].
@@ -113,6 +115,7 @@ impl Default for SwlEditForm {
             o: 3,
             smeter_dbm: None,
             site: String::new(),
+            recv_grid: String::new(),
             notes: String::new(),
             pirate: false,
         }
@@ -121,14 +124,21 @@ impl Default for SwlEditForm {
 
 impl SwlEditForm {
     /// A fresh entry, pre-filled from the dial so logging a station found by
-    /// tuning is a name and a judgement.
-    pub(in crate::app) fn new(freq_hz: f64, mode: Mode, smeter_dbm: Option<f32>) -> Self {
+    /// tuning is a name and a judgement. `grid` is the receiving station's
+    /// Maidenhead locator, which the log keeps as *where it was heard*.
+    pub(in crate::app) fn new(
+        freq_hz: f64,
+        mode: Mode,
+        smeter_dbm: Option<f32>,
+        grid: String,
+    ) -> Self {
         SwlEditForm {
             id: 0,
             heard_at: now_unix().max(0) as u64,
             freq_khz: format!("{:.0}", freq_hz / 1e3),
             mode,
             smeter_dbm,
+            recv_grid: grid,
             sinpo: true,
             s: 3,
             i: 3,
@@ -148,8 +158,9 @@ impl SwlEditForm {
         language: &str,
         site: &str,
         smeter_dbm: Option<f32>,
+        grid: String,
     ) -> Self {
-        let mut f = Self::new(freq_hz, mode, smeter_dbm);
+        let mut f = Self::new(freq_hz, mode, smeter_dbm, grid);
         f.station = station.to_string();
         f.language = language.to_string();
         f.site = site.to_string();
@@ -178,6 +189,7 @@ impl SwlEditForm {
             o,
             smeter_dbm: e.smeter_dbm,
             site: e.site.clone(),
+            recv_grid: e.recv_grid.clone(),
             notes: e.notes.clone(),
             pirate: e.pirate,
         }
@@ -209,6 +221,7 @@ impl SwlEditForm {
             report,
             smeter_dbm: self.smeter_dbm,
             site: self.site.trim().to_string(),
+            recv_grid: self.recv_grid.trim().to_uppercase(),
             notes: self.notes.trim().to_string(),
             pirate: self.pirate,
         }
@@ -239,7 +252,8 @@ impl SdroxideApp {
                         let freq = self.on_air_freq_hz();
                         let mode = self.state.rx[0].mode;
                         let s = self.meters.map(|m| m.s_dbm);
-                        self.swl_edit = Some(SwlEditForm::new(freq, mode, s));
+                        let grid = self.my_grid();
+                        self.swl_edit = Some(SwlEditForm::new(freq, mode, s, grid));
                     }
                     if crate::chrome::chip(ui, false, "JOBS")
                         .on_hover_text("Scheduled recordings — record a band at a set time")
@@ -375,16 +389,29 @@ impl SdroxideApp {
                     );
                     ui.horizontal(|ui| {
                         let is_sel = selected == Some(e.id);
-                        if ui.selectable_label(is_sel, RichText::new(label).monospace()).clicked() {
+                        // The notes are a hover now, not a column: a long line of
+                        // them shoved the rest of the row about, and the row
+                        // needs its one line for the things read at a glance.
+                        // Hovering the station shows what was on.
+                        let station =
+                            ui.selectable_label(is_sel, RichText::new(label).monospace());
+                        let station = if e.notes.is_empty() {
+                            station
+                        } else {
+                            station.on_hover_text(&e.notes)
+                        };
+                        if station.clicked() {
                             selected = Some(e.id);
                         }
                         if e.pirate {
                             crate::flags::pirate(ui, 14.0);
                         }
                         ui.label(RichText::new(&utc).size(10.5).color(crate::theme::gray(140)));
-                        if !e.notes.is_empty() {
+                        // In the notes' old place, *where this was heard* — the
+                        // receiving station's locator. Empty until a grid is set.
+                        if !e.recv_grid.is_empty() {
                             ui.label(
-                                RichText::new(truncate(&e.notes, 48))
+                                RichText::new(&e.recv_grid)
                                     .size(10.5)
                                     .color(crate::theme::gray(160)),
                             );
@@ -412,10 +439,12 @@ impl SdroxideApp {
         );
         self.swl_selected = selected;
         if let Some((hz, mode)) = recall {
-            // The same two commands the schedule's TUNE sends: the dial and the
-            // mode, so the reception comes back exactly as it was logged.
+            // The dial, then the mode — through `SetModeListen`, so a logged
+            // reception always comes back as it was logged: the band rule that
+            // `SetMode` enforces is about what may be *operated*, and a
+            // listener recalling a catch is not choosing a mode to transmit on.
             cmds.push(Command::SetVfo { vfo: Vfo::A, hz });
-            cmds.push(Command::SetMode { rx: RxId::Main, mode });
+            cmds.push(Command::SetModeListen { rx: RxId::Main, mode });
         }
         if let Some(id) = edit
             && let Some(e) = rows.iter().find(|e| e.id == id)
@@ -493,7 +522,16 @@ impl SdroxideApp {
                             ui.label("Site");
                             crate::chrome::field(
                                 ui,
-                                egui::TextEdit::singleline(&mut f.site).desired_width(160.0),
+                                egui::TextEdit::singleline(&mut f.site)
+                                    .desired_width(160.0)
+                                    .hint_text("transmitter"),
+                            );
+                            ui.label("Received");
+                            crate::chrome::field(
+                                ui,
+                                egui::TextEdit::singleline(&mut f.recv_grid)
+                                    .desired_width(90.0)
+                                    .hint_text("your grid"),
                             );
                             ui.end_row();
 
@@ -626,11 +664,20 @@ mod tests {
     /// reception, not of the session that logged it.
     #[test]
     fn the_pirate_tick_survives_the_form_and_an_edit() {
-        let mut f = SwlEditForm::new(6_185_000.0, Mode::Am, None);
+        let mut f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into());
         assert!(!f.to_entry().pirate, "off unless the listener ticks it");
         f.pirate = true;
         let e = f.to_entry();
         assert!(e.pirate);
         assert!(SwlEditForm::from_entry(&e).pirate, "reopens ticked");
+    }
+
+    /// The reception locator is pre-filled from the screen's grid and carried
+    /// into the record, upper-cased — a locator is written in capitals, and a
+    /// listener typing `jo22` means `JO22`.
+    #[test]
+    fn the_reception_grid_is_carried_and_upper_cased() {
+        let f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "jo22".into());
+        assert_eq!(f.to_entry().recv_grid, "JO22");
     }
 }
