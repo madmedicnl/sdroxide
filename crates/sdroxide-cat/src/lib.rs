@@ -658,6 +658,18 @@ trait Protocol: Send {
     /// that depends on state set at key-down.
     fn encode_tx_audio(&mut self, _samples: &[f32], _out: &mut Vec<u8>) {}
 
+    /// Bytes per second this radio sends receive audio at. Only consulted on a
+    /// family whose [`Self::streams_audio`] is true.
+    ///
+    /// The rate is not necessarily constant: the (tr)uSDX nG sends its stream
+    /// at half rate in CW with the 1450 Hz filter, so a family whose audio
+    /// rides the link reports the rate the current mode is actually running at
+    /// (see the (tr)uSDX profile). The default is the 2.00x rate, the only
+    /// streaming rate there used to be.
+    fn rx_audio_rate_hz(&self) -> u32 {
+        sdroxide_types::TRUSDX_RX_RATE_HZ
+    }
+
     /// Bytes per second this radio reads transmit audio at, for the serial
     /// thread's pacer. Only consulted on a family whose [`Self::streams_audio`]
     /// is true; the default is the (tr)uSDX 2.00x rate, the only streaming
@@ -670,6 +682,19 @@ trait Protocol: Send {
     /// been encoded for it. The (tr)uSDX nG profile uses it to owe an opening
     /// byte; every other family has nothing to reset.
     fn on_tx_stream_start(&mut self) {}
+
+    /// The frame that ends an in-band transmit stream after the last audio
+    /// byte, or empty where the family needs none.
+    ///
+    /// The (tr)uSDX nG transmit stream runs from the opening `US` to a bare
+    /// `;` (the device specification, and the sequence DL2MAN's own client
+    /// writes: `;TX0;` … `US<audio>` … `;` … `RX;`). Without that `;` the
+    /// firmware is still reading the host's bytes as samples when the unkey
+    /// arrives and swallows `RX;`, so the radio stays keyed. 2.00x needs none:
+    /// the serial thread stops its stream with the `UA0;`/`UA1;` bracket.
+    fn tx_stream_close(&self) -> Vec<u8> {
+        Vec::new()
+    }
 
     /// Called with every protocol-generated frame the moment it is actually
     /// written to the link — and only then. What a profile *generates* is not
@@ -1399,6 +1424,11 @@ pub struct CatHandle {
     /// Whether this rig's audio rides the CAT link, so the caller knows to read
     /// [`Self::poll_stream_audio`] instead of a sound card.
     streaming: bool,
+    /// The rate the in-band receive stream is running at, in samples per
+    /// second, for the source to resample from. Read live rather than fixed
+    /// because the (tr)uSDX nG half-rates its stream in CW with the 1450 Hz
+    /// filter — see [`Protocol::rx_audio_rate_hz`].
+    stream_rx_rate_hz: std::sync::Arc<std::sync::atomic::AtomicU32>,
     /// The serial thread, until [`CatHandle::release`] has waited for it.
     thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -1558,6 +1588,18 @@ impl CatHandle {
     /// link rather than over a sound card — true only for the (tr)uSDX.
     pub fn streams_audio(&self) -> bool {
         self.streaming
+    }
+
+    /// The rate the in-band receive stream is currently running at, in samples
+    /// per second. Meaningful only on a family whose [`Self::streams_audio`] is
+    /// true; the fixed default for every other family is
+    /// [`sdroxide_types::TRUSDX_RX_RATE_HZ`].
+    ///
+    /// Live rather than fixed because a (tr)uSDX nG half-rates its stream in CW
+    /// with the 1450 Hz filter, and the source must resample from whatever the
+    /// stream is actually at or the pitch comes out an octave low.
+    pub fn stream_rx_rate_hz(&self) -> u32 {
+        self.stream_rx_rate_hz.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Drain the receive audio the serial thread has pulled out of the stream,
@@ -1856,6 +1898,13 @@ pub fn spawn(cfg: CatConfig) -> CatHandle {
     } else {
         (None, None)
     };
+    // The rate the in-band stream is running at, published back to the source.
+    // Seeded from the framing's opening answer and refreshed by the thread as
+    // the mode moves (the nG CW half rate).
+    let stream_rx_rate_hz = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(
+        make_protocol(&cfg).rx_audio_rate_hz(),
+    ));
+    let stream_rx_rate_in = stream_rx_rate_hz.clone();
     let thread = std::thread::Builder::new()
         .name("sdroxide-cat".into())
         .spawn(move || {
@@ -1867,6 +1916,7 @@ pub fn spawn(cfg: CatConfig) -> CatHandle {
                 signal_tx,
                 scope_in,
                 learned_in,
+                stream_rx_rate_in,
                 Streams { rx: stream_rx_in, tx: stream_tx_in },
             )
         })
@@ -1887,6 +1937,7 @@ pub fn spawn(cfg: CatConfig) -> CatHandle {
         stream_rx,
         stream_tx,
         streaming,
+        stream_rx_rate_hz,
         thread: Some(thread),
     }
 }
@@ -2605,6 +2656,7 @@ fn serial_thread(
     signal_tx: Sender<f32>,
     scope_out: std::sync::Arc<std::sync::Mutex<Option<ScopeFrame>>>,
     learned: Learned,
+    stream_rx_rate_hz: std::sync::Arc<std::sync::atomic::AtomicU32>,
     mut streams: Streams,
 ) {
     let mut protocol = make_protocol(&cfg);
@@ -3044,6 +3096,26 @@ fn serial_thread(
                                 false
                             }
                             PttMethod::Cat => {
+                                // An in-band transmit stream is ended by its
+                                // own closer before the unkey, or the firmware
+                                // is still reading host bytes as samples and
+                                // eats `RX;`. Only when this over actually sent
+                                // audio: a closer with no stream open is an
+                                // empty command, which the family's CAT parser
+                                // half-parses.
+                                if !on && tx_pace.written > 0 {
+                                    let close = protocol.tx_stream_close();
+                                    if !close.is_empty()
+                                        && write_raw(
+                                            &mut *port,
+                                            &mut *protocol,
+                                            &close,
+                                            &mut last_write,
+                                        )
+                                    {
+                                        break 'io true;
+                                    }
+                                }
                                 let f = protocol.ptt(on);
                                 ptt_written = on.then(Instant::now);
                                 write_frame(
@@ -3780,6 +3852,17 @@ fn serial_thread(
                 if changed {
                     let _ = event_tx.send(u);
                 }
+            }
+            // The rate the in-band stream is running at can move with the mode:
+            // a (tr)uSDX nG half-rates its receive stream in CW with the 1450 Hz
+            // filter. Republished after every parse so the source resamples from
+            // whatever the stream is actually at — a stale 7812 while the radio
+            // sends 3906 comes out an octave low.
+            if streaming {
+                stream_rx_rate_hz.store(
+                    protocol.rx_audio_rate_hz(),
+                    std::sync::atomic::Ordering::Relaxed,
+                );
             }
 
             std::thread::sleep(Duration::from_millis(5));

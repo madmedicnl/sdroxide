@@ -76,12 +76,25 @@ none of which was measurable here (the firmware was not on this bench):
   `20 MHz / (64 × 65)`; 2.00x's surplus is thrown away. Pace a known ramp at
   4808 B/s and confirm it plays at the right pitch/speed rather than starved
   (gaps) or flooded (dropped).
-- **The transmit delimiter escape is `0x3B → 0x3A`**, where 2.00x uses `0x3C`.
-  A `0x3B` left in the stream ends it early; the wrong substitute is one LSB.
-- **The transmit stream opens on the first byte ≥ `0x80`.** Bytes below it are
-  read as commands, so the host emits a leading `0x80` (silence) when the first
-  sample is low. Send a block that starts low and confirm nothing is parsed as
-  a command.
+- **The transmit delimiter escape is `0x3B → 0x3A` on both generations** (the
+  reference client's shared substitution). A `0x3B` left in the stream ends it
+  early; the substitute is one LSB and inaudible.
+- **The transmit sequence is `;TX0;` → `US` + audio → `;` → `RX;`** (device
+  specification; DL2MAN's own client writes it verbatim). The leading `;` ends
+  the receive audio before the command or the firmware reads `T`/`X`/`0` as
+  samples; `US` opens the transmit frame; the first byte **≥ `0x80`** is the
+  first sample (so a low first sample gets a silence `0x80` ahead of it); and a
+  bare `;` ends the frame *before* the unkey. Key with the trailing `;` omitted
+  and confirm the radio stays keyed — that is the failure the closer prevents.
+- **Raising the receive stream injects a bare `UA1;`/`UA2;` echo** (no `US`)
+  into the running audio. Watch the demux across a re-assert: the echo's `;`
+  must not be read as a frame delimiter, or the audio after it stalls.
+- **CW with the 1450 Hz filter runs the receive stream at half rate**
+  (3906.25 B/s). The driver cannot read the filter, so it infers the half rate
+  from nG + CW and resamples back to the nominal rate; listen in CW and confirm
+  the tone is at the right pitch — a stream read at the wrong rate is an octave
+  off. Check a wider CW filter too: if it keeps the full rate, the inference
+  has to be narrowed.
 - **`AG0nn;` (volume 00–31) and `GTn;` (gain 0 off / 1 on / 2 DIGI) are
   accepted, unanswered and unstored** — check the radio does not answer `?;`
   and that the level/AGC actually changes. `GT2` is the DIGI setting nG's notes

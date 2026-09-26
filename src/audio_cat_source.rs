@@ -22,6 +22,12 @@ pub struct AudioCatSource {
     in_stream: Option<sdroxide_audio::AudioInput>,
     in_consumer: rtrb::Consumer<f32>,
     in_rate: f64,
+    /// Brings the in-band receive stream to the fixed rate the engine is built
+    /// for, following the rate the rig reports
+    /// ([`sdroxide_cat::CatHandle::stream_rx_rate_hz`]): a (tr)uSDX nG
+    /// half-rates its stream in CW, so the number moves with the mode. Unused
+    /// on a sound-card rig, whose `read_stream` is never called.
+    stream_rs: StreamResampler,
     /// Capture frames the sound card had to throw away, and when that was last
     /// looked at. Watched because dropping them is silent everywhere else: a
     /// spliced I/Q stream still paints a healthy panadapter, and only the audio
@@ -325,6 +331,7 @@ impl AudioCatSource {
             in_stream,
             in_consumer,
             in_rate,
+            stream_rs: StreamResampler::new(in_rate, in_rate),
             drops: DropWatch::started(std::time::Instant::now()),
             quad: QuadratureWatch::default(),
             format,
@@ -387,6 +394,10 @@ impl AudioCatSource {
             in_stream: None,
             in_consumer,
             in_rate: f64::from(TRUSDX_RX_RATE_HZ),
+            stream_rs: StreamResampler::new(
+                f64::from(TRUSDX_RX_RATE_HZ),
+                f64::from(TRUSDX_RX_RATE_HZ),
+            ),
             drops: DropWatch::started(std::time::Instant::now()),
             quad: QuadratureWatch::default(),
             // The radio demodulates; what arrives is audio, not I/Q.
@@ -429,19 +440,35 @@ impl AudioCatSource {
     /// audio arrives down the CAT link. Returns how many samples were read; a
     /// nap on an empty ring is what keeps the engine loop from spinning while
     /// the radio is between blocks.
+    ///
+    /// The rate the radio sends at can move with the mode — nG half-rates its
+    /// stream in CW — so it is read live and the stream resampled back to the
+    /// nominal rate the engine expects ([`StreamResampler`]). That keeps the
+    /// figure the engine was built on constant, so the panadapter, the speaker
+    /// resampler, the recorder and every decoder stay in step.
     fn read_stream(&mut self, buf: &mut [Complex32]) -> usize {
-        self.stream_scratch.clear();
-        // Bounded by the caller's block so nothing is drained into a scratch
-        // the copy below cannot take; the ring keeps the rest for next time.
-        self.cat.poll_stream_audio(&mut self.stream_scratch, buf.len());
-        let n = self.stream_scratch.len().min(buf.len());
-        for (slot, &s) in buf.iter_mut().zip(self.stream_scratch[..n].iter()) {
-            *slot = Complex32::new(s, 0.0);
+        let nominal = self.in_rate;
+        let live = f64::from(self.cat.stream_rx_rate_hz());
+        self.stream_rs.retune(live, nominal);
+        let mut filled = self.stream_rs.take(buf, buf.len());
+        // A resampler only releases whole chunks of input, so one round is not
+        // always enough to fill a block. Keep asking the ring for what is still
+        // missing until it stops handing samples over.
+        while filled < buf.len() {
+            let need = buf.len() - filled;
+            let want = self.stream_rs.input_for(need, nominal);
+            self.stream_scratch.clear();
+            self.cat.poll_stream_audio(&mut self.stream_scratch, want);
+            if self.stream_scratch.is_empty() {
+                break;
+            }
+            self.stream_rs.push(&self.stream_scratch);
+            filled += self.stream_rs.take(&mut buf[filled..], need);
         }
-        if n == 0 {
+        if filled == 0 {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-        n
+        filled
     }
 
     /// Report capture frames the sound card dropped since the last look.
@@ -803,8 +830,92 @@ fn fill_iq(
     n
 }
 
+/// Resamples a rig's in-band receive stream back to the fixed rate the engine
+/// is built for.
+///
+/// A (tr)uSDX sends its receive audio down the CAT link at
+/// [`TRUSDX_RX_RATE_HZ`], but nG **half-rates** it in CW with the 1450 Hz
+/// filter ([`sdroxide_types::TRUSDX_NG_RX_RATE_CW_HZ`]). Everything above this
+/// source — the panadapter analyser, the speaker resampler, the recorder and
+/// the digital-mode decoders — is built once for one rate, so a figure that
+/// moves under them plays an octave off and smears the waterfall. Rather than
+/// teach each of them to chase it, the stream is brought back to the nominal
+/// rate here and the engine never sees the change.
+///
+/// The pair is rebuilt only when the radio reports a different rate, which is
+/// a mode change; same-rate generations (2.00x, and nG outside CW) get no
+/// resampler at all and the stream passes through untouched.
+struct StreamResampler {
+    /// The rate the stream is currently running at, in Hz.
+    live_rate: f64,
+    /// `live_rate` → the nominal rate, or `None` when the two already match.
+    rs: Option<MonoResampler>,
+    /// Resampled output produced ahead of the caller's block, drained by
+    /// [`Self::take`].
+    pending: Vec<f32>,
+}
+
+impl StreamResampler {
+    /// A stream the radio is expected to send at `live_rate`, resampled to
+    /// `nominal`.
+    fn new(live_rate: f64, nominal: f64) -> Self {
+        StreamResampler {
+            live_rate,
+            rs: MonoResampler::new(live_rate, nominal),
+            pending: Vec::new(),
+        }
+    }
+
+    /// Follow the rate the radio reports, rebuilding the resampler on a change.
+    ///
+    /// Whatever is buffered is dropped: it arrived on the old clock, and
+    /// splicing it onto the new one is worse than the few milliseconds of
+    /// silence that go with it.
+    fn retune(&mut self, live_rate: f64, nominal: f64) {
+        if (live_rate - self.live_rate).abs() <= 0.01 {
+            return;
+        }
+        self.live_rate = live_rate;
+        self.rs = MonoResampler::new(live_rate, nominal);
+        self.pending.clear();
+    }
+
+    /// Resample `input`, which arrives at [`Self::live_rate`], and hold the
+    /// result for [`Self::take`].
+    fn push(&mut self, input: &[f32]) {
+        match self.rs.as_mut() {
+            Some(rs) => rs.push(input, &mut self.pending),
+            None => self.pending.extend_from_slice(input),
+        }
+    }
+
+    /// Move up to `max` resampled samples into `out` as real samples, returning
+    /// how many. Leftover output stays held for the next call.
+    fn take(&mut self, out: &mut [Complex32], max: usize) -> usize {
+        let n = self.pending.len().min(max);
+        for (slot, &s) in out.iter_mut().zip(self.pending[..n].iter()) {
+            *slot = Complex32::new(s, 0.0);
+        }
+        self.pending.drain(..n);
+        n
+    }
+
+    /// How many input samples to ask the ring for to yield `want` of output,
+    /// with a couple of slack for the resampler's own filter delay.
+    fn input_for(&self, want: usize, nominal: f64) -> usize {
+        if self.live_rate <= 0.0 || nominal <= 0.0 {
+            return want;
+        }
+        (want as f64 * self.live_rate / nominal).ceil() as usize + 2
+    }
+}
+
 impl IqSource for AudioCatSource {
     fn sample_rate(&self) -> f64 {
+        // Always the nominal rate: a rig whose audio rides the CAT link can
+        // move its own rate with the mode (a (tr)uSDX nG half-rates in CW), but
+        // the stream is resampled back to this figure in `read_stream`, so
+        // everything above the source sees the constant it was built for.
         self.in_rate
     }
     fn center_hz(&self) -> f64 {
@@ -1881,5 +1992,64 @@ mod tests {
         // Still the same verdict standing, so the next live window is not a
         // second warning.
         assert_eq!(w.observe(&mono), None);
+    }
+
+    /// A real tone's frequency from its zero crossings, at an explicit rate —
+    /// these tests care about one other than the sound card's.
+    fn tone_freq_hz(x: &[f32], rate: f64) -> f64 {
+        let crossings = x.windows(2).filter(|w| (w[0] < 0.0) != (w[1] < 0.0)).count();
+        crossings as f64 / 2.0 / (x.len() as f64 / rate)
+    }
+
+    /// nG half-rates its receive stream in CW, and everything above the source
+    /// is built for one rate. The resampler has to hand the engine the same
+    /// tone at the nominal rate — a stream read at the wrong one is exactly the
+    /// octave-off pitch the fix answers.
+    #[test]
+    fn a_half_rate_stream_keeps_its_tone_at_the_nominal_rate() {
+        let live = 3906.0;
+        let nominal = 7812.0;
+        let mut rs = StreamResampler::new(live, nominal);
+        let input: Vec<f32> = (0..4096)
+            .map(|k| (std::f32::consts::TAU * 500.0 * k as f32 / live as f32).sin())
+            .collect();
+        rs.push(&input);
+        let mut out = vec![Complex32::new(0.0, 0.0); 4096];
+        let n = rs.take(&mut out, 4096);
+        assert!(n > 3000, "a half-rate input must expand, got {n} of {} input", input.len());
+        let real: Vec<f32> = out[..n].iter().map(|c| c.re).collect();
+        let hz = tone_freq_hz(&real, nominal);
+        assert!((hz - 500.0).abs() < 20.0, "the tone moved: {hz} Hz");
+    }
+
+    /// A matching rate costs nothing and passes the stream through; a reported
+    /// change to the half rate rebuilds, dropping whatever arrived on the old
+    /// clock rather than splicing it onto the new one.
+    #[test]
+    fn the_resampler_follows_the_reported_rate() {
+        let mut rs = StreamResampler::new(7812.0, 7812.0);
+        assert!(rs.rs.is_none(), "matching rates need no resampler");
+        rs.push(&[0.25; 4096]);
+        let mut out = vec![Complex32::new(0.0, 0.0); 4096];
+        assert_eq!(rs.take(&mut out, 4096), 4096, "passed through untouched");
+        assert_eq!(rs.pending.len(), 0);
+
+        rs.retune(3906.0, 7812.0);
+        assert!(rs.rs.is_some(), "the half rate needs a resampler");
+        rs.push(&[0.0; 2048]);
+        assert!(rs.pending.len() > 0, "the new rate is running");
+        rs.retune(7812.0, 7812.0);
+        assert_eq!(rs.pending.len(), 0, "the old clock's samples are dropped");
+        assert!(rs.rs.is_none());
+    }
+
+    /// The ring is asked for enough input to cover the output still wanted,
+    /// scaled by the ratio — otherwise the half rate would starve the block.
+    #[test]
+    fn the_input_asked_for_covers_the_output_wanted() {
+        let half = StreamResampler::new(3906.0, 7812.0);
+        assert_eq!(half.input_for(1000, 7812.0), 502);
+        let same = StreamResampler::new(7812.0, 7812.0);
+        assert_eq!(same.input_for(1000, 7812.0), 1002);
     }
 }

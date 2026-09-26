@@ -1345,6 +1345,17 @@ pub const RS_HFIQ_CAT_BAUD: u32 = 57_600;
 /// because the resampler needs a number, and the wrong one drifts.
 pub const TRUSDX_RX_RATE_HZ: u32 = 7812;
 
+/// The rate a **(tr)uSDX nG** sends receive audio at when it half-rates the
+/// stream: **CW with the 1450 Hz ("1K4") filter**.
+///
+/// nG runs the receive chain at half rate in that one combination, so the same
+/// link carries 3906.25 B/s instead of 7812.5. It is not a general CW rate — a
+/// wider CW filter keeps the full rate — and the profile cannot read which
+/// filter is set, so it infers this one from nG in CW (see `TrUsdx::rx_rate`).
+/// Reported through `sdroxide_cat`'s `Protocol::rx_audio_rate_hz` so the source
+/// resamples from the rate the stream is actually at.
+pub const TRUSDX_NG_RX_RATE_CW_HZ: u32 = 3906;
+
 /// The rate a (tr)uSDX takes transmit audio at, over the same link. Unlike the
 /// receive side the firmware gives this one plainly ("11520 Hz"), and the host
 /// paces the bytes out at it — the radio does not clock them.
@@ -1371,13 +1382,14 @@ pub const TRUSDX_NG_TX_RATE_HZ: u32 = 4808;
 /// one leading `0x80` costs a single silent sample and cannot be heard.
 pub const TRUSDX_NG_TX_START_BYTE: u8 = 0x80;
 
-/// What **(tr)uSDX nG** maps a forbidden `0x3B` transmit sample to.
+/// What the (tr)uSDX maps a forbidden `0x3B` transmit sample to.
 ///
 /// A bare `;` ends the audio stream, so the sample equal to it must not go out.
-/// 2.00x shifted it *up* to `0x3C`; nG shifts it *down* to `0x3A`. Both are one
-/// LSB of error and inaudible; a driver that uses the other generation's
-/// substitution corrupts one sample in 256 into a premature stream end.
-pub const TRUSDX_NG_TX_ESCAPE_TO: u8 = 0x3A;
+/// Both generations substitute `0x3A` — the sequence DL2MAN's own client writes
+/// in its shared transmit path for 2.00x and nG alike. The substitution is one
+/// LSB of error and inaudible, and the radio does not reverse it, so the exact
+/// value only has to avoid `0x3B`; matching the reference keeps one rule.
+pub const TRUSDX_TX_ESCAPE_TO: u8 = 0x3A;
 
 /// Whether a rig's I/Q is corrected unless the operator says otherwise. On:
 /// see [`CatConfig::iq_correction`].

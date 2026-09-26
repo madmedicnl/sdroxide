@@ -612,9 +612,15 @@ answered the two blocking questions (2026-09-26); the fix is in
 - **The nG receive rate is 7812.5 B/s** — the same as 2.00x, 8-bit unsigned
   (mid = 128), `0x3B` escaped to `0x3C`, one byte per sample. So
   `TRUSDX_RX_RATE_HZ = 7812` was **not** the problem and is unchanged. (His
-  earlier CAT table's "4812 samples/s" was wrong.) Exception: **CW with the
-  1450 Hz ("1K4") filter runs at 3906.25 B/s**, not modelled here — noted in
-  the module header.
+  earlier CAT table's "4812 samples/s" was wrong.) One exception, now modelled
+  rather than merely noted: **CW with the 1450 Hz ("1K4") filter runs at
+  3906.25 B/s**. The profile cannot read the filter, so `TrUsdx::rx_rate`
+  infers the half rate from nG + CW (the safer of the two guesses, and CW is
+  where the pitch is watched) and reports it through
+  `Protocol::rx_audio_rate_hz`; `AudioCatSource`'s `StreamResampler` follows
+  `CatHandle::stream_rx_rate_hz` and brings the stream back to the nominal
+  7812 Hz, so the analyser, the speaker resampler, the recorder and the
+  decoders never see the rate move. `sample_rate()` therefore stays nominal.
 - **A CAT command is safe mid-stream in nG**, which is what broke both
   symptoms. The framing is `[audio] ; FA00007074000; US [audio]` for a query:
   nG pauses its own stream, writes the reply *with* the trailing `;`, and
@@ -644,9 +650,16 @@ tests are `ng_one_cable_polls_so_the_dial_follows`,
 `only_ng_one_cable_caps_the_poll_rate`,
 `a_reply_without_a_delimiter_resumes_on_us`,
 `a_reply_split_at_the_resume_marker_waits` and the `lib.rs`
-`a_poll_ceiling_slows_the_dial…`). The on-air check is clean audio, a waterfall
-spanning the passband, and the dial following a frequency changed at the radio.
-`tools/trusdx-probe/README.md` §nG names the rest.
+`a_poll_ceiling_slows_the_dial…`; for the CW half rate,
+`ng_cw_reports_the_half_receive_rate`,
+`the_radios_own_mode_reply_sets_the_receive_rate` and the source's
+`a_half_rate_stream_keeps_its_tone_at_the_nominal_rate`; for the transmit
+sequence and the enable echo, `ng_one_cable_keys_with_the_reference_sequence`,
+`an_ng_stream_opens_with_us_and_a_high_byte`,
+`the_stream_enable_echo_is_swallowed` and `a_split_stream_enable_echo_waits`).
+The on-air check is clean audio, a waterfall spanning the passband, and the dial
+following a frequency changed at the radio — and, on the 1K4 CW filter, audio at
+the right pitch. `tools/trusdx-probe/README.md` §nG names the rest.
 
 ### The (tr)uSDX family
 
@@ -692,6 +705,12 @@ same `trusdx.rs`, parameterized by generation (`TrUsdx::new_ng`), so the
 receive demultiplexer and the `UA`/`US` framing are shared code. What differs
 from 2.00x, each a silent failure (or a visible one) if got wrong:
 
+- **Receive half rate in CW.** With the 1450 Hz filter nG runs its receive
+  chain at half rate, so the link carries 3906.25 instead of 7812.5 B/s. The
+  profile cannot read the filter, so it infers the half rate from nG + CW and
+  reports it through `Protocol::rx_audio_rate_hz`; the source resamples back to
+  nominal, so the engine never sees the rate move. See the feedback section
+  above.
 - **A CAT command is safe mid-stream.** nG pauses its own stream, answers with
   the trailing `;`, and resumes with `US`; 2.00x kills its stream on any
   command and omits the `;`. So nG is **polled** (dial/mode/tx-state,
@@ -703,12 +722,28 @@ from 2.00x, each a silent failure (or a visible one) if got wrong:
   11520 — the transmit slot is `20 MHz / (64 × 65)`, and 2.00x's surplus is
   thrown away. The serial thread's `TxPace` now takes the rate from
   `Protocol::tx_audio_rate_hz()` rather than the old constant.
-- **Transmit delimiter escape `0x3B → 0x3A`** (`TRUSDX_NG_TX_ESCAPE_TO`), where
-  2.00x shifts up to `0x3C`.
-- **The stream opens on the first byte ≥ `0x80`**; bytes below it are commands,
-  so a leading `0x80` (silence) is emitted when the first sample is low
-  (`Protocol::on_tx_stream_start` + `TRUSDX_NG_TX_START_BYTE`). `;` ends the
-  transmit stream and there is no `US` after `TX0;`.
+- **Transmit delimiter escape `0x3B → 0x3A` for both generations**
+  (`TRUSDX_TX_ESCAPE_TO`), reconciled to the reference client's shared
+  substitution; the radio does not reverse it, so the value only has to avoid
+  `0x3B`.
+- **The transmit sequence is `;TX0;` → `US` + audio → `;` → `RX;`.** Taken
+  from DL2MAN's own ARDOP client (`dl2man.de/ARDOP/client`, v0.4.34, source
+  inline in the page as JS) and his device specification. The leading `;` on
+  the key ends the running receive audio first, or the firmware reads
+  `T`/`X`/`0` as samples (his v0.2.0-a40 fix). `US` opens the transmit frame,
+  the first byte **≥ `0x80`** guarantees the stream is not mistaken for
+  commands (`Protocol::on_tx_stream_start` + `TRUSDX_NG_TX_START_BYTE`), and
+  the bare `;` of `Protocol::tx_stream_close` ends it *before* the unkey — omit
+  it and the firmware is still reading samples when `RX;` arrives and swallows
+  it. 2.00x keeps the bare `TX;`/`RX;` (the serial thread brackets its frames),
+  so the sequence is gated on `one_cable && is_ng`.
+- **The stream-enable echo is swallowed.** Re-asserting the receive stream
+  injects a bare `UA1;`/`UA2;` (no `US`) into the running audio; its `;` is not
+  a frame delimiter, and reading it as one leaves the following audio to be
+  parsed as a frame with no terminator — a stall. `TrUsdx::parse` strips the
+  exact 4-byte sequence anywhere in the audio and holds a split one at the tail;
+  the reference client needs a whole echo state machine (`ngHardSwitch`) for the
+  same thing. 2.00x is unaffected (it never re-asserts mid-stream).
 
 Level control (the user asked for it): `AG0nn;` volume 00–31
 (`CatConfig::trusdx_ng_volume`), `GTn;` gain 0 off / 1 on / 2 DIGI
@@ -723,9 +758,10 @@ BandOpenings`) at **v174**, so they no longer collide. Band-openings is upstream
 **#537**, still open, and the fork's copy drops out once that lands.
 
 **Not tested on air here** — the fork's radio is not calibrated for nG, so the
-firmware could not be flashed. It is unit-tested structurally (16 tests in
-`trusdx.rs`, including the rate, both escapes, the opening byte and the level
-frames); the on-air checks are named in `tools/trusdx-probe/README.md`, and
+firmware could not be flashed. It is unit-tested structurally (`trusdx.rs`
+covers the rate, both escapes, the `;TX0;`/`US`/`;` transmit sequence, the
+stream-enable echo and the receive half rate); the on-air checks are named in
+`tools/trusdx-probe/README.md`, and
 forum testers are willing. Confirm on a real nG radio before offering it
 upstream. It is a new family + `PROTO_VERSION` bump, so it is an "isolate it"
 PR from `upstream/main` when the time comes.
