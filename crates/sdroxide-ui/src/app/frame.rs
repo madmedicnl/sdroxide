@@ -264,9 +264,12 @@ impl eframe::App for SdroxideApp {
         self.poll_recording_gate(&mut cmds);
         // The gate decides once a frame, so while it is armed keep frames
         // coming even when nothing else is animating — otherwise an unattended
-        // monitor on an idle screen would never notice a transmission.
+        // monitor on an idle screen would never notice a transmission. While a
+        // file is actually being written the REC chip breathes, so it wants a
+        // smoother clock than the gate's own once-a-frame decision does.
         if self.rec_gate_s.is_some() {
-            crate::repaint::after_ms(&ctx, 250);
+            let ms = if self.state.recording || self.state.iq_recording { 120 } else { 250 };
+            crate::repaint::after_ms(&ctx, ms);
         }
         // The keyboard, the mouse buttons and the control surface belong to
         // the focused radio alone. In a split view every visible radio runs
