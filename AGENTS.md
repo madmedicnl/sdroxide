@@ -91,7 +91,7 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
     that talk about the review, the fork, or a "first version"** — upstream code
     should read as if it were always there.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at **170**, the fork's `main` at **178**. The fork's extras are
+  upstream is at **170**, the fork's `main` at **179**. The fork's extras are
   the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
   additions — the register's full story is documented in
@@ -105,11 +105,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
   `auto_idle_stop_min`, `SpotKind::HeardMe`, the (tr)uSDX nG family,
   `ServerMsg::BandOpenings`, DSC, UVPacket and the ATS Mini, with **v178**
   (`DigiStatus::tx_refused`, the FSK441 transmit review fix ported to `main`)
-  on top. When merging,
-  keep the number ahead of upstream's and fold its new entries in rather than
-  dropping them — the 2026-09-25 merge (upstream v166–v170 inserted under the
-  fork's register, everything above renumbered) is the latest worked example,
-  after the 2026-09-23 and 2026-09-20 ones.
+  and **v179** (the CW key's five appended `DigiConfig` fields) on top. When
+  merging, keep the number ahead of upstream's and fold its new entries in
+  rather than dropping them — the 2026-09-25 merge (upstream v166–v170 inserted
+  under the fork's register, everything above renumbered) is the latest worked
+  example, after the 2026-09-23 and 2026-09-20 ones.
 - Watch list:
   - `dividebysandwich/sdroxide` — upstream moves; merge regularly. Merging
     after each upstream release, or monthly, keeps the conflicts small; 46
@@ -577,6 +577,17 @@ wire type, no `PROTO_VERSION` bump. The squelch defines silence, so the chips
 are only offered when one is set; a CAT radio's squelch belongs to the radio
 and its meters carry no passband level, so it gets a sentence rather than a
 recorder that would never close. Offered upstream as PR **#557**.
+
+The maintainer's review of #557 (the chip width versus the reserved
+`RxChip::width_label`, the tone squelch in the gate, our own transmit counting as
+signal, the carried `RecGate` state, frames while the window is hidden, and
+arming one timer clearing the other) is addressed on `upstream-pr/rec-silence`
+(`52357cf7`). A follow-up on the same branch (`ae1c7b5c`) makes the **REC chip
+breathe** while a file is being written: armed is a steady red outline and
+recording is a moving red fill, so the two are told apart without widening the
+label the RX strip has no room for. The fork carries the same chip change on
+`main` (`6052b3ad`); the pieces are `rec_chip_fill`, the 120 ms frame clock
+while recording, and `the_recording_fill_breathes_the_alert_red`.
 
 **Done (2026-09-24): upstream issue #533** (save decoded text). Every text
 panel now carries a **SAVE** chip beside **CLEAR RX**, plus WSPR, PI4 and the
