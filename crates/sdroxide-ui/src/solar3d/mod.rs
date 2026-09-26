@@ -264,30 +264,6 @@ impl Solar3d {
 
         let state = Arc::clone(&self.state);
         let vid = viewport_id(crate::layout::radio_salt(ctx));
-        // Read the window's live geometry from *this* pass, not the child's.
-        // The child's own pass may run before the toolkit has caught up with the
-        // last resize, and there may be no later pass before the tab is
-        // switched; the root pass runs every visible frame and sees the last
-        // reported geometry of every viewport, so the size it stores is the one
-        // the operator actually left the window at.
-        let (geometry, monitor) = ctx.input(|i| {
-            let child = i.raw.viewports.get(&vid);
-            (
-                child.and_then(|v| v.inner_rect).map(|r| [r.width(), r.height()]),
-                child.and_then(|v| v.monitor_size).or(i.viewport().monitor_size),
-            )
-        });
-        if let Some([w, h]) = geometry
-            && w > 1.0
-            && h > 1.0
-        {
-            // Whole points, so a sub-point wobble is not read as a resize.
-            let size = [w.round(), h.round()];
-            let mut st = self.lock();
-            if st.view.window_size != Some(size) {
-                st.view.window_size = Some(size);
-            }
-        }
         // egui drops a viewport that was not emitted last frame, and the window
         // size it was remembering with it. `cumulative_pass_nr_for` is zero for
         // an id that is not up, so this is the frame the window is (re)built
@@ -298,17 +274,27 @@ impl Solar3d {
             .with_title("sdroxide — solar system")
             .with_min_inner_size([520.0, 340.0])
             .with_clamp_size_to_monitor_size(true);
-        // Two independent signals that the window is being built rather than
-        // updated: egui has no pass count for it, and eframe has no entry in
-        // this pass's viewport map. Either means the size has to be seeded.
-        let fresh = ctx.cumulative_pass_nr_for(vid) == 0
-            || !ctx.input(|i| i.raw.viewports.contains_key(&vid));
-        if fresh {
+        if ctx.cumulative_pass_nr_for(vid) == 0 {
             let remembered = self.lock().view.window_size.map(egui::Vec2::from);
+            let monitor = ctx.input(|i| i.viewport().monitor_size);
             builder = builder.with_inner_size(solar3d_inner_size(monitor, remembered));
         }
         ctx.show_viewport_deferred(vid, builder, move |ui, _class| {
             let mut st = state.lock().unwrap_or_else(|e| e.into_inner());
+            // Remember the size for the next rebuild (a tab switch takes the
+            // viewport down and egui forgets it). `content_rect` is the window's
+            // inner size as the toolkit reported it, which on Wayland is the
+            // only size there is: `viewport().inner_rect` is `None` there,
+            // because Wayland gives a client no absolute window position for
+            // winit to build a rect from.
+            let size = ui.ctx().content_rect().size();
+            if size.x > 1.0 && size.y > 1.0 {
+                // Whole points, so a sub-point wobble is not read as a resize.
+                let size = [size.x.round(), size.y.round()];
+                if st.view.window_size != Some(size) {
+                    st.view.window_size = Some(size);
+                }
+            }
             if ui.ctx().input(|i| i.viewport().close_requested()) {
                 st.close_requested = true;
                 // Wake the root pass so the chip un-lights promptly.
