@@ -23,10 +23,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
 moved, and read the open upstream PRs for maintainer comments (`gh pr list
 --repo dividebysandwich/sdroxide --author madmedicnl --state open`, then each
 thread). The queue was worked on 2026-09-27 with upstream still one commit ahead
-(the CI-fix commit `807b0fcf`, merged as `ec16b72f`); the **thirteen** open PRs —
-#537, #545, #554, #557, #558, #561, #568, #569, #572, #573, #575, #579/#580 and
-**#583** — had **nothing waiting on us** then: every review point raised so far
-is addressed and the rest are drafts. Check before starting anything new.
+(the CI-fix commit `807b0fcf`, merged as `ec16b72f`); the **fourteen** open PRs —
+#537, #545, #554, #557, #558, #561, #568, #569, #572, #573, #575, #579/#580,
+**#583** and **#586** — had **nothing waiting on us** then: every review point
+raised so far is addressed and the rest are drafts. Check before starting
+anything new.
 
 **Maintainer capacity (2026-09-27).** The maintainer is not keeping up with the
 queue — several PRs have sat unreviewed for days — so do not read silence as
@@ -357,6 +358,19 @@ merged code still calls everything `sdroxide`.
     Windows users feel. **The fork's `keep_alive`/owner cap is deliberately
     held back (#2 of three); offer it separately if #580 lands and he wants the
     window to survive a tab switch.**
+  - `dividebysandwich/sdroxide#586` — **FT8's checkpointed signal
+    subtraction**, opened 2026-09-27 from `upstream/main` (branch
+    `upstream-pr/ft8-sic`, one commit, 58 insertions in `modem.rs`). Not
+    CB-specific and, unlike most of ours, it is an **upstream bug**: upstream's
+    FT4 calls `.sic_rounds(2)` while its FT8 is the bare single pass, and
+    mfsk-core's default does *no* subtraction while WSJT-X runs multi-pass — so
+    a weak signal inside a stronger neighbour's 50 Hz bandwidth is not decoded
+    for anyone. The fix is one `.sic_early()` call (see "FT8 runs signal
+    subtraction" above for the measurements: 12 → 22 decodes, none lost; floor
+    unchanged; ~26 ms → ~1.2 s). No wire change. The fork's `main` carries it
+    (`a19a82a7`). **If he pushes back on the ~1.2 s cost**, the stated
+    alternative in the PR body is gating it on decode depth rather than always
+    on — offer that rather than arguing the unconditional default.
   - `dividebysandwich/sdroxide#583` — **a hand-picked sign-off is not undone
     by the DX repeating**, opened 2026-09-27 from `upstream/main` (branch
     `upstream-pr/hand-picked-signoff`, one commit, 70 insertions in
