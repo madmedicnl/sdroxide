@@ -845,6 +845,43 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cat > brown.md <<'EOF'
+          ## SDR Oxide Brown
+
+          This is the **Brown** build of sdroxide — upstream's program with the
+          **11 m citizens' band (CB)** and **shortwave-listening (SWL)** work
+          added on top. It installs beside the upstream build and keeps its own
+          settings, so you can run both.
+
+          **What this build adds**
+
+          - **11 m / CB, used in full** — the per-country channel plans
+            (WORLD/EU/DE/UK/US/AU), CB country flags on decodes, the WSJT-CB
+            digital exchange, and a one-time opt-in that opens transmit on 11 m
+            (the amateur-band lockout is generic, so CB is opted into rather
+            than assumed).
+          - **Shortwave listening** — the **SCHEDULE** window over the EiBi
+            broadcast list, a **reception log** with SINPO/SIO and a QSL loop,
+            **ECSS-U / ECSS-L** and a receive tone control, two-minute
+            **REPLAY**, scheduled **recordings**, band scanning, the **SIG ID**
+            guide, and a **LISTEN** screen that hides every transmit control.
+          - **Decoding** — the fork's own **ACARS**, **HFDL**, **FSK441** and
+            **(tr)uSDX** support, plus everything upstream already carries.
+          - **A Morse trainer**, **station profiles**, **audible alerts**, and
+            the fork's **SDR Oxide Brown** identity throughout.
+
+          **Full detail** — the **[User Manual](https://github.com/madmedicnl/sdroxide/blob/main/docs/USER_MANUAL.md)**
+          is the reference for every control; the
+          **[listening quick-start](https://github.com/madmedicnl/sdroxide/blob/main/docs/listening-quickstart.en.md)**
+          and the **[CB quick-start](https://github.com/madmedicnl/sdroxide/blob/main/docs/cb-quickstart.en.md)**
+          (also in Dutch, French and Italian) walk through each screen. The
+          manual's addendum and the
+          **[Pi Zero 2 W guide](https://github.com/madmedicnl/sdroxide/blob/main/docs/pi-zero-2w-swl.en.md)**
+          cover running it headless as a network listening station.
+
+          ---
+
+          EOF
           cat > notes.md <<'EOF'
           ### Which build to download
 
@@ -1021,6 +1058,8 @@ jobs:
           extra=()
           nightly=0
           if [ "$GITHUB_REF_NAME" = "nightly" ]; then
+            # A nightly is a nightly: the "what this build adds" overview is for
+            # a tagged release, so only the untested-build warning goes on top.
             nightly=1
             title="SDR Oxide Brown nightly $(date -u +%Y-%m-%d)"
             extra+=(--prerelease)
@@ -1028,6 +1067,10 @@ jobs:
               printf '%s\n\n' '**Nightly build** of `main` — untested, and not a release. Take a tagged release for anything real.'
               cat notes.md
             } > notes.tmp && mv notes.tmp notes.md
+          else
+            # A tagged release leads with the Brown overview, then the install
+            # notes; `--generate-notes` appends the commit list below both.
+            cat brown.md notes.md > notes.tmp && mv notes.tmp notes.md
           fi
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
