@@ -17,44 +17,44 @@ The listener work used to live in a listener-only fork,
 `madmedicnl/sdroxide-swl`. It has been **retired**: merged into this fork and
 archived on GitHub with a note pointing here. Everything is on `main` now.
 
-## Next session (2026-09-27): first, then the SWL queue
+## Next session (2026-09-28): first, then what is left
 
-**Do first, every session.** `git fetch upstream` and merge/rebase if upstream
-has moved, and read the open upstream PRs for maintainer comments (`gh pr list
+**Do first, every session.** `git fetch upstream` and merge if upstream has
+moved, and read the open upstream PRs for maintainer comments (`gh pr list
 --repo dividebysandwich/sdroxide --author madmedicnl --state open`, then each
-thread). As of 2026-09-26 there are twelve — #537, #545, #554, #557, #558, #561,
-#568, #569, #572, #573, #575 and #579/#580 opened that day — and **none is
-waiting on us**: every review point raised so far is addressed and the rest are
-drafts. Check before starting anything new.
+thread). The queue was worked on 2026-09-27 with upstream still one commit ahead
+(the CI-fix commit `807b0fcf`, merged as `ec16b72f`); the twelve open PRs — #537,
+#545, #554, #557, #558, #561, #568, #569, #572, #573, #575 and #579/#580 — had
+**nothing waiting on us** then: every review point raised so far is addressed and
+the rest are drafts. Check before starting anything new.
 
-**Then the SWL-completeness queue.** A review of the listener side (2026-09-26)
-found the core genuinely complete — SCHEDULE, the reception log, ECSS and the
-receive tone, time-shift replay, scheduled recordings, broadcast scanning,
-SIG ID, and the propagation tools — with three things a viewer of the listening
-workflow reaches for still missing, in priority order:
+**The SWL-completeness queue is done** (2026-09-27, committed to `main`). A
+review of the listener side had found the core complete — SCHEDULE, the reception
+log, ECSS and the receive tone, time-shift replay, scheduled recordings,
+broadcast scanning, SIG ID, the propagation tools — with three gaps; all three
+are closed:
 
-1. **QSL / report tracking in the reception log (top).** An SWL's loop is
-   *hear → report → await QSL*, and the log records only the first step today:
-   `REPORT` writes a text file and forgets it. Add report-sent and
-   QSL-received to `SwlEntry` (a date each, or a small status), with `REPORT`
-   setting "sent". `SwlEntry` is fork-only (`swl.json`), so `#[serde(default)]`
-   and no wire type, no `PROTO_VERSION`.
-2. **Export and filter the reception log.** A CSV/ADIF save of the whole log —
-   the single-entry `REPORT` is not that — and a filter/search over it: band,
-   language, date, and a **pirates-only** filter, which the `pirate` flag
-   (2026-09-26) is already sitting there for. The decode log's CSV/ADIF export
-   (`app::save_text`) is the shape to copy.
-3. **A manual section for the LISTEN window.** It is referenced only in passing
-   in §10.6; the reception log, the **Antenna** box, the reception locator, the
-   pirate flag and the `rcl` button are undocumented as a whole. Watch
-   `help::anchor_links_resolve_to_headings` when adding headings.
+1. **QSL / report tracking.** `SwlEntry::report_sent_unix` and
+   `qsl_received_unix` (`swl.json`-only, `#[serde(default)]`, no `PROTO_VERSION`),
+   ticked in the entry form, stamped when `REPORT` is written, and shown as a
+   fixed-width **sent**/**QSL** mark on the row.
+2. **Export and filter.** `swl_log_to_csv` / `swl_log_to_adif` in
+   `sdroxide-types` (the decode-log shape, `SWL=Y`), and the LISTEN window's
+   **Show** row — find, band, day, **Pirates only**, **CLEAR** — with a header
+   stats line (heard · reported · QSL · pirates). Filters are session-only.
+3. **A manual section.** §10.6 gained **#### The LISTEN window** (log, `rcl`,
+   locator, pirate, antenna, REPORT, the QSL loop, filters, exports); SOLAR TIME
+   stays with SCHEDULE.
 
-Cheap extras if the three go well: a stats line in the LISTEN header ("N heard ·
-M countries · P pirates"), and a listening quick-start in EN/NL/FR/IT beside the
-CB/FT8/SSTV ones.
+The cheap extras also went: the header stats line, and a **listening
+quick-start** in EN/NL/FR/IT (`docs/listening-quickstart.*`, PDFs regenerated
+with the pandoc + headless-Edge pipeline in "Regenerating the quick-start PDFs"),
+linked from the README beside the CB/FT8/SSTV ones.
 
-**Coverage gap, not queued:** DAB/DAB+ (ROADMAP Phase 3) — the one headline
-broadcast band a European listener will ask about.
+**What is left for the listener side:** nothing is queued. The one headline gap
+is **DAB/DAB+** (ROADMAP Phase 3), the broadcast band a European listener will
+ask about — still waiting on the upstream library split
+(`xoolive/desperado#52`), nothing to do here yet.
 
 ## Repository layout and how to work on it
 
@@ -1197,8 +1197,9 @@ The same EQ is also on the LISTEN window's Tone row.
 ## Regenerating the quick-start PDFs
 
 `docs/cb-quickstart.{en,nl,fr,it}.md`,
-`docs/ft8-11m-quickstart.{en,nl,fr,it}.md` and
-`docs/sstv-11m-quickstart.{en,nl,fr,it}.md` are the sources; each matching
+`docs/ft8-11m-quickstart.{en,nl,fr,it}.md`,
+`docs/sstv-11m-quickstart.{en,nl,fr,it}.md` and
+`docs/listening-quickstart.{en,nl,fr,it}.md` are the sources; each matching
 `.pdf` is generated and can drift. The TeX engines on this machine are unusable
 (`xelatex.fmt` and `latex.fmt` are missing), so render through HTML and headless
 Edge instead. Write the HTML **beside the stylesheet** — `-c` writes a relative
