@@ -21,6 +21,17 @@
 /// What this build calls itself.
 pub const VERSION: &str = env!("SDROXIDE_VERSION");
 
+/// What this build calls itself on screen, beyond its version: the **CB and
+/// SWL** one. One string, so the window title, the General tab's header and
+/// `--version` all name it the same way and cannot drift apart — the point
+/// being that two installed builds, this one and upstream, are told apart at a
+/// glance.
+pub const FLAVOR: &str = "SDR Oxide CB/SWL";
+
+/// The version as a person reads it, name and all: what `--version` prints, and
+/// what [`FLAVOR`] is for the places that compose their own line.
+pub const LONG_VERSION: &str = concat!("SDR Oxide CB/SWL ", env!("SDROXIDE_VERSION"));
+
 #[cfg(test)]
 mod tests {
     /// An unstamped build must stay byte-identical to what the call sites
@@ -37,5 +48,13 @@ mod tests {
     #[test]
     fn stamped_build_keeps_the_crate_version_as_its_prefix() {
         assert!(super::VERSION.starts_with(env!("CARGO_PKG_VERSION")));
+    }
+
+    /// The long form names the build, so `--version` says which of two
+    /// installed builds is which.
+    #[test]
+    fn the_long_version_names_the_build() {
+        assert!(super::LONG_VERSION.starts_with(super::FLAVOR));
+        assert!(super::LONG_VERSION.ends_with(super::VERSION));
     }
 }

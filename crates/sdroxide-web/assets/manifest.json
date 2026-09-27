@@ -1,5 +1,5 @@
 {
-  "name": "SDR Oxide",
+  "name": "SDR Oxide CB/SWL",
   "short_name": "sdroxide",
   "description": "PowerSDR/Thetis-style SDR transceiver, served to the browser",
   "start_url": "./",

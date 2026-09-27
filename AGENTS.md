@@ -62,6 +62,31 @@ ask about — still waiting on the upstream library split
   push to; the old `swl` branch and its fork are gone.
 - The plan for the listener side lives in [`ROADMAP.md`](ROADMAP.md).
 
+## What this build is called (fork identity, deliberately light)
+
+The build names itself **`SDR Oxide CB/SWL`** where a person reads it: the
+native window title (`src/gui_main.rs`), the solar-system viewport title
+(`crates/sdroxide-ui/src/solar3d/mod.rs`), the web `<title>`/manifest and the
+browser's solar tab (`crates/sdroxide-web/`), the Settings → General header, and
+`--version` (`sdroxide-version`'s `FLAVOR`/`LONG_VERSION`; `-V` stays bare).
+
+**What was decided and why (2026-09-27).** Testers were running this fork and
+upstream side by side and mixing them up. A **full rename was considered and
+rejected**: the binary name, the `ProjectDirs` config directory
+(`org.sdroxide.sdroxide`), the Windows MSI `UpgradeCode`, the macOS bundle id,
+the desktop entry and the release asset names are all upstream-shared, and
+changing the config directory in particular would (a) orphan every existing
+user's settings and (b) make upstream's read-modify-write of `config.toml` /
+`radio.json` **silently drop the fork's extra fields** when both are run. It
+would also cost on every upstream merge, which is the wrong trade for an
+identity string. So only the *displayed* name names the fork; the identity
+(executable, config dir, package ids) stays `sdroxide`, and the two installs
+still share settings — see "Running both builds" below for the isolation that
+fixes that.
+
+Do **not** re-introduce the word "fork" or a bare lowercase `sdroxide` into a
+user-facing title; `FLAVOR` is the one string, use it.
+
 ## Keeping up with upstream
 
 - `dividebysandwich/sdroxide` is the original. Fetch and merge rather than

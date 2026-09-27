@@ -5717,6 +5717,7 @@ dependencies = [
  "sdroxide-proto",
  "sdroxide-types",
  "sdroxide-ui",
+ "sdroxide-version",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

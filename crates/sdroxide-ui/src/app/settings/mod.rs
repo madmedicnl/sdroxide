@@ -1864,9 +1864,25 @@ impl SdroxideApp {
                 // a nightly says so here rather than naming the release it was
                 // cut from; a release reads exactly as it always did.
                 ui.label(
-                    RichText::new(format!("SDRoxide {}", sdroxide_version::VERSION))
-                        .size(15.0)
-                        .strong(),
+                    RichText::new(format!(
+                        "{} {}",
+                        sdroxide_version::FLAVOR,
+                        sdroxide_version::VERSION
+                    ))
+                    .size(15.0)
+                    .strong(),
+                );
+                // What this build is, in one line, so a tester who opened
+                // Settings to see which build this is knows it is not the
+                // upstream one.
+                ui.label(
+                    RichText::new(
+                        "The CB and shortwave-listening build: the 11 m band in full, \
+                         broadcast listening and decoding. Upstream's amateur program, with \
+                         that work added.",
+                    )
+                    .size(11.0)
+                    .color(crate::theme::gray(150)),
                 );
                 ui.add_space(10.0);
                 ui.separator();

@@ -343,7 +343,7 @@ impl Solar3d {
         // the fitted default otherwise. Every later frame leaves the size alone,
         // so a live resize is never fought by our own request.
         let mut builder = egui::ViewportBuilder::default()
-            .with_title("sdroxide — solar system")
+            .with_title(format!("{} — solar system", sdroxide_version::FLAVOR))
             .with_min_inner_size([520.0, 340.0])
             .with_clamp_size_to_monitor_size(true);
         if ctx.cumulative_pass_nr_for(vid) == 0 {

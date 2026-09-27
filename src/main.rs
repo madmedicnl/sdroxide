@@ -41,7 +41,14 @@ use sdroxide_types::{Backend, DeviceCaps, FobosPort, IcomNetConfig, RadioConfig}
 // A bare `version` would take the crate version, which cannot tell a nightly
 // apart from the release it was cut from — and `--version` is the first thing
 // asked of a build whose provenance is in doubt. See `sdroxide-version`.
-#[command(version = sdroxide_version::VERSION, about)]
+// `--version` prints the long form, which names the fork: a build's provenance
+// is the first thing asked of it, and which of two installed builds this is
+// matters as much as which release it came from. `-V` stays the bare version.
+#[command(
+    version = sdroxide_version::VERSION,
+    long_version = sdroxide_version::LONG_VERSION,
+    about
+)]
 struct Cli {
     /// SoapySDR device args, e.g. "driver=hackrf" (default: config, then first device)
     #[arg(long)]

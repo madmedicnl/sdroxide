@@ -6984,9 +6984,12 @@ section of the General tab is only shown there.
 
 ![The General tab: callsign, grid square, the reception-report identity, and your own speakers and microphone](images/settings-general.jpg)
 
-At the top is **SDRoxide** and the version number this copy was built from —
-the one to quote in a bug report, so there is no need to go looking for the
-binary to ask it.
+At the top is **SDR Oxide CB/SWL** and the version number this copy was built
+from — the one to quote in a bug report, so there is no need to go looking for
+the binary to ask it. The name says which build this is: the CB and
+shortwave-listening one, told apart at a glance from the upstream amateur
+program, since the two install happily side by side. It is also the window and
+taskbar title, and `--version` on the command line prints it too.
 
 **Station** — your **Callsign** and **Grid square**. This is the identity the
 whole program uses: FT8/FT4/FT2 exchanges, the SSTV image header, the logbook, the

@@ -186,7 +186,7 @@ mod web {
                 // The map is a viewer: no audio bridge, so this tab never asks
                 // for the microphone, and its own endpoint, so it does not take
                 // the control slot the main tab holds.
-                document.set_title("sdroxide — solar system");
+                document.set_title(&format!("{} — solar system", sdroxide_version::FLAVOR));
                 let url = format!("{ws_proto}://{host}{base}solar-ws");
                 runner
                     .start(
