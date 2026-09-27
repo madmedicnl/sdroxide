@@ -23,10 +23,16 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
 moved, and read the open upstream PRs for maintainer comments (`gh pr list
 --repo dividebysandwich/sdroxide --author madmedicnl --state open`, then each
 thread). The queue was worked on 2026-09-27 with upstream still one commit ahead
-(the CI-fix commit `807b0fcf`, merged as `ec16b72f`); the twelve open PRs — #537,
-#545, #554, #557, #558, #561, #568, #569, #572, #573, #575 and #579/#580 — had
-**nothing waiting on us** then: every review point raised so far is addressed and
-the rest are drafts. Check before starting anything new.
+(the CI-fix commit `807b0fcf`, merged as `ec16b72f`); the **thirteen** open PRs —
+#537, #545, #554, #557, #558, #561, #568, #569, #572, #573, #575, #579/#580 and
+**#583** — had **nothing waiting on us** then: every review point raised so far
+is addressed and the rest are drafts. Check before starting anything new.
+
+**Maintainer capacity (2026-09-27).** The maintainer is not keeping up with the
+queue — several PRs have sat unreviewed for days — so do not read silence as
+disinterest or re-ping. Let the branches sit; they are already rebased. When time
+allows, a *small* tidy-up (like #583) is the kind that gets picked up; do not add
+to the backlog faster than it drains.
 
 **The SWL-completeness queue is done** (2026-09-27, committed to `main`). A
 review of the listener side had found the core complete — SCHEDULE, the reception
@@ -298,6 +304,20 @@ would drop the fork's extra fields. A tester running both should isolate them:
     Windows users feel. **The fork's `keep_alive`/owner cap is deliberately
     held back (#2 of three); offer it separately if #580 lands and he wants the
     window to survive a tab switch.**
+  - `dividebysandwich/sdroxide#583` — **a hand-picked sign-off is not undone
+    by the DX repeating**, opened 2026-09-27 from `upstream/main` (branch
+    `upstream-pr/hand-picked-signoff`, one commit, 70 insertions in
+    `qso.rs`). Not CB-specific: `set_step` (RR73/73 from the Tx buttons) sets
+    `self.step`, but `advance`'s `_ =>` arm blindly does
+    `self.step = reply_step(payload)` on every decode, so a DX repeating the
+    report we have decided not to answer drags it back to `TxRReport` and the
+    sign-off never leaves. `manual_signoff` holds the step still (their report is
+    still recorded) until it goes out, the contact ends, or another step is
+    picked. Two tests; the first fails on the old code at "the sign-off the
+    operator picked still stands". Behavioural/UX, no wire change.
+    **Confirmed on the air** (2026-09-27, CRT SS9900v) — picked 73 mid-QSO at
+    R+report, it went out and stayed, and the contact logged. The fork's `main`
+    carries the same fix (`fbe11818`); it drops out when this lands.
   - `dividebysandwich/sdroxide#579` — **decodes into the propagation field**,
     opened 2026-09-26 from `upstream/main` (branch `upstream-pr/prop-decodes`,
     one commit). `PropStore::observe_decodes` exists and places a decodes station
