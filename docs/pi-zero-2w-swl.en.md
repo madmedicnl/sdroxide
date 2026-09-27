@@ -79,7 +79,7 @@ chmod +x sdroxide-linux-aarch64-compat.AppImage
 ./sdroxide-linux-aarch64-compat.AppImage --version
 ```
 
-`--version` should print the **SDR Oxide CB/SWL** build number. If it refuses to
+`--version` should print the **SDR Oxide Brown** build number. If it refuses to
 run with a `GLIBC_2.39 not found` message you have grabbed the wrong file —
 you want the one with **`-compat`** in its name.
 

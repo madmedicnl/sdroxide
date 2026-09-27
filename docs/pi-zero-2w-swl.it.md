@@ -83,7 +83,7 @@ chmod +x sdroxide-linux-aarch64-compat.AppImage
 ./sdroxide-linux-aarch64-compat.AppImage --version
 ```
 
-`--version` deve stampare il numero di build **SDR Oxide CB/SWL**. Se rifiuta di
+`--version` deve stampare il numero di build **SDR Oxide Brown**. Se rifiuta di
 partire con `GLIBC_2.39 not found` hai preso il file sbagliato — ti serve quello
 con **`-compat`** nel nome.
 

@@ -1872,14 +1872,15 @@ impl SdroxideApp {
                     .size(15.0)
                     .strong(),
                 );
-                // What this build is, in one line, so a tester who opened
+                // What this build is, in one line, so an operator who opened
                 // Settings to see which build this is knows it is not the
-                // upstream one.
+                // upstream one — without the name saying what is inside it,
+                // which is the point of calling it Brown.
                 ui.label(
                     RichText::new(
-                        "The CB and shortwave-listening build: the 11 m band in full, \
-                         broadcast listening and decoding. Upstream's amateur program, with \
-                         that work added.",
+                        "The Brown build of sdroxide: upstream's program, plus the 11 m \
+                         citizens' band, shortwave listening and decoding. Runs as an ordinary \
+                         amateur station with those bands and tools added.",
                     )
                     .size(11.0)
                     .color(crate::theme::gray(150)),

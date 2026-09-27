@@ -1,4 +1,4 @@
-# SDR Oxide — the CB & shortwave-listening fork
+# SDR Oxide Brown
 
 > **Windows download** — [**installer (`.msi`)**](https://github.com/madmedicnl/sdroxide/releases/latest/download/sdroxide-windows-x86_64.msi)
 > · [**portable `.zip`** (contains `sdroxide.exe`)](https://github.com/madmedicnl/sdroxide/releases/latest/download/sdroxide-windows-x86_64.zip)

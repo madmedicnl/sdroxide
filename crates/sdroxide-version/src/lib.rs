@@ -21,16 +21,30 @@
 /// What this build calls itself.
 pub const VERSION: &str = env!("SDROXIDE_VERSION");
 
-/// What this build calls itself on screen, beyond its version: the **CB and
-/// SWL** one. One string, so the window title, the General tab's header and
-/// `--version` all name it the same way and cannot drift apart — the point
-/// being that two installed builds, this one and upstream, are told apart at a
-/// glance.
-pub const FLAVOR: &str = "SDR Oxide CB/SWL";
+/// What this build calls itself on screen: **SDR Oxide Brown**.
+///
+/// It began as "SDR Oxide CB/SWL", after what this fork adds. That worked as a
+/// way to tell two installed builds apart, but several operators run it as an
+/// ordinary amateur station and did not want "CB/SWL" in a screenshot or a
+/// screen share — it reads as a different program than the one they are using.
+/// The name is now **Brown**, the same idea as SDR++ Brown: a variant name that
+/// says "this build, not upstream" without saying what is in it. One string, so
+/// the window title, the General tab's header and `--version` all name it the
+/// same way and cannot drift apart.
+pub const FLAVOR: &str = "SDR Oxide Brown";
+
+/// The **release** suffix the tags carry: `v1.9.2_brown`. The crate version
+/// stays plain semver (`1.9.2`), because `1.9.2_brown` is not valid semver and
+/// cargo refuses it — the suffix is for people and for a tag, never for
+/// anything a machine parses.
+pub const RELEASE_SUFFIX: &str = "_brown";
 
 /// The version as a person reads it, name and all: what `--version` prints, and
-/// what [`FLAVOR`] is for the places that compose their own line.
-pub const LONG_VERSION: &str = concat!("SDR Oxide CB/SWL ", env!("SDROXIDE_VERSION"));
+/// what [`FLAVOR`] is for the places that compose their own line. The suffix is
+/// added here rather than in `Cargo.toml`, so a stamped nightly reads
+/// `…-nightly.…_brown` and a release reads `1.9.2_brown`.
+pub const LONG_VERSION: &str =
+    concat!("SDR Oxide Brown ", env!("SDROXIDE_VERSION"), "_brown");
 
 #[cfg(test)]
 mod tests {
@@ -55,6 +69,16 @@ mod tests {
     #[test]
     fn the_long_version_names_the_build() {
         assert!(super::LONG_VERSION.starts_with(super::FLAVOR));
-        assert!(super::LONG_VERSION.ends_with(super::VERSION));
+        assert!(super::LONG_VERSION.contains(super::VERSION));
+    }
+
+    /// The release suffix is display-only and never touches the crate version,
+    /// so anything that parses `CARGO_PKG_VERSION` or a wire field still sees
+    /// plain semver.
+    #[test]
+    fn the_release_suffix_is_not_in_the_crate_version() {
+        assert_eq!(super::RELEASE_SUFFIX, "_brown");
+        assert!(!env!("CARGO_PKG_VERSION").contains("brown"));
+        assert!(super::LONG_VERSION.ends_with("_brown"));
     }
 }

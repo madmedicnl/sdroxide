@@ -70,11 +70,13 @@ ask about — still waiting on the upstream library split
 
 ## What this build is called (fork identity, deliberately light)
 
-The build names itself **`SDR Oxide CB/SWL`** where a person reads it: the
+The build names itself **`SDR Oxide Brown`** where a person reads it: the
 native window title (`src/gui_main.rs`), the solar-system viewport title
 (`crates/sdroxide-ui/src/solar3d/mod.rs`), the web `<title>`/manifest and the
 browser's solar tab (`crates/sdroxide-web/`), the Settings → General header, and
 `--version` (`sdroxide-version`'s `FLAVOR`/`LONG_VERSION`; `-V` stays bare).
+Release **tags** carry the matching suffix, `vX.Y.Z_brown`, and releases are
+titled `SDR Oxide Brown <tag>`.
 
 **What was decided and why (2026-09-27).** Testers were running this fork and
 upstream side by side and mixing them up. A **full rename was considered and
@@ -90,8 +92,20 @@ identity string. So only the *displayed* name names the fork; the identity
 still share settings — see "Running both builds" below for the isolation that
 fixes that.
 
-Do **not** re-introduce the word "fork" or a bare lowercase `sdroxide` into a
-user-facing title; `FLAVOR` is the one string, use it.
+**Why "Brown", not "CB/SWL" (2026-09-27, second pass).** The first name said
+what the fork *is* — "SDR Oxide CB/SWL" — and operators objected: several run it
+as an ordinary amateur station and did not want **CB/SWL** in a screenshot or a
+screen share, where it reads as a different program than the one they are using.
+The name is now a **variant** name, **Brown**, the same convention SDR++ uses
+for its second build: it says "this build, not upstream" without saying what is
+in it. The suffix is display-and-tag only — `LONG_VERSION` and the tag get
+`_brown`, while `CARGO_PKG_VERSION` and every wire identity stay plain `1.9.2`,
+because `1.9.2_brown` is not valid semver and the SSTV id, the WSPR/PSK Reporter
+fields and ADIF `PROGRAMID` are parsed by other people's software.
+
+Do **not** re-introduce the word "fork", a bare lowercase `sdroxide`, or the
+old **CB/SWL** label into a user-facing title; `FLAVOR` is the one string, use
+it.
 
 ## Running both builds
 
@@ -104,7 +118,7 @@ would drop the fork's extra fields. A tester running both should isolate them:
   and `recordings_dir` follows it into the sandbox rather than the real music
   folder.
 - A second `--server` wants a different `--port`; both default to 4950.
-- The window title (`SDR Oxide CB/SWL`) is what tells the two windows apart once
+- The window title (`SDR Oxide Brown`) is what tells the two windows apart once
   they are up.
 
 ## Keeping up with upstream
@@ -1285,14 +1299,14 @@ note and were rendered from a separate HTML source; leave them alone.)
    `Cargo.lock`; commit it. The Windows `.msi` and the macOS bundle take their
    version from `Cargo.toml`, so a re-tag on the same version installs as the
    same version rather than an upgrade.
-2. Tag `vX.Y.Z_CB` and push it — `release.yml` runs on the tag push
+2. Tag `vX.Y.Z_brown` and push it — `release.yml` runs on the tag push
    (`on: push: tags: ['v*']`) and publishes the platform builds and the GitHub
-   Release itself, so no dispatch is needed. Do **not** also run
-   `gh workflow run release.yml --ref vX.Y.Z_CB`: that dispatches a second,
-   identical full release and the two race on the asset upload (cancel the
-   dispatch if it happens). This note used to say a tag push did not run the
-   workflow and to dispatch by hand; it does, and dispatching as well is the
-   mistake.
+   Release itself, titled `SDR Oxide Brown <tag>`, so no dispatch is needed. Do
+   **not** also run `gh workflow run release.yml --ref vX.Y.Z_brown`: that
+   dispatches a second, identical full release and the two race on the asset
+   upload (cancel the dispatch if it happens). This note used to say a tag push
+   did not run the workflow and to dispatch by hand; it does, and dispatching as
+   well is the mistake.
 3. The README's top download links already point at the stable-named Windows
    assets (`.../releases/latest/download/sdroxide-windows-x86_64.msi` and
    `.zip`), which every release now carries as copies of the versioned files;

@@ -1014,12 +1014,15 @@ jobs:
           # workflow and dispatched here. Publish it as a **pre-release**, so
           # `/releases/latest` — and the README's stable download links — keep
           # pointing at a tagged release rather than at last night's build.
-          title="sdroxide $GITHUB_REF_NAME"
+          # This fork's own releases carry a `_brown` tag (v1.9.2_brown); the
+          # title names the variant the same way the program does, so a
+          # screenshot and a release page agree. A nightly is still a nightly.
+          title="SDR Oxide Brown $GITHUB_REF_NAME"
           extra=()
           nightly=0
           if [ "$GITHUB_REF_NAME" = "nightly" ]; then
             nightly=1
-            title="sdroxide nightly $(date -u +%Y-%m-%d)"
+            title="SDR Oxide Brown nightly $(date -u +%Y-%m-%d)"
             extra+=(--prerelease)
             {
               printf '%s\n\n' '**Nightly build** of `main` — untested, and not a release. Take a tagged release for anything real.'
