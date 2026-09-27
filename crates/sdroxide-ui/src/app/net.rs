@@ -208,6 +208,11 @@ impl SdroxideApp {
     pub(in crate::app) fn on_upload_result(&mut self, r: UploadResult) {
         let status = if r.ok { "OK" } else { "FAIL" };
         self.push_net_log(format!("{} → {}: {}", r.target.label(), status, r.message));
+        // Keep the outcome for the panel to show beside a completed QSO: this
+        // is how an operator learns a logged contact reached LOG11DX and not
+        // only the local log. Latest outcome per target wins, so a retry's
+        // result replaces the failed first try.
+        record_upload_outcome(&mut self.qso_upload_status, r.qso_id, r.target, r.ok);
         if r.ok {
             if let Some(rec) = self.qso_log.iter_mut().find(|q| q.id == r.qso_id) {
                 match r.target {
@@ -362,5 +367,50 @@ impl SdroxideApp {
         // "read", not "added": the engine drops the channels already stored,
         // and the memory list itself is what shows the result.
         self.push_net_log(format!("Channel import: {n} channel(s) read{skipped}{assumed}"));
+    }
+}
+
+/// Remember one upload outcome against its QSO and target, replacing any earlier
+/// outcome for that pair — a retry's result must supersede the failed first try
+/// rather than sit beside it. Kept as a free function so its contract is tested
+/// without a running app or a disk.
+fn record_upload_outcome(
+    status: &mut std::collections::HashMap<u64, Vec<(UploadTarget, bool)>>,
+    qso_id: u64,
+    target: UploadTarget,
+    ok: bool,
+) {
+    let outcomes = status.entry(qso_id).or_default();
+    match outcomes.iter_mut().find(|(t, _)| *t == target) {
+        Some(slot) => slot.1 = ok,
+        None => outcomes.push((target, ok)),
+    }
+    // The map is keyed by log id and only ever read for a QSO the panel is
+    // still showing, so pruning is only about a long session's memory — and
+    // clearing only once past the cap keeps it from churning every frame.
+    if status.len() > 64 {
+        status.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A retry's outcome replaces the first, and each target is tracked on its
+    /// own — so a QSO that reached LOG11DX but failed eQSL reads as exactly
+    /// that, not as one blended "uploaded".
+    #[test]
+    fn an_upload_outcome_replaces_the_earlier_one_for_its_target() {
+        let mut status = std::collections::HashMap::new();
+        record_upload_outcome(&mut status, 7, UploadTarget::Log11Dx, false);
+        record_upload_outcome(&mut status, 7, UploadTarget::Eqsl, true);
+        assert_eq!(
+            status[&7],
+            vec![(UploadTarget::Log11Dx, false), (UploadTarget::Eqsl, true)]
+        );
+        // The retry succeeds: the failure goes, it does not accumulate.
+        record_upload_outcome(&mut status, 7, UploadTarget::Log11Dx, true);
+        assert_eq!(status[&7], vec![(UploadTarget::Log11Dx, true), (UploadTarget::Eqsl, true)]);
     }
 }

@@ -1016,6 +1016,18 @@ pub struct SdroxideApp {
     callsign_cache: std::collections::HashMap<String, CallsignInfo>,
     /// QSO uploads queued (id, single-record ADIF, targets), drained to commands.
     pending_uploads: Vec<(u64, String, Vec<UploadTarget>)>,
+    /// The last logbook-upload outcome per QSO id and target, so the 11 m panel
+    /// can confirm that a logged contact reached LOG11DX (or any other online
+    /// logbook) rather than only the local log. Session-only and *not* the
+    /// `*_sent` flags on the record: those say a QSO is in a logbook, this says
+    /// how the attempt just went, which is what an operator watching a QSO
+    /// finish wants to see. Trimmed to the recent few.
+    qso_upload_status: std::collections::HashMap<u64, Vec<(UploadTarget, bool)>>,
+    /// The id of the logbook record the digi engine just wrote, if one landed
+    /// this session. `DigiStatus` carries no QSO id, and giving it one would be
+    /// a wire change across every controller, so the panel finds the badge for
+    /// a completed QSO by the record the log *just* gained instead.
+    last_logged_qso_id: Option<u64>,
     /// Awards dashboard open state + band filter ("" = all bands).
     show_awards: bool,
     awards_band: String,
@@ -1749,6 +1761,8 @@ impl SdroxideApp {
             pending_lookups: Vec::new(),
             callsign_cache: Default::default(),
             pending_uploads: Vec::new(),
+            qso_upload_status: std::collections::HashMap::new(),
+            last_logged_qso_id: None,
             show_awards: false,
             awards_band: String::new(),
             awards_cache: None,

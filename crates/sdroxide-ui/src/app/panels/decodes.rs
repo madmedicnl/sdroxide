@@ -49,6 +49,50 @@ fn is_ft8_or_ft4(mode: &str) -> bool {
 }
 
 impl SdroxideApp {
+    /// A small confirmation, beside a completed QSO, that the contact reached
+    /// the online logbooks it was set to be uploaded to — or a red warning that
+    /// it did not.
+    ///
+    /// The local log is written the instant a QSO completes; an upload is a
+    /// network round trip that lands a second or two later, and until now its
+    /// only trace was a line in the network log an operator has no reason to be
+    /// watching. This is the answer to "I logged the contact, did LOG11DX get
+    /// it?" — for every configured target, not just LOG11DX.
+    ///
+    /// Nothing is drawn when no auto-upload is configured, so a station that
+    /// keeps a local log never sees it.
+    fn qso_upload_badge(&self, ui: &mut egui::Ui, qso_id: u64) {
+        let Some(outcomes) = self.qso_upload_status.get(&qso_id) else {
+            // Nothing has come back yet. The attempt is only a second old, and a
+            // "pending" that flickers for one frame is worse than none — so say
+            // nothing, and let the badge appear when there is an answer.
+            return;
+        };
+        let failed: Vec<&str> =
+            outcomes.iter().filter(|(_, ok)| !ok).map(|(t, _)| t.label()).collect();
+        let done: Vec<&str> =
+            outcomes.iter().filter(|(_, ok)| *ok).map(|(t, _)| t.label()).collect();
+        if !failed.is_empty() {
+            ui.label(
+                RichText::new(format!("⚠ {} not uploaded", failed.join(", ")))
+                    .size(11.0)
+                    .strong()
+                    .color(crate::theme::ALERT()),
+            )
+            .on_hover_text(
+                "The contact is in the local log, but the upload failed. Check the token and \
+                 connection on Settings → Spots, then upload it again from the logbook.",
+            );
+        } else if !done.is_empty() {
+            ui.label(
+                RichText::new(format!("↑ logged to {}", done.join(", ")))
+                    .size(11.0)
+                    .color(crate::theme::gray(150)),
+            )
+            .on_hover_text("Also uploaded to the online logbooks set to take every new contact.");
+        }
+    }
+
     /// Touch-friendly decode list with a per-row REPLY button. Clicking a
     /// row moves the TX audio frequency to that signal; REPLY starts a QSO.
     pub(in crate::app) fn decode_list(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
@@ -1221,10 +1265,19 @@ impl SdroxideApp {
                                     .color(crate::theme::GREEN()),
                             )
                             .on_hover_text(
-                                "The contact is complete and in the log. It is held here for a \
-                                 few minutes so the final message can be re-sent if the other \
-                                 station repeats theirs — nothing more is owed.",
+                                "The contact is complete and in the local log. It is held here \
+                                 for a few minutes so the final message can be re-sent if the \
+                                 other station repeats theirs — nothing more is owed.",
                             );
+                            // …and whether it reached the online logbooks too.
+                            // The local log is written the moment the QSO
+                            // completes; an upload is a network round trip that
+                            // lands a second or two later, so this is where an
+                            // operator finds out it did — and where a failure is
+                            // seen rather than only in the net log.
+                            if let Some(id) = self.last_logged_qso_id {
+                                self.qso_upload_badge(ui, id);
+                            }
                         }
                         if s.transmitting {
                             ui.label(

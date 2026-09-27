@@ -1581,6 +1581,7 @@ impl SdroxideApp {
                     r.id = self.next_log_id();
                     let call = r.call.clone();
                     let adif = auto_upload_adif(&self.net_cfg_edit, &r);
+                    self.last_logged_qso_id = Some(r.id);
                     self.qso_log.push(r);
                     self.session_qsos += 1;
                     persist_qso_log(&self.qso_log);

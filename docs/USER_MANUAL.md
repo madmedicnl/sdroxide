@@ -12349,6 +12349,15 @@ stored in plaintext in `net.json`. How the features behave is
   A service's own tickbox only takes effect while the master **Auto-upload each
   new QSO** is on; with it off the tab says so, and the per-QSO **UP** button in
   the logbook still uploads by hand.
+
+  When a QSO completes, the panel says where it went: beside **✓ QSO COMPLETE**
+  appears **↑ logged to LOG11DX** (naming each service it reached), or a red
+  **⚠ LOG11DX not uploaded** if the upload failed. The local log is written the
+  instant the contact ends — the confirmation is about the online logbooks, which
+  answer a second or two later. Nothing is drawn when no auto-upload is set, so a
+  station that keeps a purely local log never sees it. A failed upload is also
+  still in the network log, and the record can be re-sent from the logbook's
+  **UP** button.
 - **Confirmations (download)** — **LoTW user** and **pass**. LoTW *upload* stays
   manual, by design; only the download is automated.
 
