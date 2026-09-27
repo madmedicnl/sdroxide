@@ -7,10 +7,16 @@
      PothosSDR (https://downloads.myriadrf.org/builds/PothosSDR/) and put it
      on PATH, which also provides the device driver modules. -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-    <Package Name="sdroxide"
-             Manufacturer="Josef Jahn"
+    <!-- SDR Oxide Brown is its own Windows product, with its OWN UpgradeCode:
+         a distinct product id, install folder and registry key from upstream
+         sdroxide, so the two install side by side and uninstalling one leaves
+         the other alone. Sharing upstream's UpgradeCode (as an earlier build
+         did) made Windows treat them as the same product — one replaced the
+         other, and Add/Remove Programs could show the wrong version. -->
+    <Package Name="SDR Oxide Brown"
+             Manufacturer="SDR Oxide Brown"
              Version="$(var.Version)"
-             UpgradeCode="25EB3168-CB22-48C3-B5C1-1DE8FCFBEA34"
+             UpgradeCode="372490E0-6A0F-46AB-B44B-5447BA0F3ECF"
              Language="1033"
              Compressed="yes"
              Scope="perMachine">
@@ -23,20 +29,23 @@
              which is where the release workflow runs `wix build`. -->
         <Icon Id="SdroxideIcon" SourceFile="packaging/windows/sdroxide-brown.ico" />
         <Property Id="ARPPRODUCTICON" Value="SdroxideIcon" />
-        <Property Id="ARPURLINFOABOUT" Value="https://github.com/dividebysandwich/sdroxide" />
+        <Property Id="ARPURLINFOABOUT" Value="https://github.com/madmedicnl/sdroxide-brown" />
 
         <StandardDirectory Id="ProgramFiles64Folder">
-            <Directory Id="INSTALLFOLDER" Name="sdroxide">
-                <Component Id="MainExe" Guid="AE3DD3A4-EB4B-4921-BF67-60089CA6230E">
+            <!-- Its own folder, not upstream's: the executable is `sdroxide.exe`
+                 in both builds (shared identity), so a shared folder would have
+                 one install overwrite the other's binary. -->
+            <Directory Id="INSTALLFOLDER" Name="sdroxide-brown">
+                <Component Id="MainExe" Guid="DE7788FB-C6E5-47E2-87D8-F24D5E6ADBE5">
                     <File Id="SdroxideExe" Source="$(var.BinDir)/sdroxide.exe" KeyPath="yes" />
                 </Component>
-                <Component Id="LicenseFile" Guid="8D0E1A6B-4C2F-4B7A-9E3D-51A9C7F0B2D4">
+                <Component Id="LicenseFile" Guid="95058D49-1291-4D03-BDAF-26452BD61AF4">
                     <File Id="LicenseTxt" Source="LICENSE" Name="LICENSE.txt" KeyPath="yes" />
                 </Component>
                 <!-- sdroxide.exe embeds the RX-888's Cypress FX3 firmware
                      image, which is MIT licensed rather than GPL like the rest
                      of the binary, so its notice has to be installed too. -->
-                <Component Id="Rx888FirmwareLicenseFile" Guid="39C601A1-A18D-4371-A4BE-9C2DA17E18EC">
+                <Component Id="Rx888FirmwareLicenseFile" Guid="A0CCC0FB-6B67-4A7D-B379-433D2DE40CE6">
                     <File Id="Rx888FirmwareLicenseTxt"
                           Source="crates/sdroxide-rx888/firmware/LICENSE.txt"
                           Name="LICENSE-rx888-firmware.txt" KeyPath="yes" />
@@ -47,7 +56,7 @@
                      notice ships beside it. sdroxide looks for voices in a
                      "voices" directory next to the executable, which is what
                      this installs. -->
-                <Component Id="VoiceLicenseFile" Guid="15C8C546-3DCB-4153-B15A-E4F886945ED6">
+                <Component Id="VoiceLicenseFile" Guid="96C8C6A9-5EF6-4E46-BFAB-BF3A9FEEDD0E">
                     <File Id="VoiceLicenseTxt"
                           Source="assets/voices/LICENSE-voice.txt"
                           Name="LICENSE-voice.txt" KeyPath="yes" />
@@ -55,13 +64,13 @@
                 <!-- sdroxide.exe embeds CMUdict for grapheme-to-phoneme.
                      BSD-2-Clause, so the notice travels with the binary for
                      the same reason the RX-888 firmware's does. -->
-                <Component Id="CmudictLicenseFile" Guid="032C49BD-7CA0-4883-A75C-45B23FC0256E">
+                <Component Id="CmudictLicenseFile" Guid="A6093759-F5C0-4194-9B86-1A43D831D0A5">
                     <File Id="CmudictLicenseTxt"
                           Source="crates/sdroxide-speech/assets/LICENSE-cmudict.txt"
                           Name="LICENSE-cmudict.txt" KeyPath="yes" />
                 </Component>
                 <Directory Id="VoicesFolder" Name="voices">
-                    <Component Id="VoiceModel" Guid="C1052875-84CF-4257-8F03-24280E266EAC">
+                    <Component Id="VoiceModel" Guid="BEA70FBA-4EA8-46F1-8AC5-816F96AF6C63">
                         <File Id="VoiceOnnx"
                               Source="assets/voices/en_US-hfc_female-medium.onnx"
                               KeyPath="yes" />
@@ -71,34 +80,34 @@
                               Source="assets/voices/en_US-hfc_female-medium.MODEL_CARD" />
                     </Component>
                 </Directory>
-                <Component Id="PathEnv" Guid="603FD0CB-F87B-47EF-98D0-28669884B706">
-                    <RegistryValue Root="HKLM" Key="Software\sdroxide" Name="PathEnv" Type="integer" Value="1" KeyPath="yes" />
+                <Component Id="PathEnv" Guid="CAAE2010-45B2-44C9-9B24-334CA0C34583">
+                    <RegistryValue Root="HKLM" Key="Software\sdroxide-brown" Name="PathEnv" Type="integer" Value="1" KeyPath="yes" />
                     <Environment Id="PathEntry" Name="PATH" Value="[INSTALLFOLDER]" Permanent="no" Part="last" Action="set" System="yes" />
                 </Component>
             </Directory>
         </StandardDirectory>
 
         <StandardDirectory Id="ProgramMenuFolder">
-            <Component Id="StartMenuShortcut" Guid="E7E821FD-FCFF-4A51-9CEE-22EB5BA5E8C8">
+            <Component Id="StartMenuShortcut" Guid="F24E396A-6BBD-49A1-962F-DA256A4C48E7">
                 <Shortcut Id="AppShortcut"
-                          Name="sdroxide"
-                          Description="Software-defined-radio transceiver"
+                          Name="SDR Oxide Brown"
+                          Description="SDR transceiver and shortwave-listening tool"
                           Target="[INSTALLFOLDER]sdroxide.exe"
                           WorkingDirectory="INSTALLFOLDER"
                           Icon="SdroxideIcon" />
-                <RegistryValue Root="HKCU" Key="Software\sdroxide" Name="Shortcut" Type="integer" Value="1" KeyPath="yes" />
+                <RegistryValue Root="HKCU" Key="Software\sdroxide-brown" Name="Shortcut" Type="integer" Value="1" KeyPath="yes" />
             </Component>
         </StandardDirectory>
 
         <StandardDirectory Id="DesktopFolder">
-            <Component Id="DesktopShortcut" Guid="9F4B5C21-7A6E-4D38-8C0A-3B1E9D2F6A47">
+            <Component Id="DesktopShortcut" Guid="707A5153-3F4A-490F-BFE7-8E4623C9B783">
                 <Shortcut Id="DesktopAppShortcut"
-                          Name="sdroxide"
-                          Description="Software-defined-radio transceiver"
+                          Name="SDR Oxide Brown"
+                          Description="SDR transceiver and shortwave-listening tool"
                           Target="[INSTALLFOLDER]sdroxide.exe"
                           WorkingDirectory="INSTALLFOLDER"
                           Icon="SdroxideIcon" />
-                <RegistryValue Root="HKCU" Key="Software\sdroxide" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+                <RegistryValue Root="HKCU" Key="Software\sdroxide-brown" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
             </Component>
         </StandardDirectory>
 
