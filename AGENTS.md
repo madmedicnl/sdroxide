@@ -633,16 +633,33 @@ The evidence, because "it decodes more" is not one:
   the same sigmas, and the CB layouts (`CQ 26AT715`) still decode — SIC adds
   recall without moving the single-signal floor.
 
-**Watch item — WSJT-CB 1.4.0 "MBDecoder".** WSJT-CB's `1.4--scarlet` branch
-brands its decoder work **MBDecoder** (an artwork logo, not a symbol). Its
-substance is a backport of WSJT-X 3.2.0-rc1's FT8 **multithreaded-decode (MTD)
-reliability** fixes — coordinated residual buffers, per-worker spectra — plus
-CB-callsign filter fixes in MTD. That is the *thread-coordination* half, which
-mfsk-core carries in its rayon `par_iter` + `known`-dedup path rather than
-something we own. `sic_early` is the *recall* half and is the higher-value one
-for a single-operator receiver. If WSJT-CB 1.4 ships and reports MTD gains on
-11 m we cannot match, the next thing to check is whether our call exercises the
-parallel path or one worker.
+**WSJT-CB 1.4.0 "MBDecoder" — checked 2026-09-27, and it is half ours already.**
+WSJT-CB's `1.4--scarlet` branch brands its decoder work **MBDecoder** (an
+artwork logo, not a symbol). Its substance is a backport of WSJT-X 3.2.0-rc1's
+FT8 **multithreaded-decode (MTD) reliability** fixes — coordinated residual
+buffers, per-worker spectra, the `known`-dedup that stops concurrent threads
+re-deriving the same message — plus CB-callsign filter fixes in MTD. **mfsk-core
+carries all of that** in its own staged engine
+(`decode_frame_subtract_staged_with_ap_inner`: checkpoint A/B/C buffers, the
+issue-#253 pre-subtraction scoping, the `known` atomic gate), and its `parallel`
+feature is on in our build. So the MTD half is a dependency, not work to do.
+
+What the measurements settled (scratch benches, 2026-09-27):
+
+- **`sic_early` is not thread-bound.** On `qso3_busy.wav` it returns the same
+  **22 decodes at 1, 2, 4, 8 and 16 rayon threads**, and barely speeds up
+  (896 ms → 806 ms) — the checkpoints are *sequential by construction*
+  (A → subtract → B → subtract → C), so MTD's value is *correctness under
+  concurrency*, never extra recall for a single operator. A quiet/sparse sample
+  (`191111_110130.wav`) still doubles (3 → 6) for 384 ms. **The recall needs no
+  cores** — which is the good news for an 11 m receiving node.
+- So the whole recall win we were missing was the one-line `.sic_early()` (see
+  above); nothing about thread count or worker pools needs touching.
+
+**If WSJT-CB 1.4 ships with an 11 m MTD claim we cannot reproduce**, the first
+check is *not* thread count (measured flat) but whether their gains are the
+same checkpoint recall we now have — i.e. compare decode sets on a shared
+recording, not the count alone.
 
 ### The HD Radio capture harness
 
