@@ -301,6 +301,24 @@ impl SwlEditForm {
     }
 }
 
+/// The station last logged on `freq_hz`, if the log already has one there.
+///
+/// Logged frequencies are whole kilohertz — the form parses them that way — so
+/// "the same frequency" is the same kHz, not the same hertz: a dial landing a
+/// few tens of hertz off a remembered broadcast is still that broadcast. The
+/// most recently heard name wins, so a channel that has carried two stations
+/// suggests the one logged there last. Names are only ever a suggestion: the
+/// field stays editable for when the channel is carrying something else.
+fn station_at(entries: &[SwlEntry], freq_hz: f64) -> Option<String> {
+    let khz = (freq_hz / 1e3).round() as i64;
+    entries
+        .iter()
+        .filter(|e| !e.station.trim().is_empty())
+        .filter(|e| (e.freq_hz / 1e3).round() as i64 == khz)
+        .max_by_key(|e| e.heard_at_unix)
+        .map(|e| e.station.clone())
+}
+
 impl SdroxideApp {
     /// The LISTEN window: the reception log, its entry form and its report.
     pub(in crate::app) fn swl_window(&mut self, ctx: &egui::Context, cmds: &mut Vec<Command>) {
@@ -330,7 +348,15 @@ impl SdroxideApp {
                         let s = self.meters.map(|m| m.s_dbm);
                         let grid = self.my_grid();
                         let antenna = self.swl_antenna.clone();
-                        self.swl_edit = Some(SwlEditForm::new(freq, mode, s, grid, antenna));
+                        let mut form = SwlEditForm::new(freq, mode, s, grid, antenna);
+                        // A frequency the log already has a name for comes in
+                        // pre-filled, so a regular broadcast is not retyped
+                        // every evening. It is a suggestion and stays editable
+                        // for when the channel is carrying something else.
+                        if let Some(name) = station_at(&self.swl_log, freq) {
+                            form.station = name;
+                        }
+                        self.swl_edit = Some(form);
                     }
                     if crate::chrome::chip(ui, false, "JOBS")
                         .on_hover_text("Scheduled recordings — record a band at a set time")
@@ -953,7 +979,7 @@ impl SdroxideApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{sinpo_strength, SwlEditForm, SwlEntry, SwlFilter};
+    use super::{sinpo_strength, station_at, SwlEditForm, SwlEntry, SwlFilter};
     use sdroxide_types::{Mode, SignalReport, Sinpo};
 
     /// The meter grades into the five SINPO figures, strongest at S9 and up.
@@ -978,6 +1004,35 @@ mod tests {
         let e = f.to_entry();
         assert!(e.pirate);
         assert!(SwlEditForm::from_entry(&e).pirate, "reopens ticked");
+    }
+
+    /// Logging a second reception on a frequency the log already names comes in
+    /// with that name pre-filled, so a regular broadcast is not retyped. It is
+    /// the most recent name at that kilohertz, a nameless entry is no
+    /// suggestion, and a frequency the log has never had returns nothing.
+    #[test]
+    fn a_logged_frequency_pre_fills_the_station_name() {
+        let entry = |id: u64, station: &str, freq_hz: f64, heard: u64| SwlEntry {
+            id,
+            station: station.into(),
+            freq_hz,
+            heard_at_unix: heard,
+            ..Default::default()
+        };
+        let log = vec![
+            entry(1, "Radio Taiwan International", 6_185_000.0, 100),
+            // Same kilohertz, heard later, so it is the one suggested.
+            entry(2, "BBC World Service", 6_185_040.0, 200),
+            // Nameless entries are no help.
+            entry(3, "", 6_185_000.0, 300),
+            // A different frequency.
+            entry(4, "Voice of America", 9_760_000.0, 400),
+        ];
+        assert_eq!(station_at(&log, 6_185_000.0).as_deref(), Some("BBC World Service"));
+        // A dial a few tens of hertz off the remembered one is the same channel.
+        assert_eq!(station_at(&log, 6_184_960.0).as_deref(), Some("BBC World Service"));
+        // Never logged here: nothing to suggest.
+        assert_eq!(station_at(&log, 7_200_000.0), None);
     }
 
     /// The reception locator is pre-filled from the screen's grid and carried
