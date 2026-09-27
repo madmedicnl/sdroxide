@@ -111,6 +111,7 @@ rest.
 | **Simple interface** | — | hides the advanced chips |
 | **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and an **HF / VHF / UHF / ALL** band row. OPERATE greys out (and the engine refuses) a mode that does not apply on the band — AM on the FM broadcast band, WFM on 11 m; LISTEN offers **every mode on every band**. On desktop it can be **docked** beside the waterfall (undock/hide from the panel, toggle from the band chip) |
 | **Propagation columns** | propagation heat map | measured **WSPR** and **PSK Reporter** activity in the **BANDS** window |
+| **Weak-signal decoding** | FT8 decode on a single pass | FT8 runs WSJT-X's **checkpointed signal subtraction**, so weak signals buried inside stronger neighbours decode — on the WSJT-X busy-slot sample **12 → 22 decodes**, none lost, at no cost to the single-signal sensitivity floor. The whole FT8 path, so it helps on 11 m where a busy channel puts stations on top of one another |
 | **Waterfall levels** | a popup behind a chip | a vertical level slider beside the waterfall, plus the popup |
 
 Upstream has merged most of this fork's general-purpose work since it was
