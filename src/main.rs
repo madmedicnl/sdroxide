@@ -273,6 +273,10 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let mut cli = Cli::parse();
+    // Before the first setting is read: this fork keeps its own config
+    // directory now, and an existing installation is copied into it once. The
+    // shared directory upstream uses is left untouched.
+    sdroxide_config::migrate_shared_config_once();
     let settings = Settings::load();
     // `--swl` for this run: the UI reads this when it builds, and it is not a
     // preference — nothing is written to disk.

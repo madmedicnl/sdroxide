@@ -109,17 +109,33 @@ it.
 
 ## Running both builds
 
-Because the identity is shared, upstream and this fork read and write the *same*
-`config.toml`, `radio.json` and logs by default, and upstream's read-modify-write
-would drop the fork's extra fields. A tester running both should isolate them:
+**The builds isolate themselves now (2026-09-27).** This fork keeps its own
+config directory, `org.sdroxide.sdroxide-brown` (i.e. `~/.config/sdroxide-brown`,
+macOS `…/org.sdroxide.sdroxide-brown`), beside upstream's `org.sdroxide.sdroxide`
+— so running both is safe with nothing to configure, and upstream's
+read-modify-write can never drop the fork's extra fields again. This is the half
+of the "full rename" that *was* worth doing: just the config path, not the
+executable or the package ids.
 
-- `SDROXIDE_CONFIG_DIR=~/.config/sdroxide-cb` on the fork (or on upstream) gives
-  each build its own settings, logs and recordings — `config_dir()` honours it,
-  and `recordings_dir` follows it into the sandbox rather than the real music
-  folder.
-- A second `--server` wants a different `--port`; both default to 4950.
-- The window title (`SDR Oxide Brown`) is what tells the two windows apart once
-  they are up.
+- `config_dir()` resolves to the `-brown` directory; `recordings_dir`,
+  `solar_cache_dir` and every other `config_dir()`-relative path follow it.
+- **Migration is automatic and non-destructive.** `migrate_shared_config_once()`
+  (called first thing in `main`, before `Settings::load`) *copies* an existing
+  shared directory's contents into the `-brown` one and leaves the original
+  untouched, so an existing user keeps their stations, logbook and memories, and
+  upstream still finds everything. It runs once (a guard-by-existence: the
+  `-brown` directory existing means done), skips when `SDROXIDE_CONFIG_DIR` is
+  set, and only adopts a directory that carries `config.toml`/`radio.json`.
+- `SDROXIDE_CONFIG_DIR` still overrides everything, for tests and for anyone who
+  wants a third profile.
+- A second `--server` still wants a different `--port`; both default to 4950.
+- The window title (`SDR Oxide Brown`) tells the two windows apart once they are
+  up.
+
+The **config directory** is the one identity string that had to change for this
+to work at all; the executable, the Windows MSI `UpgradeCode`, the macOS bundle
+id and the release asset names remain shared with upstream, which is why the
+merged code still calls everything `sdroxide`.
 
 ## Keeping up with upstream
 

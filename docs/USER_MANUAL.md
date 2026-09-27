@@ -15178,9 +15178,19 @@ sdroxide stores its settings under the per-user config directory:
 
 | Platform | Location |
 | --- | --- |
-| Linux | `~/.config/sdroxide/` |
-| macOS | `~/Library/Application Support/org.sdroxide.sdroxide/` |
-| Windows | `%APPDATA%\sdroxide\sdroxide\config\` |
+| Linux | `~/.config/sdroxide-brown/` |
+| macOS | `~/Library/Application Support/org.sdroxide.sdroxide-brown/` |
+| Windows | `%APPDATA%\sdroxide\sdroxide-brown\config\` |
+
+> **This build keeps its own directory.** SDR Oxide Brown uses a `…-brown`
+> directory beside upstream sdroxide's, so the two builds never read or write
+> each other's settings — run both and nothing is disturbed, and settings the
+> two do not share (the 11 m and listening ones) cannot be dropped by the other
+> build rewriting a file. **Your existing settings are moved across
+> automatically** the first time this build starts after the change: their
+> contents are *copied* into the `…-brown` directory, the original is left
+> exactly where it was, and the old build keeps working. You should not have to
+> do anything.
 
 ### Moving settings to another installation
 
