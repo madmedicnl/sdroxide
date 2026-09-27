@@ -23,11 +23,11 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
 moved, and read the open upstream PRs for maintainer comments (`gh pr list
 --repo dividebysandwich/sdroxide --author madmedicnl --state open`, then each
 thread). The queue was worked on 2026-09-27 with upstream still one commit ahead
-(the CI-fix commit `807b0fcf`, merged as `ec16b72f`); the **fourteen** open PRs —
+(the CI-fix commit `807b0fcf`, merged as `ec16b72f`); the **fifteen** open PRs —
 #537, #545, #554, #557, #558, #561, #568, #569, #572, #573, #575, #579/#580,
-**#583** and **#586** — had **nothing waiting on us** then: every review point
-raised so far is addressed and the rest are drafts. Check before starting
-anything new.
+**#583**, **#586** and **#588** — had **nothing waiting on us** then: every
+review point raised so far is addressed and the rest are drafts. Check before
+starting anything new.
 
 **Maintainer capacity (2026-09-27).** The maintainer is not keeping up with the
 queue — several PRs have sat unreviewed for days — so do not read silence as
@@ -385,6 +385,19 @@ merged code still calls everything `sdroxide`.
     **Confirmed on the air** (2026-09-27, CRT SS9900v) — picked 73 mid-QSO at
     R+report, it went out and stayed, and the contact logged. The fork's `main`
     carries the same fix (`fbe11818`); it drops out when this lands.
+  - `dividebysandwich/sdroxide#588` — **the IQ channel probe reads the opened
+    PCM's stream**, opened 2026-09-27 from `upstream/main` (branch
+    `upstream-pr/582-iq-stream-channels`, one commit, 76 insertions in
+    `crates/sdroxide-audio/src/lib.rs`). An upstream bug in the maintainer's own
+    mono-for-IQ guard (`c94afb84`): it read
+    `/proc/asound/cardN/stream0` whatever PCM was opened, so a USB card with a
+    mono demod on stream0 and a stereo I/Q on stream1 — a Malachite DSP, issue
+    #582 — had the stereo input judged by the mono demod and refused as mono.
+    The guard now selects the stream from the PCM's own `DEV=` index, falling
+    back to stream0 for `sysdefault:CARD=X` names so single-stream cards are
+    unchanged. Not tested on the reporter's hardware; the two-stream layout is a
+    unit test. The fork's `main` carries the same fix (`804109e7`); it drops out
+    when this lands.
   - `dividebysandwich/sdroxide#579` — **decodes into the propagation field**,
     opened 2026-09-26 from `upstream/main` (branch `upstream-pr/prop-decodes`,
     one commit). `PropStore::observe_decodes` exists and places a decodes station
