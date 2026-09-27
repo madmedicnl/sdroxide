@@ -370,6 +370,111 @@ impl SdroxideApp {
     #[cfg(target_arch = "wasm32")]
     pub(in crate::app) fn run_settings_transfer(&mut self, _export: bool, _import: bool) {}
 
+    /// Where recordings are written, and how to change it.
+    ///
+    /// A `config.toml` path on the machine that records, so it is offered where
+    /// the settings are on this machine — like [`Self::settings_transfer`], and
+    /// for the same reason: a remote client would be changing its own laptop's
+    /// folder, not the station's.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(in crate::app) fn settings_recordings_dir(
+        &self,
+        ui: &mut egui::Ui,
+        choose: &mut bool,
+        reset: &mut bool,
+    ) {
+        ui.label(RichText::new("Recordings").strong());
+        if self.ctrl.engine_is_remote() {
+            ui.label(
+                RichText::new(
+                    "Recordings are written on the machine the radio is attached to. Set the \
+                     folder there.",
+                )
+                .size(10.5)
+                .color(crate::theme::gray(140)),
+            );
+            return;
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new("Folder").size(11.0).color(crate::theme::gray(150)));
+            ui.label(
+                RichText::new(self.recordings_dir.display().to_string())
+                    .size(10.5)
+                    .monospace()
+                    .color(crate::theme::gray(180)),
+            );
+            if crate::chrome::chip(ui, false, RichText::new("CHOOSE…").size(10.5))
+                .on_hover_text("Pick the folder recordings are written to")
+                .clicked()
+            {
+                *choose = true;
+            }
+            if crate::chrome::chip(ui, false, RichText::new("DEFAULT").size(10.5))
+                .on_hover_text(
+                    "Go back to the default — your music folder, or the config directory when \
+                     the system has none",
+                )
+                .clicked()
+            {
+                *reset = true;
+            }
+        });
+        ui.add_space(4.0);
+        ui.add(
+            egui::Label::new(
+                RichText::new(
+                    "Where the MP3 recordings, the scheduled recordings and the raw I/Q captures \
+                     are written. Default: your music folder's sdroxide subfolder, or the config \
+                     directory's recordings folder when the system exposes no music folder.",
+                )
+                .size(10.5)
+                .color(crate::theme::gray(140)),
+            )
+            .wrap(),
+        );
+    }
+
+    /// The browser client has no filesystem and no engine of its own to record
+    /// with.
+    #[cfg(target_arch = "wasm32")]
+    pub(in crate::app) fn settings_recordings_dir(
+        &self,
+        _ui: &mut egui::Ui,
+        _choose: &mut bool,
+        _reset: &mut bool,
+    ) {
+    }
+
+    /// Carry out what [`Self::settings_recordings_dir`]'s buttons asked for,
+    /// after the window closure has given `&mut self` back — see [`SettingsIo`].
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(in crate::app) fn handle_recordings_dir(&mut self, choose: bool, reset: bool) {
+        if !choose && !reset {
+            return;
+        }
+        let saved = if choose {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(parent) = self.recordings_dir.parent() {
+                dialog = dialog.set_directory(parent);
+            }
+            match dialog.pick_folder() {
+                Some(picked) => sdroxide_config::save_recordings_dir(Some(&picked)),
+                // A cancelled picker changes nothing.
+                None => Ok(()),
+            }
+        } else {
+            sdroxide_config::save_recordings_dir(None)
+        };
+        if let Err(e) = saved {
+            eprintln!("failed to save the recordings directory: {e}");
+        }
+        // Re-read whatever is now in effect, so the row shows the truth at once.
+        self.recordings_dir = crate::app::persist::recordings_dir_for_display();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(in crate::app) fn handle_recordings_dir(&mut self, _choose: bool, _reset: bool) {}
+
     /// Apply a settings bundle the operator picked, once the picker thread has
     /// delivered it. Drained every frame beside the ADIF import.
     #[cfg(not(target_arch = "wasm32"))]

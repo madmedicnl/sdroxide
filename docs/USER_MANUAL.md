@@ -3064,8 +3064,11 @@ count it began with, so switching the sub receiver on, or a broadcast's stereo
 pilot coming and going, cannot change it halfway through.
 
 **Where it goes.** Recordings land in `<Music>/sdroxide/` (or
-`~/.config/sdroxide/recordings` on a platform with no music folder), named for
-when they started and what the radio was doing:
+`~/.config/sdroxide/recordings` on a platform with no music folder) — or wherever
+**Settings → General → Recordings → CHOOSE…** points; **DEFAULT** puts it back.
+The setting is a path on the machine the radio is attached to, so a remote client
+sets it on the station rather than on its own laptop. Files are named for when
+they started and what the radio was doing:
 
 ```
 sdroxide_2026-08-23_14-32-05Z_14.074000MHz_USB.mp3
@@ -7235,6 +7238,14 @@ the log says which device refused.
 > use at once, and one pair of pickers on a shared page could only ever describe
 > one of them (issue #474). Nothing in `radio.json` changed — they were always
 > stored per radio, and only the page they were edited on was wrong.
+
+**Recordings** — the folder the MP3 recordings, the scheduled recordings and the
+raw I/Q captures are written to, with **CHOOSE…** to pick another and **DEFAULT**
+to go back to the music folder (`<Music>/sdroxide`, or the config directory's
+`recordings` where the system exposes no music folder). It is a path on the
+machine the radio is attached to, so it is shown only where the engine is in this
+process — a remote client sets it at the shack, not on its own laptop. In
+`config.toml` it is `recordings_dir`.
 
 **Remote access** — the **Username** and **Password** a remote client has to
 give before this station will let it operate: the browser page, another sdroxide
@@ -15328,7 +15339,9 @@ will want to open in an ordinary file manager rather than program state:
 audio recordings go to `<Music>/sdroxide/` ([2.21](#221-recording-the-audio-and-the-spectrum)),
 and received weather-fax charts to
 `<Pictures>/sdroxide/wefax/`. Where the platform exposes no such folder, both
-fall back to the config directory.
+fall back to the config directory. The recordings folder can be pointed anywhere
+else from **Settings → General → Recordings**
+([2.21](#221-recording-the-audio-and-the-spectrum)).
 
 ---
 

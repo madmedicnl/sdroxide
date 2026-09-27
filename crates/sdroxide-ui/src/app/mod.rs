@@ -76,6 +76,7 @@ use self::panels::sstv::SstvUi;
 use self::persist::{
     load_alerts_settings, load_broadcast_favourites, load_broadcast_stations, load_morse_progress,
     load_qso_log, load_recording_jobs, load_speech_settings, load_swl_log, load_ui_settings,
+    recordings_dir_for_display,
 };
 use self::settings::servers::TciServerStatus;
 use self::settings::{SatEditState, SettingsTab, TestOutcome};
@@ -1108,6 +1109,10 @@ pub struct SdroxideApp {
     /// confirmed the one-time warning. The confirmation window is drawn from
     /// this; the permission itself is not granted until they confirm.
     cb_tx_confirm_open: bool,
+    /// Where recordings are written, resolved from `config.toml` for the
+    /// General tab to show. Native only; empty in the browser, which has no
+    /// engine to record with.
+    recordings_dir: std::path::PathBuf,
     /// Weather fax: the chart being painted and the gallery of saved ones.
     wefax: crate::wefax::WefaxUi,
     /// Whether the out-of-band transmit warning has been acknowledged for this
@@ -1780,6 +1785,7 @@ impl SdroxideApp {
             cb_plan_edit: sdroxide_types::cb_plan(),
             cb_tx_edit: sdroxide_types::cb_tx_allowed(),
             cb_tx_confirm_open: false,
+            recordings_dir: recordings_dir_for_display(),
             sat_ui: Default::default(),
             sat_sub_status: Vec::new(),
             wefax: Default::default(),

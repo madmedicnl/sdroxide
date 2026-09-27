@@ -195,6 +195,10 @@ pub(in crate::app) struct SettingsIo<'a> {
     /// have to wait for `&mut self` like everything else here (issue #356).
     settings_export: &'a mut bool,
     settings_import: &'a mut bool,
+    /// The General tab's recordings-folder buttons, which open a native folder
+    /// picker and so have to wait for `&mut self` like the file transfer above.
+    recordings_choose: &'a mut bool,
+    recordings_reset: &'a mut bool,
     airspy_rescan: &'a mut bool,
     airspy_copy_report: &'a mut bool,
     /// Re-enumerate the USB bus for HydraSDR RFOne receivers. Opens nothing.
@@ -1057,6 +1061,8 @@ impl SdroxideApp {
         let mut hackrf_copy_report = false;
         let mut settings_export = false;
         let mut settings_import = false;
+        let mut recordings_choose = false;
+        let mut recordings_reset = false;
         let mut airspy_rescan = false;
         let mut airspy_copy_report = false;
         let mut hydrasdr_rescan = false;
@@ -1223,6 +1229,8 @@ impl SdroxideApp {
                             hackrf_rescan: &mut hackrf_rescan,
                             settings_export: &mut settings_export,
                             settings_import: &mut settings_import,
+                            recordings_choose: &mut recordings_choose,
+                            recordings_reset: &mut recordings_reset,
                             hackrf_copy_report: &mut hackrf_copy_report,
                             airspy_rescan: &mut airspy_rescan,
                             airspy_copy_report: &mut airspy_copy_report,
@@ -1483,6 +1491,7 @@ impl SdroxideApp {
             self.ask_device(ctx, P::HackRf);
         }
         self.run_settings_transfer(settings_export, settings_import);
+        self.handle_recordings_dir(recordings_choose, recordings_reset);
         if hackrf_copy_report {
             // Worth more on this backend than on the receive-only ones: a
             // transmit fault is about the *order* control transfers went out
@@ -1987,6 +1996,11 @@ impl SdroxideApp {
                 ui.separator();
                 ui.add_space(6.0);
                 self.settings_transfer(ui, io.settings_export, io.settings_import);
+
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(6.0);
+                self.settings_recordings_dir(ui, io.recordings_choose, io.recordings_reset);
 
                 ui.add_space(10.0);
                 ui.separator();

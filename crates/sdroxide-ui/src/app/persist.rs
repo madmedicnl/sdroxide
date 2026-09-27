@@ -53,6 +53,21 @@ pub(in crate::app) fn persist_swl_log(_log: &[SwlEntry]) {
     // Written by eframe's periodic `save()` into localStorage.
 }
 
+// ── Recordings directory (native: config.toml; wasm: no engine, no path) ─────
+/// Where recordings go, for the General tab to show. Resolved but **not
+/// created** — the engine makes the directory when a recording actually starts,
+/// so opening Settings does not litter the operator's music folder. Empty in
+/// the browser, which has no engine to record with.
+#[cfg(not(target_arch = "wasm32"))]
+pub(in crate::app) fn recordings_dir_for_display() -> std::path::PathBuf {
+    sdroxide_config::recordings_dir_path().unwrap_or_default()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(in crate::app) fn recordings_dir_for_display() -> std::path::PathBuf {
+    std::path::PathBuf::new()
+}
+
 // ── Broadcast favourites (native: config-dir JSON; wasm: eframe storage) ─────
 #[cfg(not(target_arch = "wasm32"))]
 pub(in crate::app) fn load_broadcast_favourites(

@@ -244,6 +244,17 @@ pub struct Settings {
     /// travels to remote clients in the [`sdroxide_types::StationConfig`]
     /// bundle. Off by default.
     pub cb_tx_allowed: bool,
+    /// Where audio recordings and raw I/Q captures are written, or `None` for
+    /// the default (the user's music folder, `<Music>/sdroxide`, or the config
+    /// directory's `recordings` when the platform has no music folder).
+    ///
+    /// A plain path on **this** machine, so it is deliberately *not* a station
+    /// property and does not travel to remote clients — unlike `region` and
+    /// `cb_plan`, which describe where the antenna is. Set from the General
+    /// tab's **Recordings** row; the engine reads it here when it opens a
+    /// recording. Declared before the tables below because a TOML plain value
+    /// after a table would be swallowed by it on the next write.
+    pub recordings_dir: Option<std::path::PathBuf>,
     /// UI / display preferences (frame rate, waterfall + spectrum speed).
     pub ui: sdroxide_types::UiSettings,
     /// Username and password a remote client must present in server mode.
@@ -295,6 +306,7 @@ impl Default for Settings {
             region: sdroxide_types::Region::default(),
             cb_plan: sdroxide_types::CbPlan::default(),
             cb_tx_allowed: false,
+            recordings_dir: None,
             ui: sdroxide_types::UiSettings::default(),
             remote_access: sdroxide_types::RemoteAccess::default(),
             speech: sdroxide_types::SpeechSettings::default(),
@@ -1127,29 +1139,59 @@ pub fn solar_cache_dir() -> Result<PathBuf, ConfigError> {
     Ok(dir)
 }
 
-/// Directory for audio recordings, created on demand: the user's music/audio
-/// directory (`<Music>/sdroxide`), or the config directory
+/// The recordings directory, resolved but **not created**: what the General
+/// tab shows and what [`recordings_dir`] then makes.
+///
+/// `Settings::recordings_dir` wins when it is set; otherwise the user's
+/// music/audio directory (`<Music>/sdroxide`), or the config directory
 /// (`~/.config/sdroxide/recordings`) when the platform exposes no music folder.
-pub fn recordings_dir() -> Result<PathBuf, ConfigError> {
+pub fn recordings_dir_path() -> Result<PathBuf, ConfigError> {
     // An isolated configuration is isolated: `SDROXIDE_CONFIG_DIR` is how a
     // test, a second station or a throwaway session says "keep everything
     // here", and a recording written into the operator's real music folder
-    // from one of those is the one file that escapes. Checked here rather than
-    // inside `config_dir` because the two answer different questions — that one
-    // is where settings live, and it has an isolated form already.
+    // from one of those is the one file that escapes. It also wins over the
+    // setting, so an isolated session cannot be pointed out of its sandbox.
+    // Checked here rather than inside `config_dir` because the two answer
+    // different questions — that one is where settings live, and it has an
+    // isolated form already.
     if std::env::var_os("SDROXIDE_CONFIG_DIR").is_some() {
-        let dir = config_dir()?.join("recordings");
-        fs::create_dir_all(&dir)?;
-        return Ok(dir);
+        return Ok(config_dir()?.join("recordings"));
     }
-    let dir = match directories::UserDirs::new()
-        .and_then(|u| u.audio_dir().map(std::path::Path::to_path_buf))
-    {
-        Some(music) => music.join("sdroxide"),
-        None => config_dir()?.join("recordings"),
-    };
+    let music = directories::UserDirs::new()
+        .and_then(|u| u.audio_dir().map(std::path::Path::to_path_buf));
+    pick_recordings_dir(Settings::load().recordings_dir.as_deref(), music)
+}
+
+/// The choice itself, split out so it can be tested without a config directory
+/// or the environment: the setting if one is set and non-empty, else the music
+/// folder's `sdroxide`, else the config directory's `recordings`.
+fn pick_recordings_dir(
+    custom: Option<&std::path::Path>,
+    music: Option<PathBuf>,
+) -> Result<PathBuf, ConfigError> {
+    if let Some(c) = custom.filter(|p| !p.as_os_str().is_empty()) {
+        return Ok(c.to_path_buf());
+    }
+    match music {
+        Some(music) => Ok(music.join("sdroxide")),
+        None => Ok(config_dir()?.join("recordings")),
+    }
+}
+
+/// Directory for audio recordings, created on demand (see
+/// [`recordings_dir_path`] for where).
+pub fn recordings_dir() -> Result<PathBuf, ConfigError> {
+    let dir = recordings_dir_path()?;
     fs::create_dir_all(&dir)?;
     Ok(dir)
+}
+
+/// Persist the recordings directory (`None` restores the default), preserving
+/// every other setting — read-modify-write, like [`save_ui_settings`].
+pub fn save_recordings_dir(dir: Option<&std::path::Path>) -> Result<(), ConfigError> {
+    let mut s = Settings::load();
+    s.recordings_dir = dir.map(std::path::Path::to_path_buf);
+    s.save()
 }
 
 impl Settings {
@@ -3146,7 +3188,42 @@ mod tests {
         assert!(load_band_plan().is_default());
         assert_eq!(take_load_alerts().len(), 1);
 
+        // Recordings follow the isolation too, whatever the setting says: a
+        // recording is the one file that would otherwise escape to the
+        // operator's real music folder.
+        save_recordings_dir(Some(std::path::Path::new("/tmp/elsewhere"))).unwrap();
+        assert_eq!(
+            Settings::load().recordings_dir.as_deref(),
+            Some(std::path::Path::new("/tmp/elsewhere")),
+            "the setting round-trips"
+        );
+        assert_eq!(
+            recordings_dir().unwrap(),
+            root.join("recordings"),
+            "an isolated session ignores it and stays in the sandbox"
+        );
+
         unsafe { std::env::remove_var("SDROXIDE_CONFIG_DIR") };
+    }
+
+    /// The recordings-directory choice: the setting wins, an empty one is "no
+    /// setting", and without either the music folder's `sdroxide` is the home.
+    #[test]
+    fn a_configured_recordings_dir_wins_over_the_music_folder() {
+        let music = || Some(PathBuf::from("/home/u/Music"));
+        assert_eq!(
+            pick_recordings_dir(Some(std::path::Path::new("/data/air")), music()).unwrap(),
+            PathBuf::from("/data/air")
+        );
+        assert_eq!(
+            pick_recordings_dir(Some(std::path::Path::new("")), music()).unwrap(),
+            PathBuf::from("/home/u/Music/sdroxide"),
+            "an empty path is 'no setting', not the filesystem root"
+        );
+        assert_eq!(
+            pick_recordings_dir(None, music()).unwrap(),
+            PathBuf::from("/home/u/Music/sdroxide")
+        );
     }
 
     #[test]
