@@ -87,6 +87,20 @@ fixes that.
 Do **not** re-introduce the word "fork" or a bare lowercase `sdroxide` into a
 user-facing title; `FLAVOR` is the one string, use it.
 
+## Running both builds
+
+Because the identity is shared, upstream and this fork read and write the *same*
+`config.toml`, `radio.json` and logs by default, and upstream's read-modify-write
+would drop the fork's extra fields. A tester running both should isolate them:
+
+- `SDROXIDE_CONFIG_DIR=~/.config/sdroxide-cb` on the fork (or on upstream) gives
+  each build its own settings, logs and recordings — `config_dir()` honours it,
+  and `recordings_dir` follows it into the sandbox rather than the real music
+  folder.
+- A second `--server` wants a different `--port`; both default to 4950.
+- The window title (`SDR Oxide CB/SWL`) is what tells the two windows apart once
+  they are up.
+
 ## Keeping up with upstream
 
 - `dividebysandwich/sdroxide` is the original. Fetch and merge rather than
