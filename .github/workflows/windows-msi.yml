@@ -24,9 +24,9 @@ jobs:
     name: web client (wasm)
     runs-on: ubuntu-latest
     steps:
-      # `vendor/xng` is a path dependency of `sdroxide-hfdl`, and `cargo
-      # metadata` reads every workspace member's manifest before building, so
-      # the submodules are needed even for the wasm target.
+      # Needed although the client builds none of it: cargo resolves the whole
+      # workspace first, and sdroxide-hfdl depends on vendor/xng by path. See
+      # the same step in release.yml.
       - uses: actions/checkout@v7
         with:
           submodules: recursive
