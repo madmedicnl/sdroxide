@@ -278,7 +278,19 @@ impl Ft8Modem {
                 // Widen the per-call plausibility gate to the 11 m callsign
                 // grammar (see is_cb_compatible_call) — upstream's FT8 decoder
                 // has no allowlist entry for a CB-shaped call.
-                .also_accept(|m| m.callsigns().all(is_cb_compatible_call));
+                .also_accept(|m| m.callsigns().all(is_cb_compatible_call))
+                // The WSJT-X decode architecture, not the bare single pass: the
+                // default strategy does *no* signal subtraction, while real
+                // `jt9`/WSJT-X run a multi-pass by default (mfsk-core's own
+                // `sic_rounds` doc says so, and measures 11/14 → 14/14 on the
+                // FT4 sample). `sic_early` is FT8's faithful port of
+                // `ft8_decode.f90`'s checkpointed `ndec_early` decode — a recall
+                // superset of flat SIC — so a weak signal inside a stronger
+                // neighbour's 50 Hz occupied bandwidth is still decoded, which
+                // is the whole reason WSJT-X and WSJT-CB run it. The policy
+                // rides the checkpoint engine (it takes `req.policy`), so the CB
+                // gate above still applies to every checkpoint's candidates.
+                .sic_early();
                 let req = match hint.as_ref() {
                     Some(h) => req.ap_hint(h),
                     None => req,
@@ -2571,6 +2583,60 @@ mod tests {
         // noise alone, with the signal's own contribution removed.
         let total = n.iter().map(|s| s * s).sum::<f32>() / n.len() as f32;
         ((sig), (total - sig).max(1e-9))
+    }
+
+    /// A weak FT8 signal buried *inside* a strong neighbour's occupied
+    /// bandwidth still decodes — the whole reason FT8 runs signal subtraction.
+    ///
+    /// This is the one thing the sensitivity sweep cannot show: it puts one
+    /// signal in noise, while subtraction exists for two signals on the same
+    /// tone offset. Without `.sic_early()` on the FT8 request (mfsk-core's
+    /// default is a bare single pass — see its `sic_rounds` doc) the strong
+    /// signal is the only one that comes back; with it, the weak one does too.
+    /// The levels are the case mfsk-core's own docs name: a weak signal about
+    /// 14 dB down, 10–30 Hz off a much stronger one.
+    ///
+    /// Deterministic, so it is a real gate rather than a measurement.
+    #[test]
+    fn a_weak_signal_under_a_strong_neighbour_is_recovered() {
+        // One slot: the strong CQ centred at 2310, the weak one moved around
+        // inside and near it.
+        let slot = |weak_hz: f32| {
+            let modem = Ft8Modem::new(Mode::Ft8);
+            let (strong, _) = modem.encode_burst_12k("CQ AB1CD FN42", 2310.0, 0.5).unwrap();
+            let weak_amp = 0.5 * 10f32.powf(-14.0 / 20.0);
+            let (weak, _) = modem.encode_burst_12k("CQ W9XYZ EN52", weak_hz, weak_amp).unwrap();
+            let mut out = vec![0.0f32; 1_000_000]; // > 15 s so the slot can hold both
+            for (i, &x) in strong.iter().enumerate() {
+                out[6_000 + i] += x;
+            }
+            for (i, &x) in weak.iter().enumerate() {
+                out[6_000 + i] += x;
+            }
+            out.truncate(180_000);
+            out.iter().map(|&x| (x * 12_000.0) as i16).collect::<Vec<i16>>()
+        };
+        let decode = |buf: &[i16]| {
+            Ft8Modem::new(Mode::Ft8)
+                .decode_slot(buf, 0, &ApHints::default(), 2310.0)
+                .into_iter()
+                .map(|d| d.message)
+                .collect::<Vec<_>>()
+        };
+
+        // Weak inside the strong signal's bandwidth: both must come back.
+        for weak_hz in [2300.0f32, 2320.0] {
+            let got = decode(&slot(weak_hz));
+            assert!(
+                got.iter().any(|m| m == "CQ AB1CD FN42"),
+                "the strong signal must decode at {weak_hz} Hz: {got:?}"
+            );
+            assert!(
+                got.iter().any(|m| m == "CQ W9XYZ EN52"),
+                "signal subtraction must recover the weak signal under the strong \
+                 one at {weak_hz} Hz: {got:?}"
+            );
+        }
     }
 
     /// Report the sensitivity floor of each FT8/FT4 message layout we carry.
