@@ -80,17 +80,19 @@ titled `SDR Oxide Brown <tag>`.
 
 **What was decided and why (2026-09-27).** Testers were running this fork and
 upstream side by side and mixing them up. A **full rename was considered and
-rejected**: the binary name, the `ProjectDirs` config directory
-(`org.sdroxide.sdroxide`), the Windows MSI `UpgradeCode`, the macOS bundle id,
-the desktop entry and the release asset names are all upstream-shared, and
-changing the config directory in particular would (a) orphan every existing
-user's settings and (b) make upstream's read-modify-write of `config.toml` /
-`radio.json` **silently drop the fork's extra fields** when both are run. It
-would also cost on every upstream merge, which is the wrong trade for an
-identity string. So only the *displayed* name names the fork; the identity
-(executable, config dir, package ids) stays `sdroxide`, and the two installs
-still share settings — see "Running both builds" below for the isolation that
-fixes that.
+rejected**: the executable name, the `ProjectDirs` config directory, the macOS
+bundle id and the release asset names were all upstream-shared, and it would
+cost on every upstream merge, which is the wrong trade for an identity string.
+So only the *displayed* name is the fork's.
+
+Two of those "shared" items were **later separated anyway**, because sharing
+them was an active bug rather than a cost: the **config directory** (both builds
+writing one `config.toml`/`radio.json` let upstream's read-modify-write drop the
+fork's extra fields — see "Running both builds") and the **Windows MSI product
+identity** (one replaced the other — see "The Windows installer is its own
+product"). The lines that remain genuinely shared are the **executable name**
+(`sdroxide`/`sdroxide.exe`), the **macOS bundle id**, and the **release asset
+names** (which the README's stable download links depend on).
 
 **Why "Brown", not "CB/SWL" (2026-09-27, second pass).** The first name said
 what the fork *is* — "SDR Oxide CB/SWL" — and operators objected: several run it
@@ -106,6 +108,27 @@ fields and ADIF `PROGRAMID` are parsed by other people's software.
 Do **not** re-introduce the word "fork", a bare lowercase `sdroxide`, or the
 old **CB/SWL** label into a user-facing title; `FLAVOR` is the one string, use
 it.
+
+## The Windows installer is its own product (2026-09-27)
+
+`packaging/windows/main.wxs` gives Brown a **fresh `UpgradeCode`**
+(`372490E0-6A0F-46AB-B44B-5447BA0F3ECF`), `Name`/`Manufacturer` **SDR Oxide
+Brown**, its own install folder (`sdroxide-brown`), its own
+`Software\sdroxide-brown` registry key and Start-menu/Desktop shortcut names,
+and **fresh component GUIDs**. Its own install folder exists because the
+executable is still called `sdroxide.exe` in both builds — a shared folder
+would let one install overwrite the other's binary.
+
+**Why (a real bug, found 2026-09-27).** The MSI first shipped with upstream's
+`UpgradeCode` and product name, so Windows treated the two as **the same
+product**: installing one replaced the other, and Add/Remove Programs showed
+the wrong version (the reporter saw `1.9.2` from a Brown `1.9.3` install). The
+general lesson: an `UpgradeCode` is a product identity, and two products a
+person runs side by side must not share one.
+
+**Consequence to remember:** a tester who still has an old `_CB` build installed
+has *that* product (the old shared id) registered; the Brown MSI will not touch
+it, and they should uninstall the old entry first for a clean state.
 
 ## Running both builds
 
@@ -1311,10 +1334,18 @@ note and were rendered from a separate HTML source; leave them alone.)
 
 ## Cutting a release
 
+> **Fresh tag history (2026-09-27).** After the Brown rename the tag list was
+> reset: every pre-rename tag (`v0.1.0` … `v1.9.3`, the whole `_CB`/`CBSWL`
+> lineage) and their releases were deleted, keeping **`v1.9.4_brown`** (the
+> first Brown release) and **`nightly`**. Tags below `v1.9.4_brown` no longer
+> exist, so do not reference them.
+
 1. Bump the workspace version in `Cargo.toml` **first** and let `cargo` refresh
    `Cargo.lock`; commit it. The Windows `.msi` and the macOS bundle take their
    version from `Cargo.toml`, so a re-tag on the same version installs as the
-   same version rather than an upgrade.
+   same version rather than an upgrade. **The Windows `UpgradeCode` is
+   fixed** (see "The Windows installer is its own product"), so a new version
+   is what an upgrade keys on — re-tagging the same version does not.
 2. Tag `vX.Y.Z_brown` and push it — `release.yml` runs on the tag push
    (`on: push: tags: ['v*']`) and publishes the platform builds and the GitHub
    Release itself, titled `SDR Oxide Brown <tag>`, so no dispatch is needed. Do
