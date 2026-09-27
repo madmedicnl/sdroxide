@@ -607,6 +607,43 @@ grammar (their first `cb_ok(&str)` sketch could not do that). It merged on
    The `ft8_eu` module itself stays: packing, the eu hash table and the
    exchange parsing (`eu_vhf` in modem.rs) are all still live.
 
+### FT8 runs signal subtraction (2026-09-27)
+
+`Ft8Modem::decode_slot`'s FT8 request now ends `.sic_early()`. mfsk-core 0.11's
+**default strategy is a bare single pass — no subtraction** — while WSJT-X and
+WSJT-CB run a multi-pass by default, so our FT8 was on the weaker path (FT4
+already called `.sic_rounds(2)`). `sic_early` is mfsk-core's port of
+`ft8_decode.f90`'s checkpointed `ndec_early` decode, a recall superset of flat
+SIC; the message policy rides the checkpoint engine, so the CB gate above still
+applies to every checkpoint's candidates.
+
+The evidence, because "it decodes more" is not one:
+
+- **Deterministic regression test** `a_weak_signal_under_a_strong_neighbour_is_recovered`
+  (`modem.rs`, not `#[ignore]`d): a signal ~14 dB down, 10–30 Hz off a strong
+  one, decodes with SIC and not without. It fails on the bare single pass —
+  verified by neutering the `.sic_early()` call.
+- **Real busy slot** (`mfsk-core/embedded-poc/assets/qso3_busy.wav`, the
+  WSJT-X sample corpus, NOT committed here — mfsk-core owns it): single pass 12
+  decodes / 20 ms, `.sic_early()` **22 decodes / 864 ms**. The ten extra are the
+  weak ones the method exists for (−18 … −7 dB), several masked by strong
+  neighbours at −4…+16 dB within 50 Hz. Cost ~6 % of a 15 s slot, on the decode
+  thread.
+- **Sensitivity floor unchanged**: the `sensitivity` sweep still reads −24 dB at
+  the same sigmas, and the CB layouts (`CQ 26AT715`) still decode — SIC adds
+  recall without moving the single-signal floor.
+
+**Watch item — WSJT-CB 1.4.0 "MBDecoder".** WSJT-CB's `1.4--scarlet` branch
+brands its decoder work **MBDecoder** (an artwork logo, not a symbol). Its
+substance is a backport of WSJT-X 3.2.0-rc1's FT8 **multithreaded-decode (MTD)
+reliability** fixes — coordinated residual buffers, per-worker spectra — plus
+CB-callsign filter fixes in MTD. That is the *thread-coordination* half, which
+mfsk-core carries in its rayon `par_iter` + `known`-dedup path rather than
+something we own. `sic_early` is the *recall* half and is the higher-value one
+for a single-operator receiver. If WSJT-CB 1.4 ships and reports MTD gains on
+11 m we cannot match, the next thing to check is whether our call exercises the
+parallel path or one worker.
+
 ### The HD Radio capture harness
 
 Upstream took `dielectric-coder`'s harness with #466, so it is no longer ours to
