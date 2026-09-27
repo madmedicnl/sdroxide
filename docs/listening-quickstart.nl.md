@@ -17,7 +17,7 @@ schone ontvanger. Voor de volledige uitleg per knop zie
 [listening-quickstart.it.md](listening-quickstart.it.md). PDF:
 [listening-quickstart.nl.pdf](listening-quickstart.nl.pdf).*
 
-Vetgedrukte namen zoals **SETTINGS** en **LISTEN** zijn knoppen en velden zoals
+Vetgedrukte namen zoals **SETTINGS** en **SWL LOG** zijn knoppen en velden zoals
 ze op het scherm staan. `Settings > Radio` is een menupad.
 
 ---
@@ -53,7 +53,7 @@ Je kunt sdroxide ook als **server** draaien en in een browser openen:
 
 ## Deel A — Eenmalige instelling
 
-Alles hier wordt onder `~/.config/sdroxide/` bewaard, dus je doet het één keer.
+Alles hier wordt onder `~/.config/sdroxide-brown/` bewaard, dus je doet het één keer.
 
 ### 1. Kies je radio
 
@@ -65,7 +65,7 @@ Een **ATS Mini** kies je hier ook, als alleen-ontvangst-bron.
 
 **Settings > Radio > Transmit controls > SWL mode** verbergt elke
 zendknop — PTT, TUNE, CALL CQ en de rest — en vervangt de ham-chips door die van
-de luisteraar (**SCHEDULE**, **LISTEN**). Het staat **per radio**, dus een
+de luisteraar (**SCHEDULE**, **SWL LOG**). Het staat **per radio**, dus een
 luisterset en een zendamateurradio kunnen naast elkaar bestaan. **Settings > UI >
 Start in SWL mode**, of `--swl` op de opdrachtregel, maakt elke radio een
 luisteraar. Een alleen-ontvangst-radio (een publieke SDR, een RTL-SDR) krijgt
@@ -75,7 +75,7 @@ luisteraar. Een alleen-ontvangst-radio (een publieke SDR, een RTL-SDR) krijgt
 
 Ga naar het tabblad **General**:
 
-- **Locator / grid** — je Maidenhead-grid. Het LISTEN-venster vult hiermee de
+- **Locator / grid** — je Maidenhead-grid. Het SWL LOG-venster vult hiermee de
   **locator** van elke ontvangst voor.
 - **IARU region** — de regio die het bandplan bepaalt.
 - Op het tabblad **Spots**, **Report as (SWL)** — de identiteit die je
@@ -95,7 +95,7 @@ Ga naar het tabblad **General**:
 4. **ECSS.** Op **SAM** houden de presets **ECSS-U** en **ECSS-L** één zijband
    over en onderdrukken de andere — de middengolf-DX-truc om een naburig kanaal
    weg te drukken.
-5. **Tone.** De **Tone**-rij van het LISTEN-venster kantelt de bas, mid en
+5. **Tone.** De **Tone**-rij van het SWL LOG-venster kantelt de bas, mid en
    treble van het gedemoduleerde geluid, vóór de luidsprekers. Omroepgeluid wil
    een toonregeling die de amateurgeluidketen nooit nodig had.
 6. **Iets gemist?** **REPLAY** speelt de laatste twee minuten af in plaats van
@@ -116,9 +116,9 @@ taal en zenderlocatie al ingevuld. **SOLAR TIME** zet de lokale tijd op de
 
 ---
 
-## Deel D — Het ontvangstlogboek (LISTEN)
+## Deel D — Het ontvangstlogboek (SWL LOG)
 
-Het **LISTEN**-venster is jouw verslag van wat er is gehoord:
+Het **SWL LOG**-venster is jouw verslag van wat er is gehoord:
 
 - **+ NEW** logt het station waar de ontvanger nu op staat, met de live
   frequentie, mode en S-meterwaarde; **LOG** op een SCHEDULE-rij vult de rest

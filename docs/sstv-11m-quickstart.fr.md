@@ -68,7 +68,7 @@ Vous pouvez aussi lancer sdroxide en **serveur** et l'ouvrir dans un navigateur 
 
 ## Partie A — Configuration initiale
 
-Tout ici est enregistré sous `~/.config/sdroxide/`, donc à faire une seule fois.
+Tout ici est enregistré sous `~/.config/sdroxide-brown/`, donc à faire une seule fois.
 
 ### 1. Choisir votre poste
 
@@ -123,7 +123,7 @@ confirmez la mention une fois. La réception ne demande aucun interrupteur.
    **Signal**-mètre montre le niveau audio reçu, pour vérifier que l'audio
    arrive au décodeur. Si un en-tête a été mal lu comme un mode lent,
    **Restart RX** abandonne la demi-image et relance la recherche.
-6. Les images reçues sont enregistrées en PNG sous `~/.config/sdroxide/sstv_rx/`
+6. Les images reçues sont enregistrées en PNG sous `~/.config/sdroxide-brown/sstv_rx/`
    et rechargent dans la galerie la fois suivante.
 
 ---
@@ -136,7 +136,7 @@ confirmez la mention une fois. La réception ne demande aucun interrupteur.
 2. Côté **TRANSMIT**, les cinq emplacements fonctionnent comme des onglets.
    **Load image…** (ou double-clic sur un emplacement) choisit une image ; elle
    est recadrée et mise à l'échelle des dimensions du mode et enregistrée sous
-   `~/.config/sdroxide/sstv_tx/`.
+   `~/.config/sdroxide-brown/sstv_tx/`.
 3. Tapez un **message** pour l'emplacement actif — la **première ligne est
    dessinée en double taille comme titre**, et un aperçu en direct montre
    exactement ce qui part. La **bannière** porte votre indicatif.
@@ -156,7 +156,7 @@ confirmez la mention une fois. La réception ne demande aucun interrupteur.
 
 ## Partie D — Garder une trace
 
-- Les images reçues sont des fichiers **PNG** sous `~/.config/sdroxide/sstv_rx/` ;
+- Les images reçues sont des fichiers **PNG** sous `~/.config/sdroxide-brown/sstv_rx/` ;
   la galerie est stockée sur la machine où le poste est branché, donc chaque
   écran voit la même collection. Clic droit sur une vignette pour la supprimer.
 - **Profils** (**Settings > Profiles**) : enregistrez toute une configuration —

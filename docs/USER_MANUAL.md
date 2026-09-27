@@ -1671,7 +1671,7 @@ Each row is one slot:
 - **✕** erases the recording.
 
 Recordings are stored as plain 48 kHz mono WAV files in
-`~/.config/sdroxide/voice` (see [12. Configuration files](#13-configuration-files)),
+`~/.config/sdroxide-brown/voice` (see [12. Configuration files](#13-configuration-files)),
 one per slot, so you can also record a message in an audio editor, name it
 `slot3.wav`, and drop it in.
 
@@ -3065,7 +3065,7 @@ count it began with, so switching the sub receiver on, or a broadcast's stereo
 pilot coming and going, cannot change it halfway through.
 
 **Where it goes.** Recordings land in `<Music>/sdroxide/` (or
-`~/.config/sdroxide/recordings` on a platform with no music folder) — or wherever
+`~/.config/sdroxide-brown/recordings` on a platform with no music folder) — or wherever
 **Settings → General → Recordings → CHOOSE…** points; **DEFAULT** puts it back.
 The setting is a path on the machine the radio is attached to, so a remote client
 sets it on the station rather than on its own laptop. Files are named for when
@@ -4390,7 +4390,7 @@ one of the two.
   half-picture is dropped and the receiver is hunting again. It is a receive
   control only: it does not touch a transmission in progress (that is **ABORT
   TX**) and it does not put the mode selection back to **Auto**.
-- Received images are saved as PNG under `~/.config/sdroxide/sstv_rx/` and reload
+- Received images are saved as PNG under `~/.config/sdroxide-brown/sstv_rx/` and reload
   into the gallery next time.
 - **Deleting.** Most of what a night on 20 m leaves behind is noise. **Right-click**
   a thumbnail and choose *Delete this picture*, or open one and use **Delete…** in
@@ -4408,10 +4408,10 @@ one of the two.
   the message box below then edits *that slot's* message. Use the **Load image…**
   button (or **double-click** a slot) to pick an image file, which is
   automatically cropped and scaled to the current mode's dimensions and stored
-  under `~/.config/sdroxide/sstv_tx/`.
+  under `~/.config/sdroxide-brown/sstv_tx/`.
 - Type a **message** for the active slot. Each slot keeps its own message —
   switching slots swaps the text — and the messages are saved to
-  `~/.config/sdroxide/sstv_messages.json`, so they persist across restarts. The
+  `~/.config/sdroxide-brown/sstv_messages.json`, so they persist across restarts. The
   lines are drawn over the image in bold with a black outline for readability;
   the **first line is rendered at double size** as a title. A **live preview**
   shows exactly what will be transmitted, banner and all.
@@ -4535,7 +4535,7 @@ between the two modes.
   many chunks arrived first time.
 - The counters read **frames** (valid), **bad** (failed their CRC and were not
   recovered) and **pictures** (complete and verified).
-- Received pictures are saved as PNG under `~/.config/sdroxide/sstv_rx/`,
+- Received pictures are saved as PNG under `~/.config/sdroxide-brown/sstv_rx/`,
   alongside the SSTV ones — and are deleted the same way (3.6): right-click a
   thumbnail, or **Delete…** in the enlarged window.
 
@@ -4663,7 +4663,7 @@ chart you are viewing leaves the window on the next-older one — the same place
 **OLDER ▶** would have gone — so a run of blank pages goes in a sequence of
 clicks.
 
-Charts saved by earlier versions in `~/.config/sdroxide/wefax_rx/` are still
+Charts saved by earlier versions in `~/.config/sdroxide-brown/wefax_rx/` are still
 listed alongside the new ones, so nothing you have already received disappears.
 Deleting one takes both copies, so a chart that was in the old directory too
 does not reappear on the next listing.
@@ -6775,9 +6775,9 @@ They live in one file:
 
 | Platform | Location |
 | --- | --- |
-| Linux | `~/.config/sdroxide/rtl433_flex.conf` |
-| macOS | `~/Library/Application Support/org.sdroxide.sdroxide/rtl433_flex.conf` |
-| Windows | `%APPDATA%\sdroxide\sdroxide\config\rtl433_flex.conf` |
+| Linux | `~/.config/sdroxide-brown/rtl433_flex.conf` |
+| macOS | `~/Library/Application Support/org.sdroxide.sdroxide-brown/rtl433_flex.conf` |
+| Windows | `%APPDATA%\sdroxide\sdroxide\config-brown\rtl433_flex.conf` |
 
 The file is created for you, with a worked example commented out, the first time
 the ISM decoder runs. **SDRoxide never rewrites it**, so what you put there stays
@@ -11805,7 +11805,7 @@ spoken announcements below them under `[speech]`:
   ham who also listens leaves it off. It is the companion to the broadcast bands
   on the selector ([§2.4](#24-bands-and-modes)) for a licence-free station.
   It also swaps the strip's ham chips for the listener's — the **SPOTS** and
-  **AWARDS** give way to **SCHEDULE** and **LISTEN** — and **Start in SWL mode**
+  **AWARDS** give way to **SCHEDULE** and **SWL LOG** — and **Start in SWL mode**
   below makes every session open this way, as `--swl` does for one run.
 - **Simple UI** — tick **hide advanced chips** and the top strip drops the
   controls a CB operator or a short-wave listener never opens: the **☀ 3D** view,
@@ -14710,7 +14710,7 @@ Each entry needs only a name and a frequency in kHz:
 
 #### The SCHEDULE window
 
-In SWL mode the strip's ham chips give way to **SCHEDULE** and **LISTEN**
+In SWL mode the strip's ham chips give way to **SCHEDULE** and **SWL LOG**
 ([§6.3](#63-ui-display-preferences-and-voice-announcements)), and the SCHEDULE
 window is where the listener browses the table: it turns the same EiBi schedule
 the waterfall labels into the list a listener works from.
@@ -14747,9 +14747,9 @@ Longwave and the HF standard-time stations are not in EiBi's file — it starts 
 2300 kHz and skips time signals — and are maintained by hand in
 `crates/sdroxide-types/src/broadcast_seed.json`.
 
-#### The LISTEN window
+#### The SWL LOG window
 
-Where the SCHEDULE window is the table a listener works *from*, the LISTEN
+Where the SCHEDULE window is the table a listener works *from*, the SWL LOG
 window is the record of what was heard: a **reception log**, and the tools to
 work it — the antenna in use, the reception report, and the log's CSV and ADIF
 exports. It is the listener's counterpart to the LOGBOOK.
@@ -14829,7 +14829,7 @@ ID** (see [§10.7](#107-signal-identification)) for what is on the dial, and the
 
 ### 10.7 Signal identification
 
-**SIG ID**, beside **JOBS** in the LISTEN window, opens a guide to what is on the
+**SIG ID**, beside **JOBS** in the SWL LOG window, opens a guide to what is on the
 dial. It reads the dial frequency, the mode and the receiver's passband, ranks a
 built-in catalogue against them, and lists the candidates — what the signal is,
 what it is modulated with, how wide it is, and a one-line description. The
@@ -14902,7 +14902,7 @@ Addresses are callsigns, or `SMTP:someone@example.org` to reach ordinary
 internet email. Separate several with commas.
 
 The mailbox lives on the machine with the radio, under
-`~/.config/sdroxide/winlink/`, one file per message. A remote or browser client
+`~/.config/sdroxide-brown/winlink/`, one file per message. A remote or browser client
 reads it a page at a time over the wire rather than holding a copy, so a
 mailbox with attachments in it does not have to cross a phone link on connect.
 
@@ -15180,7 +15180,7 @@ sdroxide stores its settings under the per-user config directory:
 | --- | --- |
 | Linux | `~/.config/sdroxide-brown/` |
 | macOS | `~/Library/Application Support/org.sdroxide.sdroxide-brown/` |
-| Windows | `%APPDATA%\sdroxide\sdroxide-brown\config\` |
+| Windows | `%APPDATA%\sdroxide\sdroxide\config-brown\` |
 
 > **This build keeps its own directory.** SDR Oxide Brown uses a `…-brown`
 > directory beside upstream sdroxide's, so the two builds never read or write

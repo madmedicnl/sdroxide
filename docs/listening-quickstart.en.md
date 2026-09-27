@@ -16,7 +16,7 @@ the why of this fork see the [README](../README.md).
 [listening-quickstart.it.md](listening-quickstart.it.md). PDF:
 [listening-quickstart.en.pdf](listening-quickstart.en.pdf).*
 
-Bold names such as **SETTINGS** and **LISTEN** are buttons and fields exactly as
+Bold names such as **SETTINGS** and **SWL LOG** are buttons and fields exactly as
 they appear on screen. `Settings > Radio` is a menu path.
 
 ---
@@ -52,7 +52,7 @@ You can also run sdroxide as a **server** and open it in a browser:
 
 ## Part A — One-time setup
 
-Everything here is saved under `~/.config/sdroxide/`, so you do it once.
+Everything here is saved under `~/.config/sdroxide-brown/`, so you do it once.
 
 ### 1. Pick your radio
 
@@ -64,7 +64,7 @@ An **ATS Mini** is chosen here too, as a receive-only source.
 
 **Settings > Radio > Transmit controls > SWL mode** hides every transmit
 control — PTT, TUNE, CALL CQ and the rest — and swaps the ham chips for the
-listener's (**SCHEDULE**, **LISTEN**). It is set **per radio**, so a listening
+listener's (**SCHEDULE**, **SWL LOG**). It is set **per radio**, so a listening
 set and a transceiver can sit side by side. **Settings > UI > Start in SWL mode**,
 or `--swl` on the command line, makes every radio a listener. A receive-only
 radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning
@@ -74,7 +74,7 @@ banner, which does the same.
 
 Go to the **General** tab:
 
-- **Locator / grid** — your Maidenhead grid. The LISTEN window pre-fills each
+- **Locator / grid** — your Maidenhead grid. The SWL LOG window pre-fills each
   reception's **locator** from it.
 - **IARU region** — the region that sets the band plan.
 - On the **Spots** tab, **Report as (SWL)** — the identity that signs your
@@ -94,7 +94,7 @@ Go to the **General** tab:
 4. **ECSS.** On **SAM**, the **ECSS-U** and **ECSS-L** presets keep one sideband
    and reject the other — the medium-wave DX trick for ducking an adjacent
    channel.
-5. **Tone.** The LISTEN window's **Tone** row shelves the bass, mid and treble of
+5. **Tone.** The SWL LOG window's **Tone** row shelves the bass, mid and treble of
    the demodulated audio, in front of the speakers. Broadcast audio wants a tone
    control the ham speech chain never needed.
 6. **Missed something?** **REPLAY** plays the last two minutes instead of live —
@@ -115,9 +115,9 @@ the *transmitter* beside its site.
 
 ---
 
-## Part D — The reception log (LISTEN)
+## Part D — The reception log (SWL LOG)
 
-The **LISTEN** window is your record of what was heard:
+The **SWL LOG** window is your record of what was heard:
 
 - **+ NEW** logs the station the receiver is on right now, with the live
   frequency, mode and S-meter reading; **LOG** on a SCHEDULE row fills in the

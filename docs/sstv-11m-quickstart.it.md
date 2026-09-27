@@ -67,7 +67,7 @@ Puoi anche avviare sdroxide come **server** e aprirlo nel browser:
 
 ## Parte A — Configurazione una volta sola
 
-Tutto qui è salvato in `~/.config/sdroxide/`, quindi si fa una volta sola.
+Tutto qui è salvato in `~/.config/sdroxide-brown/`, quindi si fa una volta sola.
 
 ### 1. Scegli la radio
 
@@ -123,7 +123,7 @@ di interruttori.
    confermare che l'audio arriva al decodificatore. Se un'intestazione è stata
    letta male come modo lento, **Restart RX** scarta la mezza immagine e riparte
    in ricerca.
-6. Le immagini ricevute sono salvate come PNG in `~/.config/sdroxide/sstv_rx/` e
+6. Le immagini ricevute sono salvate come PNG in `~/.config/sdroxide-brown/sstv_rx/` e
    si ricaricano nella galleria la volta dopo.
 
 ---
@@ -134,7 +134,7 @@ di interruttori.
    trasmettere. Attiva prima **Allow transmit on 11 m (CB)** (Parte A.3).
 2. Sul lato **TRANSMIT** i cinque slot funzionano come schede. **Load image…**
    (o doppio clic su uno slot) sceglie un'immagine; viene ritagliata e scalata
-   alle dimensioni del modo e salvata in `~/.config/sdroxide/sstv_tx/`.
+   alle dimensioni del modo e salvata in `~/.config/sdroxide-brown/sstv_tx/`.
 3. Digita un **messaggio** per lo slot attivo — la **prima riga è disegnata a
    doppia dimensione come titolo**, e un'anteprima dal vivo mostra esattamente
    cosa parte. La **bandierina** porta il tuo indicativo.
@@ -154,7 +154,7 @@ di interruttori.
 
 ## Parte D — Tenere traccia
 
-- Le immagini ricevute sono file **PNG** in `~/.config/sdroxide/sstv_rx/`; la
+- Le immagini ricevute sono file **PNG** in `~/.config/sdroxide-brown/sstv_rx/`; la
   galleria è salvata sulla macchina a cui è collegata la radio, quindi ogni
   schermo vede la stessa raccolta. Clic destro su una miniatura per eliminarla.
 - **Profili** (**Settings > Profiles**): salvi un'intera configurazione —

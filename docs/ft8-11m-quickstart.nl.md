@@ -63,7 +63,7 @@ Je kunt sdroxide ook als **server** draaien en in de browser openen:
 
 ## Deel A — Eenmalig instellen
 
-Alles hier wordt bewaard onder `~/.config/sdroxide/`, dus je doet dit één keer.
+Alles hier wordt bewaard onder `~/.config/sdroxide-brown/`, dus je doet dit één keer.
 
 ### 1. Kies je radio
 

@@ -60,7 +60,7 @@ You can also run sdroxide as a **server** and open it in a browser:
 
 ## Part A — One-time setup
 
-Everything here is saved under `~/.config/sdroxide/`, so you do it once.
+Everything here is saved under `~/.config/sdroxide-brown/`, so you do it once.
 
 ### 1. Pick your radio
 

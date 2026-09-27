@@ -64,7 +64,7 @@ Vous pouvez aussi lancer sdroxide en **serveur** et l'ouvrir dans un navigateur 
 
 ## Partie A — Configuration initiale
 
-Tout ici est enregistré sous `~/.config/sdroxide/`, donc à faire une seule fois.
+Tout ici est enregistré sous `~/.config/sdroxide-brown/`, donc à faire une seule fois.
 
 ### 1. Choisir votre poste
 

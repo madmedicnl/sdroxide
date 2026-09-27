@@ -15,7 +15,7 @@ the [README](../README.md).
 [pi-zero-2w-swl.it.md](pi-zero-2w-swl.it.md). PDF:
 [pi-zero-2w-swl.en.pdf](pi-zero-2w-swl.en.pdf).*
 
-Bold names such as **SETTINGS** and **LISTEN** are buttons and fields exactly as
+Bold names such as **SETTINGS** and **SWL LOG** are buttons and fields exactly as
 they appear on screen. Commands in grey boxes are typed at the Pi's shell.
 
 > **Read this first.** The Pi Zero 2 W is a **listening node**, not a desktop.
@@ -126,11 +126,11 @@ DISPLAY=:0 ~/bin/sdroxide
 2. On **SETTINGS → UI**, tick **Start in SWL mode** so the transmit controls
    never appear — this is a listening station. (`--swl` on the command line does
    the same for a run.)
-3. On **SETTINGS → General**, set your **Grid square** (the LISTEN window uses it
+3. On **SETTINGS → General**, set your **Grid square** (the SWL LOG window uses it
    for each reception's locator) and, on the **Spots** tab, your
    **Report as (SWL)** identity.
 4. Tune a broadcast band — **LW**, **MW** or **SW** — pick **AM** or **SAM**, and
-   confirm you hear something. The **SCHEDULE** and **LISTEN** windows are the
+   confirm you hear something. The **SCHEDULE** and **SWL LOG** windows are the
    listener's tools; the [Listening quick-start](listening-quickstart.en.md)
    walks through them.
 
@@ -155,7 +155,7 @@ http://swl.local:4950
 ```
 
 You get the **whole program** in the browser — tuning, the waterfall, the
-SCHEDULE and LISTEN windows, the decoders, the reception log. The Pi does the
+SCHEDULE and SWL LOG windows, the decoders, the reception log. The Pi does the
 receiving and the decoding; the browser does the drawing, which is exactly how a
 512 MB board stays useful.
 

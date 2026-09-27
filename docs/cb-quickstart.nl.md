@@ -49,7 +49,7 @@ ergens anders staat.
 
 ## Deel A — Eenmalig instellen
 
-Alles hier wordt bewaard onder `~/.config/sdroxide/`, dus je doet dit één keer.
+Alles hier wordt bewaard onder `~/.config/sdroxide-brown/`, dus je doet dit één keer.
 
 ### 1. Start sdroxide
 

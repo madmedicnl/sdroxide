@@ -16,7 +16,7 @@ vedi il [README](../README.md).
 [pi-zero-2w-swl.fr.md](pi-zero-2w-swl.fr.md). PDF:
 [pi-zero-2w-swl.it.pdf](pi-zero-2w-swl.it.pdf).*
 
-I nomi in grassetto come **SETTINGS** e **LISTEN** sono pulsanti e campi
+I nomi in grassetto come **SETTINGS** e **SWL LOG** sono pulsanti e campi
 esattamente come appaiono sullo schermo. I comandi nei riquadri grigi si digitano
 nella shell del Pi.
 
@@ -131,12 +131,12 @@ browser.)
 2. In **SETTINGS → UI**, spunta **Start in SWL mode** così i comandi di
    trasmissione non compaiono mai — questa è una stazione d'ascolto. (`--swl`
    dalla riga di comando fa lo stesso per una singola esecuzione.)
-3. In **SETTINGS → General**, imposta il tuo **Grid square** (la finestra LISTEN
+3. In **SETTINGS → General**, imposta il tuo **Grid square** (la finestra SWL LOG
    lo usa per il locator di ogni ricezione) e, nella scheda **Spots**, la tua
    identità **Report as (SWL)**.
 4. Sintonizza una banda di radiodiffusione — **LW**, **MW** o **SW** — scegli
    **AM** o **SAM**, e verifica di sentire qualcosa. Le finestre **SCHEDULE** e
-   **LISTEN** sono gli strumenti dell'ascoltatore; l'
+   **SWL LOG** sono gli strumenti dell'ascoltatore; l'
    [Avvio rapido all'ascolto](listening-quickstart.it.md) le percorre.
 
 ---
@@ -159,7 +159,7 @@ http://swl.local:4950
 ```
 
 Ottieni **tutto il programma** nel browser — sintonia, waterfall, le finestre
-SCHEDULE e LISTEN, i decoder, il registro di ricezione. Il Pi fa la ricezione e
+SCHEDULE e SWL LOG, i decoder, il registro di ricezione. Il Pi fa la ricezione e
 la decodifica; il browser fa il disegno, ed è esattamente così che una scheda da
 512 MB resta utile.
 

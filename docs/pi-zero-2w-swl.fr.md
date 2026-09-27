@@ -16,7 +16,7 @@ voir le [README](../README.md).
 [pi-zero-2w-swl.it.md](pi-zero-2w-swl.it.md). PDF :
 [pi-zero-2w-swl.fr.pdf](pi-zero-2w-swl.fr.pdf).*
 
-Les noms en gras comme **SETTINGS** et **LISTEN** sont des boutons et des champs
+Les noms en gras comme **SETTINGS** et **SWL LOG** sont des boutons et des champs
 tels qu'ils apparaissent à l'écran. Les commandes dans les encadrés gris se
 tapent dans le shell du Pi.
 
@@ -135,12 +135,12 @@ depuis le navigateur.)
 2. Dans **SETTINGS → UI**, cochez **Start in SWL mode** pour que les commandes
    d'émission n'apparaissent jamais — c'est une station d'écoute. (`--swl` en
    ligne de commande fait la même chose pour une exécution.)
-3. Dans **SETTINGS → General**, réglez votre **Grid square** (la fenêtre LISTEN
+3. Dans **SETTINGS → General**, réglez votre **Grid square** (la fenêtre SWL LOG
    s'en sert pour le locator de chaque réception) et, à l'onglet **Spots**, votre
    identité **Report as (SWL)**.
 4. Accordez une bande de radiodiffusion — **LW**, **MW** ou **SW** — choisissez
    **AM** ou **SAM**, et vérifiez que vous entendez quelque chose. Les fenêtres
-   **SCHEDULE** et **LISTEN** sont les outils de l'écouteur ; le
+   **SCHEDULE** et **SWL LOG** sont les outils de l'écouteur ; le
    [Démarrage rapide écoute](listening-quickstart.fr.md) les parcourt.
 
 ---
@@ -164,7 +164,7 @@ http://swl.local:4950
 ```
 
 Vous obtenez **tout le programme** dans le navigateur — l'accord, la chute d'eau,
-les fenêtres SCHEDULE et LISTEN, les décodeurs, le journal de réception. Le Pi
+les fenêtres SCHEDULE et SWL LOG, les décodeurs, le journal de réception. Le Pi
 fait la réception et le décodage ; le navigateur fait le dessin, et c'est
 exactement ainsi qu'une carte de 512 Mo reste utile.
 

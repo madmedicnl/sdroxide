@@ -49,7 +49,7 @@ somewhere else.
 
 ## Part A — One-time setup
 
-Everything here is saved under `~/.config/sdroxide/`, so you do it once.
+Everything here is saved under `~/.config/sdroxide-brown/`, so you do it once.
 
 ### 1. Start sdroxide
 

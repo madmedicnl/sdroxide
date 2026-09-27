@@ -103,7 +103,7 @@ rest.
 | **DSC** | — | the marine Digital Selective Calling system on VHF channel 70 and the MF/HF distress channels (2187.5, 4207.5, 8414.5 kHz …): 1200-baud FFSK carrying distress alerts (MMSI, nature, position, time) and routine calls, with a message panel and a raw-symbol view; receive only |
 | **MW/SW DX tools** | SAM and the ham audio chain | **ECSS-U / ECSS-L** presets on SAM and a receive **tone** control |
 | **Listening tools** | — | two-minute time-shift **replay**, **scheduled recordings**, band scanning that names what it stops on |
-| **Signal ID guide** | — | a **SIG ID** window in the LISTEN window names what is on the dial — ranked against the mode, frequency, band and passband from a built-in catalogue of ~60 amateur, broadcast, marine, aviation, utility and satellite signals, with a free-text search and a **sigidwiki** link for the sample |
+| **Signal ID guide** | — | a **SIG ID** window in the SWL LOG window names what is on the dial — ranked against the mode, frequency, band and passband from a built-in catalogue of ~60 amateur, broadcast, marine, aviation, utility and satellite signals, with a free-text search and a **sigidwiki** link for the sample |
 | **Morse trainer** | — | a **TRAINER** window on the CW panel: text to Morse and back, paced playback with **Farnsworth** spacing, a **Koch drill** that unlocks a character at a time and remembers the score, and a **SEND** pane that reads a real USB paddle (the iambic timing is made in software) |
 | **CW key** | the keyboard straight key | **Settings → CW**: the key is the keyboard's straight-key binding or a **USB paddle**, typed **Straight** / **Iambic A** / **Iambic B**, with a **REVERSE** switch for the paddle. With **KEY THE TRANSMITTER** it keys the radio through the ordinary manual-key path — the same band lockout, watchdog and read-back — iambic and straight; off, it drives only the trainer. Linux desktop for the USB reader |
 | **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. A receive-only radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning banner, which switches it to this screen. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
@@ -183,7 +183,7 @@ The full interface: the radio, receiver, display and system controls along the t
   switching an outboard filter or transverter by the dial's band from a
   per-band RX/TX table. See "T/R switch" in the manual for the limits.
 - **Persistence** — device, rates, gains, memories, band stacks, network/QSL
-  credentials, control bindings and the logbook under `~/.config/sdroxide/`,
+  credentials, control bindings and the logbook under `~/.config/sdroxide-brown/`,
   plus named **station profiles**.
 
 ## Installing

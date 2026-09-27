@@ -16,7 +16,7 @@ knop zie [`USER_MANUAL.md`](USER_MANUAL.md); voor het waarom van deze fork zie d
 [pi-zero-2w-swl.it.md](pi-zero-2w-swl.it.md). PDF:
 [pi-zero-2w-swl.nl.pdf](pi-zero-2w-swl.nl.pdf).*
 
-Vetgedrukte namen zoals **SETTINGS** en **LISTEN** zijn knoppen en velden zoals
+Vetgedrukte namen zoals **SETTINGS** en **SWL LOG** zijn knoppen en velden zoals
 ze op het scherm staan. Commando's in grijze vakken typ je in de shell van de Pi.
 
 > **Lees dit eerst.** De Pi Zero 2 W is een **luisterknooppunt**, geen
@@ -130,11 +130,11 @@ browser.)
 2. Op **SETTINGS → UI**, vink **Start in SWL mode** aan zodat de zendknoppen
    nooit verschijnen — dit is een luisterstation. (`--swl` op de opdrachtregel
    doet hetzelfde voor één run.)
-3. Op **SETTINGS → General**, stel je **Grid square** in (het LISTEN-venster
+3. Op **SETTINGS → General**, stel je **Grid square** in (het SWL LOG-venster
    gebruikt die voor de locator van elke ontvangst) en, op het tabblad **Spots**,
    je **Report as (SWL)**-identiteit.
 4. Stem een omroepband af — **LW**, **MW** of **SW** — kies **AM** of **SAM**, en
-   bevestig dat je iets hoort. De **SCHEDULE**- en **LISTEN**-vensters zijn de
+   bevestig dat je iets hoort. De **SCHEDULE**- en **SWL LOG**-vensters zijn de
    hulpmiddelen van de luisteraar; de
    [Luister-quickstart](listening-quickstart.nl.md) loopt ze door.
 
@@ -159,7 +159,7 @@ http://swl.local:4950
 ```
 
 Je krijgt het **hele programma** in de browser — afstemmen, de waterfall, de
-SCHEDULE- en LISTEN-vensters, de decoders, het ontvangstlogboek. De Pi doet het
+SCHEDULE- en SWL LOG-vensters, de decoders, het ontvangstlogboek. De Pi doet het
 ontvangen en het decoderen; de browser doet het tekenwerk, en precies daarmee
 blijft een bord van 512 MB bruikbaar.
 

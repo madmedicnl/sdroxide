@@ -67,7 +67,7 @@ Je kunt sdroxide ook als **server** draaien en in de browser openen:
 
 ## Deel A — Eenmalig instellen
 
-Alles hier wordt bewaard onder `~/.config/sdroxide/`, dus je doet dit één keer.
+Alles hier wordt bewaard onder `~/.config/sdroxide-brown/`, dus je doet dit één keer.
 
 ### 1. Kies je radio
 
@@ -121,7 +121,7 @@ mededeling één keer. Ontvangen heeft geen schakelaar nodig.
    zeker weet dat er audio bij de decoder komt. Is een header verkeerd gelezen
    als een langzame mode, dan laat **Restart RX** de halve foto vallen en gaat
    de ontvanger weer zoeken.
-6. Ontvangen foto's worden als PNG bewaard onder `~/.config/sdroxide/sstv_rx/`
+6. Ontvangen foto's worden als PNG bewaard onder `~/.config/sdroxide-brown/sstv_rx/`
    en laden de volgende keer terug in de galerij.
 
 ---
@@ -133,7 +133,7 @@ mededeling één keer. Ontvangen heeft geen schakelaar nodig.
    (Deel A.3).
 2. Aan de **TRANSMIT**-kant werken de vijf slots als tabbladen. **Load image…**
    (of dubbelklik op een slot) kiest een foto; die wordt bijgesneden en geschaald
-   naar de afmeting van de mode en bewaard onder `~/.config/sdroxide/sstv_tx/`.
+   naar de afmeting van de mode en bewaard onder `~/.config/sdroxide-brown/sstv_tx/`.
 3. Typ een **bericht** voor het actieve slot — de **eerste regel wordt op
    dubbel formaat als titel getekend**, en een live voorbeeld toont precies wat
    eruit gaat. De **banner** draagt je roepnaam.
@@ -152,7 +152,7 @@ mededeling één keer. Ontvangen heeft geen schakelaar nodig.
 
 ## Deel D — Bijhouden wat je ontvangt
 
-- Ontvangen foto's staan als **PNG** onder `~/.config/sdroxide/sstv_rx/`; de
+- Ontvangen foto's staan als **PNG** onder `~/.config/sdroxide-brown/sstv_rx/`; de
   galerij staat op de machine waar de radio aan hangt, dus elk scherm ziet
   dezelfde verzameling. Rechtsklik een miniatuur om hem te verwijderen.
 - **Profielen** (**Settings > Profiles**) bewaren een hele opstelling —

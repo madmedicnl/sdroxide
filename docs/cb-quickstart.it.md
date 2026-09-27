@@ -50,7 +50,7 @@ altrove.
 
 ## Parte A — Configurazione iniziale
 
-Tutto viene salvato in `~/.config/sdroxide/`, quindi si fa una volta sola.
+Tutto viene salvato in `~/.config/sdroxide-brown/`, quindi si fa una volta sola.
 
 ### 1. Avvia sdroxide
 

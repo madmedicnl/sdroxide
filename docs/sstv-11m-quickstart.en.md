@@ -66,7 +66,7 @@ You can also run sdroxide as a **server** and open it in a browser:
 
 ## Part A — One-time setup
 
-Everything here is saved under `~/.config/sdroxide/`, so you do it once.
+Everything here is saved under `~/.config/sdroxide-brown/`, so you do it once.
 
 ### 1. Pick your radio
 
@@ -117,7 +117,7 @@ Receiving needs no switch.
    **Signal** meter shows the receive audio level, so you can confirm audio is
    reaching the decoder. If a header was misread as a slow mode, **Restart RX**
    drops the half-picture and starts hunting again.
-6. Received pictures are saved as PNG under `~/.config/sdroxide/sstv_rx/` and
+6. Received pictures are saved as PNG under `~/.config/sdroxide-brown/sstv_rx/` and
    reload into the gallery next time.
 
 ---
@@ -128,7 +128,7 @@ Receiving needs no switch.
    Set **Allow transmit on 11 m (CB)** first (Part A.3).
 2. On the **TRANSMIT** side, the five slots work like tabs. **Load image…** (or
    double-click a slot) picks a picture; it is cropped and scaled to the mode's
-   size and stored under `~/.config/sdroxide/sstv_tx/`.
+   size and stored under `~/.config/sdroxide-brown/sstv_tx/`.
 3. Type a **message** for the active slot — the **first line is drawn at double
    size as a title**, and a live preview shows exactly what goes out. The
    **banner** carries your callsign.
@@ -146,7 +146,7 @@ Receiving needs no switch.
 
 ## Part D — Keeping a record
 
-- Received pictures live as **PNG** files under `~/.config/sdroxide/sstv_rx/`;
+- Received pictures live as **PNG** files under `~/.config/sdroxide-brown/sstv_rx/`;
   the gallery is stored on the machine the radio is plugged into, so every
   screen sees the same collection. Right-click a thumbnail to delete it.
 - **Profiles** (**Settings > Profiles**) save a whole working setup — dial and

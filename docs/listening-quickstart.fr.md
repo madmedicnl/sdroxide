@@ -17,7 +17,7 @@ est un récepteur propre par choix. Pour le détail de chaque commande, voir
 [listening-quickstart.it.md](listening-quickstart.it.md). PDF :
 [listening-quickstart.fr.pdf](listening-quickstart.fr.pdf).*
 
-Les noms en gras comme **SETTINGS** et **LISTEN** sont des boutons et des champs
+Les noms en gras comme **SETTINGS** et **SWL LOG** sont des boutons et des champs
 tels qu'ils apparaissent à l'écran. `Settings > Radio` est un chemin de menu.
 
 ---
@@ -53,7 +53,7 @@ Vous pouvez aussi lancer sdroxide en **serveur** et l'ouvrir dans un navigateur 
 
 ## Partie A — Réglage initial
 
-Tout ici est enregistré sous `~/.config/sdroxide/`, donc vous le faites une fois.
+Tout ici est enregistré sous `~/.config/sdroxide-brown/`, donc vous le faites une fois.
 
 ### 1. Choisissez votre radio
 
@@ -66,7 +66,7 @@ source d'écoute seule.
 
 **Settings > Radio > Transmit controls > SWL mode** masque toute commande
 d'émission — PTT, TUNE, CALL CQ et le reste — et remplace les puces amateur par
-celles de l'écouteur (**SCHEDULE**, **LISTEN**). C'est réglé **par radio**, donc
+celles de l'écouteur (**SCHEDULE**, **SWL LOG**). C'est réglé **par radio**, donc
 un poste d'écoute et un émetteur peuvent coexister. **Settings > UI > Start in
 SWL mode**, ou `--swl` en ligne de commande, transforme chaque radio en
 écouteur. Une radio en écoute seule (un SDR public, un RTL-SDR) propose
@@ -77,7 +77,7 @@ chose.
 
 Allez à l'onglet **General** :
 
-- **Locator / grid** — votre locator Maidenhead. La fenêtre LISTEN en pré-remplit
+- **Locator / grid** — votre locator Maidenhead. La fenêtre SWL LOG en pré-remplit
   le **locator** de chaque réception.
 - **IARU region** — la région qui fixe le plan de bandes.
 - À l'onglet **Spots**, **Report as (SWL)** — l'identité qui signe vos rapports
@@ -99,7 +99,7 @@ Allez à l'onglet **General** :
 4. **ECSS.** En **SAM**, les presets **ECSS-U** et **ECSS-L** gardent une bande
    latérale et rejettent l'autre — l'astuce DX des ondes moyennes pour écarter
    un canal voisin.
-5. **Tone.** La ligne **Tone** de la fenêtre LISTEN agit sur les graves, les
+5. **Tone.** La ligne **Tone** de la fenêtre SWL LOG agit sur les graves, les
    médiums et les aigus de l'audio démodulé, avant les haut-parleurs. L'audio de
    radiodiffusion veut une commande de tonalité que la chaîne de parole amateur
    n'a jamais eue.
@@ -123,9 +123,9 @@ côté de son site.
 
 ---
 
-## Partie D — Le journal de réception (LISTEN)
+## Partie D — Le journal de réception (SWL LOG)
 
-La fenêtre **LISTEN** est votre trace de ce qui a été entendu :
+La fenêtre **SWL LOG** est votre trace de ce qui a été entendu :
 
 - **+ NEW** journalise la station sur laquelle le récepteur est maintenant, avec
   la fréquence, le mode et la valeur du S-mètre en direct ; **LOG** sur une ligne

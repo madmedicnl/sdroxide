@@ -50,7 +50,7 @@ l'antenne est ailleurs.
 
 ## Partie A — Réglage initial
 
-Tout est enregistré sous `~/.config/sdroxide/`, donc à faire une seule fois.
+Tout est enregistré sous `~/.config/sdroxide-brown/`, donc à faire une seule fois.
 
 ### 1. Lancer sdroxide
 
