@@ -112,6 +112,16 @@ pub struct SwlEntry {
     pub antenna: String,
     /// Programme notes — what was on, what was said.
     pub notes: String,
+    /// When a reception report was sent for this hearing, Unix seconds UTC, or
+    /// `None` while it has not been. The `REPORT` button stamps it, and the log
+    /// shows a **sent** mark — the second step of the SWL's loop, *hear →
+    /// report → await QSL*, which the log otherwise forgot the moment the file
+    /// was saved.
+    pub report_sent_unix: Option<u64>,
+    /// When a QSL (or any verification) came back for it, Unix seconds UTC, or
+    /// `None` while it is still awaited — the last step of the loop. The log
+    /// shows a **QSL** mark for the ones that completed.
+    pub qsl_received_unix: Option<u64>,
     /// The listener marked this as an **unlicensed ("pirate") broadcast** — a
     /// station transmitting outside any allocation, which is a thing shortwave
     /// listeners deliberately hunt. Its own flag rather than a word in the
@@ -135,6 +145,8 @@ impl Default for SwlEntry {
             recv_grid: String::new(),
             antenna: String::new(),
             notes: String::new(),
+            report_sent_unix: None,
+            qsl_received_unix: None,
             pirate: false,
         }
     }
@@ -207,6 +219,10 @@ mod tests {
             recv_grid: "JO22".into(),
             antenna: "Longwire 20 m".into(),
             notes: "News, then music".into(),
+            // Both stamped, so the serde round-trip and the pre-field-load
+            // test cover them.
+            report_sent_unix: Some(1_789_588_000),
+            qsl_received_unix: Some(1_790_000_000),
             pirate: true,
         }
     }
@@ -240,6 +256,8 @@ mod tests {
         assert_eq!(e.report, Some(SignalReport::Sinpo(Sinpo { s: 5, i: 4, n: 4, p: 4, o: 5 })));
         assert_eq!(e.mode, crate::Mode::Am, "a missing mode defaults to AM");
         assert!(e.notes.is_empty());
+        assert!(e.report_sent_unix.is_none(), "old entry: no report sent yet");
+        assert!(e.qsl_received_unix.is_none(), "old entry: no QSL yet");
     }
 
     #[test]

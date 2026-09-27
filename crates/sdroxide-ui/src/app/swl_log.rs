@@ -98,6 +98,10 @@ pub(in crate::app) struct SwlEditForm {
     /// The listener marked this reception as an unlicensed ("pirate")
     /// broadcast. See [`SwlEntry::pirate`].
     pirate: bool,
+    /// When the report was sent and when a QSL came back. See
+    /// [`SwlEntry::report_sent_unix`] and [`SwlEntry::qsl_received_unix`].
+    report_sent_unix: Option<u64>,
+    qsl_received_unix: Option<u64>,
 }
 
 impl Default for SwlEditForm {
@@ -122,6 +126,8 @@ impl Default for SwlEditForm {
             antenna: String::new(),
             notes: String::new(),
             pirate: false,
+            report_sent_unix: None,
+            qsl_received_unix: None,
         }
     }
 }
@@ -201,6 +207,8 @@ impl SwlEditForm {
             antenna: e.antenna.clone(),
             notes: e.notes.clone(),
             pirate: e.pirate,
+            report_sent_unix: e.report_sent_unix,
+            qsl_received_unix: e.qsl_received_unix,
         }
     }
 
@@ -234,6 +242,8 @@ impl SwlEditForm {
             antenna: self.antenna.trim().to_string(),
             notes: self.notes.trim().to_string(),
             pirate: self.pirate,
+            report_sent_unix: self.report_sent_unix,
+            qsl_received_unix: self.qsl_received_unix,
         }
     }
 }
@@ -242,6 +252,9 @@ impl SdroxideApp {
     /// The LISTEN window: the reception log, its entry form and its report.
     pub(in crate::app) fn swl_window(&mut self, ctx: &egui::Context, cmds: &mut Vec<Command>) {
         let mut open = self.show_swl;
+        // The reception REPORT was asked for, so its "report sent" is stamped
+        // after the window has closed the borrow of the log — see below.
+        let mut mark_sent: Option<u64> = None;
         let resp = egui::Window::new("LISTEN")
             .id(crate::layout::salted_id(ctx, "LISTEN"))
             .open(&mut open)
@@ -315,6 +328,9 @@ impl SdroxideApp {
                                 let text =
                                     e.report_text(&listener, &grid, "sdroxide_SWL", &e.antenna);
                                 crate::download::save("reception-report.txt", text.as_bytes());
+                                // Writing the report is the "report" step of the
+                                // loop; mark it done unless it already was.
+                                mark_sent = Some(e.id);
                             }
                         });
                         ui.label(
@@ -374,6 +390,19 @@ impl SdroxideApp {
             crate::chrome::paint_window_border(ctx, &r.response);
         }
         self.show_swl = open;
+        if let Some(id) = mark_sent {
+            let now = now_unix().max(0) as u64;
+            let mut changed = false;
+            if let Some(slot) = self.swl_log.iter_mut().find(|e| e.id == id)
+                && slot.report_sent_unix.is_none()
+            {
+                slot.report_sent_unix = Some(now);
+                changed = true;
+            }
+            if changed {
+                persist_swl_log(&self.swl_log);
+            }
+        }
     }
 
     /// The reception log list, newest first, grouped by day.
@@ -459,6 +488,21 @@ impl SdroxideApp {
                                     .color(crate::theme::gray(160)),
                             );
                         }
+                        // Where this reception sits in the SWL's loop: reported,
+                        // or reported and verified. Blank once heard and left,
+                        // but always the same width, so the buttons after it do
+                        // not jitter from row to row.
+                        let (mark, ink) = if e.qsl_received_unix.is_some() {
+                            ("QSL", crate::theme::GREEN())
+                        } else if e.report_sent_unix.is_some() {
+                            ("sent", crate::theme::gray(150))
+                        } else {
+                            ("", crate::theme::gray(150))
+                        };
+                        ui.add_sized(
+                            [26.0, 14.0],
+                            egui::Label::new(RichText::new(mark).size(10.5).color(ink)),
+                        );
                         if e.freq_hz > 0.0
                             && ui
                                 .small_button("rcl")
@@ -634,6 +678,42 @@ impl SdroxideApp {
                             }
                             ui.end_row();
 
+                            // The SWL's loop: *hear → report → await QSL*. Both
+                            // steps are stamped now, easy to forget otherwise.
+                            ui.label("Report sent");
+                            ui.horizontal(|ui| {
+                                let mut sent = f.report_sent_unix.is_some();
+                                if crate::chrome::checkbox(ui, &mut sent, "").changed() {
+                                    f.report_sent_unix = sent.then(|| now_unix().max(0) as u64);
+                                }
+                                ui.label(
+                                    RichText::new(
+                                        f.report_sent_unix
+                                            .map(utc_text)
+                                            .unwrap_or_else(|| "not yet".into()),
+                                    )
+                                    .size(10.5)
+                                    .color(crate::theme::gray(150)),
+                                );
+                            });
+                            ui.label("QSL received");
+                            ui.horizontal(|ui| {
+                                let mut got = f.qsl_received_unix.is_some();
+                                if crate::chrome::checkbox(ui, &mut got, "").changed() {
+                                    f.qsl_received_unix = got.then(|| now_unix().max(0) as u64);
+                                }
+                                ui.label(
+                                    RichText::new(
+                                        f.qsl_received_unix
+                                            .map(utc_text)
+                                            .unwrap_or_else(|| "awaiting".into()),
+                                    )
+                                    .size(10.5)
+                                    .color(crate::theme::gray(150)),
+                                );
+                            });
+                            ui.end_row();
+
                             ui.label("Notes");
                             crate::chrome::field(
                                 ui,
@@ -729,5 +809,24 @@ mod tests {
     fn the_session_antenna_is_captured_into_the_entry() {
         let f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into(), "MLA-30".into());
         assert_eq!(f.to_entry().antenna, "MLA-30");
+    }
+
+    /// The reporting dates — the loop's *report → QSL* — are off until stamped,
+    /// survive the form and an edit, and clear back to `None` when unticked.
+    #[test]
+    fn the_sent_and_qsl_dates_survive_the_form_and_an_edit() {
+        let mut f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into(), String::new());
+        let fresh = f.to_entry();
+        assert!(fresh.report_sent_unix.is_none() && fresh.qsl_received_unix.is_none());
+        f.report_sent_unix = Some(1_789_588_000);
+        f.qsl_received_unix = Some(1_790_000_000);
+        let e = f.to_entry();
+        assert_eq!(e.report_sent_unix, Some(1_789_588_000));
+        assert_eq!(e.qsl_received_unix, Some(1_790_000_000));
+        let reopened = SwlEditForm::from_entry(&e);
+        assert_eq!(reopened.report_sent_unix, Some(1_789_588_000));
+        assert_eq!(reopened.qsl_received_unix, Some(1_790_000_000));
+        f.report_sent_unix = None;
+        assert!(f.to_entry().report_sent_unix.is_none(), "unticking clears it");
     }
 }

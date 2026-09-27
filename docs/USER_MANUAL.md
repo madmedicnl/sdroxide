@@ -14723,6 +14723,16 @@ the numbers, the **received-at** locator and the aerial, signed with your report
 identity — and names the program there as **sdroxide_SWL**, so a broadcaster can
 tell it apart from the amateur build.
 
+A reception is not finished when it is heard: an SWL's loop is *hear → report →
+await QSL*, and the log records the whole of it. **report sent** stamps the day
+the report went out — **REPORT** sets it too, since writing the report is that
+step — and **QSL received** stamps the reply or card when it arrives. Each is a
+date rather than a plain tick, so the log keeps *when* as well as *whether*;
+unticking one clears it. The row carries a small **sent** or **QSL** mark after
+the locator, so the catches still owed a report, or still awaiting a card, are
+the ones with no mark. The two steps ride on the saved entry with everything
+else, so they survive a restart and travel with the log.
+
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,
 four minutes a degree from the site's longitude — and deliberately not a civil
