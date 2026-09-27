@@ -73,7 +73,8 @@ fn truncate(s: &str, n: usize) -> String {
 /// changes what was recorded.
 #[derive(Default)]
 pub(in crate::app) struct SwlFilter {
-    /// Free text, matched against station, language, site and notes.
+    /// Free text, matched against station, language, site, notes and the
+    /// broadcaster's contact.
     find: String,
     /// Only one broadcast band, or `None` for every band.
     band: Option<sdroxide_types::Band>,
@@ -102,7 +103,11 @@ impl SwlFilter {
         }
         let q = self.find.trim().to_lowercase();
         if !q.is_empty() {
-            let hay = format!("{} {} {} {}", e.station, e.language, e.site, e.notes).to_lowercase();
+            let hay = format!(
+                "{} {} {} {} {} {}",
+                e.station, e.language, e.site, e.notes, e.email, e.address
+            )
+            .to_lowercase();
             if !hay.contains(&q) {
                 return false;
             }
@@ -142,9 +147,14 @@ pub(in crate::app) struct SwlEditForm {
     o: u8,
     smeter_dbm: Option<f32>,
     site: String,
+    /// The broadcaster's report contact, copied from the schedule row when the
+    /// entry is logged from SCHEDULE. See [`SwlEntry::email`].
+    email: String,
+    /// The broadcaster's postal address. See [`SwlEntry::address`].
+    address: String,
     /// The receiving station's Maidenhead locator. See [`SwlEntry::recv_grid`].
     recv_grid: String,
-    /// The antenna in use, from the LISTEN window's session field. See
+    /// The antenna in use, from the SWL LOG window's session field. See
     /// [`SwlEntry::antenna`].
     antenna: String,
     notes: String,
@@ -175,6 +185,8 @@ impl Default for SwlEditForm {
             o: 3,
             smeter_dbm: None,
             site: String::new(),
+            email: String::new(),
+            address: String::new(),
             recv_grid: String::new(),
             antenna: String::new(),
             notes: String::new(),
@@ -223,6 +235,8 @@ impl SwlEditForm {
         station: &str,
         language: &str,
         site: &str,
+        email: &str,
+        address: &str,
         smeter_dbm: Option<f32>,
         grid: String,
         antenna: String,
@@ -231,6 +245,8 @@ impl SwlEditForm {
         f.station = station.to_string();
         f.language = language.to_string();
         f.site = site.to_string();
+        f.email = email.to_string();
+        f.address = address.to_string();
         f
     }
 
@@ -256,6 +272,8 @@ impl SwlEditForm {
             o,
             smeter_dbm: e.smeter_dbm,
             site: e.site.clone(),
+            email: e.email.clone(),
+            address: e.address.clone(),
             recv_grid: e.recv_grid.clone(),
             antenna: e.antenna.clone(),
             notes: e.notes.clone(),
@@ -291,6 +309,8 @@ impl SwlEditForm {
             report,
             smeter_dbm: self.smeter_dbm,
             site: self.site.trim().to_string(),
+            email: self.email.trim().to_string(),
+            address: self.address.trim().to_string(),
             recv_grid: self.recv_grid.trim().to_uppercase(),
             antenna: self.antenna.trim().to_string(),
             notes: self.notes.trim().to_string(),
@@ -320,13 +340,15 @@ fn station_at(entries: &[SwlEntry], freq_hz: f64) -> Option<String> {
 }
 
 impl SdroxideApp {
-    /// The LISTEN window: the reception log, its entry form and its report.
+    /// The SWL LOG window: the reception log, its entry form and its report.
     pub(in crate::app) fn swl_window(&mut self, ctx: &egui::Context, cmds: &mut Vec<Command>) {
         let mut open = self.show_swl;
         // The reception REPORT was asked for, so its "report sent" is stamped
         // after the window has closed the borrow of the log — see below.
         let mut mark_sent: Option<u64> = None;
-        let resp = egui::Window::new("LISTEN")
+        // Titled "SWL LOG" to match its top-strip chip; the id stays "LISTEN"
+        // so an operator's saved window position survives the rename.
+        let resp = egui::Window::new("SWL LOG")
             .id(crate::layout::salted_id(ctx, "LISTEN"))
             .open(&mut open)
             .frame(crate::chrome::window_frame())
@@ -341,6 +363,14 @@ impl SdroxideApp {
                             .monospace()
                             .color(crate::theme::CYAN()),
                     );
+                    // Which build this is, beside the clock: a QSL screenshot
+                    // then names the version it came from.
+                    ui.label(
+                        RichText::new(format!("v{}", sdroxide_version::VERSION))
+                            .size(10.5)
+                            .color(crate::theme::gray(120)),
+                    )
+                    .on_hover_text(sdroxide_version::LONG_VERSION);
                     ui.separator();
                     if crate::chrome::chip(ui, false, "+ NEW").clicked() {
                         let freq = self.on_air_freq_hz();
@@ -695,6 +725,31 @@ impl SdroxideApp {
                                     .color(crate::theme::gray(160)),
                             );
                         }
+                        // The broadcaster's report contact, when the schedule
+                        // gave one. One button because the report goes to the
+                        // email when there is one and to the address otherwise;
+                        // the hover names both, and a click copies the
+                        // destination.
+                        let email = e.email.trim();
+                        let address = e.address.trim();
+                        if !email.is_empty() || !address.is_empty() {
+                            let mut tip = String::new();
+                            if !email.is_empty() {
+                                tip.push_str(email);
+                            }
+                            if !address.is_empty() {
+                                if !tip.is_empty() {
+                                    tip.push('\n');
+                                }
+                                tip.push_str(address);
+                            }
+                            tip.push_str("\n(click to copy)");
+                            let label = if email.is_empty() { "addr" } else { "mail" };
+                            if ui.small_button(label).on_hover_text(tip).clicked() {
+                                let dest = if email.is_empty() { address } else { email };
+                                ui.ctx().copy_text(dest.to_string());
+                            }
+                        }
                         // Where this reception sits in the SWL's loop: reported,
                         // or reported and verified. Blank once heard and left,
                         // but always the same width, so the buttons after it do
@@ -831,6 +886,28 @@ impl SdroxideApp {
                                     .desired_width(90.0)
                                     .hint_text("your grid"),
                             );
+                            ui.end_row();
+
+                            // The broadcaster's report contact, filled in from
+                            // the schedule on LOG. Editable, because a schedule
+                            // that has no address is no reason the listener
+                            // cannot write one in.
+                            ui.label("E-mail");
+                            crate::chrome::field(
+                                ui,
+                                egui::TextEdit::singleline(&mut f.email)
+                                    .desired_width(220.0)
+                                    .hint_text("reception reports"),
+                            )
+                            .on_hover_text("Goes on the report's Send to: line");
+                            ui.label("Postal");
+                            crate::chrome::field(
+                                ui,
+                                egui::TextEdit::singleline(&mut f.address)
+                                    .desired_width(220.0)
+                                    .hint_text("street, city, country"),
+                            )
+                            .on_hover_text("The fallback report destination when there is no e-mail");
                             ui.end_row();
 
                             ui.label("Heard");
@@ -1044,7 +1121,7 @@ mod tests {
         assert_eq!(f.to_entry().recv_grid, "JO22");
     }
 
-    /// The session antenna — the aerial the operator typed in the LISTEN window
+    /// The session antenna — the aerial the operator typed in the SWL LOG window
     /// — is captured into the entry at log time, so a report of a later
     /// reception does not name the aerial that heard an earlier one.
     #[test]

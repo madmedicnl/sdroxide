@@ -75,7 +75,7 @@ fn where_to_look(file: &str) -> &'static str {
     match file {
         "memories.json" | "memory_folders.json" => "check the MEM window",
         "qso_log.json" => "check the LOG window",
-        "swl_log.json" => "check the LISTEN window",
+        "swl_log.json" => "check the SWL LOG window",
         "contacts.json" => "check the FSQ contacts list",
         "scanner.json" => "check the SCAN window",
         "config.toml" => "check Settings",
@@ -2855,6 +2855,8 @@ mod tests {
             end_utc: None,
             days: String::new(),
             season: None,
+            email: String::new(),
+            address: String::new(),
         }
     }
 

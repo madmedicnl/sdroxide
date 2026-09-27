@@ -1590,6 +1590,25 @@ impl SdroxideApp {
                     );
                 },
             );
+            // Which build this is, centred in the free strip above the
+            // frequency readout — the digits are centred vertically, so there
+            // is a gap above them. Painted, not laid out, so a screenshot
+            // names the build it came from without costing the strip any
+            // reserved width. The font shrinks to whatever that gap can hold
+            // clear of the ink, and a box too tight to hold a legible line
+            // simply does not carry one. The full name and the `_brown` suffix
+            // stay in Settings → General and `--version`.
+            let gap = (full_h - readout_h) / 2.0;
+            if gap >= 8.0 {
+                let r = readout.response.rect;
+                ui.painter().text(
+                    egui::pos2(r.left() + readout_w / 2.0, r.top() + gap / 2.0),
+                    egui::Align2::CENTER_CENTER,
+                    format!("v{}", sdroxide_version::VERSION),
+                    egui::FontId::proportional((gap - 1.5).clamp(7.0, 10.0)),
+                    crate::theme::gray(120),
+                );
+            }
             // When the VFO sits exactly on a stored memory, say which one.
             // Painted rather than laid out, so the readout never shifts as it
             // appears — anchored to the bottom of the box, not the digit row
@@ -3470,7 +3489,7 @@ impl SdroxideApp {
 
     /// The tone popup behind the EQ chip: on/off and a shelf each for bass, mid
     /// and treble, on [`sdroxide_types::RadioState::rx_tone`] — the same control
-    /// the LISTEN window offers, put where the ear reaches for it.
+    /// the SWL LOG window offers, put where the ear reaches for it.
     fn eq_popup(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>, btn: &egui::Response) {
         let popup_id = egui::Popup::default_response_id(btn);
         let now = ui.input(|i| i.time);
@@ -5619,7 +5638,7 @@ impl SdroxideApp {
         // SWL mode is the listener's screen, and it takes the row the way the
         // listener uses it: award tracking is a ham receive extra they never
         // open, so it gives way to the listener's own windows, SCHEDULE and
-        // LISTEN. The SPOTS window stays — the receive-only networks are a
+        // SWL LOG. The SPOTS window stays — the receive-only networks are a
         // listener's tool as much as a ham's, and it is only the DX cluster /
         // POTA / SOTA feeds *inside* it that SWL mode drops (see
         // `SdroxideApp::spot_visible`). The labels here are mirrored by
@@ -5628,16 +5647,19 @@ impl SdroxideApp {
         let swl = self.swl_mode();
         // One LOG chip, because "my log" is whichever log the operator keeps:
         // a listener logging a pirate station wants the reception log, not the
-        // QSO logbook. SWL mode is one way to be a listener; a radio that
-        // cannot transmit at all (an SDR dongle, a public SDR, the ATS Mini) is
-        // the other, and its LOG belongs on the reception log too.
+        // QSO logbook. A radio that cannot transmit at all (an SDR dongle, a
+        // public SDR, the ATS Mini) is a listener too, and its LOG belongs on
+        // the reception log. In SWL mode the chip says "SWL LOG" in full — it
+        // opens the reception log and is the only log on the screen, and the
+        // LISTEN chip it replaces leaves the width for the longer name.
         let log_opens_swl = log_chip_opens_swl(self.listener_screen());
         let (log_open, log_hover) = if log_opens_swl {
             (self.show_swl, "Reception log — stations heard, with SINPO/SIO")
         } else {
             (self.show_logbook, "Logbook — all QSOs (digital + manual)")
         };
-        if chip_stretched(ui, log_open, log, extra).on_hover_text(log_hover).clicked() {
+        let log_label = if swl { "SWL LOG" } else { log };
+        if chip_stretched(ui, log_open, log_label, extra).on_hover_text(log_hover).clicked() {
             if log_opens_swl {
                 self.show_swl = !self.show_swl;
             } else {
@@ -5650,13 +5672,6 @@ impl SdroxideApp {
                 .clicked()
         {
             self.schedule.show = !self.schedule.show;
-        }
-        if swl
-            && chip_stretched(ui, self.show_swl, "LISTEN", extra)
-                .on_hover_text("Reception log — stations heard, with SINPO/SIO")
-                .clicked()
-        {
-            self.show_swl = !self.show_swl;
         }
         if chip_stretched(ui, self.show_spots, spots, extra)
             .on_hover_text(
@@ -5774,7 +5789,8 @@ impl SdroxideApp {
         let [mail, mem, scan_label, hfdl_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
         let simple = self.ui_settings.simple_ui;
         // The MAIL slot. SWL mode offers the signal-identification guide there
-        // instead — the same window the LISTEN strip opens — because radio email
+        // instead — the same guide the SWL LOG window's SIG ID chip opens —
+        // because radio email
         // is a transmitting ham's tool with nothing for a listener, while
         // "what is on this dial?" is exactly a listener's question. The labels
         // here are mirrored by `system_bottom_row`, which sizes the box.
@@ -6868,14 +6884,16 @@ fn system_top_row(simple: bool, swl: bool) -> Vec<&'static str> {
         .iter()
         .enumerate()
         .filter(|(i, _)| !(simple && matches!(i, 2 | 4 | 5)))
-        // SWL takes over the awards slot with its own two windows. The spots
-        // slot stays: only the ham feeds inside it are dropped.
+        // SWL takes over the awards slot with the broadcast schedule. The spots
+        // slot stays: only the ham feeds inside it are dropped. The LOG chip is
+        // relabelled "SWL LOG" — on this screen it opens the reception log and
+        // is the only log there is, so the whole name is worth printing; the
+        // LISTEN chip it replaces paid for the wider label.
         .filter(|(i, _)| !(swl && *i == 2))
-        .map(|(_, l)| *l)
+        .map(|(i, l)| if swl && i == 0 { "SWL LOG" } else { *l })
         .collect();
     if swl {
-        v.insert(1, "LISTEN");
-        v.insert(1, "SCHEDULE");
+        v.insert(0, "SCHEDULE");
     }
     v
 }
@@ -8278,10 +8296,12 @@ mod tests {
         assert_eq!(system_top_row(true, false), vec!["LOG", "SPOTS", "BANDS", "PUBLIC SDR"]);
         // SWL mode keeps the SPOTS chip (the receive-only networks are a
         // listener's tool) and drops only award tracking, the ham feed being
-        // filtered inside the window instead.
+        // filtered inside the window instead. Its LOG chip is relabelled "SWL
+        // LOG" — it opens the reception log, and the LISTEN chip it replaces is
+        // gone, so there is no second chip for the same window.
         assert_eq!(
             system_top_row(false, true),
-            vec!["LOG", "SCHEDULE", "LISTEN", "SPOTS", "BANDS", "SAT", "ISM", "PUBLIC SDR"]
+            vec!["SCHEDULE", "SWL LOG", "SPOTS", "BANDS", "SAT", "ISM", "PUBLIC SDR"]
         );
         // HFDL is a decode window, so it sits with the others in the bottom
         // row — where the simple interface keeps it, unlike radio email.

@@ -105,13 +105,22 @@ pub struct SwlEntry {
     /// it. Pre-filled from the screen's own grid, editable per entry.
     pub recv_grid: String,
     /// The antenna in use when it was heard, in the listener's own words,
-    /// captured from the LISTEN window's session field at the moment of
+    /// captured from the SWL LOG window's session field at the moment of
     /// logging. It goes on the reception report's **Antenna:** line, and it is
     /// kept per entry so a report of an older reception names the aerial that
     /// actually heard it.
     pub antenna: String,
     /// Programme notes — what was on, what was said.
     pub notes: String,
+    /// The broadcaster's reception-report email, copied from the schedule when
+    /// the entry was logged from it. Free text; empty when the schedule carried
+    /// no contact. It goes on the report's **Send to:** block, and the log
+    /// offers it to copy.
+    pub email: String,
+    /// The broadcaster's postal address for a reception report, from the
+    /// schedule when it carried one. The fallback destination when there is no
+    /// email.
+    pub address: String,
     /// When a reception report was sent for this hearing, Unix seconds UTC, or
     /// `None` while it has not been. The `REPORT` button stamps it, and the log
     /// shows a **sent** mark — the second step of the SWL's loop, *hear →
@@ -145,6 +154,8 @@ impl Default for SwlEntry {
             recv_grid: String::new(),
             antenna: String::new(),
             notes: String::new(),
+            email: String::new(),
+            address: String::new(),
             report_sent_unix: None,
             qsl_received_unix: None,
             pirate: false,
@@ -196,6 +207,14 @@ impl SwlEntry {
         }
         line(&mut out, "Notes:", &self.notes);
         line(&mut out, "Reported by:", listener);
+        // Where to send it, when the schedule carried a contact: the point of
+        // the report is a QSL card, and hunting for the address afterwards is
+        // the step that gets skipped.
+        if !self.email.trim().is_empty() || !self.address.trim().is_empty() {
+            out.push_str("\nSend to:\n");
+            line(&mut out, "Email:", &self.email);
+            line(&mut out, "Address:", &self.address);
+        }
         out
     }
 }
@@ -340,6 +359,10 @@ mod tests {
             recv_grid: "JO22".into(),
             antenna: "Longwire 20 m".into(),
             notes: "News, then music".into(),
+            // Contact left empty so the exact-text report test covers the
+            // no-contact case; `the_report_says_where_to_send_it` sets them.
+            email: String::new(),
+            address: String::new(),
             // Both stamped, so the serde round-trip and the pre-field-load
             // test cover them.
             report_sent_unix: Some(1_789_588_000),
@@ -453,6 +476,21 @@ mod tests {
                     Notes:      News, then music\n\
                     Reported by:19DCG373\n";
         assert_eq!(text, want);
+    }
+
+    /// The report names where to send it when the schedule gave a contact, and
+    /// leaves the block out entirely when it did not.
+    #[test]
+    fn the_report_says_where_to_send_it() {
+        let mut e = entry();
+        e.email = "rti@rti.org.tw".into();
+        e.address = "55 Beian Road, Taipei".into();
+        let text = e.report_text("", "", "", "");
+        assert!(text.contains("Send to:"), "{text}");
+        assert!(text.contains("rti@rti.org.tw"), "{text}");
+        assert!(text.contains("55 Beian Road, Taipei"), "{text}");
+
+        assert!(!entry().report_text("", "", "", "").contains("Send to:"));
     }
 
     /// The missing pieces say so, rather than printing blanks or zeroes.

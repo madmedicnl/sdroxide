@@ -2179,7 +2179,7 @@ impl SdroxideApp {
                         .on_hover_text(
                             "Hide every transmit control for *this* radio — the PTT, CALL CQ, TX \
                          level, SEND, BEACON, all of it — and swap the strip's ham extras \
-                         (spots, awards) for the listener's (SCHEDULE, LISTEN). Per radio: a \
+                         (spots, awards) for the listener's (SCHEDULE and SWL LOG, the reception log). Per radio: a \
                          listening dongle on the long wire can sit in this mode while the \
                          transceiver beside it keeps its transmitter.\n\nThe hardware can \
                          still transmit; this only hides the controls. `--swl` forces it on \

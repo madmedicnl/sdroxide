@@ -221,6 +221,13 @@ impl SdroxideApp {
                             .monospace()
                             .color(crate::theme::CYAN()),
                     );
+                    // The build, beside the clock — see the SWL LOG window.
+                    ui.label(
+                        RichText::new(format!("v{}", sdroxide_version::VERSION))
+                            .size(10.5)
+                            .color(crate::theme::gray(120)),
+                    )
+                    .on_hover_text(sdroxide_version::LONG_VERSION);
                 });
                 ui.add_space(2.0);
                 ui.label(
@@ -333,6 +340,8 @@ impl SdroxideApp {
                 &s.name,
                 &s.lang,
                 &s.site,
+                &s.email,
+                &s.address,
                 smeter,
                 grid,
                 antenna,

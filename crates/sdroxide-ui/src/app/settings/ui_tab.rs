@@ -262,7 +262,7 @@ pub(in crate::app) fn settings_ui_tab(
             ui.label("SWL mode").on_hover_text(
                 "Hide every transmit control for this radio — the PTT, CALL CQ, TX level, \
                  SEND, BEACON, all of it — and swap the strip's ham extras (spots, awards) \
-                 for the listener's (SCHEDULE, LISTEN). The same switch as Settings → Radio \
+                 for the listener's (SCHEDULE and SWL LOG, the reception log). The same switch as Settings → Radio \
                  → Transmit controls, and per radio: a listening dongle can sit in this mode \
                  while the transceiver beside it keeps its transmitter.\n\n\
                  The hardware can still transmit; this only hides the controls. `--swl` \

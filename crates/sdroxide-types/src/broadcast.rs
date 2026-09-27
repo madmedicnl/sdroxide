@@ -158,6 +158,12 @@ pub fn parse_schedule(csv: &str) -> Vec<BroadcastStation> {
             Some((a, b)) => (Some(a), Some(b)),
             None => (None, None),
         };
+        // Fields past EiBi's eleven are an enrichment: an operator-supplied file
+        // may append the broadcaster's report contact so a logged reception can
+        // name where to send it. The published file stops at eleven, so these
+        // are empty there.
+        let email = f.get(11).map(|s| s.trim().to_string()).unwrap_or_default();
+        let address = f.get(12).map(|s| s.trim().to_string()).unwrap_or_default();
 
         out.push(BroadcastStation {
             name: station.to_string(),
@@ -182,6 +188,8 @@ pub fn parse_schedule(csv: &str) -> Vec<BroadcastStation> {
                 5 => Some("A".to_string()),
                 _ => None,
             },
+            email,
+            address,
         });
     }
     out
@@ -359,6 +367,15 @@ pub struct BroadcastStation {
     /// Absent means the transmission runs in both.
     #[serde(default)]
     pub season: Option<String>,
+    /// The broadcaster's email for reception reports, when the schedule carries
+    /// one. An enriched EiBi file may append this as a twelfth field; the file
+    /// EiBi publishes does not, so it is usually empty.
+    #[serde(default)]
+    pub email: String,
+    /// The broadcaster's postal address for a reception report, from a
+    /// thirteenth field when the schedule file carries one.
+    #[serde(default)]
+    pub address: String,
 }
 
 /// The file format: a version, some provenance, and the stations.
@@ -903,6 +920,8 @@ mod tests {
             end_utc: end,
             days: days.into(),
             season: None,
+            email: String::new(),
+            address: String::new(),
         }
     }
 
@@ -1100,6 +1119,26 @@ mod tests {
         assert_eq!((s.start_utc, s.end_utc), (Some(1800), Some(1900)));
         assert_eq!(s.days, "12345");
         assert!(s.lat.is_some() && s.lon.is_some());
+    }
+
+    #[test]
+    fn schedule_contact_columns_are_read_when_present() {
+        // An enriched file appends the broadcaster's report contact as fields
+        // twelve and thirteen; the published EiBi file stops at eleven.
+        let row = [
+            "15400", "1800-1900", "Mo-Fr", "G", "BBC", "E", "WAf", "/ASC", "0", "", "",
+            "reports@bbc.example", "BBC, London", "",
+        ]
+        .join(";");
+        let got = parse_schedule(&format!("header\n{row}\n"));
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].email, "reports@bbc.example");
+        assert_eq!(got[0].address, "BBC, London");
+
+        let plain = "header\n15400;1800-1900;Mo-Fr;G;BBC;E;WAf;/ASC;0;;;\n";
+        let got = parse_schedule(plain);
+        assert_eq!(got.len(), 1);
+        assert!(got[0].email.is_empty() && got[0].address.is_empty());
     }
 
     #[test]
