@@ -305,7 +305,9 @@ pub use state::{
     panadapter_fft_ceiling, swr_tune_limit, zoom_lane_decimation,
 };
 pub use station::StationConfig;
-pub use swl::{SignalReport, Sinpo, Sio, SwlEntry};
+pub use swl::{
+    SignalReport, Sinpo, Sio, SwlEntry, swl_entry_to_adif_record, swl_log_to_adif, swl_log_to_csv,
+};
 pub use tciserver::TciServerConfig;
 pub use tone::{CTCSS_TONES, SubTone};
 pub use ui::{

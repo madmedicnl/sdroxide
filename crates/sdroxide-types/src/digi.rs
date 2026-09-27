@@ -2685,12 +2685,12 @@ pub fn ymd_hms_to_unix(y: i64, m: u32, d: u32, h: u32, mi: u32, s: u32) -> i64 {
     days * 86_400 + h as i64 * 3600 + mi as i64 * 60 + s as i64
 }
 
-fn adif_date_time(unix: i64) -> (String, String) {
+pub(crate) fn adif_date_time(unix: i64) -> (String, String) {
     let (y, m, d, h, mi, s) = utc_ymd_hms(unix);
     (format!("{y:04}{m:02}{d:02}"), format!("{h:02}{mi:02}{s:02}"))
 }
 
-fn adif_field(name: &str, value: &str) -> String {
+pub(crate) fn adif_field(name: &str, value: &str) -> String {
     format!("<{}:{}>{}", name, value.len(), value)
 }
 
@@ -3077,7 +3077,7 @@ pub fn qso_log_to_text(records: &[QsoRecord]) -> String {
 /// break. A decoded message is usually bare text, but free-text and compound
 /// calls can carry any of those, and a spreadsheet is entitled to one column
 /// per cell.
-fn csv_field(s: &str) -> String {
+pub(crate) fn csv_field(s: &str) -> String {
     if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {

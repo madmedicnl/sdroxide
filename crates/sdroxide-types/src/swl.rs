@@ -200,6 +200,127 @@ impl SwlEntry {
     }
 }
 
+/// A Unix instant as `YYYY-MM-DD HH:MM:SS`, UTC — the shape both exports print.
+fn export_utc(unix: u64) -> String {
+    let (y, mo, d, h, mi, s) = crate::utc_ymd_hms(unix as i64);
+    format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02}")
+}
+
+/// The whole reception log as CSV: one row per hearing, for a spreadsheet or a
+/// quick look in a text editor.
+///
+/// This is the log's own export, where [`SwlEntry::report_text`] (the `REPORT`
+/// button) writes a *single* entry to send to a broadcaster. The signal report
+/// is split into its kind (`SINPO` / `SIO`) and its figures so a spreadsheet can
+/// sort on either, and both reporting dates are carried out so the loop's state
+/// travels with the log.
+pub fn swl_log_to_csv(entries: &[SwlEntry]) -> String {
+    let mut out = String::from(
+        "utc,station,freq_khz,freq_mhz,band,mode,language,site,report_kind,report,\
+         smeter_dbm,recv_grid,antenna,report_sent,qsl_received,pirate,notes\r\n",
+    );
+    let csv = crate::digi::csv_field;
+    for e in entries {
+        out.push_str(&format!(
+            "{},{},{:.3},{:.6},{},{},{},{},{},{},{},{},{},{},{},{},{}\r\n",
+            export_utc(e.heard_at_unix),
+            csv(&e.station),
+            e.freq_hz / 1e3,
+            e.freq_hz / 1e6,
+            crate::Band::containing(e.freq_hz).label(),
+            e.mode.label(),
+            csv(&e.language),
+            csv(&e.site),
+            e.report.map(|r| r.label()).unwrap_or(""),
+            csv(&e.report.map(|r| r.digits()).unwrap_or_default()),
+            e.smeter_dbm.map(|d| format!("{d:.1}")).unwrap_or_default(),
+            csv(&e.recv_grid),
+            csv(&e.antenna),
+            e.report_sent_unix.map(export_utc).unwrap_or_default(),
+            e.qsl_received_unix.map(export_utc).unwrap_or_default(),
+            if e.pirate { "yes" } else { "" },
+            csv(&e.notes),
+        ));
+    }
+    out
+}
+
+/// One reception as a bare ADIF record ending in `<EOR>` — or `None` for a
+/// hearing that names no station, which a logger cannot keep.
+///
+/// A reception, not a contact: nothing was worked, so the record says `SWL=Y`
+/// and hangs the two reporting dates on the fields ADIF defines for them —
+/// `QSL_SENT`/`QSLSDATE` for the report sent, `QSL_RCVD`/`QSLRDATE` for the
+/// verification back. `CALL` carries the station name: a broadcast has no
+/// callsign and ADIF has no field for a broadcaster, so the name is what a
+/// logger needs to keep the record rather than drop it, and the language and
+/// transmitter site ride in `APP_` fields ADIF reserves for a program's own
+/// data. The receiving locator and aerial are ADIF's own `MY_` pair.
+pub fn swl_entry_to_adif_record(e: &SwlEntry) -> Option<String> {
+    let station = e.station.trim();
+    if station.is_empty() {
+        return None;
+    }
+    let field = crate::digi::adif_field;
+    let (date, time) = crate::digi::adif_date_time(e.heard_at_unix as i64);
+    let mut out = String::new();
+    out.push_str(&field("CALL", station));
+    out.push_str(&field("SWL", "Y"));
+    out.push_str(&field("QSO_DATE", &date));
+    out.push_str(&field("TIME_ON", &time));
+    out.push_str(&field("BAND", crate::digi::adif_band(e.freq_hz)));
+    out.push_str(&field("MODE", e.mode.label()));
+    out.push_str(&field("FREQ", &format!("{:.6}", e.freq_hz / 1e6)));
+    if !e.recv_grid.is_empty() {
+        out.push_str(&field("MY_GRIDSQUARE", &e.recv_grid));
+    }
+    if !e.antenna.is_empty() {
+        out.push_str(&field("MY_ANTENNA", &e.antenna));
+    }
+    if let Some(r) = e.report {
+        out.push_str(&field("APP_SDROXIDE_REPORT", &format!("{} {}", r.label(), r.digits())));
+    }
+    if let Some(d) = e.smeter_dbm {
+        out.push_str(&field("APP_SDROXIDE_SMETER_DBM", &format!("{d:.1}")));
+    }
+    if !e.site.is_empty() {
+        out.push_str(&field("APP_SDROXIDE_SITE", &e.site));
+    }
+    if !e.language.is_empty() {
+        out.push_str(&field("APP_SDROXIDE_LANGUAGE", &e.language));
+    }
+    if e.pirate {
+        out.push_str(&field("APP_SDROXIDE_PIRATE", "Y"));
+    }
+    if let Some(t) = e.report_sent_unix {
+        out.push_str(&field("QSL_SENT", "Y"));
+        out.push_str(&field("QSLSDATE", &crate::digi::adif_date_time(t as i64).0));
+    }
+    if let Some(t) = e.qsl_received_unix {
+        out.push_str(&field("QSL_RCVD", "Y"));
+        out.push_str(&field("QSLRDATE", &crate::digi::adif_date_time(t as i64).0));
+    }
+    if !e.notes.trim().is_empty() {
+        out.push_str(&field("NOTES", e.notes.trim()));
+    }
+    out.push_str("<EOR>");
+    Some(out)
+}
+
+/// The whole reception log as an ADIF file, one record per entry (see
+/// [`swl_entry_to_adif_record`]).
+pub fn swl_log_to_adif(entries: &[SwlEntry]) -> String {
+    let mut out = String::from(
+        "ADIF export from sdroxide — reception log (SWL)\r\n\
+         <ADIF_VER:5>3.1.4\r\n<PROGRAMID:8>sdroxide\r\n<EOH>\r\n",
+    );
+    for record in entries.iter().filter_map(swl_entry_to_adif_record) {
+        out.push_str(&record);
+        out.push_str("\r\n");
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,6 +394,49 @@ mod tests {
     #[test]
     fn the_frequency_reads_in_khz_and_mhz() {
         assert_eq!(entry().frequency_text(), "6185 kHz (6.185 MHz)");
+    }
+
+    /// The whole log's export — the CSV and the reception ADIF, as distinct
+    /// from the single-entry `REPORT` text. The ADIF says a listener *heard*
+    /// the station, and carries both reporting dates the loop is about.
+    #[test]
+    fn the_log_exports_as_csv_and_reception_adif() {
+        let e = entry();
+        let csv = swl_log_to_csv(std::slice::from_ref(&e));
+        let mut lines = csv.lines();
+        assert!(lines.next().unwrap().starts_with("utc,station,freq_khz"));
+        let row = lines.next().unwrap();
+        assert!(row.contains("2026-09-16 19:42:00"), "{row}");
+        assert!(row.contains("6185.000") && row.contains("6.185000"), "{row}");
+        assert!(row.contains("AM,"), "mode: {row}");
+        assert!(row.contains("SINPO,4 3 3 4 4"), "report split: {row}");
+        assert!(row.contains(",yes,"), "pirate flag: {row}");
+
+        let adif = swl_log_to_adif(std::slice::from_ref(&e));
+        assert!(adif.contains("<CALL:26>Radio Taiwan International"), "{adif}");
+        assert!(adif.contains("<SWL:1>Y"), "{adif}");
+        assert!(adif.contains("<QSL_SENT:1>Y") && adif.contains("<QSLSDATE:8>2026"), "{adif}");
+        assert!(adif.contains("<QSL_RCVD:1>Y") && adif.contains("<QSLRDATE:8>2026"), "{adif}");
+        assert!(adif.contains("<MY_GRIDSQUARE:4>JO22"), "{adif}");
+        assert_eq!(adif.matches("<EOR>").count(), 1);
+    }
+
+    /// A station name with a comma or a quote must not break the CSV, and a
+    /// hearing that names no station cannot be an ADIF record at all — a logger
+    /// would drop it or import a blank call.
+    #[test]
+    fn the_export_quotes_csv_oddities_and_skips_a_nameless_record() {
+        let mut e = entry();
+        e.station = "Voice of, \"Hope\"".into();
+        let csv = swl_log_to_csv(std::slice::from_ref(&e));
+        assert!(
+            csv.lines().nth(1).unwrap().contains("\"Voice of, \"\"Hope\"\"\""),
+            "{csv}"
+        );
+
+        e.station = "   ".into();
+        assert!(swl_entry_to_adif_record(&e).is_none());
+        assert!(!swl_log_to_adif(std::slice::from_ref(&e)).contains("<CALL"));
     }
 
     #[test]

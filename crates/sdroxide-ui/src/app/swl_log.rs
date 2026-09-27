@@ -67,6 +67,59 @@ fn truncate(s: &str, n: usize) -> String {
     }
 }
 
+/// How the listener is looking through the reception log: a find box, a band,
+/// a day and the pirate-only switch. Session state beside the window, not a
+/// property of the log — a filter is how the log is read today, and it never
+/// changes what was recorded.
+#[derive(Default)]
+pub(in crate::app) struct SwlFilter {
+    /// Free text, matched against station, language, site and notes.
+    find: String,
+    /// Only one broadcast band, or `None` for every band.
+    band: Option<sdroxide_types::Band>,
+    /// Only one UTC day (`YYYY-MM-DD`), or `None` for every day.
+    day: Option<String>,
+    /// Only the unlicensed — "pirate" — catches.
+    pirates_only: bool,
+}
+
+impl SwlFilter {
+    /// Whether a reception passes the filter, `day` being the row's own
+    /// `YYYY-MM-DD` (already computed for the grouping).
+    fn matches(&self, e: &SwlEntry, day: &str) -> bool {
+        if self.pirates_only && !e.pirate {
+            return false;
+        }
+        if let Some(b) = self.band
+            && sdroxide_types::Band::containing(e.freq_hz) != b
+        {
+            return false;
+        }
+        if let Some(d) = &self.day
+            && d != day
+        {
+            return false;
+        }
+        let q = self.find.trim().to_lowercase();
+        if !q.is_empty() {
+            let hay = format!("{} {} {} {}", e.station, e.language, e.site, e.notes).to_lowercase();
+            if !hay.contains(&q) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Whether anything is being filtered at all — the list says "N of M" only
+    /// when it is.
+    fn active(&self) -> bool {
+        self.pirates_only
+            || self.band.is_some()
+            || self.day.is_some()
+            || !self.find.trim().is_empty()
+    }
+}
+
 /// A reception being typed, the frequency kept as text so partial input never
 /// fights the operator. Parsed into a [`SwlEntry`] on save.
 #[derive(Clone)]
@@ -383,6 +436,8 @@ impl SdroxideApp {
                     ui.add_space(4.0);
                     self.swl_entry_form(ui);
                 }
+                ui.add_space(2.0);
+                self.swl_filter_row(ui);
                 ui.separator();
                 self.swl_list(ui, cmds);
             });
@@ -403,6 +458,108 @@ impl SdroxideApp {
                 persist_swl_log(&self.swl_log);
             }
         }
+    }
+
+    /// The reception log's controls, drawn as the list's own header: what to
+    /// show, and the way to save the whole log. The band and day choices come
+    /// from the log itself, so a filter can never offer one that shows nothing.
+    fn swl_filter_row(&mut self, ui: &mut egui::Ui) {
+        let mut bands: Vec<sdroxide_types::Band> = self
+            .swl_log
+            .iter()
+            .map(|e| sdroxide_types::Band::containing(e.freq_hz))
+            .collect();
+        bands.sort_by(|a, b| {
+            let ka = a.edges().map(|(lo, _)| lo).unwrap_or(f64::INFINITY);
+            let kb = b.edges().map(|(lo, _)| lo).unwrap_or(f64::INFINITY);
+            ka.partial_cmp(&kb).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        bands.dedup();
+        let mut days: Vec<String> = self
+            .swl_log
+            .iter()
+            .map(|e| utc_text(e.heard_at_unix)[..10].to_string())
+            .collect();
+        days.sort();
+        days.dedup();
+        days.reverse();
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Show").size(11.0).color(crate::theme::gray(150)));
+            crate::chrome::field(
+                ui,
+                egui::TextEdit::singleline(&mut self.swl_filter.find)
+                    .desired_width(150.0)
+                    .hint_text("station, language, site …"),
+            )
+            .on_hover_text("Matches the station, language, transmitter site and notes");
+            let band_text = self
+                .swl_filter
+                .band
+                .map(|b| b.label().to_string())
+                .unwrap_or_else(|| "All bands".into());
+            egui::ComboBox::from_id_salt("swl-filter-band")
+                .width(74.0)
+                .selected_text(band_text)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.swl_filter.band, None, "All bands");
+                    for b in &bands {
+                        ui.selectable_value(&mut self.swl_filter.band, Some(*b), b.label());
+                    }
+                });
+            let day_text = self
+                .swl_filter
+                .day
+                .clone()
+                .unwrap_or_else(|| "All days".into());
+            egui::ComboBox::from_id_salt("swl-filter-day")
+                .width(84.0)
+                .selected_text(day_text)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.swl_filter.day, None, "All days");
+                    for d in &days {
+                        ui.selectable_value(&mut self.swl_filter.day, Some(d.clone()), d);
+                    }
+                });
+            crate::chrome::checkbox(ui, &mut self.swl_filter.pirates_only, "Pirates only")
+                .on_hover_text("Only the unlicensed catches");
+            if self.swl_filter.active() && crate::chrome::chip(ui, false, "CLEAR").clicked() {
+                self.swl_filter = SwlFilter::default();
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let n = self.swl_log.len();
+                // The whole reception log's export — the single-entry REPORT is
+                // not that. ADIF for a logger, CSV for a spreadsheet.
+                if ui
+                    .add_enabled(n > 0, egui::Button::new("ADIF"))
+                    .on_hover_text("Save the whole log as ADIF — reception records, not contacts")
+                    .clicked()
+                {
+                    let adif = sdroxide_types::swl_log_to_adif(&self.swl_log);
+                    crate::download::save("sdroxide-swl-log.adi", adif.as_bytes());
+                }
+                if ui
+                    .add_enabled(n > 0, egui::Button::new("CSV"))
+                    .on_hover_text("Save the whole log as CSV, one row per reception")
+                    .clicked()
+                {
+                    let csv = sdroxide_types::swl_log_to_csv(&self.swl_log);
+                    crate::download::save("sdroxide-swl-log.csv", csv.as_bytes());
+                }
+                if self.swl_filter.active() {
+                    let shown = self
+                        .swl_log
+                        .iter()
+                        .filter(|e| self.swl_filter.matches(e, &utc_text(e.heard_at_unix)[..10]))
+                        .count();
+                    ui.label(
+                        RichText::new(format!("{shown} of {n}"))
+                            .size(11.0)
+                            .color(crate::theme::gray(150)),
+                    );
+                }
+            });
+        });
     }
 
     /// The reception log list, newest first, grouped by day.
@@ -428,9 +585,16 @@ impl SdroxideApp {
                     );
                 }
                 let mut last_day = String::new();
+                let mut shown = 0usize;
                 for e in &rows {
                     let utc = utc_text(e.heard_at_unix);
                     let day = utc[..10].to_string();
+                    // A filtered-out row is skipped whole — no day header either
+                    // — so a day with nothing to show is a day that is not there.
+                    if !self.swl_filter.matches(e, &day) {
+                        continue;
+                    }
+                    shown += 1;
                     if day != last_day {
                         ui.add_space(4.0);
                         ui.label(
@@ -521,6 +685,12 @@ impl SdroxideApp {
                             delete = Some(e.id);
                         }
                     });
+                }
+                if !rows.is_empty() && shown == 0 {
+                    ui.label(
+                        RichText::new("No reception matches the filter — CLEAR shows them all.")
+                            .color(crate::theme::gray(150)),
+                    );
                 }
             },
         );
@@ -766,8 +936,8 @@ impl SdroxideApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{sinpo_strength, SwlEditForm};
-    use sdroxide_types::Mode;
+    use super::{sinpo_strength, SwlEditForm, SwlEntry, SwlFilter};
+    use sdroxide_types::{Mode, SignalReport, Sinpo};
 
     /// The meter grades into the five SINPO figures, strongest at S9 and up.
     #[test]
@@ -809,6 +979,57 @@ mod tests {
     fn the_session_antenna_is_captured_into_the_entry() {
         let f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into(), "MLA-30".into());
         assert_eq!(f.to_entry().antenna, "MLA-30");
+    }
+
+    /// The log filter: the find box covers station, language, site and notes,
+    /// and the band, day and pirate switch each narrow it. Case does not
+    /// matter — a listener typing `dutch` means `Dutch`.
+    #[test]
+    fn the_log_filter_narrows_by_text_band_day_and_pirate() {
+        let mut e = SwlEntry {
+            heard_at_unix: 1_789_587_720,
+            station: "Radio Taiwan International".into(),
+            freq_hz: 6_185_000.0,
+            language: "English".into(),
+            report: Some(SignalReport::Sinpo(Sinpo { s: 4, i: 3, n: 3, p: 4, o: 4 })),
+            site: "Tamsui".into(),
+            notes: "News, then music".into(),
+            pirate: true,
+            ..Default::default()
+        };
+        let day = "2026-09-16";
+        let all = SwlFilter::default();
+        assert!(all.matches(&e, day) && !all.active());
+        let find = |q: &str| SwlFilter { find: q.into(), ..Default::default() };
+        assert!(find("taiwan").matches(&e, day));
+        assert!(find("english").matches(&e, day));
+        assert!(find("tamsui").matches(&e, day));
+        assert!(find("MUSIC").matches(&e, day));
+        assert!(!find("dutch").matches(&e, day));
+
+        let here = sdroxide_types::Band::containing(e.freq_hz);
+        assert!(
+            SwlFilter { band: Some(here), ..Default::default() }.matches(&e, day),
+            "the band it was heard in"
+        );
+        assert!(
+            !SwlFilter {
+                band: Some(sdroxide_types::Band::containing(14_200_000.0)),
+                ..Default::default()
+            }
+            .matches(&e, day)
+        );
+        assert!(
+            !SwlFilter { day: Some("2026-01-01".into()), ..Default::default() }.matches(&e, day)
+        );
+
+        e.pirate = false;
+        assert!(
+            !SwlFilter { pirates_only: true, ..Default::default() }.matches(&e, day),
+            "a licensed station is not a pirate catch"
+        );
+        e.pirate = true;
+        assert!(SwlFilter { pirates_only: true, ..Default::default() }.matches(&e, day));
     }
 
     /// The reporting dates — the loop's *report → QSL* — are off until stamped,

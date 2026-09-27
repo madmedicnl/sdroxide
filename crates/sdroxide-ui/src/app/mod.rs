@@ -605,6 +605,11 @@ pub struct SdroxideApp {
     /// often than a setting is opened, so it is not worth a trip to Settings —
     /// and it is not a property of the radio, so it does not ride the wire.
     pub(in crate::app) swl_antenna: String,
+    /// How the listener is looking through the reception log right now — the
+    /// find box, band, day and the pirate-only switch. Session-only, like the
+    /// antenna box: a way of reading the log for the moment, not a property of
+    /// it.
+    pub(in crate::app) swl_filter: crate::app::swl_log::SwlFilter,
     /// The broadcast schedule window and its filters.
     pub(in crate::app) schedule: crate::app::schedule::ScheduleUi,
     /// Favourite broadcast stations, by name (`broadcast_favourites.json`).
@@ -1590,6 +1595,7 @@ impl SdroxideApp {
             swl_edit: None,
             swl_selected: None,
             swl_antenna: String::new(),
+            swl_filter: Default::default(),
             schedule: Default::default(),
             broadcast_favs: load_broadcast_favourites(storage),
             recording_jobs: load_recording_jobs(storage),

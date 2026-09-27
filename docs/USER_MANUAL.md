@@ -14733,6 +14733,22 @@ the locator, so the catches still owed a report, or still awaiting a card, are
 the ones with no mark. The two steps ride on the saved entry with everything
 else, so they survive a restart and travel with the log.
 
+The row of controls above the log is how you read a log that has grown past a
+few dozen catches. **Show** is a find box over station, language, transmitter
+site and notes; beside it a **band** and a **day** menu — each listing only the
+bands and days the log actually holds — and a **Pirates only** switch for the
+unlicensed catches. **CLEAR** drops every filter at once, and while any is on the
+header says how many of the log are showing. The filters are how you are reading
+the log *now*: they never change or hide what was recorded, and they are not
+saved.
+
+**CSV** and **ADIF** at the end of that row save the **whole** log in one file,
+filtered or not — CSV for a spreadsheet, one row per reception, and ADIF as
+reception records (`SWL=Y`, the station in `CALL`, and the report-sent and
+QSL-received dates in the fields ADIF keeps for them). The single-entry
+**REPORT** is the one to send to a broadcaster; these are the log's own backup
+and export.
+
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,
 four minutes a degree from the site's longitude — and deliberately not a civil
