@@ -14689,66 +14689,6 @@ FAVS**, which shows only the stations you have starred. A row can be **TUNE**d
 (the same tune as clicking its label on the waterfall) or **LOG**ged straight
 into the reception log with the station, language and site already filled in.
 
-The entry form carries a **Pirate** tick for an unlicensed — "pirate" —
-broadcast, the kind of catch shortwave listeners go looking for. It is the
-listener's judgement and nothing infers it. A reception so marked wears a small
-**Jolly Roger** in the log list, and the tick survives editing the entry later.
-
-Each row in the reception log also carries an **rcl** button: it tunes back to
-that reception's frequency and mode in one click, so a listener can check whether
-the station has returned on the same channel at the same time another evening.
-It sets the mode through the listener's route, so a recalled catch always comes
-back as it was logged rather than being refused by the band rule that governs
-what may be *transmitted*.
-
-The form and the row keep the **receiving station's locator** — where the
-reception was made — pre-filled from your own grid on the **General** tab and
-editable per entry. It is the comparison that matters when the same station is
-heard from two places, or from two aerials. On the row it takes the place the
-notes used to occupy; the notes are a hover over the station name, so a long one
-no longer pushes the row about.
-
-The **transmitter site** is deliberately not a field: a listener almost never
-knows it, and the one source that does is the schedule, which fills it in when a
-row is **LOG**ged. It rides on the saved entry and shows on the row's hover when
-it is there, beside the notes.
-
-The **Antenna** box at the top of the LISTEN window is the aerial in use, in your
-own words — "Longwire 20 m", "MLA-30 loop", a mini-whip. It is session state, set
-once when you start listening, because an aerial is swapped far more often than a
-settings page is opened; and it is not a property of the radio, so it stays on
-this screen rather than in Settings. Each reception captures it when it is
-logged. **REPORT** writes that reception out as a text report to save and send —
-the numbers, the **received-at** locator and the aerial, signed with your report
-identity — and names the program there as **sdroxide_SWL**, so a broadcaster can
-tell it apart from the amateur build.
-
-A reception is not finished when it is heard: an SWL's loop is *hear → report →
-await QSL*, and the log records the whole of it. **report sent** stamps the day
-the report went out — **REPORT** sets it too, since writing the report is that
-step — and **QSL received** stamps the reply or card when it arrives. Each is a
-date rather than a plain tick, so the log keeps *when* as well as *whether*;
-unticking one clears it. The row carries a small **sent** or **QSL** mark after
-the locator, so the catches still owed a report, or still awaiting a card, are
-the ones with no mark. The two steps ride on the saved entry with everything
-else, so they survive a restart and travel with the log.
-
-The row of controls above the log is how you read a log that has grown past a
-few dozen catches. **Show** is a find box over station, language, transmitter
-site and notes; beside it a **band** and a **day** menu — each listing only the
-bands and days the log actually holds — and a **Pirates only** switch for the
-unlicensed catches. **CLEAR** drops every filter at once, and while any is on the
-header says how many of the log are showing. The filters are how you are reading
-the log *now*: they never change or hide what was recorded, and they are not
-saved.
-
-**CSV** and **ADIF** at the end of that row save the **whole** log in one file,
-filtered or not — CSV for a spreadsheet, one row per reception, and ADIF as
-reception records (`SWL=Y`, the station in `CALL`, and the report-sent and
-QSL-received dates in the fields ADIF keeps for them). The single-entry
-**REPORT** is the one to send to a broadcaster; these are the log's own backup
-and export.
-
 **SOLAR TIME** puts each row's local time at the *transmitter* beside its site,
 from the coordinates EiBi carries. It is **mean solar time** — the Sun's clock,
 four minutes a degree from the site's longitude — and deliberately not a civil
@@ -14774,6 +14714,86 @@ tools/gen_broadcast_codes.py --season b26
 Longwave and the HF standard-time stations are not in EiBi's file — it starts at
 2300 kHz and skips time signals — and are maintained by hand in
 `crates/sdroxide-types/src/broadcast_seed.json`.
+
+#### The LISTEN window
+
+Where the SCHEDULE window is the table a listener works *from*, the LISTEN
+window is the record of what was heard: a **reception log**, and the tools to
+work it — the antenna in use, the reception report, and the log's CSV and ADIF
+exports. It is the listener's counterpart to the LOGBOOK.
+
+**+ NEW** logs the station the receiver is on right now, with the frequency, the
+mode and the S-meter reading taken from the live radio; **LOG** on a SCHEDULE row
+does the same with the station, language and transmitter site already filled in.
+The entry form holds the rest of a reception: the station name, the frequency and
+mode, a language, the **SINPO** or **SIO** figures, and your own notes.
+
+Each row in the log carries an **rcl** button: it tunes back to that reception's
+frequency and mode in one click, so a listener can check whether the station has
+returned on the same channel at the same time another evening. It sets the mode
+through the listener's route, so a recalled catch always comes back as it was
+logged rather than being refused by the band rule that governs what may be
+*transmitted*.
+
+The form and the row keep the **receiving station's locator** — where the
+reception was made — pre-filled from your own grid on the **General** tab and
+editable per entry. It is the comparison that matters when the same station is
+heard from two places, or from two aerials. On the row it takes the place the
+notes used to occupy; the notes are a hover over the station name, so a long one
+no longer pushes the row about.
+
+The **transmitter site** is deliberately not a field: a listener almost never
+knows it, and the one source that does is the schedule, which fills it in when a
+row is **LOG**ged. It rides on the saved entry and shows on the row's hover when
+it is there, beside the notes.
+
+The entry form carries a **Pirate** tick for an unlicensed — "pirate" —
+broadcast, the kind of catch shortwave listeners go looking for. It is the
+listener's judgement and nothing infers it. A reception so marked wears a small
+**Jolly Roger** in the log list, and the tick survives editing the entry later.
+
+The **Antenna** box at the top of the window is the aerial in use, in your own
+words — "Longwire 20 m", "MLA-30 loop", a mini-whip. It is session state, set
+once when you start listening, because an aerial is swapped far more often than a
+settings page is opened; and it is not a property of the radio, so it stays on
+this screen rather than in Settings. Each reception captures it when it is
+logged. **REPORT** writes that reception out as a text report to save and send —
+the numbers, the **received-at** locator and the aerial, signed with your report
+identity — and names the program there as **sdroxide_SWL**, so a broadcaster can
+tell it apart from the amateur build.
+
+A reception is not finished when it is heard: an SWL's loop is *hear → report →
+await QSL*, and the log records the whole of it. **report sent** stamps the day
+the report went out — **REPORT** sets it too, since writing the report is that
+step — and **QSL received** stamps the reply or card when it arrives. Each is a
+date rather than a plain tick, so the log keeps *when* as well as *whether*;
+unticking one clears it. The row carries a small **sent** or **QSL** mark after
+the locator, so the catches still owed a report, or still awaiting a card, are
+the ones with no mark. The two steps ride on the saved entry with everything
+else, so they survive a restart and travel with the log.
+
+The row of controls above the log is how you read a log that has grown past a
+few dozen catches. **Show** is a find box over station, language, transmitter
+site and notes; beside it a **band** and a **day** menu — each listing only the
+bands and days the log actually holds — and a **Pirates only** switch for the
+unlicensed catches. **CLEAR** drops every filter at once, and while any is on the
+header says how many of the log are showing. The filters are how you are reading
+the log *now*: they never change or hide what was recorded, and they are not
+saved. The window's own header counts the **whole** log at a glance — how many
+heard, and how many of those reported, QSL'd and pirates — so the filters above
+it never change what those totals say.
+
+**CSV** and **ADIF** at the end of that row save the **whole** log in one file,
+filtered or not — CSV for a spreadsheet, one row per reception, and ADIF as
+reception records (`SWL=Y`, the station in `CALL`, and the report-sent and
+QSL-received dates in the fields ADIF keeps for them). The single-entry
+**REPORT** is the one to send to a broadcaster; these are the log's own backup
+and export.
+
+The window's other controls are the listening tools in their own right: **JOBS**
+for scheduled recordings, **REPLAY** for the last two minutes of audio, **SIG
+ID** (see [§10.7](#107-signal-identification)) for what is on the dial, and the
+**Tone** row for bass, mid and treble shelves on the demodulated audio.
 
 ### 10.7 Signal identification
 

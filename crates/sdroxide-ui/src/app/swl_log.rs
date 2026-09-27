@@ -386,11 +386,28 @@ impl SdroxideApp {
                                 mark_sent = Some(e.id);
                             }
                         });
-                        ui.label(
-                            RichText::new(format!("{} heard", self.swl_log.len()))
-                                .size(11.0)
-                                .color(crate::theme::gray(150)),
-                        );
+                        // The whole log at a glance — how many heard, and of
+                        // those how far round the SWL's loop they have got. The
+                        // counts that are zero are left out, so a fresh log reads
+                        // simply as "n heard".
+                        let n = self.swl_log.len();
+                        let reported =
+                            self.swl_log.iter().filter(|e| e.report_sent_unix.is_some()).count();
+                        let qsl =
+                            self.swl_log.iter().filter(|e| e.qsl_received_unix.is_some()).count();
+                        let pirates = self.swl_log.iter().filter(|e| e.pirate).count();
+                        let mut stats = format!("{n} heard");
+                        if reported > 0 {
+                            stats.push_str(&format!(" · {reported} reported"));
+                        }
+                        if qsl > 0 {
+                            stats.push_str(&format!(" · {qsl} QSL"));
+                        }
+                        if pirates > 0 {
+                            stats.push_str(&format!(" · {pirates} pirates"));
+                        }
+                        ui.label(RichText::new(stats).size(11.0).color(crate::theme::gray(150)))
+                            .on_hover_text("The whole log — the Show filters do not change it");
                     });
                 });
                 // The aerial, in the listener's own words, for the reception
