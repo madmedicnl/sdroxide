@@ -44,6 +44,7 @@ or connects to a remote sdroxide server.
 14. [Troubleshooting](#14-troubleshooting)
 15. [Radio-specific notes](#15-radio-specific-notes)
 16. [Appendix: keyboard shortcuts, modes, bands](#16-appendix)
+17. [Addendum: a headless station on a Raspberry Pi Zero 2 W](#17-addendum-a-headless-station-on-a-raspberry-pi-zero-2-w)
 
 ---
 
@@ -16812,3 +16813,46 @@ beginning and SDR++ inherited: a navy floor rather than a black one, so the
 noise keeps its texture, and a top half that runs white, yellow, orange and two
 shades of red where the other ramps have already saturated. Chosen on the **UI**
 tab of the Settings window ([6.3](#63-ui-display-preferences-and-voice-announcements)).
+
+---
+
+## 17. Addendum: a headless station on a Raspberry Pi Zero 2 W
+
+A small, cheap board with a USB dongle makes a good **network listening node**:
+the receiver and the decoding run on the board, and your laptop, tablet or phone
+drives it through a browser. This is the "Pi at the antenna" arrangement
+[§8](#8-remote-operation) and [§9](#9-web-operation) describe, sized for a
+**Raspberry Pi Zero 2 W**.
+
+The board is 64-bit (`armv8`), so it runs the **`linux-aarch64-compat`** build
+made for Raspberry Pi OS Bookworm — no compiling. Run it as a **server** and use
+a browser for the drawing: that split is what makes a four-core, 512 MB board
+useful, because the graphical interface is the part it cannot carry.
+
+Three things decide whether it is pleasant or painful:
+
+- **Keep the sample rate low** — 1.024 Msps or less on Settings → Radio. The
+  narrow modes need a fraction of an RTL-SDR's 2.4 Msps default, and the low rate
+  is what keeps the board cool and ahead of the DSP.
+- **Stay off the wideband lanes** — ADS-B, VDL2, AIS and DAB need sustained
+  megahertz of throughput and memory the board does not have. The narrow decoders
+  (FT8/FT4/FT2, WSPR, JS8, PSK/RTTY, NAVTEX, DSC, ACARS), the broadcast listening
+  and the scheduled recordings are the workload it does well.
+- **Power the dongle through a powered USB hub.** The Zero 2 W has one USB OTG
+  port and a regulator that cannot reliably feed an SDR; brown-outs look like
+  "radio not found" or dropped samples, and they are the commonest reason a
+  Pi-and-dongle setup seems not to work.
+
+The full walkthrough — imaging the card, installing the `aarch64-compat` build,
+the udev rules, the first-run setup, the systemd service and the troubleshooting
+in one place — is the **Pi Zero 2 W setup guide**, in the same four languages as
+the quick-starts:
+
+- **[English](pi-zero-2w-swl.en.md)** ([PDF](pi-zero-2w-swl.en.pdf))
+- **[Nederlands](pi-zero-2w-swl.nl.md)** ([PDF](pi-zero-2w-swl.nl.pdf))
+- **[Français](pi-zero-2w-swl.fr.md)** ([PDF](pi-zero-2w-swl.fr.pdf))
+- **[Italiano](pi-zero-2w-swl.it.md)** ([PDF](pi-zero-2w-swl.it.pdf))
+
+> For a graphical sdroxide on the Pi itself, or for the wideband decoders, step
+> up to a **Pi 4 (2 GB+)** or **Pi 5** — see the README's Raspberry Pi note about
+> Mesa's V3DV Vulkan driver and the OpenGL fallback.

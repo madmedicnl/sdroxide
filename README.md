@@ -41,6 +41,7 @@ rest.
 - **[FT8 on 11 m quick-start](docs/ft8-11m-quickstart.en.md)** ([Nederlands](docs/ft8-11m-quickstart.nl.md) · [Français](docs/ft8-11m-quickstart.fr.md) · [Italiano](docs/ft8-11m-quickstart.it.md)).
 - **[SSTV on 11 m quick-start](docs/sstv-11m-quickstart.en.md)** ([Nederlands](docs/sstv-11m-quickstart.nl.md) · [Français](docs/sstv-11m-quickstart.fr.md) · [Italiano](docs/sstv-11m-quickstart.it.md)).
 - **[Listening quick-start](docs/listening-quickstart.en.md)** ([Nederlands](docs/listening-quickstart.nl.md) · [Français](docs/listening-quickstart.fr.md) · [Italiano](docs/listening-quickstart.it.md)).
+- **[Pi Zero 2 W headless SWL station](docs/pi-zero-2w-swl.en.md)** ([Nederlands](docs/pi-zero-2w-swl.nl.md) · [Français](docs/pi-zero-2w-swl.fr.md) · [Italiano](docs/pi-zero-2w-swl.it.md)).
 - **[QO-100 Quick-start Guide](docs/qo100-quickstart.en.md)** ([Türkçe](docs/qo100-quickstart.tr.md)).
 - **[ROADMAP.md](ROADMAP.md)** — where the listener work goes next.
 
