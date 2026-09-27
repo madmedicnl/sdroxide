@@ -534,10 +534,10 @@ mod v3dv_tests {
 ///
 /// This is what window managers show in the taskbar/dock and in alt-tab; the
 /// desktop-menu entry gets its icon from the installed hicolor theme instead
-/// (see `packaging/`). Both come from `packaging/icons/sdroxide.svg`.
+/// (see `packaging/`). Both come from `packaging/icons/sdroxide-brown.svg`.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn app_icon() -> eframe::egui::IconData {
-    const PNG: &[u8] = include_bytes!("../../../packaging/icons/sdroxide-256.png");
+    const PNG: &[u8] = include_bytes!("../../../packaging/icons/sdroxide-brown-256.png");
     // Decoding a 256x256 PNG once at startup; a failure here would only cost
     // the icon, so fall back to no icon rather than refusing to open a window.
     match image::load_from_memory_with_format(PNG, image::ImageFormat::Png) {

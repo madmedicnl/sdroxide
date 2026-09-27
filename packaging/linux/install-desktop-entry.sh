@@ -13,7 +13,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 data=${XDG_DATA_HOME:-$HOME/.local/share}
 entry="$data/applications/sdroxide.desktop"
-icon="$data/icons/hicolor/scalable/apps/sdroxide.svg"
+icon="$data/icons/hicolor/scalable/apps/sdroxide-brown.svg"
 
 if [[ ${1-} == --uninstall ]]; then
   rm -f "$entry" "$icon"
@@ -21,7 +21,7 @@ if [[ ${1-} == --uninstall ]]; then
 else
   [[ -x $here/sdroxide ]] || { echo "sdroxide binary not found next to this script" >&2; exit 1; }
   mkdir -p "$(dirname "$entry")" "$(dirname "$icon")"
-  cp "$here/sdroxide.svg" "$icon"
+  cp "$here/sdroxide-brown.svg" "$icon"
   # Exec must be the absolute path: the tarball is not on $PATH.
   sed "s|^Exec=sdroxide$|Exec=$here/sdroxide|" "$here/sdroxide.desktop" > "$entry"
   chmod 644 "$entry"

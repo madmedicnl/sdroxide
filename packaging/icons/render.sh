@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate every rasterised icon from sdroxide.svg.
+# Regenerate every rasterised icon from sdroxide-brown.svg.
 #
 #   ./packaging/icons/render.sh
 #
@@ -11,14 +11,14 @@ cd "$(dirname "$0")"
 SIZES=(16 24 32 48 64 128 192 256 512)
 
 for s in "${SIZES[@]}"; do
-  rsvg-convert -w "$s" -h "$s" sdroxide.svg -o "sdroxide-${s}.png"
+  rsvg-convert -w "$s" -h "$s" sdroxide-brown.svg -o "sdroxide-brown-${s}.png"
 done
 
 # Windows: multi-resolution .ico for the MSI's Start-menu shortcut and the
 # Add/Remove Programs entry. 256 is stored as PNG, the rest as BMP.
-magick sdroxide-16.png sdroxide-24.png sdroxide-32.png sdroxide-48.png \
-       sdroxide-64.png sdroxide-128.png sdroxide-256.png \
-       -colors 256 ../windows/sdroxide.ico
+magick sdroxide-brown-16.png sdroxide-brown-24.png sdroxide-brown-32.png sdroxide-brown-48.png \
+       sdroxide-brown-64.png sdroxide-brown-128.png sdroxide-brown-256.png \
+       -colors 256 ../windows/sdroxide-brown.ico
 
 # macOS: .icns for the .app bundle. Built by hand because iconutil is macOS
 # only and ImageMagick's ICNS writer does not emit the retina variants.
@@ -40,12 +40,12 @@ ENTRIES = [
 
 chunks = b""
 for ostype, size in ENTRIES:
-    with open(f"sdroxide-{size}.png", "rb") as fh:
+    with open(f"sdroxide-brown-{size}.png", "rb") as fh:
         payload = fh.read()
     chunks += ostype + struct.pack(">I", len(payload) + 8) + payload
 
-with open("../macos/sdroxide.icns", "wb") as out:
+with open("../macos/sdroxide-brown.icns", "wb") as out:
     out.write(b"icns" + struct.pack(">I", len(chunks) + 8) + chunks)
 PY
 
-echo "rendered: ${SIZES[*]} + ../windows/sdroxide.ico + ../macos/sdroxide.icns"
+echo "rendered: ${SIZES[*]} + ../windows/sdroxide-brown.ico + ../macos/sdroxide-brown.icns"

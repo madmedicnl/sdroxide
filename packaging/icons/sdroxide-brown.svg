@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- sdroxide application icon: panadapter trace over a waterfall, with the
-     orange tuning cursor — the same motif as the main window. Master copy;
-     the PNG/ICO/ICNS files next to it are rendered from this by
-     packaging/icons/render.sh. -->
+<!-- SDR Oxide Brown application icon: panadapter trace over a waterfall, with
+     the orange tuning cursor — the same motif as the main window, on the
+     fork's brown panel instead of the neutral dark one, so the menu entry and
+     the taskbar read as "Brown". Master copy; the PNG/ICO/ICNS files next to
+     it are rendered from this by packaging/icons/render.sh. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
+    <!-- Brown: the fork's colour. A warm leather-brown gradient, dark enough
+         for the cyan trace and the waterfall to stay legible on it. -->
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#18202b"/>
-      <stop offset="1" stop-color="#080b10"/>
+      <stop offset="0" stop-color="#6b4423"/>
+      <stop offset="1" stop-color="#2e1c0e"/>
     </linearGradient>
     <linearGradient id="under" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#5fd8f7" stop-opacity="0.55"/>
@@ -73,5 +76,5 @@
   </g>
 
   <rect x="16" y="16" width="480" height="480" rx="96" ry="96"
-        fill="none" stroke="#3a4757" stroke-width="8"/>
+        fill="none" stroke="#8a5a30" stroke-width="8"/>
 </svg>

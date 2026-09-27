@@ -359,7 +359,7 @@ jobs:
           cp assets/voices/LICENSE-voice.txt stage/sdroxide/
           # The .deb registers the menu entry itself; the portable tarball
           # carries the same files plus a script that installs them per-user.
-          cp packaging/linux/sdroxide.desktop packaging/icons/sdroxide.svg stage/sdroxide/
+          cp packaging/linux/sdroxide.desktop packaging/icons/sdroxide-brown.svg stage/sdroxide/
           cp packaging/linux/install-desktop-entry.sh stage/sdroxide/
           # Likewise the udev rules: the .deb drops them in
           # /usr/lib/udev/rules.d, but a tarball user has to install them by
@@ -511,12 +511,12 @@ jobs:
           cp stage/sdroxide/*.txt stage/sdroxide/LICENSE stage/sdroxide/*.rules \
              AppDir/usr/share/doc/sdroxide/
           cp packaging/linux/sdroxide.desktop AppDir/usr/share/applications/
-          cp packaging/icons/sdroxide.svg AppDir/usr/share/icons/hicolor/scalable/apps/
+          cp packaging/icons/sdroxide-brown.svg AppDir/usr/share/icons/hicolor/scalable/apps/
           # appimagetool wants the desktop entry and the icon at the AppDir root
           # as well, and `.DirIcon` is what a file manager shows.
           cp packaging/linux/sdroxide.desktop AppDir/
-          cp packaging/icons/sdroxide.svg AppDir/
-          cp packaging/icons/sdroxide.svg AppDir/.DirIcon
+          cp packaging/icons/sdroxide-brown.svg AppDir/
+          cp packaging/icons/sdroxide-brown.svg AppDir/.DirIcon
           # AppRun rather than a symlink to the binary: `exec` keeps the process
           # id, so a desktop that started the AppImage still owns the window,
           # and "$@" passes the command line through — `--server`, `--probe` and
@@ -759,7 +759,7 @@ jobs:
             cp target/release/sdroxide "$APP/Contents/MacOS/sdroxide"
             # CFBundleIconFile=sdroxide resolves to this; without it Launchpad
             # and the Dock fall back to the blank generic-application icon.
-            cp packaging/macos/sdroxide.icns "$APP/Contents/Resources/sdroxide.icns"
+            cp packaging/macos/sdroxide-brown.icns "$APP/Contents/Resources/sdroxide-brown.icns"
             # The MIT notice for the embedded FX3 firmware goes into the bundle
             # (so it survives dragging the .app out of the image) as well as
             # alongside it. It has to be in place before codesign, which seals

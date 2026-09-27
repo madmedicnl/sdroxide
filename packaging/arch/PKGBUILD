@@ -60,10 +60,10 @@ package() {
   # Mirrors the cargo-deb asset list in Cargo.toml, adapted to Arch layout.
   install -Dm755 target/release/sdroxide "$pkgdir/usr/bin/sdroxide"
   install -Dm644 packaging/linux/sdroxide.desktop "$pkgdir/usr/share/applications/sdroxide.desktop"
-  install -Dm644 packaging/icons/sdroxide.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/sdroxide.svg"
+  install -Dm644 packaging/icons/sdroxide-brown.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/sdroxide-brown.svg"
   local s
   for s in 16 24 32 48 64 128 256 512; do
-    install -Dm644 "packaging/icons/sdroxide-$s.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/sdroxide.png"
+    install -Dm644 "packaging/icons/sdroxide-brown-$s.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/sdroxide-brown.png"
   done
   # The .deb installs all ten udev rules; so does this package.
   install -Dm644 packaging/linux/60-sdroxide-*.rules "$pkgdir/usr/lib/udev/rules.d/"

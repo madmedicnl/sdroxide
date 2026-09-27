@@ -21,7 +21,7 @@
         <!-- Used by the Start-menu shortcut below and by the Apps & features /
              Add-Remove Programs entry. Path is relative to the repo root,
              which is where the release workflow runs `wix build`. -->
-        <Icon Id="SdroxideIcon" SourceFile="packaging/windows/sdroxide.ico" />
+        <Icon Id="SdroxideIcon" SourceFile="packaging/windows/sdroxide-brown.ico" />
         <Property Id="ARPPRODUCTICON" Value="SdroxideIcon" />
         <Property Id="ARPURLINFOABOUT" Value="https://github.com/dividebysandwich/sdroxide" />
 
