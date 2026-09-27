@@ -870,13 +870,13 @@ jobs:
           - **A Morse trainer**, **station profiles**, **audible alerts**, and
             the fork's **SDR Oxide Brown** identity throughout.
 
-          **Full detail** — the **[User Manual](https://github.com/madmedicnl/sdroxide/blob/main/docs/USER_MANUAL.md)**
+          **Full detail** — the **[User Manual](https://github.com/madmedicnl/sdroxide-brown/blob/main/docs/USER_MANUAL.md)**
           is the reference for every control; the
-          **[listening quick-start](https://github.com/madmedicnl/sdroxide/blob/main/docs/listening-quickstart.en.md)**
-          and the **[CB quick-start](https://github.com/madmedicnl/sdroxide/blob/main/docs/cb-quickstart.en.md)**
+          **[listening quick-start](https://github.com/madmedicnl/sdroxide-brown/blob/main/docs/listening-quickstart.en.md)**
+          and the **[CB quick-start](https://github.com/madmedicnl/sdroxide-brown/blob/main/docs/cb-quickstart.en.md)**
           (also in Dutch, French and Italian) walk through each screen. The
           manual's addendum and the
-          **[Pi Zero 2 W guide](https://github.com/madmedicnl/sdroxide/blob/main/docs/pi-zero-2w-swl.en.md)**
+          **[Pi Zero 2 W guide](https://github.com/madmedicnl/sdroxide-brown/blob/main/docs/pi-zero-2w-swl.en.md)**
           cover running it headless as a network listening station.
 
           ---
