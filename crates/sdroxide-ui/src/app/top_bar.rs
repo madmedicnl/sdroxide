@@ -2885,7 +2885,6 @@ impl SdroxideApp {
             for &c in &chips[lifted..] {
                 self.rx_chip(ui, cmds, c, narrow);
             }
-            self.mode_defaults_chip(ui, cmds);
         });
         if narrow {
             // The filter rows, the engine picker and the recording rows the
@@ -9664,14 +9663,21 @@ mod tests {
         }
     }
 
-    /// Every mode keeps room for the reset chip, at the end of the run. It
-    /// comes and goes under the operator's own clicks; drawn after the run
-    /// instead of in it, it was never priced, and appearing it ran the noise
-    /// row past the box's edge and pushed the boxes after it off the window.
+    /// Every mode keeps room for the reset chip, exactly once, at the end of
+    /// the run. It comes and goes under the operator's own clicks; drawn after
+    /// the run *as well as* in it, it was priced once but painted twice the
+    /// moment it appeared — which is what a switch to manual AGC showed, two
+    /// reset chips side by side. It is in the run, and only in the run.
     #[test]
-    fn every_mode_keeps_room_for_the_defaults_chip() {
+    fn every_mode_keeps_room_for_exactly_one_defaults_chip() {
         for mode in Mode::ALL {
-            assert_eq!(rx_chips(mode, false).last(), Some(&RxChip::Defaults), "{mode:?}");
+            let chips = rx_chips(mode, false);
+            assert_eq!(chips.last(), Some(&RxChip::Defaults), "{mode:?}");
+            assert_eq!(
+                chips.iter().filter(|c| **c == RxChip::Defaults).count(),
+                1,
+                "{mode:?}: the reset chip is in the run once, or it is drawn twice"
+            );
         }
     }
 
