@@ -36,7 +36,7 @@ as they appear on screen. `Settings > Radio` is a menu path.
 ## Installing
 
 - **Windows** — the installer (`.msi`) or the portable `.zip` (which contains
-  `sdroxide.exe`): see the [Releases page](https://github.com/madmedicnl/sdroxide/releases/latest).
+  `sdroxide.exe`): see the [Releases page](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — the **AppImage** (one file, `chmod +x` and run), the `.deb`, or
   the portable tarball.
 - **macOS** — the `.dmg`.
@@ -167,7 +167,7 @@ between "11 m at home" and "listening to shortwave".
 - [USER_MANUAL.md](USER_MANUAL.md) — the manual, control by control.
 - [WSJT-CB](https://github.com/vash909/WSJT-CB) — the digital 11 m project
   this builds on.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — the
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — the
   latest build for every platform.
 
 See you on 11 metres! 73

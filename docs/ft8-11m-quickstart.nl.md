@@ -51,7 +51,7 @@ zoals ze op het scherm staan. `Settings > Radio` is een menupad.
 ## Installeren
 
 - **Windows** — de installer (`.msi`) of de portable `.zip`: zie de
-  [Releases-pagina](https://github.com/madmedicnl/sdroxide/releases/latest).
+  [Releases-pagina](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — de **AppImage** (één bestand, `chmod +x` en starten), de `.deb`,
   of de portable tarball.
 - **macOS** — de `.dmg`.
@@ -192,7 +192,7 @@ automatische tijdsynchronisatie van je systeem aan.
 - [USER_MANUAL.md](USER_MANUAL.md) — de handleiding per functie.
 - [WSJT-CB](https://github.com/vash909/WSJT-CB) — het digitale 11 m-project
   waarop dit voortbouwt.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — de
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — de
   nieuwste versie voor elk platform.
 
 Tot horens op 27,265! 73

@@ -81,7 +81,7 @@ faite pour Raspberry Pi OS Bookworm. Téléchargez-la sur le Pi lui-même :
 
 ```sh
 cd /tmp
-wget https://github.com/madmedicnl/sdroxide/releases/latest/download/sdroxide-linux-aarch64-compat.AppImage
+wget https://github.com/madmedicnl/sdroxide-brown/releases/latest/download/sdroxide-linux-aarch64-compat.AppImage
 chmod +x sdroxide-linux-aarch64-compat.AppImage
 ./sdroxide-linux-aarch64-compat.AppImage --version
 ```
@@ -252,7 +252,7 @@ Vérifiez avec `systemctl status sdroxide`, et suivez son journal avec
   l'écouteur, écran par écran.
 - [USER_MANUAL.md](USER_MANUAL.md) — le manuel, commande par commande.
 - [README](../README.md) — la présentation complète du fork.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — la version
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — la version
   `linux-aarch64-compat` pour le Pi.
 
 Bonne écoute et bon DX ! 73

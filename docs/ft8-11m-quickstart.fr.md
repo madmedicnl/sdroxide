@@ -52,7 +52,7 @@ menu.
 ## Installation
 
 - **Windows** — l'installateur (`.msi`) ou le `.zip` portable : voir la
-  [page Releases](https://github.com/madmedicnl/sdroxide/releases/latest).
+  [page Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — l'**AppImage** (un seul fichier, `chmod +x` puis exécuter), le
   `.deb`, ou l'archive portable.
 - **macOS** — le `.dmg`.
@@ -199,7 +199,7 @@ système.
 - [USER_MANUAL.md](USER_MANUAL.md) — le manuel, commande par commande.
 - [WSJT-CB](https://github.com/vash909/WSJT-CB) — le projet numérique 11 m sur
   lequel ceci s'appuie.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — la
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — la
   dernière version pour chaque plateforme.
 
 Rendez-vous sur 27,265 ! 73

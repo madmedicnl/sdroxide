@@ -41,7 +41,7 @@ ze op het scherm staan. `Settings > Radio` is een menupad.
 ## Installeren
 
 - **Windows** — de installer (`.msi`) of de draagbare `.zip`: zie de
-  [Releases-pagina](https://github.com/madmedicnl/sdroxide/releases/latest).
+  [Releases-pagina](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — de **AppImage** (één bestand, `chmod +x` en starten), de `.deb`,
   of de draagbare tarball.
 - **macOS** — de `.dmg`.
@@ -158,7 +158,7 @@ Het **LISTEN**-venster is jouw verslag van wat er is gehoord:
 
 - [README](../README.md) — het volledige overzicht van de fork.
 - [USER_MANUAL.md](USER_MANUAL.md) — de handleiding, knop voor knop.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — de
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — de
   nieuwste build voor elk platform.
 
 Goede ontvangst en goede DX! 73

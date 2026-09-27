@@ -42,7 +42,7 @@ menu.
 ## Installazione
 
 - **Windows** — l'installer (`.msi`) o lo `.zip` portatile: vedi la
-  [pagina Releases](https://github.com/madmedicnl/sdroxide/releases/latest).
+  [pagina Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — l'**AppImage** (un file, `chmod +x` ed esegui), il `.deb`, o
   l'archivio portatile.
 - **macOS** — il `.dmg`.
@@ -163,7 +163,7 @@ La finestra **LISTEN** è la tua traccia di ciò che è stato sentito:
 
 - [README](../README.md) — la panoramica completa del fork.
 - [USER_MANUAL.md](USER_MANUAL.md) — il manuale, comando per comando.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — l'ultima
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — l'ultima
   build per ogni piattaforma.
 
 Buon ascolto e buon DX! 73

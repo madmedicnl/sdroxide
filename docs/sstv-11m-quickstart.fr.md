@@ -56,7 +56,7 @@ menu.
 ## Installation
 
 - **Windows** — l'installateur (`.msi`) ou le `.zip` portable : voir la
-  [page Releases](https://github.com/madmedicnl/sdroxide/releases/latest).
+  [page Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — l'**AppImage** (un seul fichier, `chmod +x` puis exécuter), le
   `.deb`, ou l'archive portable.
 - **macOS** — le `.dmg`.
@@ -197,7 +197,7 @@ confirmez la mention une fois. La réception ne demande aucun interrupteur.
 
 - [README](../README.md) — la vue d'ensemble du fork.
 - [USER_MANUAL.md](USER_MANUAL.md) — le manuel ; §3.6 est la SSTV en entier.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — la
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — la
   dernière version pour chaque plateforme.
 
 Rendez-vous sur 27,700 ! 73

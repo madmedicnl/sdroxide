@@ -64,7 +64,7 @@ ask about — still waiting on the upstream library split
 
 ## Repository layout and how to work on it
 
-- `main` → this fork, `origin` = `madmedicnl/sdroxide`. The only repository to
+- `main` → this fork, `origin` = `madmedicnl/sdroxide-brown`. The only repository to
   push to; the old `swl` branch and its fork are gone.
 - The plan for the listener side lives in [`ROADMAP.md`](ROADMAP.md).
 

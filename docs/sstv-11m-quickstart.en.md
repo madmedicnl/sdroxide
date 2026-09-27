@@ -54,7 +54,7 @@ as they appear on screen. `Settings > Radio` is a menu path.
 ## Installing
 
 - **Windows** — the installer (`.msi`) or the portable `.zip`: see the
-  [Releases page](https://github.com/madmedicnl/sdroxide/releases/latest).
+  [Releases page](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — the **AppImage** (one file, `chmod +x` and run), the `.deb`, or
   the portable tarball.
 - **macOS** — the `.dmg`.
@@ -182,7 +182,7 @@ Receiving needs no switch.
 
 - [README](../README.md) — the full overview of the fork.
 - [USER_MANUAL.md](USER_MANUAL.md) — the manual; §3.6 is SSTV in full.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — the
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — the
   latest build for every platform.
 
 See you on 27.700! 73

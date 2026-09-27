@@ -410,7 +410,7 @@ Both still design-stage. The reverse-engineering behind them is in
 
 ## Relationship to upstream
 
-This fork is `madmedicnl/sdroxide`, a fork of `dividebysandwich/sdroxide`.
+This fork is `madmedicnl/sdroxide-brown`, a fork of `dividebysandwich/sdroxide`.
 Upstream changes are merged in regularly (after each release, or monthly, to
 keep the conflicts small), and a feature that is useful to *anyone* — not just
 CB or SWL — is offered **upstream-first**: branch from `upstream/main`, open

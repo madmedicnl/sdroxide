@@ -37,7 +37,7 @@ menu.
 ## Installazione
 
 - **Windows** — l'installer (`.msi`) o lo `.zip` portatile (che contiene
-  `sdroxide.exe`): vedi la [pagina Releases](https://github.com/madmedicnl/sdroxide/releases/latest).
+  `sdroxide.exe`): vedi la [pagina Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — l'**AppImage** (un solo file, `chmod +x` e avvia), il `.deb`, o
   l'archivio portatile.
 - **macOS** — il `.dmg`.
@@ -167,7 +167,7 @@ a casa" ad "ascolto onde corte".
 - [USER_MANUAL.md](USER_MANUAL.md) — il manuale, comando per comando.
 - [WSJT-CB](https://github.com/vash909/WSJT-CB) — il progetto digitale 11 m su
   cui questo si basa.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — l'ultima
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — l'ultima
   versione per ogni piattaforma.
 
 A presto sugli 11 metri! 73

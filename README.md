@@ -1,11 +1,11 @@
 # SDR Oxide Brown
 
-> **Windows download** — [**installer (`.msi`)**](https://github.com/madmedicnl/sdroxide/releases/latest/download/sdroxide-windows-x86_64.msi)
-> · [**portable `.zip`** (contains `sdroxide.exe`)](https://github.com/madmedicnl/sdroxide/releases/latest/download/sdroxide-windows-x86_64.zip)
-> · [every platform and build](https://github.com/madmedicnl/sdroxide/releases/latest)
+> **Windows download** — [**installer (`.msi`)**](https://github.com/madmedicnl/sdroxide-brown/releases/latest/download/sdroxide-windows-x86_64.msi)
+> · [**portable `.zip`** (contains `sdroxide.exe`)](https://github.com/madmedicnl/sdroxide-brown/releases/latest/download/sdroxide-windows-x86_64.zip)
+> · [every platform and build](https://github.com/madmedicnl/sdroxide-brown/releases/latest)
 >
 > Linux (AppImage · `.deb` · tarball) and macOS (`.dmg`) are on the same
-> [Releases page](https://github.com/madmedicnl/sdroxide/releases/latest).
+> [Releases page](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 
 > **This is a fork of [sdroxide](https://github.com/dividebysandwich/sdroxide), and it is a complete copy of it.**
 > Every amateur ("ham") radio feature is here — the whole transceiver, all the
@@ -48,7 +48,7 @@ rest.
 ## Quick start
 
 1. **Get it.** Download for your platform from the
-   [Releases page](https://github.com/madmedicnl/sdroxide/releases/latest)
+   [Releases page](https://github.com/madmedicnl/sdroxide-brown/releases/latest)
    (Linux AppImage / `.deb` / tarball, Windows `.msi` / `.zip`, macOS `.dmg`),
    or [build it yourself](#building).
 2. **Point it at a radio.** Plug in an SDR, or use a network radio
@@ -213,7 +213,7 @@ The RADE codec, the rtl_433 ISM decoders and the nrsc5/faad2 DRM/HD-Radio
 libraries are vendored as git submodules, so clone with:
 
 ```sh
-git clone --recurse-submodules https://github.com/madmedicnl/sdroxide
+git clone --recurse-submodules https://github.com/madmedicnl/sdroxide-brown
 # in an existing checkout:
 git submodule update --init --recursive
 ```

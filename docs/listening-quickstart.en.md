@@ -40,7 +40,7 @@ they appear on screen. `Settings > Radio` is a menu path.
 ## Installing
 
 - **Windows** — the installer (`.msi`) or the portable `.zip`: see the
-  [Releases page](https://github.com/madmedicnl/sdroxide/releases/latest).
+  [Releases page](https://github.com/madmedicnl/sdroxide-brown/releases/latest).
 - **Linux** — the **AppImage** (one file, `chmod +x` and run), the `.deb`, or
   the portable tarball.
 - **macOS** — the `.dmg`.
@@ -157,7 +157,7 @@ The **LISTEN** window is your record of what was heard:
 
 - [README](../README.md) — the full overview of the fork.
 - [USER_MANUAL.md](USER_MANUAL.md) — the manual, control by control.
-- [Releases](https://github.com/madmedicnl/sdroxide/releases/latest) — the
+- [Releases](https://github.com/madmedicnl/sdroxide-brown/releases/latest) — the
   latest build for every platform.
 
 Good listening, and good DX! 73
