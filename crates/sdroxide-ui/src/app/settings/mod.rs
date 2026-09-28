@@ -345,6 +345,12 @@ pub(in crate::app) struct SettingsIo<'a> {
     /// The TEST button was pressed; answered after the closure, where the
     /// alarm runtime is reachable.
     alerts_test: &'a mut bool,
+    /// The announcement voice is switched on, so a per-event SAY can be
+    /// offered; greyed when it is not, rather than a button that says nothing.
+    speech_on: bool,
+    /// A per-event SAY was pressed: the event whose phrase to speak. Answered
+    /// after the closure, where the announcer is reachable, like `alerts_test`.
+    alerts_say: &'a mut Option<sdroxide_types::AlertEvent>,
     /// The station's IARU region. Applied and sent the moment it changes —
     /// there is no APPLY step on the General tab, and the whole point of it is
     /// that the band plan follows immediately.
@@ -1048,6 +1054,10 @@ impl SdroxideApp {
         let mut alerts_edit = self.alerts.settings();
         let alerts_status = self.alerts.status();
         let mut alerts_test = false;
+        let mut alerts_say: Option<sdroxide_types::AlertEvent> = None;
+        // Whether the announcement voice is on, for the per-event SAY gate.
+        // Read before the window's buffers are borrowed.
+        let speech_on = speech_edit.enabled;
         let mut hpsdr_discover = false;
         let mut rtlsdr_rescan = false;
         let mut rx888_rescan = false;
@@ -1275,6 +1285,8 @@ impl SdroxideApp {
                             alerts_edit: &mut alerts_edit,
                             alerts_status: &alerts_status,
                             alerts_test: &mut alerts_test,
+                            speech_on,
+                            alerts_say: &mut alerts_say,
                             net_sync: &mut net_sync,
                             tci_srv_edit: &mut tci_srv_edit,
                             tci_srv_apply: &mut tci_srv_apply,
@@ -1737,6 +1749,14 @@ impl SdroxideApp {
         }
         if alerts_test {
             self.alerts.test();
+        }
+        if let Some(event) = alerts_say {
+            // Say the example the row shows, through the announcement voice —
+            // the same words the alert would speak, so the operator knows what
+            // they are switching on. A sample callsign and country stand in for
+            // the decode's; the button is only offered when the voice is on.
+            let now = ctx.input(|i| i.time);
+            self.speech.announcer.on_alert(event, "JA1ABC", "20m", Some("Japan"), now);
         }
         // Written as it is typed, like the control bindings: the server rereads
         // the file for every sign-in, so there is no APPLY step to hang this
@@ -2979,6 +2999,8 @@ impl SdroxideApp {
                     self.audio_devices.as_ref().map(|d| d.outputs.as_slice()).unwrap_or(&[]),
                     io.alerts_status,
                     io.alerts_test,
+                    io.speech_on,
+                    io.alerts_say,
                 );
             }
             SettingsTab::Spots => {

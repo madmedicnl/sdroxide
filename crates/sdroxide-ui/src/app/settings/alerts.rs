@@ -18,6 +18,8 @@ pub(in crate::app) fn alerts_settings(
     outputs: &[String],
     status: &AlertStatus,
     test: &mut bool,
+    speech_on: bool,
+    say: &mut Option<AlertEvent>,
 ) {
     ui.label(RichText::new("Audible alerts").size(14.0).strong().color(crate::theme::CYAN()));
     ui.add_space(6.0);
@@ -66,6 +68,7 @@ pub(in crate::app) fn alerts_settings(
             for event in AlertEvent::ALL {
                 let rule = event.rule_mut(&mut cfg.events);
                 let tone = rule.reply.plays_tone();
+                let speaks = rule.reply.speaks();
                 ui.horizontal(|ui| {
                     crate::chrome::checkbox(ui, &mut rule.enabled, event.label());
                     // The sound only matters when the reply makes one; a
@@ -87,19 +90,47 @@ pub(in crate::app) fn alerts_settings(
                         &AlertReply::ALL,
                         AlertReply::label,
                     );
+                    // Hear the phrase without waiting for the band to produce
+                    // one. Offered only when the voice is on, and it says why
+                    // when it is not rather than doing nothing.
+                    let can_say = speaks && speech_on;
+                    let resp = ui.add_enabled(can_say, egui::Button::new("SAY")).on_hover_text(
+                        if can_say {
+                            "Hear this alert spoken"
+                        } else if !speaks {
+                            "Choose Voice or Tone + voice to hear it"
+                        } else {
+                            "Switch the voice on in Settings → UI → Voice announcements"
+                        },
+                    );
+                    if resp.clicked() {
+                        *say = Some(event);
+                    }
                 });
+                // The words it will speak, so the choice is not a guess.
+                if speaks {
+                    ui.label(
+                        RichText::new(format!("speaks: {}", spoken_example(event))).weak().small(),
+                    );
+                }
                 ui.add_space(2.0);
             }
             ui.add_space(4.0);
             ui.label(
                 RichText::new(
                     "Each station is quiet for a while after an alert, so a busy band \
-                         does not ring every slot. Voice and Tone + voice are read by the \
-                         spoken-announcement voice — switch it on in Settings → UI.",
+                         does not ring every slot.",
                 )
                 .weak()
                 .small(),
             );
         });
     });
+}
+
+/// The words a spoken alert reads, shown beside the reply so the choice is not
+/// a guess. The callsign and country are an example — the real ones come from
+/// the decode — so what is displayed is the wording that will be heard.
+fn spoken_example(event: AlertEvent) -> String {
+    sdroxide_speech::announce::alert::phrase(event, "JA1ABC", "20m", Some("Japan"))
 }
