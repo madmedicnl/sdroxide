@@ -17,11 +17,56 @@ The listener work used to live in a listener-only fork,
 `madmedicnl/sdroxide-swl`. It has been **retired**: merged into this fork and
 archived on GitHub with a note pointing here. Everything is on `main` now.
 
-## Next session (2026-09-28): first, then what is left
+## Next session (2026-09-28, later still): first, then what is left
 
 **Read this section before anything else: the direction changed mid-session.**
 New work is **fork-only** and no more upstream PRs are to be opened — see "Stop
-opening upstream PRs" below. The eighteen-PR queue is closed to additions.
+opening upstream PRs" below. The queue is closed to additions.
+
+**The 2026-09-28 merge took nine of ours (`90733eb2`).** Upstream moved 34
+commits (`807b0fcf..9257c363`) and **merged #558, #575, #579, #580, #583, #588,
+#590, #591 and #593**, each with the maintainer's own review commits on top.
+**Eleven PRs are open**: #537, #545, #554, #557, #559, #561, #568, #569, #572,
+#573 and #586 — the old list minus the nine that landed. Twenty files
+conflicted; the resolutions are in the merge commit message, and three
+are worth remembering because they are **decisions, not mechanics**:
+
+1. **The spoken alerts diverge on purpose.** Upstream took #591 and then
+   changed it twice (`aa3971de`): speech became **focused-only**, and a
+   voice-only alert that cannot speak **falls back to its tone**. This fork
+   keeps speaking **whether or not its window is in front** — a new DXCC that
+   merely rings is the case the voice was added for. So `frame.rs` keeps the
+   unfocused path, `AlertFired::sound` is **left out** (it existed only to ring
+   that fallback, and there is no reader for it here), and `AlertRuntime::ring`
+   goes **with it** — its only caller was the background-radio branch.
+   `AlertCore::on_ft8` still plays the tone itself for a `Tone` or `Both`
+   rule, so tone-only alerts are unaffected. We **did** take the transmit gag:
+   `Announcer::on_alert` pushes `Priority::Notable`, not `Alert`, so a phrase
+   cannot go out through the microphone. **Do not "fix" the divergence** — if
+   it is ever revisited, it is a product decision for the operator, not a merge
+   to reconcile.
+2. **#575's band dock did not replace the fork's band menu.** Upstream docked
+   *its own* simpler `band_mode_menu`, so the two are still different menus
+   and ours stays. What was taken is the surrounding machinery:
+   `band_dock_room` is now the single decision about whether there is room (so
+   the chip and the panel cannot disagree), the column's width range is
+   re-applied every frame, and a window too narrow **hides** the column rather
+   than undocking it. `atsmini` and the fork's `band_menu_tab`/`band_filter`
+   arguments are unchanged.
+3. **The 3D window's saved position is no longer clamped** (`c51b70e5`).
+   `monitor` is only a *size*, so clamping a desktop coordinate to `0..monitor`
+   pulled a window left on a second monitor back onto the first. Our test
+   asserted the clamp and was replaced by his second-monitor test. The fork's
+   **owner cap and `keep_alive`** — the part #580 deliberately did not carry —
+   are kept, along with the `emit()` that holds them and the `FLAVOR` title.
+
+**#557, #568 and #561 are now behind and need a rebase** (the merge made them
+conflict; #545 and #554 were already behind before it). Checked with
+`git merge-tree --write-tree upstream/main <branch>`: #557 conflicts in
+`app/mod.rs`, `top_bar.rs` and the manual; #568 in `panels/cw.rs`; #561 in
+`panels/mod.rs`. All three are the same files the main merge just resolved, so
+the rebase is small — **but do not push to them without asking the operator**,
+since "do not push new commits onto the open ones" is still the standing rule.
 
 **Do first, every session.** `git fetch upstream` and merge if upstream has
 moved, and read the open upstream PRs for maintainer comments (`gh pr list
@@ -33,27 +78,35 @@ thread). The queue was worked on 2026-09-27 with upstream still one commit ahead
 review point raised so far is addressed and the rest are drafts. Check before
 starting anything new.
 
-**Three more PRs opened (2026-09-28).** Upstream was re-checked at `807b0fcf`
-and had not moved, and no maintainer comment had arrived on any of the fifteen,
-so the session added **#590** (the REC popup's **Quick clip** row), **#591** (a
-**spoken reply** per alert event, so a new DXCC can be heard, not only rung) and
-**#593** (the grey line's contrast — shade the continents too, and stronger) —
-**eighteen** open now. All are behavioural/UX changes with no wire change; #590
+**Three more PRs opened (2026-09-28), and all three have since landed.** Upstream
+was re-checked at `807b0fcf` and had not moved, and no maintainer comment had
+arrived on any of the fifteen, so the session added **#590** (the REC popup's
+**Quick clip** row), **#591** (a **spoken reply** per alert event, so a new DXCC
+can be heard, not only rung) and **#593** (the grey line's contrast — shade the
+continents too, and stronger) — **eighteen** open at that point. All are
+behavioural/UX changes with no wire change; #590
 and #591 were cherry-picked cleanly onto `upstream/main`, and #593 is the
 upstream-shaped two-file version (upstream has no ADS-B/AIS/APRS/HFDL overlays).
-The fork's `main` carries all three (`cf6dfde1`, `b38125d5`, `ac4811dc`).
+The fork's `main` carries all three (`cf6dfde1`, `b38125d5`, `ac4811dc`), and
+upstream merged all three in `90733eb2` — **eleven open now**. Note #591 landed
+**in a changed form**; the spoken alerts are the fork's one deliberate
+divergence, spelled out at the top of this section.
 
 **Stop opening upstream PRs; new work is fork-only (2026-09-28, later).** This is
 the operator's standing direction and it overrides the upstream-first rule in
 "Keeping up with upstream" below: **do not open another upstream PR, and do not
-push new commits onto the three open ones.** There is already too much open
+push new commits onto the open ones.** There was already too much open
 (#590, #591, #593 plus the fifteen older), and — the operative reason — **this
 fork now serves a different user group**, so most of what this build adds is
 *their* need rather than a general one and has no upstream audience to serve.
-The three open PRs are left exactly as they are; let them sit. Only a genuine
-upstream *bug* found in the course of fork work is worth raising, and even then
-raise it as an issue rather than a PR. Everything else goes on fork `main`, which
-is the only repository to push to.
+Only a genuine upstream *bug* found in the course of fork work is worth raising,
+and even then raise it as an issue rather than a PR. Everything else goes on
+fork `main`, which is the only repository to push to. **Still in force after the
+2026-09-28 merge, which took #590, #591 and #593** — the eleven that remain open
+are left exactly as they are. The one exception the operator has since allowed
+is a **rebase of a PR the merge invalidated**: #557, #568 and #561 now conflict
+and want it, but **ask before pushing to any of them**, because a rebase is a
+push.
 
 **Three more commits on fork `main` (2026-09-28, later), all fork-only:**
 
@@ -457,7 +510,11 @@ merged code still calls everything `sdroxide`.
     operator picked still stands". Behavioural/UX, no wire change.
     **Confirmed on the air** (2026-09-27, CRT SS9900v) — picked 73 mid-QSO at
     R+report, it went out and stayed, and the contact logged. The fork's `main`
-    carries the same fix (`fbe11818`); it drops out when this lands.
+    carries the same fix (`fbe11818`). **It landed in `90733eb2` and the fork's copy
+    dropped out** — but the maintainer's own test is stronger than the one the PR
+    shipped (`aa46db61`): he made the release test send an **RR73**, so it fails if
+    the hold is *kept*, where the PR's test only proved a report did not release
+    it. That is the version now in the tree.
   - `dividebysandwich/sdroxide#588` — **the IQ channel probe reads the opened
     PCM's stream**, opened 2026-09-27 from `upstream/main` (branch
     `upstream-pr/582-iq-stream-channels`, one commit, 76 insertions in
@@ -469,8 +526,8 @@ merged code still calls everything `sdroxide`.
     The guard now selects the stream from the PCM's own `DEV=` index, falling
     back to stream0 for `sysdefault:CARD=X` names so single-stream cards are
     unchanged. Not tested on the reporter's hardware; the two-stream layout is a
-    unit test. The fork's `main` carries the same fix (`804109e7`); it drops out
-    when this lands.
+    unit test. The fork's `main` carries the same fix (`804109e7`); it **dropped out
+    when it landed** in `90733eb2`.
   - `dividebysandwich/sdroxide#591` — **a spoken reply per alert event**,
     opened 2026-09-28 from `upstream/main` (branch `upstream-pr/voice-alerts`,
     one commit, ~286 insertions across `sdroxide-types`, `sdroxide-speech`,
@@ -485,10 +542,21 @@ merged code still calls everything `sdroxide`.
     not the focus-gated `Announcer::on_ft8`, so it is heard when the window is
     not in front; `AlertCore::on_ft8` returns the fired `AlertFired` for the
     caller to speak, and only plays the tone when the reply asks. The wording
-    is a pure `announce::alert` function. Settings → Alerts gains the per-event
-    reply. No wire change. The fork's `main` carries it (`b38125d5`); it drops
-    out when this lands if upstream takes the whole shape, otherwise the
-    fork's copy stays.
+     is a pure `announce::alert` function. Settings → Alerts gains the per-event
+     reply. No wire change. The fork's `main` carries it (`b38125d5`).
+     **Taken upstream on the 2026-09-28 merge** (`91595abd`), but the
+     maintainer then changed the design in his own review commit **`aa3971de`**:
+     speech became **focused-only** (a background radio's phrase would be read
+     out late, as news no longer so) and a voice-only alert that cannot speak
+     **rings its tone instead**, which is what `AlertFired::sound` is for. He
+     also kept the phrase behind the **transmit gag** (`Priority::Notable`) and
+     wrapped the settings row. **The fork deliberately does not take the first
+     two** — see the "decisions, not mechanics" note in the session section
+     above. So `AlertFired::sound` and `AlertRuntime::ring` are **gone** from
+     the fork (nothing reads them), and the fork's own discoverable half — the
+     `speaks: …` preview and the **SAY** button, `1e35b512` — is the reason the
+     operator does not miss what a Voice rule will say.
+
   - `dividebysandwich/sdroxide#590` — **the REC popup's Quick clip row**,
     opened 2026-09-28 from `upstream/main` (branch `upstream-pr/quick-clip`,
     one commit). The **Stop after** chips only appeared once a recording ran
@@ -500,7 +568,10 @@ merged code still calls everything `sdroxide`.
     recording is not running), so it rides a small `rec_clip` until the
     recorder is seen running. A clip disarms **Stop after** and **Auto-record**
     and vice versa. No wire change, UI only. The fork's `main` carries it
-    (`cf6dfde1`); it drops out when this lands.
+    (`cf6dfde1`); it **dropped out when it landed** in `90733eb2`, though the
+    maintainer's review commits changed it first — `REC_CLIP_START_TIMEOUT_S` is his
+    rename and the `(time, seconds)` pair is now the named `RecSpan` (clippy's
+    `type_complexity`).
   - `dividebysandwich/sdroxide#593` — **the grey line's contrast**, opened
     2026-09-28 from `upstream/main` (branch `upstream-pr/greyline-contrast`, one
     commit, two files). The night overlay was painted *before* `draw_base`, so
@@ -512,7 +583,11 @@ merged code still calls everything `sdroxide`.
     that reads. Upstream carries the overlay only in `worldmap::show`, so the
     PR is the two-file change; the fork's `main` also moved the fork-only
     `paint_night` on ADS-B, AIS, APRS and HFDL. The fork's `main` carries it
-    (`ac4811dc`); it drops out when this lands.
+    (`ac4811dc`); it **dropped out when it landed** in `90733eb2`, with his own
+    review commits on top — the night is now also **scaled by the palette's**
+    `map.night_max` (so a light theme does not get ink-on-ink), the **city names are
+    drawn over it**, and `NIGHT_MAX_ALPHA` became `pub` for that. The fork's
+    ADS-B/AIS/APRS/HFDL `paint_night` calls stay.
   - `dividebysandwich/sdroxide#579` — **decodes into the propagation field**,
     opened 2026-09-26 from `upstream/main` (branch `upstream-pr/prop-decodes`,
     one commit). `PropStore::observe_decodes` exists and places a decodes station
@@ -528,8 +603,12 @@ merged code still calls everything `sdroxide`.
     tablet only (`band_dock_allowed`). **Adapted, not copied**: upstream's
     `band_mode_menu` is the simple three-row one, so the fork's own dock
     (`17467d57`, tangled with the fork-only band-menu clarity — tabs, filter,
-    metre bands) does **not** drop out when this lands; they are two different
-    menus, and the fork keeps its version until it rebases onto this one.
+    metre bands) did **not** drop out, and the prediction held: they are two
+    different menus, so the fork kept its version. **It landed in `90733eb2`** and
+    what came across was the machinery around the dock, not the menu —
+    `band_dock_room` as the single room decision, the width range re-applied every
+    frame, and a narrow window hiding the column instead of undocking it. The call
+    still passes the fork's own arguments.
   - `dividebysandwich/sdroxide#537` — **the band-opening detector**, opened
     2026-09-22 from `upstream/main` (branch `upstream-pr/band-openings`, based
     on the current `upstream/main`, no 11 m feed). A pure
@@ -955,6 +1034,17 @@ recording is a moving red fill, so the two are told apart without widening the
 label the RX strip has no room for. The fork carries the same chip change on
 `main` (`6052b3ad`); the pieces are `rec_chip_fill`, the 120 ms frame clock
 while recording, and `the_recording_fill_breathes_the_alert_red`.
+
+**#557 now needs a rebase.** The 2026-09-28 merge brought in #590's Quick clip
+into the same three files — `app/mod.rs`, `top_bar.rs` and the manual — so
+`upstream-pr/rec-silence` conflicts with `upstream/main` (3 conflicts, confirmed
+with `git merge-tree --write-tree`). The resolutions are the ones in `90733eb2`'s
+commit message: keep the fork's `RecGate` and its own `REC_START_TIMEOUT_S`
+alongside upstream's `REC_CLIP_START_TIMEOUT_S`, and keep the arming-one-clears-
+the-other rule for all three. **Ask the operator before pushing** — a rebase to
+a PR branch is a push, and "do not push new commits onto the open ones" is the
+standing rule. #568 (`panels/cw.rs`) and #561 (`panels/mod.rs`) are stale the
+same way.
 
 **Done (2026-09-24): upstream issue #533** (save decoded text). Every text
 panel now carries a **SAVE** chip beside **CLEAR RX**, plus WSPR, PI4 and the
@@ -1826,7 +1916,13 @@ Two things worth keeping:
   rewrites what it prints.
 - No repo-wide `cargo fmt`. The tree is not rustfmt-clean and a sweep produces
   an unreadable diff; format only a file you are already editing, if at all.
-  (Upstream runs rustfmt over what it merges; do not fight it there.)
+  (Upstream runs rustfmt over what it merges; do not fight it there.) **Now
+  confirmed rather than assumed:** upstream's `adf3fd48` in the 2026-09-28
+  merge is a whole-tree rustfmt, so the files he has touched now *are*
+  rustfmt-clean and the fork's own are not. In a merge, take his formatting
+  where he reformatted a line and left the surrounding house style alone —
+  which is what the 2026-09-28 merge did for `audio`, `qso` and the
+  `digi_has_log` ordering.
 - After resolving a merge, `git add` every edit the resolution produced and
   compile the **committed** tree, not just the working one. A merge went up
   non-compiling because three resolution edits were left unstaged while the
