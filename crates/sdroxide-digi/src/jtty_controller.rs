@@ -23,9 +23,11 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::SystemTime;
 
-use sdroxide_dsp::jtty::{self, JTTY_RATE};
 use sdroxide_dsp::MonoResampler;
-use sdroxide_types::{DigiConfig, DigiStatus, JTTY_MESSAGE_MAX, JttyMessage, JttyStatus, Mode, QsoStep};
+use sdroxide_dsp::jtty::{self, JTTY_RATE};
+use sdroxide_types::{
+    DigiConfig, DigiStatus, JTTY_MESSAGE_MAX, JttyMessage, JttyStatus, Mode, QsoStep,
+};
 
 use crate::DigiEngine;
 use crate::controller::DigiAction;
@@ -105,15 +107,13 @@ impl JttyController {
 
     fn seen_recently(&self, hash: u64, now: SystemTime) -> bool {
         self.seen.iter().any(|&(h, t)| {
-            h == hash
-                && now.duration_since(t).map(|d| d.as_secs() < DEDUP_TTL_S).unwrap_or(false)
+            h == hash && now.duration_since(t).map(|d| d.as_secs() < DEDUP_TTL_S).unwrap_or(false)
         })
     }
 
     fn prune_seen(&mut self, now: SystemTime) {
         while let Some(&(_, t)) = self.seen.front() {
-            let expired =
-                now.duration_since(t).map(|d| d.as_secs() >= DEDUP_TTL_S).unwrap_or(true);
+            let expired = now.duration_since(t).map(|d| d.as_secs() >= DEDUP_TTL_S).unwrap_or(true);
             if expired {
                 self.seen.pop_front();
             } else {
@@ -213,16 +213,16 @@ pub fn decode_window(x: &[f32], at: i64) -> Vec<JttyMessage> {
         }
     }
     // A run that never saw EOM is still worth showing.
-    if !acc.is_empty() {
-        if let Some(msg) = jtty::decode_source(&acc) {
-            out.push(JttyMessage {
-                at_unix: at,
-                text: msg.text,
-                audio_hz: first_hz,
-                snr_db: first_snr.round() as i16,
-                complete: msg.complete,
-            });
-        }
+    if !acc.is_empty()
+        && let Some(msg) = jtty::decode_source(&acc)
+    {
+        out.push(JttyMessage {
+            at_unix: at,
+            text: msg.text,
+            audio_hz: first_hz,
+            snr_db: first_snr.round() as i16,
+            complete: msg.complete,
+        });
     }
     out
 }
@@ -338,7 +338,7 @@ mod tests {
     /// scanner: frame one non-EOM, frame two EOM, accumulated into one message.
     #[test]
     fn a_synthesized_message_is_assembled() {
-        use sdroxide_dsp::jtty::{encode_tones, synthesize_frame, JTTY_SYNC};
+        use sdroxide_dsp::jtty::{JTTY_SYNC, encode_tones, synthesize_frame};
         // `CQ K1ABC CQ` is one atom; send it twice with EOM only on the second
         // to exercise accumulation. Use the spec's CQ vector.
         let cq = {
