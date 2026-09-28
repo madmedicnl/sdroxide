@@ -12104,7 +12104,12 @@ is clipped, and the spoken alert fires from the alarm path, so it too is heard
 whether or not sdroxide's window is in front. With the voice switched off a
 **Voice** reply is silent — there is no tone to fall back on — so pick **Tone +
 voice** if you would rather hear something either way; the sound is greyed on a
-voice-only row because it is not used.
+voice-only row because it is not used. So you are choosing on more than a label,
+any event that speaks also shows the words it will say beneath it, and its
+**SAY** button reads them out through the announcement voice — so you can hear
+what you are switching on without waiting for the band to produce one. The
+button is greyed until the reply speaks *and* the voice is on, and it then says
+which of the two is missing.
 
 The settings are stored in `config.toml` under `[alerts]` and belong to the
 screen in front of you, like the announcements. On a station with several radios

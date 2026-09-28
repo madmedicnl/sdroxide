@@ -19,6 +19,10 @@ archived on GitHub with a note pointing here. Everything is on `main` now.
 
 ## Next session (2026-09-28): first, then what is left
 
+**Read this section before anything else: the direction changed mid-session.**
+New work is **fork-only** and no more upstream PRs are to be opened — see "Stop
+opening upstream PRs" below. The eighteen-PR queue is closed to additions.
+
 **Do first, every session.** `git fetch upstream` and merge if upstream has
 moved, and read the open upstream PRs for maintainer comments (`gh pr list
 --repo dividebysandwich/sdroxide --author madmedicnl --state open`, then each
@@ -38,6 +42,60 @@ so the session added **#590** (the REC popup's **Quick clip** row), **#591** (a
 and #591 were cherry-picked cleanly onto `upstream/main`, and #593 is the
 upstream-shaped two-file version (upstream has no ADS-B/AIS/APRS/HFDL overlays).
 The fork's `main` carries all three (`cf6dfde1`, `b38125d5`, `ac4811dc`).
+
+**Stop opening upstream PRs; new work is fork-only (2026-09-28, later).** This is
+the operator's standing direction and it overrides the upstream-first rule in
+"Keeping up with upstream" below: **do not open another upstream PR, and do not
+push new commits onto the three open ones.** There is already too much open
+(#590, #591, #593 plus the fifteen older), and — the operative reason — **this
+fork now serves a different user group**, so most of what this build adds is
+*their* need rather than a general one and has no upstream audience to serve.
+The three open PRs are left exactly as they are; let them sit. Only a genuine
+upstream *bug* found in the course of fork work is worth raising, and even then
+raise it as an issue rather than a PR. Everything else goes on fork `main`, which
+is the only repository to push to.
+
+**Three more commits on fork `main` (2026-09-28, later), all fork-only:**
+
+1. **`0a4033ab` — the SWL report pre-fills from the schedule.** The reception
+   log's **+ NEW** entry form arrived blank where the operator already had the
+   station in the EiBi schedule. `prefill_station` (`app/swl_log.rs`) now fills
+   station, language, site, email and address from
+   `broadcast::at_dial(&self.broadcast, freq, now_unix())` — the schedule entry
+   *at the frequency*, scheduled first — and falls back to the logged station
+   name. Pinned by `the_dial_pre_fills_from_the_schedule_then_the_log`. **Not
+   offered upstream**: `swl_log.rs` is the fork's own file.
+2. **`1e35b512` — an alert's spoken phrase is shown, and can be heard.** Choosing
+   **Voice** / **Tone + voice** in Settings → Alerts was a leap of faith: nothing
+   on screen said what would be said, and the only hint was small print pointing
+   at another settings tab. Each event that speaks now shows
+   `speaks: JA1ABC, new DXCC, Japan` beneath its row, built by the same pure
+   `announce::alert::phrase` the announcer uses — so the displayed wording *is*
+   the wording spoken — plus a **SAY** button that speaks it on demand. Gated on
+   both the reply speaking and the announcement voice being on; when greyed it
+   says which half is missing, so it never silently does nothing. The
+   "switch it on in Settings → UI" note is gone, its job now done inline. This is
+   the fork's discoverable version of #591 and stays here.
+3. **`6025b2bc` — the last compiler warnings.** `cargo check --workspace
+   --all-targets` is now silent; keep it that way, since a tree that warns trains
+   everyone to read past warnings. Nine real ones, none behavioural: two skimmer
+   tests carried a duplicated `#[test]`, the skimmer's `debug_dump` was dead, the
+   ADS-B corpus counted a `got_total` no assertion read, the TCI pacing probe
+   initialised a `mode` it re-read before ever looking at it, two needless
+   `mut`s, and the WSPR busy-band test's `dB` in its name behind an
+   `allow(non_snake_case)` as `smeter.rs`/`theme.rs` already do. Net 10
+   insertions, 23 deletions, all of it code nothing read.
+
+**The fmt decision is settled by evidence, not preference (2026-09-28).** The
+tree's 19 `cargo fmt` diffs were examined rather than assumed: rustfmt wants to
+collapse the author's vertical method chains (`swl_log.rs:560`,
+`top_bar.rs:2501`) and expanded `if`/`else` (`top_bar.rs:3136`) that fit on one
+line anyway — and, the other way, to *split* a 99-char label
+(`signal_id.rs:57`). Three of the 19 are in code this fork wrote this week
+(`frame.rs:1498`, `top_bar.rs:3637`, `clip_label`) and match the surrounding
+house style, which is the point: a sweep would make the tree *less* consistent,
+not more. The house rule below stands, and the files you touch should be left in
+the style their neighbours are in.
 
 **Maintainer capacity (2026-09-27).** The maintainer is not keeping up with the
 queue — several PRs have sat unreviewed for days — so do not read silence as
@@ -187,7 +245,12 @@ merged code still calls everything `sdroxide`.
   branch from `upstream/main`, open the PR, then merge the result back here.
   Building here and porting afterwards costs twice — the fork ends up with two
   lineages of one feature until the next merge, and each merge is bigger for
-  it.
+  it. **Superseded 2026-09-28 for anything new: do not open another upstream
+  PR** — the queue is long enough and this fork serves a different user group,
+  so most additions are theirs rather than general. See "Stop opening upstream
+  PRs" in the session notes at the top. The rule still describes how the
+  existing open PRs were built, and how a future *rebase* of one should be
+  done.
 - **Open upstream PRs as one idea each, split before opening.** The maintainer
   has twice asked for a PR of ours to be split (**#507** and **#524**), and the
   pattern is consistent: he keeps the half whose correctness he can verify by
