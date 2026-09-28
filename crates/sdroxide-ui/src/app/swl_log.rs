@@ -339,6 +339,33 @@ fn station_at(entries: &[SwlEntry], freq_hz: f64) -> Option<String> {
         .map(|e| e.station.clone())
 }
 
+/// Fill a fresh form's station fields from the best source for the dial: the
+/// schedule station sitting on it, or else the log's own name for the channel.
+///
+/// The schedule wins because it carries what a reception report needs — the
+/// language, the transmitter site and the broadcaster's report contact — none
+/// of which the log's remembered name has. `at_dial` is the same lookup the
+/// path arc uses, so a station named here is one the map agrees is on the dial.
+/// The fields stay editable: the suggestion is for when the channel is carrying
+/// what the schedule says.
+fn prefill_station(
+    form: &mut SwlEditForm,
+    broadcast: &[sdroxide_types::BroadcastStation],
+    log: &[SwlEntry],
+    freq_hz: f64,
+    now: i64,
+) {
+    if let Some(st) = sdroxide_types::broadcast::at_dial(broadcast, freq_hz, now) {
+        form.station = st.name.clone();
+        form.language = st.lang.clone();
+        form.site = st.site.clone();
+        form.email = st.email.clone();
+        form.address = st.address.clone();
+    } else if let Some(name) = station_at(log, freq_hz) {
+        form.station = name;
+    }
+}
+
 impl SdroxideApp {
     /// The SWL LOG window: the reception log, its entry form and its report.
     pub(in crate::app) fn swl_window(&mut self, ctx: &egui::Context, cmds: &mut Vec<Command>) {
@@ -379,13 +406,9 @@ impl SdroxideApp {
                         let grid = self.my_grid();
                         let antenna = self.swl_antenna.clone();
                         let mut form = SwlEditForm::new(freq, mode, s, grid, antenna);
-                        // A frequency the log already has a name for comes in
-                        // pre-filled, so a regular broadcast is not retyped
-                        // every evening. It is a suggestion and stays editable
-                        // for when the channel is carrying something else.
-                        if let Some(name) = station_at(&self.swl_log, freq) {
-                            form.station = name;
-                        }
+                        // A known broadcast on this dial comes in filled with
+                        // what a reception report needs; see `prefill_station`.
+                        prefill_station(&mut form, &self.broadcast, &self.swl_log, freq, now_unix());
                         self.swl_edit = Some(form);
                     }
                     if crate::chrome::chip(ui, false, "JOBS")
@@ -1056,7 +1079,7 @@ impl SdroxideApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{sinpo_strength, station_at, SwlEditForm, SwlEntry, SwlFilter};
+    use super::{prefill_station, sinpo_strength, station_at, SwlEditForm, SwlEntry, SwlFilter};
     use sdroxide_types::{Mode, SignalReport, Sinpo};
 
     /// The meter grades into the five SINPO figures, strongest at S9 and up.
@@ -1110,6 +1133,45 @@ mod tests {
         assert_eq!(station_at(&log, 6_184_960.0).as_deref(), Some("BBC World Service"));
         // Never logged here: nothing to suggest.
         assert_eq!(station_at(&log, 7_200_000.0), None);
+    }
+
+    /// Tuning a station the schedule knows pre-fills what a reception report
+    /// needs — the language, the transmitter site and the broadcaster's report
+    /// contact — and where the schedule has nothing, the log's own name for the
+    /// channel is the fallback.
+    #[test]
+    fn the_dial_pre_fills_from_the_schedule_then_the_log() {
+        use sdroxide_types::BroadcastStation;
+        let broadcast = vec![BroadcastStation {
+            name: "Radio Taiwan International".into(),
+            freq_khz: 6_185.0,
+            lang: "Chinese".into(),
+            site: "Tamsui".into(),
+            email: "rti@example.org".into(),
+            address: "P.O. Box 123, Taipei".into(),
+            ..Default::default()
+        }];
+        let mut f = SwlEditForm::new(6_185_000.0, Mode::Am, None, "JO22".into(), String::new());
+        prefill_station(&mut f, &broadcast, &[], 6_185_000.0, 0);
+        assert_eq!(f.station, "Radio Taiwan International");
+        assert_eq!(f.language, "Chinese");
+        assert_eq!(f.site, "Tamsui");
+        assert_eq!(f.email, "rti@example.org");
+        assert_eq!(f.address, "P.O. Box 123, Taipei");
+
+        // Nothing in the schedule on 9.76 MHz: the log's remembered name, and
+        // the schedule-only fields stay empty.
+        let log = vec![SwlEntry {
+            id: 1,
+            station: "Voice of America".into(),
+            freq_hz: 9_760_000.0,
+            heard_at_unix: 100,
+            ..Default::default()
+        }];
+        let mut f = SwlEditForm::new(9_760_000.0, Mode::Am, None, "JO22".into(), String::new());
+        prefill_station(&mut f, &broadcast, &log, 9_760_000.0, 0);
+        assert_eq!(f.station, "Voice of America");
+        assert!(f.language.is_empty() && f.email.is_empty());
     }
 
     /// The reception locator is pre-filled from the screen's grid and carried

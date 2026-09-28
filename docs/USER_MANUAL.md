@@ -14778,8 +14778,11 @@ work it — the antenna in use, the reception report, and the log's CSV and ADIF
 exports. It is the listener's counterpart to the LOGBOOK.
 
 **+ NEW** logs the station the receiver is on right now, with the frequency, the
-mode and the S-meter reading taken from the live radio; **LOG** on a SCHEDULE row
-does the same with the station, language and transmitter site already filled in.
+mode and the S-meter reading taken from the live radio, and — when the dial sits
+on a station the schedule knows — its name, language, transmitter site and report
+contact, the same prefill **LOG** on a SCHEDULE row gives, so a catch is a
+judgement and a send. Where the schedule has nothing on the frequency, a station
+name you have logged on it before is offered instead.
 The entry form holds the rest of a reception: the station name, the frequency and
 mode, a language, the **SINPO** or **SIO** figures, and your own notes.
 
@@ -14799,8 +14802,8 @@ no longer pushes the row about.
 
 The **transmitter site** is deliberately not a field: a listener almost never
 knows it, and the one source that does is the schedule, which fills it in when a
-row is **LOG**ged. It rides on the saved entry and shows on the row's hover when
-it is there, beside the notes.
+row is **LOG**ged or when **+ NEW** lands on a scheduled frequency. It rides on
+the saved entry and shows on the row's hover when it is there, beside the notes.
 
 The entry form carries a **Pirate** tick for an unlicensed — "pirate" —
 broadcast, the kind of catch shortwave listeners go looking for. It is the
