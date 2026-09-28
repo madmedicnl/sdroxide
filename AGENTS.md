@@ -60,12 +60,15 @@ are worth remembering because they are **decisions, not mechanics**:
    **owner cap and `keep_alive`** — the part #580 deliberately did not carry —
    are kept, along with the `emit()` that holds them and the `FLAVOR` title.
 
-**#557, #568 and #561 are now behind and need a rebase** (the merge made them
-conflict; #545 and #554 were already behind before it). Checked with
-`git merge-tree --write-tree upstream/main <branch>`: #557 conflicts in
-`app/mod.rs`, `top_bar.rs` and the manual; #568 in `panels/cw.rs`; #561 in
-`panels/mod.rs`. All three are the same files the main merge just resolved, so
-the rebase is small.
+**#557 was behind and needed a rebase; it has had one (2026-09-28, later).**
+#568 and #561 are still behind (the merge made them conflict; #545 and #554 were
+already behind before it). Checked with
+`git merge-tree --write-tree upstream/main <branch>`: #568 conflicts in
+`panels/cw.rs`, #561 in `panels/mod.rs`. Both are the same files the main merge
+just resolved, so the rebase is small. #557 (which conflicted in `app/mod.rs`,
+`top_bar.rs` and the manual) is done — see the recording silence auto-split
+section below for what it answered, and note that its corrections are on the
+fork's own `main` as well.
 
 **The maintainer is evaluating again (2026-09-28, latest), so rebase rather than
 leave them behind.** The standing "do not push new commits onto the open ones"
@@ -1041,27 +1044,55 @@ recorder that would never close. Offered upstream as PR **#557**.
 The maintainer's review of #557 (the chip width versus the reserved
 `RxChip::width_label`, the tone squelch in the gate, our own transmit counting as
 signal, the carried `RecGate` state, frames while the window is hidden, and
-arming one timer clearing the other) is addressed on `upstream-pr/rec-silence`
-(`52357cf7`). A follow-up on the same branch (`ae1c7b5c`) makes the **REC chip
-breathe** while a file is being written: armed is a steady red outline and
-recording is a moving red fill, so the two are told apart without widening the
-label the RX strip has no room for. The fork carries the same chip change on
-`main` (`6052b3ad`); the pieces are `rec_chip_fill`, the 120 ms frame clock
-while recording, and `the_recording_fill_breathes_the_alert_red`.
+arming one timer clearing the other) is addressed on `upstream-pr/rec-silence`.
+A follow-up on the same branch makes the **REC chip breathe** while a file is
+being written: armed is a steady red outline and recording is a moving red fill,
+so the two are told apart without widening the label the RX strip has no room
+for. The fork carries the same chip change on `main` (`6052b3ad`); the pieces
+are `rec_chip_fill`, the 120 ms frame clock while recording, and
+`the_recording_fill_breathes_the_alert_red`.
 
-**#557 now needs a rebase, and the push restriction is lifted (2026-09-28).** The
-2026-09-28 merge brought in #590's Quick clip
-into the same three files — `app/mod.rs`, `top_bar.rs` and the manual — so
-`upstream-pr/rec-silence` conflicts with `upstream/main` (3 conflicts, confirmed
-with `git merge-tree --write-tree`). The resolutions are the ones in `90733eb2`'s
-commit message: keep the fork's `RecGate` and its own `REC_START_TIMEOUT_S`
-alongside upstream's `REC_CLIP_START_TIMEOUT_S`, and keep the arming-one-clears-
-the-other rule for all three. **Rebase it and push** — the maintainer is
-evaluating again, so a PR sitting behind the maintainer's own merge is worse
-than a force-push. #568 (`panels/cw.rs`) and #561 (`panels/mod.rs`) are stale the
-same way. **Read each thread before rebasing**: if the maintainer has commented
-on the old head, the comment after the force-push has to say how the rebase
-answers him, not just that it happened.
+**#557 is rebased and pushed (2026-09-28, later); #568 and #561 still are not.**
+`upstream-pr/rec-silence` was reset onto `upstream/main` (`9257c363`) and
+force-pushed as **`c9d6589c`**, one commit — the rebase squashed the three
+originals, because the review fixes amended the shape the first commit
+introduced and per-commit replay fought itself. The net code is the same. It
+answers the **latest** three review points, which are the ones worth
+remembering, because all three are still defects the fork had:
+
+1. **The gate depended on something being drawn.** `poll_recording_gate` ran
+   from a radio's *own* frame loop, and only the radio whose tab is on screen
+   runs one — `multi` gives a hidden tab `drain_events` and a sign-in, nothing
+   else. So a gate armed on a radio behind another tab never ticked at all, and
+   the repaint was being asked from inside the loop that was not running. This
+   is the review lesson "carried state needs all its edges", one level up: the
+   state was correct and simply never consulted. The tick is now in the
+   hidden-tab loop, and the gate asks for its own frames from inside the tick
+   (`GATE_POLL_MS`) rather than from a panel.
+2. **The gate's own stop looked like a manual one.**
+   `was_recording && !recording && signal` cannot tell "the gate closed this
+   file after the hold" from "the operator stopped it", so the gate held off and
+   **the transmission that ended the silence run was the one dropped**.
+   `RecGate.stop_asked` says which, and is carried until the recorder is seen to
+   have stopped — two frames, because the answer comes back late.
+3. **Clicking "off" cancelled a running Stop-after.** Arming the gate is
+   choosing one of the two answers to when a recording ends; turning the row off
+   is choosing *neither*. The decision is the named `gate_arm_clears_stop_after`.
+
+**All three are on fork `main` too (`712871cc`)**, ported by hand — a
+cherry-pick of `c9d6589c` would be wrong, since the fork already carries the
+feature and only the corrections are new. (2) and (3) were losing recordings on
+an unattended bench, and (1) split files only for whichever radio was being
+looked at, which is the wrong way round for a monitoring fork. A fourth thing
+deliberately **not** done, same as on the PR: a window the OS is not drawing at
+all. `recording_stop_at`, auto mode and the reconnect countdown all run off that
+same frame loop, so a real fix is a tick outside the UI thread — an app-wide
+change, not something to smuggle in with a recording fix.
+
+#568 (`panels/cw.rs`) and #561 (`panels/mod.rs`) are stale the same way and are
+still to be rebased under the lifted restriction. **Read each thread before
+rebasing**: if the maintainer has commented on the old head, the comment after
+the force-push has to say how the rebase answers him, not just that it happened.
 
 **Done (2026-09-24): upstream issue #533** (save decoded text). Every text
 panel now carries a **SAVE** chip beside **CLEAR RX**, plus WSPR, PI4 and the
