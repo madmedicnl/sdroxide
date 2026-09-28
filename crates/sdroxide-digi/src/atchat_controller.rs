@@ -164,6 +164,7 @@ fn build_status(cfg: &DigiConfig, session: &AtChatSession) -> DigiStatus {
         acars: None,
         dsc: None,
         uvpacket: None,
+        jtty: None,
         aprs: None,
         js8: None,
         atchat: Some(Box::new(atchat)),

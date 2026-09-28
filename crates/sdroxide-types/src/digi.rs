@@ -557,6 +557,10 @@ pub struct DigiStatus {
     /// same positional reason.
     #[serde(default)]
     pub uvpacket: Option<crate::UvPacketStatus>,
+    /// JTTY status, when that mode is selected. `None` in every other mode.
+    /// Last in the struct, after `uvpacket`, for the same positional reason.
+    #[serde(default)]
+    pub jtty: Option<crate::JttyStatus>,
 }
 
 /// The running detail of the contact in progress: when it started and what has
@@ -1103,6 +1107,7 @@ impl DigiStatus {
             acars: None,
             dsc: None,
             uvpacket: None,
+            jtty: None,
             aprs: None,
             js8: None,
             atchat: None,

@@ -80,6 +80,7 @@ mod tciserver;
 pub mod text;
 mod tone;
 mod ui;
+mod jtty;
 mod uvpacket;
 mod vdl2;
 mod voice;
@@ -315,6 +316,7 @@ pub use ui::{
     Speed, UiSettings, UiTheme,
 };
 pub use ui::{force_swl, set_force_swl};
+pub use jtty::{JTTY_MESSAGE_MAX, JttyMessage, JttyStatus};
 pub use uvpacket::{
     UVPACKET_AUDIO_CENTRE_HZ, UVPACKET_FRAME_MAX, UvPacketFrame, UvPacketMode, UvPacketStatus,
 };

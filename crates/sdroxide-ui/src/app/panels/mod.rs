@@ -37,6 +37,7 @@ pub(in crate::app) mod rf_paint;
 pub(in crate::app) mod setup;
 pub(in crate::app) mod sstv;
 pub(in crate::app) mod text_modem;
+pub(in crate::app) mod jtty;
 pub(in crate::app) mod uvpacket;
 pub(in crate::app) mod vdl2;
 pub(in crate::app) mod wefax;
@@ -105,6 +106,9 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         // one selected, whose payload wants reading on its own whether it is
         // text or binary.
         Mode::UvPacket => &["FRAMES", "FRAME"],
+        // JTTY is keyboard text, so its panel is a single rolling log of the
+        // messages heard, like the CW and text-modem receive panes.
+        Mode::Jtty => &["MESSAGES"],
         // The decode list alone: the QSO pane is FT8's sequencer, which a
         // receive-only JT/FST4/MSK144/Q65 build has nothing to put in.
         Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65 | Mode::Fsk441 => {

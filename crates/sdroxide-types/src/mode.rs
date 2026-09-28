@@ -403,6 +403,16 @@ pub enum Mode {
     /// answers `None` — a frame can start anywhere. Receive only in this build,
     /// as [`Mode::Fst4`] is. Appended for the same reason as [`Mode::Hell`].
     UvPacket,
+    /// JTTY — the WSJT-X 3.2 RTTY-like **asynchronous** text mode.
+    ///
+    /// Not slotted: a transmission can start at any instant, so
+    /// [`Mode::slot_timing`] answers `None` and the receiver keeps a rolling
+    /// audio window rather than a slot buffer. Each ~1.888 s frame carries a
+    /// short text or typed contest atom (calls, serials, grids, Field Day
+    /// class/section, control phrases) over a narrow ≈127 Hz 4-GFSK signal with
+    /// a tail-biting convolutional code. Receive only in this build, as
+    /// [`Mode::UvPacket`] is. Appended for the same reason as [`Mode::Hell`].
+    Jtty,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -423,7 +433,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 52] = [
+    pub const ALL: [Mode; 53] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -476,6 +486,7 @@ impl Mode {
         Mode::Q65,
         Mode::Fsk441,
         Mode::UvPacket,
+        Mode::Jtty,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -552,6 +563,7 @@ impl Mode {
                 | Mode::Msk144
                 | Mode::Q65
                 | Mode::UvPacket
+                | Mode::Jtty
                 | Mode::Fsk441
                 | Mode::Packet
                 | Mode::PacketHf
@@ -990,6 +1002,7 @@ impl Mode {
             Mode::Msk144 => "MSK144",
             Mode::Q65 => "Q65",
             Mode::UvPacket => "UVPACKET",
+            Mode::Jtty => "JTTY",
             Mode::Fsk441 => "FSK441",
             Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
@@ -1165,6 +1178,7 @@ impl Mode {
             | Mode::Q65
             | Mode::Fsk441
             | Mode::UvPacket
+            | Mode::Jtty
             | Mode::Psk
             | Mode::Rtty
             | Mode::Sstv
@@ -1424,6 +1438,7 @@ impl Mode {
             | Mode::Msk144
             | Mode::Q65
             | Mode::UvPacket
+            | Mode::Jtty
             | Mode::Fsk441
             | Mode::Olivia
             | Mode::Thor
@@ -1688,6 +1703,7 @@ impl Mode {
             | Mode::Msk144
             | Mode::Q65
             | Mode::UvPacket
+            | Mode::Jtty
             | Mode::Fsk441
             | Mode::Acars
             | Mode::PacketHf
@@ -2245,6 +2261,7 @@ mod tests {
             (Mode::Q65, 49),
             (Mode::Fsk441, 50),
             (Mode::UvPacket, 51),
+            (Mode::Jtty, 52),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2292,7 +2309,7 @@ mod tests {
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker. UVPacket is the
         // fork's last appended variant, after the upstream FSK441 block.
-        let last = Mode::UvPacket as u8;
+        let last = Mode::Jtty as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");

@@ -12,7 +12,7 @@
 //! [`crate::download::save`] the ADIF export uses.
 
 use sdroxide_types::{
-    AcarsStatus, DigiStatus, DscStatus, HfdlDecode, NavtexStatus, Pi4Spot, SkimmerSpot,
+    AcarsStatus, DigiStatus, DscStatus, HfdlDecode, JttyStatus, NavtexStatus, Pi4Spot, SkimmerSpot,
     UvPacketStatus, Vdl2Message, WsprSpot,
 };
 
@@ -52,6 +52,7 @@ pub fn digi_has_log(status: &DigiStatus) -> bool {
         || status.dsc.as_ref().is_some_and(|d| !d.messages.is_empty())
         || status.navtex.as_ref().is_some_and(|n| !n.messages.is_empty())
         || status.uvpacket.as_ref().is_some_and(|u| !u.frames.is_empty())
+        || status.jtty.as_ref().is_some_and(|j| !j.messages.is_empty())
         || !status.fsq_messages.is_empty()
         || status.packet.as_ref().is_some_and(|p| !p.heard.is_empty())
         || status.js8.as_ref().is_some_and(|j| !j.messages.is_empty())
@@ -103,6 +104,9 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
     }
     if let Some(u) = &status.uvpacket {
         return Some((format!("sdroxide-{}-log.txt", slug(status)), uvpacket_text(u)));
+    }
+    if let Some(j) = &status.jtty {
+        return Some((format!("sdroxide-{}-log.txt", slug(status)), jtty_text(j)));
     }
     if let Some(p) = &status.packet
         && !p.heard.is_empty()
@@ -171,6 +175,21 @@ fn dsc_text(d: &DscStatus) -> String {
             stamp(h.at),
             h.message.self_mmsi,
             tsv(&h.message.summary())
+        ));
+    }
+    out
+}
+
+fn jtty_text(j: &JttyStatus) -> String {
+    let mut out = String::from("utc\taudio_hz\tsnr_db\tcomplete\ttext\n");
+    for m in &j.messages {
+        out.push_str(&format!(
+            "{}\t{:.0}\t{}\t{}\t{}\n",
+            stamp(m.at_unix),
+            m.audio_hz,
+            m.snr_db,
+            if m.complete { "yes" } else { "no" },
+            tsv(&m.text)
         ));
     }
     out
@@ -413,7 +432,8 @@ mod tests {
     fn every_panel_with_a_save_chip_has_something_to_save() {
         use sdroxide_types::{
             AcarsMessage, AcarsStatus, AprsStatus, AprsTraffic, DigiConfig, FsqMsg, Js8Msg,
-            Js8Status, Mode, NavtexMessage, NavtexStatus, PacketHeard, PacketStatus,
+            Js8Status, JttyMessage, JttyStatus, Mode, NavtexMessage, NavtexStatus, PacketHeard,
+            PacketStatus,
         };
         let base = |mode| {
             let mut st = DigiStatus::idle(DigiConfig::default());
