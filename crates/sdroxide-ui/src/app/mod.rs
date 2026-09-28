@@ -521,8 +521,8 @@ pub struct SdroxideApp {
     /// Fade clock for the receive-tone (EQ) popup, like `rec_popup_since`.
     eq_popup_since: Option<f64>,
     /// When the running MP3 recording should stop, Unix UTC seconds, and the
-    /// preset in minutes that asked for it — armed by the REC popup's "stop
-    /// after" chips. UI-owned: the engine's
+    /// preset in **seconds** that asked for it — armed by the REC popup's
+    /// "quick clip" and "stop after" chips. UI-owned: the engine's
     /// [`sdroxide_types::Command::SetRecording`] carries no deadline, so this
     /// is a per-tab timer ticked once a frame rather than a setting, and it
     /// does not survive a restart — which is fine for a "this over"
@@ -533,8 +533,20 @@ pub struct SdroxideApp {
     /// because the remaining time does not identify it: a quarter of an hour
     /// left is a quarter of an hour left whether the operator asked for 15
     /// minutes or is most of the way through 90, and the chip that reads as
-    /// armed has to be the one they pressed.
+    /// armed has to be the one they pressed. Seconds rather than minutes
+    /// because a quick clip is 30 s long.
     recording_stop_at: Option<(i64, u16)>,
+    /// A quick clip asked for while no recording was running, `(asked_at,
+    /// secs)`, waiting for the recorder to actually start.
+    ///
+    /// A clip's deadline cannot be armed at the press: the timer tick drops
+    /// any deadline whose recording is not running, so an early deadline
+    /// would be cleared on the next frame before the start took. The request
+    /// rides here instead and is armed the first frame the recording is seen
+    /// running — measured from that frame, so the clip is a full span — or
+    /// dropped if the start never takes. See
+    /// [`Self::poll_recording_timer`].
+    rec_clip: Option<(i64, u16)>,
     /// The silence auto-split hold, in seconds, or `None` when it is off.
     ///
     /// While armed, the MP3 recording follows the receiver's squelch: a file
@@ -1586,6 +1598,7 @@ impl SdroxideApp {
             rec_popup_since: None,
             eq_popup_since: None,
             recording_stop_at: None,
+            rec_clip: None,
             rec_gate_s: None,
             rec_gate: Default::default(),
             bw_popup_since: None,
