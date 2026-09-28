@@ -61,6 +61,22 @@ pub struct JttyController {
     _worker: std::thread::JoinHandle<()>,
     pending: bool,
     status_dirty: bool,
+
+    // --- Transmit ---
+    /// The message box, as typed.
+    tx_text: String,
+    /// The whole message as 48 kHz audio, ready to play once.
+    tx_audio: Vec<f32>,
+    /// Resamples the synthesized 6 kHz burst up to 48 kHz on key.
+    tx_rs: Option<MonoResampler>,
+    /// Where the one-shot transmit has reached in [`Self::tx_audio`].
+    tx_pos: usize,
+    /// The operator is holding transmit (or a one-shot is being sent).
+    tx_active: bool,
+    /// Currently keyed.
+    keyed: bool,
+    /// A key was refused (an empty box), and why.
+    tx_refused: Option<String>,
 }
 
 impl JttyController {
@@ -82,6 +98,7 @@ impl JttyController {
         JttyController {
             cfg,
             resampler: MonoResampler::new(tap_rate, JTTY_RATE),
+            tx_rs: MonoResampler::new(JTTY_RATE, 48_000.0),
             buf: Vec::new(),
             tap_scratch: Vec::new(),
             level: 0.0,
@@ -94,7 +111,51 @@ impl JttyController {
             _worker: worker,
             pending: false,
             status_dirty: true,
+            tx_text: String::new(),
+            tx_audio: Vec::new(),
+            tx_pos: 0,
+            tx_active: false,
+            keyed: false,
+            tx_refused: None,
         }
+    }
+
+    /// Whether there is a message to send.
+    fn pass_ready(&self) -> bool {
+        !self.tx_audio.is_empty()
+    }
+
+    /// Rebuild the one-shot transmit audio from the current text: pack the
+    /// message to frames, synthesize each frame at the modem's rate, and
+    /// resample the whole burst to the 48 kHz the transmit seam hands the
+    /// engine. JTTY is asynchronous, so there is no repeat and no slot; a press
+    /// sends the message once.
+    fn rebuild_tx_audio(&mut self) {
+        self.tx_audio.clear();
+        self.tx_pos = 0;
+        let Some(frames) = sdroxide_dsp::jtty::pack_message(&self.tx_text) else {
+            return;
+        };
+        // The modem synthesizes at the tone-spacing base, like the receiver
+        // expects.
+        let f0 = sdroxide_dsp::jtty::JTTY_TONE_SPACING_HZ;
+        let mut at6 = Vec::new();
+        for p in &frames {
+            let coded = sdroxide_dsp::jtty::encode_tones(p);
+            let mut tones = Vec::with_capacity(
+                sdroxide_dsp::jtty::JTTY_SYNC_SYMBOLS + sdroxide_dsp::jtty::INFORMATION_BITS,
+            );
+            tones.extend_from_slice(&sdroxide_dsp::jtty::JTTY_SYNC);
+            tones.extend_from_slice(&coded);
+            at6.extend_from_slice(&sdroxide_dsp::jtty::synthesize_frame(&tones, f0));
+        }
+        // Resample the 6 kHz burst to the 48 kHz the transmit seam expects.
+        let mut out48 = Vec::new();
+        match &mut self.tx_rs {
+            Some(r) => r.push(&at6, &mut out48),
+            None => out48 = at6,
+        }
+        self.tx_audio = out48;
     }
 
     fn window_samples() -> usize {
@@ -148,71 +209,73 @@ fn now_unix(now: SystemTime) -> i64 {
 
 /// Scan a window of 6 kHz audio for JTTY frames and assemble messages.
 ///
-/// The window is searched start to end for sync; each frame found is decoded
-/// and accumulated into a message until the EOM flag is seen, then a new
-/// message begins. A frame that fails to decode breaks the run.
+/// A JTTY frame is 59 symbols of 4-GFSK with a known 13-symbol sync, so the
+/// window is swept a symbol at a time; at each candidate the sync is scored and,
+/// when it is strong enough, the following 46 symbols are decoded. Candidate
+/// frames are collected with their absolute positions and sorted, then
+/// assembled: consecutive frames accumulate into one message until one carries
+/// the end-of-message flag. This slide-and-collect form is robust to frames
+/// touching each other (a message is several frames back to back) because it
+/// never has to guess where the next frame begins.
 pub fn decode_window(x: &[f32], at: i64) -> Vec<JttyMessage> {
-    let mut out = Vec::new();
-    let frame_samples = jtty::JTTY_FRAME_SYMBOLS * jtty::JTTY_NSPS;
-    let mut pos = 0usize;
-    let mut acc: Vec<jtty::JttyFrame> = Vec::new();
-    let mut first_hz = 0.0f32;
-    let mut first_snr = 0.0f32;
+    let nsps = jtty::JTTY_NSPS;
+    let slot = (jtty::JTTY_SYNC_SYMBOLS + jtty::INFORMATION_BITS) * nsps;
+    if x.len() < slot {
+        return Vec::new();
+    }
 
-    while pos + frame_samples <= x.len() {
-        let slice = &x[pos..];
-        let Some(sync) = jtty::find_sync(slice, 200.0) else {
+    // Collect decoded frames with their start positions.
+    let mut found: Vec<(usize, jtty::JttyFrame, f32, f32)> = Vec::new();
+    let mut pos = 0usize;
+    while pos + slot <= x.len() {
+        // Find the EARLIEST acceptable sync at or after `pos`, at the mode's
+        // fixed audio base. `find_sync_near` scans ascending and returns the
+        // first candidate, so a stronger frame later in the buffer cannot make
+        // the scanner skip an earlier one.
+        let Some(sync) = jtty::find_sync_near(x, jtty::JTTY_TONE_SPACING_HZ, pos, x.len(), 6)
+        else {
             break;
         };
-        if sync.sync_hits <= 6 {
-            // Not a real frame at this position; step past and retry.
-            pos += jtty::JTTY_NSPS;
-            continue;
-        }
-        let energies = jtty::payload_energies(slice, &sync);
+        let abs = sync.start;
+        let energies = jtty::payload_energies(x, &sync);
         match jtty::decode_tones(&energies, 32, 2) {
             Some(frame) => {
-                if acc.is_empty() {
-                    first_hz = sync.f0;
-                    first_snr = sync.snr_db;
-                }
-                let eom = jtty::is_eom(&frame.payload);
-                acc.push(frame);
-                // Advance past this frame.
-                pos += jtty::JTTY_SYNC_SYMBOLS * jtty::JTTY_NSPS
-                    + jtty::INFORMATION_BITS * jtty::JTTY_NSPS;
-                if eom {
-                    if let Some(msg) = jtty::decode_source(&acc) {
-                        out.push(JttyMessage {
-                            at_unix: at,
-                            text: msg.text,
-                            audio_hz: first_hz,
-                            snr_db: first_snr.round() as i16,
-                            complete: msg.complete,
-                        });
-                    }
-                    acc.clear();
-                }
+                found.push((abs, frame, sync.f0, sync.snr_db));
+                pos = abs + slot;
             }
             None => {
-                // A failed frame ends any message in progress.
-                if !acc.is_empty() {
-                    if let Some(msg) = jtty::decode_source(&acc) {
-                        out.push(JttyMessage {
-                            at_unix: at,
-                            text: msg.text,
-                            audio_hz: first_hz,
-                            snr_db: first_snr.round() as i16,
-                            complete: msg.complete,
-                        });
-                    }
-                    acc.clear();
-                }
-                pos += jtty::JTTY_NSPS;
+                // Not a frame here; step past the sync start and keep looking.
+                pos = abs + nsps;
             }
         }
     }
-    // A run that never saw EOM is still worth showing.
+
+    // Assemble: consecutive frames run into one message until EOM.
+    found.sort_by_key(|&(p, _, _, _)| p);
+    let mut out = Vec::new();
+    let mut acc: Vec<jtty::JttyFrame> = Vec::new();
+    let mut first_hz = 0.0f32;
+    let mut first_snr = 0.0f32;
+    for (_, frame, f0, snr) in found {
+        if acc.is_empty() {
+            first_hz = f0;
+            first_snr = snr;
+        }
+        let eom = jtty::is_eom(&frame.payload);
+        acc.push(frame);
+        if eom {
+            if let Some(msg) = jtty::decode_source(&acc) {
+                out.push(JttyMessage {
+                    at_unix: at,
+                    text: msg.text,
+                    audio_hz: first_hz,
+                    snr_db: first_snr.round() as i16,
+                    complete: msg.complete,
+                });
+            }
+            acc.clear();
+        }
+    }
     if !acc.is_empty()
         && let Some(msg) = jtty::decode_source(&acc)
     {
@@ -280,6 +343,25 @@ impl DigiEngine for JttyController {
             let _ = self.job_tx.send(DecodeJob { audio, at: now_unix(now) });
         }
 
+        // Key on the operator's transmit. JTTY is asynchronous: a press sends
+        // the message once, in one burst, and then unkeys — there is no slot to
+        // key on and nothing repeats.
+        //
+        // A key with nothing in the box is refused *and dropped*: leaving
+        // `tx_active` set would arm the mode, and the next keystroke would key
+        // the radio unexpectedly. Sending takes a fresh press.
+        if self.tx_active && !self.keyed {
+            if self.pass_ready() {
+                self.keyed = true;
+                self.status_dirty = true;
+                actions.push(DigiAction::KeyTx);
+            } else {
+                self.tx_active = false;
+                self.tx_refused = Some("type a message to transmit".into());
+                self.status_dirty = true;
+            }
+        }
+
         if self.status_dirty {
             self.status_dirty = false;
             actions.push(DigiAction::Status(self.digi_status()));
@@ -288,14 +370,37 @@ impl DigiEngine for JttyController {
     }
 
     fn tx_burst_active(&self) -> bool {
-        false
+        self.keyed
     }
 
-    fn fill_tx_block(&mut self, _out: &mut [f32]) -> bool {
-        false
+    /// Play the one-shot transmit burst. The audio is governed by the
+    /// synthesized message, not by how long transmit is held: JTTY sends the
+    /// message once, so this returns true (the burst is done) as soon as the
+    /// queue is drained.
+    fn fill_tx_block(&mut self, out: &mut [f32]) -> bool {
+        for s in out.iter_mut() {
+            if self.tx_pos < self.tx_audio.len() {
+                *s = self.tx_audio[self.tx_pos];
+                self.tx_pos += 1;
+            } else {
+                *s = 0.0;
+            }
+        }
+        self.tx_pos >= self.tx_audio.len()
     }
 
-    fn on_burst_done(&mut self) {}
+    /// The synthesized audio is full-scale, so say so: the engine scales by
+    /// `1/peak`, and the default 0.5 would double it into the limiter.
+    fn tx_peak(&self) -> f32 {
+        1.0
+    }
+
+    fn on_burst_done(&mut self) {
+        self.keyed = false;
+        self.tx_active = false;
+        self.tx_pos = 0;
+        self.status_dirty = true;
+    }
 
     fn abort(&mut self) {
         self.buf.clear();
@@ -303,7 +408,31 @@ impl DigiEngine for JttyController {
         self.status_dirty = true;
     }
 
-    fn abort_tx(&mut self) {}
+    fn abort_tx(&mut self) {
+        self.keyed = false;
+        self.tx_active = false;
+        self.tx_refused = None;
+        self.tx_pos = 0;
+        self.status_dirty = true;
+    }
+
+    fn set_tx_text(&mut self, text: String) {
+        self.tx_text = text;
+        // Rebuild the burst only while nothing is keyed: an over on the air
+        // keeps the message it started with.
+        if !self.keyed {
+            self.rebuild_tx_audio();
+        }
+        self.status_dirty = true;
+    }
+
+    fn set_tx_active(&mut self, on: bool) {
+        self.tx_active = on;
+        if on {
+            self.tx_refused = None;
+        }
+        self.status_dirty = true;
+    }
 
     fn set_config(&mut self, cfg: DigiConfig) {
         self.cfg = cfg;
@@ -370,5 +499,69 @@ mod tests {
         let msgs = decode_window(&buf, 0);
         assert!(!msgs.is_empty(), "no message decoded");
         assert!(msgs.iter().any(|m| m.text.contains("K1ABC")), "{msgs:?}");
+    }
+
+    /// The whole transmit chain in one test: set the text, key, play the burst
+    /// the controller hands the engine, and decode it back through the
+    /// receiver. This is the loop an operator actually makes.
+    #[test]
+    fn a_transmitted_message_decodes_back() {
+        use sdroxide_dsp::jtty::JTTY_RATE;
+        let mut c = JttyController::new(DigiConfig::default(), 48_000.0);
+        c.set_tx_text("W1ABC W9XYZ FN42".into());
+        c.set_tx_active(true);
+        // The first poll keys the radio.
+        let keyed =
+            c.poll(SystemTime::now(), 0.0).into_iter().any(|a| matches!(a, DigiAction::KeyTx));
+        assert!(keyed, "a message should key the radio");
+        assert!(c.tx_burst_active());
+
+        // Play the whole burst the controller hands the engine, at 48 kHz.
+        let mut tx48 = Vec::new();
+        let mut block = vec![0.0f32; 48_000];
+        loop {
+            let done = c.fill_tx_block(&mut block);
+            tx48.extend_from_slice(&block);
+            if done {
+                break;
+            }
+        }
+        // Down to the decoder's rate with the same resampler the receive path
+        // uses, then decode the loop the operator actually makes: transmit,
+        // resample both ways, and read the message back off the air.
+        let mut at6 = Vec::new();
+        let mut down = MonoResampler::new(48_000.0, JTTY_RATE).expect("resampler");
+        down.push(&tx48, &mut at6);
+        let mut buf = vec![0.0f32; sdroxide_dsp::jtty::JTTY_NSPS * 4];
+        buf.extend_from_slice(&at6);
+        buf.extend(std::iter::repeat_n(0.0, sdroxide_dsp::jtty::JTTY_NSPS * 4));
+        let msgs = decode_window(&buf, 0);
+        assert!(
+            msgs.iter().any(|m| m.text == "W1ABC W9XYZ FN42"),
+            "the transmitted message did not decode: {msgs:?}"
+        );
+    }
+
+    /// An empty box is refused and dropped: nothing keys, and a later keystroke
+    /// does not key either without a fresh press.
+    #[test]
+    fn an_empty_message_does_not_key() {
+        let mut c = JttyController::new(DigiConfig::default(), 48_000.0);
+        c.set_tx_active(true);
+        let keyed =
+            c.poll(SystemTime::now(), 0.0).into_iter().any(|a| matches!(a, DigiAction::KeyTx));
+        assert!(!keyed, "an empty box must not key");
+        assert!(!c.tx_burst_active());
+        assert!(c.tx_refused.is_some(), "the refusal must be reported");
+        // A keystroke after a refused press still does not key.
+        c.set_tx_text("W1ABC".into());
+        let keyed =
+            c.poll(SystemTime::now(), 0.0).into_iter().any(|a| matches!(a, DigiAction::KeyTx));
+        assert!(!keyed, "typing into a refused box must not key");
+        // A fresh press keys with the text present.
+        c.set_tx_active(true);
+        let keyed =
+            c.poll(SystemTime::now(), 0.0).into_iter().any(|a| matches!(a, DigiAction::KeyTx));
+        assert!(keyed, "a fresh press must key");
     }
 }

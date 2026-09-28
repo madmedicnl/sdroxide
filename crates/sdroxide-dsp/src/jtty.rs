@@ -618,11 +618,16 @@ fn render_struct30(payload: &[u8; PAYLOAD_BITS]) -> Option<String> {
     }
 }
 
-/// Render one source word to text, or `None` if it is structurally invalid.
-///
-/// This is a single atom; a whole message is a sequence of frames, the last
-/// carrying the EOM bit. Use [`decode_source`] for a message.
-pub fn decode_word(payload: &[u8; PAYLOAD_BITS]) -> Option<String> {
+/// One decoded source atom: its text, and whether it is a structured atom
+/// (which contributes an implicit separator) rather than a verbatim TEXT5 run.
+#[derive(Debug, Clone, PartialEq)]
+pub struct JttyAtom {
+    pub text: String,
+    pub structured: bool,
+}
+
+/// Decode one source word to its atom, or `None` if it is structurally invalid.
+pub fn decode_atom(payload: &[u8; PAYLOAD_BITS]) -> Option<JttyAtom> {
     if payload[32] != 0 {
         return None; // reserved bit set
     }
@@ -636,7 +641,7 @@ pub fn decode_word(payload: &[u8; PAYLOAD_BITS]) -> Option<String> {
         0 | 1 => {
             let (kind, call28) = call_action(payload)?;
             let call = render_call28(call28)?;
-            let s = match kind {
+            let text = match kind {
                 TopKind::Cq => format!("CQ {call} CQ"),
                 TopKind::Call => call,
                 TopKind::TuCq => format!("TU {call} CQ"),
@@ -644,11 +649,13 @@ pub fn decode_word(payload: &[u8; PAYLOAD_BITS]) -> Option<String> {
                 TopKind::CallAgn => format!("{call} AGN?"),
                 TopKind::TuNowCall => format!("TU NOW {call}"),
             };
-            Some(s)
+            Some(JttyAtom { text, structured: true })
         }
-        2 => render_struct30(payload),
+        2 => render_struct30(payload).map(|text| JttyAtom { text, structured: true }),
         3 => {
             // TEXT5: bits 1-30 are five six-bit characters, bits 31-32 = 11.
+            // Verbatim — no implicit separator, and the trailing padding is not
+            // part of the message.
             let mut s = String::new();
             for k in 0..5 {
                 let mut v = 0u8;
@@ -657,11 +664,18 @@ pub fn decode_word(payload: &[u8; PAYLOAD_BITS]) -> Option<String> {
                 }
                 s.push(JTTY_CHARSET[v as usize] as char);
             }
-            // Trailing padding is not part of the message.
-            Some(s.trim_end().to_string())
+            Some(JttyAtom { text: s.trim_end().to_string(), structured: false })
         }
         _ => None,
     }
+}
+
+/// Render one source word to text, or `None` if it is structurally invalid.
+///
+/// This is a single atom; a whole message is a sequence of frames, the last
+/// carrying the EOM bit. Use [`decode_source`] for a message.
+pub fn decode_word(payload: &[u8; PAYLOAD_BITS]) -> Option<String> {
+    decode_atom(payload).map(|a| a.text)
 }
 
 /// True if the word carries the end-of-message flag (bit 34).
@@ -686,14 +700,14 @@ pub fn decode_source(frames: &[JttyFrame]) -> Option<JttyMessage> {
     let mut out = String::new();
     let mut complete = false;
     for f in frames {
-        let atom = decode_word(&f.payload)?;
-        // A structured atom carries one trailing space; TEXT5 is verbatim. The
-        // reference does not distinguish here at render time, so append the
-        // atom and let the join below normalise.
-        if !out.is_empty() && !out.ends_with(' ') {
+        let atom = decode_atom(&f.payload)?;
+        // Canonical atom sequence: a structured atom carries one implicit
+        // trailing space, TEXT5 is appended verbatim. Getting this wrong runs
+        // two TEXT5 fragments together or doubles a boundary space.
+        out.push_str(&atom.text);
+        if atom.structured && !out.ends_with(' ') {
             out.push(' ');
         }
-        out.push_str(&atom);
         if is_eom(&f.payload) {
             complete = true;
             break;
@@ -704,6 +718,510 @@ pub fn decode_source(frames: &[JttyFrame]) -> Option<JttyMessage> {
     }
     out.truncate(80);
     if out.is_empty() { None } else { Some(JttyMessage { text: out, complete }) }
+}
+
+// ---------------------------------------------------------------------------
+// Source packer: text -> frames, for transmit. The inverse of the decoder.
+// ---------------------------------------------------------------------------
+
+/// Pack a standard callsign into its 28-bit field, mirroring the reference's
+/// `unpack28_core` for the standard-call case (the only case this packer
+/// produces — a hashed call is not something we transmit). Returns `None` if
+/// the token is not a standard call the reference could round-trip.
+pub fn pack_call28(call: &str) -> Option<u32> {
+    const NTOKENS: u32 = 2_063_592;
+    const MAX22: u32 = 4_194_304;
+    const A1: &[u8] = b" 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const A2: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const A3: &[u8] = b"0123456789";
+    const A4: &[u8] = b" ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    let call = call.trim();
+    // The reference's standard-call shape: 3..=6 chars, alphanumeric, a digit
+    // in position 2 or 3, at least one letter before it, all letters after it.
+    let bytes = call.as_bytes();
+    let n = bytes.len();
+    if !(3..=6).contains(&n) {
+        return None;
+    }
+    if !bytes.iter().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit()) {
+        return None;
+    }
+    let mut iarea = 0usize;
+    for i in (1..n).rev() {
+        if bytes[i].is_ascii_digit() {
+            iarea = i + 1; // 1-based
+            break;
+        }
+    }
+    if iarea != 2 && iarea != 3 {
+        return None;
+    }
+    let npdig = bytes[..iarea - 1].iter().filter(|b| b.is_ascii_digit()).count();
+    let nplet = bytes[..iarea - 1].iter().filter(|b| b.is_ascii_uppercase()).count();
+    if nplet == 0 || npdig >= iarea - 1 {
+        return None;
+    }
+    if !bytes[iarea..].iter().all(|b| b.is_ascii_uppercase()) {
+        return None;
+    }
+    if n > iarea && bytes[iarea..].iter().filter(|b| b.is_ascii_uppercase()).count() > 3 {
+        return None;
+    }
+    // Pad to six characters the way the reference does.
+    let padded: Vec<u8> = if iarea == 2 {
+        let mut v = vec![b' '];
+        v.extend_from_slice(&bytes[..n]);
+        v
+    } else {
+        bytes.to_vec()
+    };
+    if padded.len() != 6 {
+        return None;
+    }
+    let idx = |alpha: &[u8], c: u8| alpha.iter().position(|&x| x == c).map(|i| i as u32);
+    let i1 = idx(A1, padded[0])?;
+    let i2 = idx(A2, padded[1])?;
+    let i3 = idx(A3, padded[2])?;
+    let i4 = idx(A4, padded[3])?;
+    let i5 = idx(A4, padded[4])?;
+    let i6 = idx(A4, padded[5])?;
+    let n28 = 36 * 10 * 27 * 27 * 27 * i1
+        + 10 * 27 * 27 * 27 * i2
+        + 27 * 27 * 27 * i3
+        + 27 * 27 * i4
+        + 27 * i5
+        + i6;
+    Some(NTOKENS + MAX22 + n28)
+}
+
+/// Index of a JTTY character in the 64-character alphabet, or `None`.
+fn source_index(c: u8) -> Option<u8> {
+    JTTY_CHARSET.iter().position(|&x| x == c).map(|i| i as u8)
+}
+
+/// Write a 32-bit grammar word plus the reserved bit and EOM into a payload.
+fn word_to_payload(n32: u32, eom: bool) -> [u8; PAYLOAD_BITS] {
+    let mut p = [0u8; PAYLOAD_BITS];
+    for (i, slot) in p.iter_mut().take(32).enumerate() {
+        *slot = ((n32 >> (31 - i)) & 1) as u8;
+    }
+    p[32] = 0; // reserved
+    p[33] = if eom { 1 } else { 0 };
+    p
+}
+
+/// Set the top 30 bits of a word from five six-bit characters.
+fn text5_word(s: &str) -> Option<u32> {
+    let bytes = s.as_bytes();
+    let mut top30 = 0u32;
+    for i in 0..5 {
+        let c = bytes.get(i).copied().unwrap_or(b' ');
+        let idx = source_index(c)?;
+        top30 = top30 * 64 + idx as u32;
+    }
+    Some(4 * top30 + 3)
+}
+
+/// A source atom the packer can emit.
+#[derive(Debug, Clone, PartialEq)]
+enum Atom {
+    Call { action: u8, call: String },
+    ExchNum { role: u8, kind: u8, value: u32 },
+    ExchLoc { role: u8, kind: u8, text: String },
+    ClassSection { count: u32, class: char, section: usize },
+    Grid4 { role: u8, grid: String },
+    Control { phrase: u8 },
+    Text5(String),
+}
+
+fn tx_base36_token(s: &str) -> Option<(u16, bool)> {
+    let b = s.as_bytes();
+    if !(b.len() == 2 || b.len() == 3) {
+        return None;
+    }
+    let mut v: u32 = 0;
+    for &c in b {
+        let d = if c.is_ascii_digit() {
+            (c - b'0') as u32
+        } else if c.is_ascii_uppercase() {
+            (c - b'A') as u32 + 10
+        } else {
+            return None;
+        };
+        v = v * 36 + d;
+    }
+    let len3 = b.len() == 3;
+    if len3 {
+        if !(36 * 36..36 * 36 * 36).contains(&v) || b[0] == b'0' {
+            return None;
+        }
+    } else if v >= 36 * 36 {
+        return None;
+    }
+    Some((v as u16, len3))
+}
+
+fn grid4_index(s: &str) -> Option<u16> {
+    let b = s.as_bytes();
+    if b.len() != 4 {
+        return None;
+    }
+    let f1 = (b[0] as char).to_digit(36)?; // A..R
+    let f2 = (b[1] as char).to_digit(36)?;
+    if !(10..=27).contains(&f1) || !(10..=27).contains(&f2) {
+        return None;
+    }
+    let d1 = (b[2] as char).to_digit(10)?;
+    let d2 = (b[3] as char).to_digit(10)?;
+    let f = (f1 - 10) * 18 + (f2 - 10);
+    Some(((f * 10 + d1) * 10 + d2) as u16)
+}
+
+/// The ARRL/RAC section index (1-based) for a section name, or `None`.
+fn section_index(name: &str) -> Option<usize> {
+    let up = name.to_ascii_uppercase();
+    ARRL_SECTIONS.iter().position(|&s| s == up).map(|i| i + 1)
+}
+
+/// Pack one atom into a 32-bit grammar word, or `None` if it is not valid.
+fn pack_atom(atom: &Atom) -> Option<u32> {
+    let finish = |body: u32, family: u32| -> u32 {
+        // body occupies bits 1-27, family bits 28-30, i2=2 in bits 31-32.
+        ((body & 0x07FF_FFFF) << 5) | ((family & 0x7) << 2) | 0b10
+    };
+    match atom {
+        Atom::Call { action, call } => {
+            // Actions 0-3 are i2=0 with n2=action; actions 4-5 are i2=1 with
+            // n2=action-4. n32 = (n28 << 4) + 4*n2 + i2, per the reference.
+            let n28 = pack_call28(call)?;
+            let (i2, n2) =
+                if *action <= 3 { (0u32, *action as u32) } else { (1u32, (*action - 4) as u32) };
+            Some((n28 << 4) | (4 * n2 + i2))
+        }
+        Atom::ExchNum { role, kind, value } => {
+            // EXCH_NUM: role1 kind4 value17 zero5
+            let body = ((*role as u32 & 1) << 26)
+                | ((*kind as u32 & 0xF) << 22)
+                | ((*value & 0x1FFFF) << 5);
+            Some(finish(body, 0))
+        }
+        Atom::ExchLoc { role, kind, text } => {
+            let (token, len3) = tx_base36_token(text)?;
+            let body = ((*role as u32 & 1) << 26)
+                | ((*kind as u32 & 0xF) << 22)
+                | ((len3 as u32) << 21)
+                | ((token as u32 & 0xFFFF) << 5);
+            Some(finish(body, 1))
+        }
+        Atom::ClassSection { count, class, section } => {
+            if !(1..=32).contains(count) || *section == 0 || *section > 86 {
+                return None;
+            }
+            let class_i = (*class as u8).wrapping_sub(b'A');
+            if class_i > 5 {
+                return None;
+            }
+            // EXCH_PAIR schema1: count6 class3 section7 zero7 -> pair_data
+            let pair_data = ((*count & 0x3F) << 17)
+                | ((class_i as u32 & 0x7) << 14)
+                | ((*section as u32 & 0x7F) << 7);
+            let body = (1u32 << 24) | ((pair_data & 0x7F_FFFF) << 1);
+            Some(finish(body, 2))
+        }
+        Atom::Grid4 { role, grid } => {
+            let g = grid4_index(grid)?;
+            let data = ((*role as u32 & 1) << 22) | ((g as u32 & 0x7FFF) << 7);
+            let body = (1u32 << 23) | data;
+            Some(finish(body, 4))
+        }
+        Atom::Control { phrase } => {
+            let body = (*phrase as u32 & 0x7F) << 16;
+            Some(finish(body, 4))
+        }
+        Atom::Text5(s) => text5_word(s),
+    }
+}
+
+/// A packed message: the frames' payloads, in order.
+pub type PackedMessage = Vec<[u8; PAYLOAD_BITS]>;
+
+/// Render an atom to the text it represents, for the packer's exactness check.
+fn render_atom(atom: &Atom) -> String {
+    match atom {
+        Atom::Call { action, call } => match action {
+            0 => format!("CQ {call} CQ"),
+            1 => call.clone(),
+            2 => format!("TU {call} CQ"),
+            3 => format!("{call} TU"),
+            4 => format!("{call} AGN?"),
+            5 => format!("TU NOW {call}"),
+            _ => String::new(),
+        },
+        Atom::ExchNum { role, kind, value } => {
+            let field = match kind {
+                0 | 5 => format!("{value:03}"),
+                1 | 2 => format!("{value:02}"),
+                6 => format!("{value:04}"),
+                _ => format!("{value}"),
+            };
+            if *role == 1 { format!("599 {field}") } else { field }
+        }
+        Atom::ExchLoc { role, text, .. } => {
+            if *role == 1 {
+                format!("599 {text}")
+            } else {
+                text.clone()
+            }
+        }
+        Atom::ClassSection { count, class, section } => {
+            let sec = ARRL_SECTIONS.get(section.wrapping_sub(1)).copied().unwrap_or("");
+            format!("{count}{class} {sec}")
+        }
+        Atom::Grid4 { role, grid } => {
+            if *role == 1 {
+                format!("599 {grid}")
+            } else {
+                grid.clone()
+            }
+        }
+        Atom::Control { phrase } => {
+            CONTROL_PHRASES.get(*phrase as usize).copied().unwrap_or("").to_string()
+        }
+        Atom::Text5(s) => s.clone(),
+    }
+}
+
+/// Normalise an operator's message: uppercase, collapse spaces, fold anything
+/// outside the alphabet to `#`, per the reference's literal interface.
+pub fn normalize_text(msg: &str) -> String {
+    let mut out = String::new();
+    let mut prev_space = false;
+    for c in msg.trim().chars() {
+        let up = c.to_ascii_uppercase();
+        if up == ' ' {
+            if !prev_space && !out.is_empty() {
+                out.push(' ');
+            }
+            prev_space = true;
+        } else {
+            let ch = if source_index(up as u8).is_some() { up } else { '#' };
+            out.push(ch);
+            prev_space = false;
+        }
+    }
+    while out.ends_with(' ') {
+        out.pop();
+    }
+    out
+}
+
+/// Common control phrases for the packer's recognition, indexed as on the wire.
+const CONTROL_PACK_LIMIT: u8 = 18;
+
+/// Pack a message into one or more frames, choosing the fewest frames that
+/// preserve the normalized text exactly — the reference's DP over character
+/// offsets, offering compact atoms and TEXT5.
+///
+/// This is the practical subset the reference's ordinary text packer uses:
+/// the six call actions, registered control phrases, generic numeric and QTH
+/// exchanges, GRID4 and class/section (Field Day). Contest-specific profiles
+/// (RTTY Roundup serial normalization) are not applied — text packs as it
+/// reads.
+pub fn pack_message(msg: &str) -> Option<PackedMessage> {
+    let text = normalize_text(msg);
+    let n = text.len();
+    if n == 0 {
+        return None;
+    }
+    let bytes = text.as_bytes();
+    const INF: usize = 999;
+    // dp[i] = fewest frames for text[i..]; successor[i] = next offset.
+    let mut dp = vec![INF; n + 1];
+    let mut succ = vec![0usize; n];
+    let mut choice: Vec<Option<Atom>> = vec![None; n];
+    dp[n] = 0;
+
+    // At each position, try TEXT5 (next 5 chars) and, at token boundaries,
+    // every compact atom whose rendering matches the text span exactly.
+    let mut i = n;
+    while i > 0 {
+        i -= 1;
+        let consider = |atom: Atom,
+                        next: usize,
+                        dp: &mut Vec<usize>,
+                        succ: &mut Vec<usize>,
+                        choice: &mut Vec<Option<Atom>>| {
+            let cost = 1 + dp[next];
+            if cost <= dp[i] {
+                dp[i] = cost;
+                succ[i] = next;
+                choice[i] = Some(atom);
+            }
+        };
+
+        // TEXT5 always available: exactly five chars, or the tail.
+        let end = (i + 5).min(n);
+        let frag = &text[i..end];
+        if let Some(w) = text5_word(&format!("{frag:<5}")) {
+            let _ = w;
+            consider(Atom::Text5(frag.to_string()), end, &mut dp, &mut succ, &mut choice);
+        }
+
+        // Compact atoms only at a token boundary.
+        let at_boundary = i == 0 || bytes[i - 1] == b' ';
+        if at_boundary {
+            // Gather the tokens starting here (up to three).
+            let mut words: Vec<(usize, usize)> = Vec::new();
+            let mut p = i;
+            while p < n && words.len() < 3 {
+                let e = text[p..].find(' ').map(|k| p + k).unwrap_or(n);
+                words.push((p, e));
+                p = if e < n { e + 1 } else { n };
+            }
+            let w0 = words.first().map(|&(a, b)| &text[a..b]).unwrap_or("");
+            let w1 = words.get(1).map(|&(a, b)| &text[a..b]).unwrap_or("");
+
+            // Call actions. Each renders around a *callsign* word, which is not
+            // always the first word (`CQ K1ABC CQ` puts the call second), so
+            // try the words a call could be and keep the action whose rendering
+            // matches the text span exactly.
+            for cand in words.iter().take(2) {
+                let call = &text[cand.0..cand.1];
+                if pack_call28(call).is_none() {
+                    continue;
+                }
+                for action in 0u8..6 {
+                    let atom = Atom::Call { action, call: call.to_string() };
+                    let rendered = render_atom(&atom);
+                    if !text[i..].starts_with(&rendered) {
+                        continue;
+                    }
+                    let mut next = i + rendered.len();
+                    if next < n && bytes[next] == b' ' {
+                        next += 1;
+                    }
+                    consider(atom, next, &mut dp, &mut succ, &mut choice);
+                }
+            }
+            // Control phrases (may be several words).
+            for phrase in 0..CONTROL_PACK_LIMIT {
+                let atom = Atom::Control { phrase };
+                let rendered = render_atom(&atom);
+                if text[i..].starts_with(&rendered) {
+                    let mut next = i + rendered.len();
+                    if next < n && bytes[next] == b' ' {
+                        next += 1;
+                    }
+                    consider(atom, next, &mut dp, &mut succ, &mut choice);
+                }
+            }
+            // Numeric / grid / QTH exchanges, field-only and 599-prefixed.
+            for role in 0u8..=1 {
+                let (field, prefix) = if role == 1 {
+                    if w0 != "599" || w1.is_empty() {
+                        continue;
+                    }
+                    (w1, "599 ")
+                } else {
+                    (w0, "")
+                };
+                if field.is_empty() {
+                    continue;
+                }
+                let _ = prefix;
+                // Generic numeric.
+                if field.len() <= 6 && field.bytes().all(|b| b.is_ascii_digit()) {
+                    let v: u32 = field.parse().ok()?;
+                    if v <= 131_071 {
+                        let atom = Atom::ExchNum { role, kind: 7, value: v };
+                        let rendered = render_atom(&atom);
+                        if text[i..].starts_with(&rendered) {
+                            let mut next = i + rendered.len();
+                            if next < n && bytes[next] == b' ' {
+                                next += 1;
+                            }
+                            consider(atom, next, &mut dp, &mut succ, &mut choice);
+                        }
+                    }
+                }
+                // GRID4.
+                if field.len() == 4 {
+                    let atom = Atom::Grid4 { role, grid: field.to_string() };
+                    let rendered = render_atom(&atom);
+                    if text[i..].starts_with(&rendered) {
+                        let mut next = i + rendered.len();
+                        if next < n && bytes[next] == b' ' {
+                            next += 1;
+                        }
+                        consider(atom, next, &mut dp, &mut succ, &mut choice);
+                    }
+                }
+                // Generic QTH (two or three base-36 chars, at least one letter).
+                if (field.len() == 2 || field.len() == 3)
+                    && field.bytes().any(|b| b.is_ascii_uppercase())
+                    && tx_base36_token(field).is_some()
+                {
+                    let atom = Atom::ExchLoc { role, kind: 3, text: field.to_string() };
+                    let rendered = render_atom(&atom);
+                    if text[i..].starts_with(&rendered) {
+                        let mut next = i + rendered.len();
+                        if next < n && bytes[next] == b' ' {
+                            next += 1;
+                        }
+                        consider(atom, next, &mut dp, &mut succ, &mut choice);
+                    }
+                }
+            }
+            // Class/section: <count><class> <section>.
+            if w0.len() >= 2
+                && !w1.is_empty()
+                && let (count_str, class_ch) = w0.split_at(w0.len() - 1)
+                && count_str.bytes().all(|b| b.is_ascii_digit())
+                && let Ok(count) = count_str.parse::<u32>()
+                && let Some(sec) = section_index(w1)
+                && (1..=32).contains(&count)
+                && class_ch.as_bytes()[0].is_ascii_uppercase()
+            {
+                let atom = Atom::ClassSection {
+                    count,
+                    class: class_ch.chars().next().unwrap(),
+                    section: sec,
+                };
+                let rendered = render_atom(&atom);
+                if text[i..].starts_with(&rendered) {
+                    let mut next = i + rendered.len();
+                    if next < n && bytes[next] == b' ' {
+                        next += 1;
+                    }
+                    consider(atom, next, &mut dp, &mut succ, &mut choice);
+                }
+            }
+        }
+    }
+
+    if dp[0] > 16 {
+        return None;
+    }
+    // Walk the choices and emit frames, EOM on the last.
+    let mut atoms = Vec::new();
+    let mut i = 0usize;
+    while i < n {
+        let a = choice[i].clone()?;
+        atoms.push(a);
+        let next = succ[i];
+        if next <= i {
+            return None;
+        }
+        i = next;
+    }
+    let last = atoms.len().saturating_sub(1);
+    let mut frames = Vec::new();
+    for (k, a) in atoms.iter().enumerate() {
+        let n32 = pack_atom(a)?;
+        frames.push(word_to_payload(n32, k == last));
+    }
+    Some(frames)
 }
 
 // ---------------------------------------------------------------------------
@@ -886,11 +1404,17 @@ pub fn find_sync(x: &[f32], ftol: f32) -> Option<JttySync> {
             let snr = if pn > 0.0 { 10.0 * (pt / pn).log10() } else { -99.0 };
             if hits > 6 {
                 let cand = JttySync { start, f0, sync_hits: hits, snr_db: snr };
+                // Prefer the strongest sync; ties break on the earliest start.
+                // The scanner resumes after each decoded frame, so a strong
+                // later sync cannot make it skip a frame that has already been
+                // stepped over.
                 let better = match &best {
                     None => true,
                     Some(b) => {
                         cand.sync_hits > b.sync_hits
-                            || (cand.sync_hits == b.sync_hits && cand.snr_db > b.snr_db)
+                            || (cand.sync_hits == b.sync_hits
+                                && (cand.snr_db > b.snr_db
+                                    || (cand.snr_db == b.snr_db && cand.start < b.start)))
                     }
                 };
                 if better {
@@ -902,6 +1426,60 @@ pub fn find_sync(x: &[f32], ftol: f32) -> Option<JttySync> {
         f0 += f0_step;
     }
     best
+}
+
+/// Find the earliest acceptable sync near `from`, at a fixed base frequency.
+///
+/// A frame-by-frame scanner uses this: once the first frame fixes `f0`, each
+/// following frame is searched only in a short window after the previous one,
+/// which is both faster than the whole-buffer search and correct — the global
+/// search can return a later frame's sync and skip the one in between.
+pub fn find_sync_near(
+    x: &[f32],
+    f0: f32,
+    from: usize,
+    window: usize,
+    min_hits: usize,
+) -> Option<JttySync> {
+    let nsps = JTTY_NSPS;
+    let frame = JTTY_FRAME_SYMBOLS * nsps;
+    if from + frame > x.len() {
+        return None;
+    }
+    let c = analytic_signal(x);
+    let end = (from + window).min(x.len() - frame);
+    let tone_ref = tone_references(f0);
+    let step = nsps / 8;
+    let mut start = from;
+    while start <= end {
+        let mut hits = 0usize;
+        let mut pt = 0.0f32;
+        let mut pa = 0.0f32;
+        for j in 0..JTTY_SYNC_SYMBOLS {
+            let i0 = start + j * nsps;
+            let mut pow = [0.0f32; 4];
+            for (tone, row) in tone_ref.iter().enumerate() {
+                let mut z = Complex32::new(0.0, 0.0);
+                for k in 0..nsps {
+                    z += c[i0 + k] * row[k].conj();
+                }
+                pow[tone] = z.norm_sqr();
+            }
+            let (best_tone, _) = pow.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
+            if best_tone as u8 == JTTY_SYNC[j] {
+                hits += 1;
+            }
+            pt += pow[JTTY_SYNC[j] as usize];
+            pa += pow.iter().sum::<f32>();
+        }
+        if hits >= min_hits {
+            let pn = (pa - pt) / 3.0;
+            let snr = if pn > 0.0 { 10.0 * (pt / pn).log10() } else { -99.0 };
+            return Some(JttySync { start, f0, sync_hits: hits, snr_db: snr });
+        }
+        start += step;
+    }
+    None
 }
 
 /// Tone energies for the 46 coded symbols following a sync, for the decoder.
@@ -1133,6 +1711,54 @@ mod tests {
         let energies = payload_energies(&buf, &sync);
         let decoded = decode_tones(&energies, 32, 2).expect("payload decode");
         assert_eq!(decoded.payload, payload, "source bits round-tripped");
+    }
+
+    /// The packer round-trips through our own decoder: a message packs to
+    /// frames, and decoding those frames reproduces the normalized text. The
+    /// decoder is verified against the reference, so this checks the packer
+    /// against the same standard.
+    #[test]
+    fn packed_messages_round_trip_through_the_decoder() {
+        let cases = [
+            "CQ K1ABC CQ",
+            "K1ABC",
+            "TU K1ABC CQ",
+            "K1ABC TU",
+            "K1ABC AGN?",
+            "TU NOW K1ABC",
+            "W1ABC 599 123",
+            "599 123",
+            "599 FN42",
+            "1D EMA",
+            "THE QUICK BROWN FOX",
+        ];
+        for msg in cases {
+            let frames = pack_message(msg).unwrap_or_else(|| panic!("{msg}: did not pack"));
+            let decoded: Vec<JttyFrame> =
+                frames.iter().map(|p| JttyFrame { payload: *p }).collect();
+            let out = decode_source(&decoded).unwrap_or_else(|| panic!("{msg}: did not decode"));
+            assert_eq!(out.text, normalize_text(msg), "{msg}");
+        }
+    }
+
+    /// A CQ packs to exactly one frame and the grammar word matches the
+    /// reference's representative vector bit for bit.
+    #[test]
+    fn cq_packs_to_the_reference_word() {
+        let frames = pack_message("CQ K1ABC CQ").expect("packs");
+        assert_eq!(frames.len(), 1, "a CQ is one frame");
+        // The spec's `CQ K1ABC CQ` vector, with EOM on bit 34.
+        let want = payload_from("0000100110111101111000110101000001");
+        assert_eq!(&frames[0][..32], &want[..32], "the 32-bit grammar word differs");
+        assert_eq!(frames[0][33], 1, "the single frame carries EOM");
+    }
+
+    #[test]
+    fn normalize_uppercases_and_collapses() {
+        assert_eq!(normalize_text("cq  k1abc   cq"), "CQ K1ABC CQ");
+        assert_eq!(normalize_text("hello"), "HELLO");
+        // An unsupported char becomes '#'.
+        assert_eq!(normalize_text("hi~there"), "HI#THERE");
     }
 
     /// The frame timing constants the mode is defined by.
