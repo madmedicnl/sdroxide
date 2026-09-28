@@ -1087,10 +1087,12 @@ remembering, because all three are still defects the fork had:
 **This is provable on the bench and was not proved.** The gate reconstructs the
 squelch from the published meter, which is exactly the part a synthetic number
 cannot vouch for; the **RSP1** on the bench can, against a keyed signal. See
-"The bench" for what it settles and what it cannot. Point 1 in particular needs
-a *second* radio, which this bench does not have — so on a reviewer's request
-for proof, ask for a dongle or a network SDR rather than answering with a unit
-test.
+"The bench" for the two registered radios, the loopback, and the squelch
+setting that has to change first or the run proves nothing. Point 1 in particular
+needs a *second* radio, and the bench **has** one — the SS9900v is a
+`UsbAudio` radio — so it is testable as configured; an earlier note here said
+otherwise and was wrong, having been written from a truncated reading of the
+`Backend` enum.
 
 **All three are on fork `main` too (`712871cc`)**, ported by hand — a
 cherry-pick of `c9d6589c` would be wrong, since the fork already carries the
@@ -1968,12 +1970,14 @@ Two things worth keeping:
     a **keyed** signal — a CW beacon, say — and the whole chain is observable.
     **Better, because it is fully under our control: the loopback below.**
   - **The loopback test, which needs no new code.** A **CRT SS9900v** (11 m CB)
-    is on the bench and is reachable **only through VOX and audio in** — there
-    is no CAT link, so sdroxide cannot open it as a radio. But its audio in
-    makes it a *transmitter* under our control, which is the test vector the
-    gate needs: the RSP1 receives on the same band in the same program while the
-    rig keys, so the squelch follows real RF with timing we choose. The way to
-    key it is the **CW keyer panel's KEY** with `cw_keying = Sound card (MCW)` —
+    is on the bench, registered as radio 1 and reachable **through VOX and its
+    USB audio, with no CAT link** — it is a `UsbAudio` radio, so the program
+    both receives the rig's audio and sends audio to its input, and VOX keys on
+    what arrives. That makes the rig a *transmitter under our control*, which is
+    the test vector the gate needs: the RSP1 receives on the same band in the
+    same program while the rig keys, so the squelch follows real RF with timing
+    we choose. The way to key it is the **CW keyer panel's KEY** with `cw_keying
+    = Sound card (MCW)` —
     the keyer's sidetone is transmitted as audio to the rig, VOX picks it up, and
     the paddle (**CH55x `1209:c550`**, also on the bench) gives exact on/off
     edges. This route is **confirmed on air** (2026-09-27, iambic and straight).
@@ -2000,16 +2004,49 @@ Two things worth keeping:
     the `-brown` one), named with the existing UTC/frequency/mode stamps: one
     per keying, and the second one *existing at all* is the assertion — under
     the old logic it was dropped and no file appeared.
-  - What it **cannot** settle: a second **receiver**. The SS9900v is a
-    transmitter, and with no CAT link it is not a second tab — `CatHandle` has
-    nothing to open, so it cannot be tuned or metered. A hidden-tab test still
-    needs a second real radio or a network SDR: an RTL dongle, a HPSDR, or a
-    Pluto on the LAN (there is none here now — `pluto.local` does not resolve
-    and `192.168.2.1` does not answer). Ask the operator to plug one in rather
-    than declaring the path unprovable. Equally, a **minimised window** is a
-    windowing fact and no amount of RF proves it; the honest claim stays "the
-    hidden-tab path is reasoned and unit-tested, the OS-hidden case is
-    untouched".
+  - **What is actually plugged in (checked 2026-09-28, and the two are always
+    connected).** `radios.json` registers two, and they are the two devices
+    this section is about. `Scope::None` is the top-level `radio.json` and
+    `Scope::Some(id)` is `radio-{id}/` (`sdroxide-config`'s `RadioScope::dir`),
+    so:
+    - **Radio 0, unnamed → the top-level `radio.json`, `backend = SdrPlay`**, so
+      the RSP1 is the first radio by default and needs no configuration at all.
+    - **Radio 1, named `CRT SS9900v` → `radio-1/`, and it is
+      `backend = UsbAudio`**, with `radio_audio_out` = `Generic AB13X USB Audio,
+      USB Audio [Audio · 001f:0b21]`, tuned to **27.265 MHz**, mode FT8.
+    `radio-2`…`radio-6` are stale leftovers from earlier experiments
+    (`next_id: 7`); the `SpyServer`, `Cat`/TrUsdx, `KiwiSdr` and `AtsMini`
+    configs in them are not live hardware.
+  - **This corrects an earlier note here, which was wrong twice.** The rig is
+    **not** unusable as a radio: `Backend::UsbAudio` is
+    "USB audio radio (sound card)" — the same audio machinery as a demod-audio
+    CAT rig, *minus the serial* — so the SS9900v opens, tunes and meters like any
+    other radio, and carries audio **out** to the rig's input for VOX to key.
+    And the `Backend` enum is much longer than an earlier reading of it
+    suggested (`Auto`, `Soapy`, `Cat`, `Hpsdr`, `Tci`, `RtlSdr`, `Rx888`,
+    `SmartSdr`, `Pluto`, `SdrPlay`, `None`, `AirspyHf`, `IcomNet`, `RtlTcp`,
+    `Lime`, `HydraSdr`, `Fobos`, `UsbAudio`, and network sources
+    `SpyServer`/`KiwiSdr`) — it was truncated, and the conclusion drawn from the
+    truncation ("no second source, so a hidden-tab test needs a dongle") was
+    wrong. **Two real radios are registered, so the hidden-tab test does not
+    need anything bought:** arm the gate on one, show the other's tab, and the
+    hidden one must keep splitting files.
+  - **The squelch is the thing that will silently make the test prove nothing.**
+    `squelch_db` is `-150.0` in **both** saved sessions, and that is
+    `SQUELCH_OPEN_DB` — "squelch fully open (slider minimum)", the default, and
+    `passband_dbfs >= squelch_db` is then true for the noise floor. The gate
+    would see unbroken signal and never close a file; worse, the Auto-record row
+    treats it as no squelch at all and **does not offer the chips**
+    (`squelch_open` is `squelch_db <= SQUELCH_OPEN_DB + 0.5`). So **tighten the
+    squelch above the noise floor first**, on whichever radio carries the gate,
+    and watch the meter with the rig keyed: the carrier has to sit clear of the
+    threshold, or the run tells you nothing about the gate.
+  - **What still cannot be settled: a minimised window.** That is a windowing
+    fact, not an RF one, and no bench gear proves it. Two real radios do settle
+    the *hidden tab*, which is the part the fix addresses. The honest claim for
+    the OS-hidden case stays "the gate asks for its own frames, and
+    `recording_stop_at`, auto mode and the reconnect countdown still do not run
+    on a window that is not being drawn".
 
 
 ## House rules
