@@ -497,7 +497,7 @@ impl Mode {
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
     /// received in AM.
-    pub const DIGITAL: [Mode; 33] = [
+    pub const DIGITAL: [Mode; 34] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -531,6 +531,7 @@ impl Mode {
         Mode::Aprs,
         Mode::Dsc,
         Mode::UvPacket,
+        Mode::Jtty,
     ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
@@ -2311,14 +2312,34 @@ mod tests {
         // checking is that it is a permutation of the enum, with nothing
         // dropped and nothing listed twice.
         // The last variant *by discriminant*, which is the one appended most
-        // recently — not the one that reads last in the picker. UVPacket is the
-        // fork's last appended variant, after the upstream FSK441 block.
+        // recently — not the one that reads last in the picker. JTTY is the
+        // fork's (and the list's) last appended variant, after UVPacket.
         let last = Mode::Jtty as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");
         }
         assert_eq!(Mode::ALL.len(), last as usize + 1);
+    }
+
+    /// Every mode offered in the band/mode menu's **Digital** row must be a
+    /// digital mode, and every digital mode must be offerable — the menu
+    /// iterates `Mode::DIGITAL`, not `Mode::ALL`, so a new mode left out of
+    /// `DIGITAL` is simply invisible there even though it cycles and parses.
+    /// JTTY was exactly that for a day.
+    #[test]
+    fn the_digital_menu_row_lists_every_digital_mode() {
+        for m in Mode::DIGITAL {
+            assert!(m.is_digital(), "{m:?} is in the Digital menu row but is not digital");
+        }
+        for m in Mode::ALL {
+            if m.is_digital() {
+                assert!(
+                    Mode::DIGITAL.contains(&m),
+                    "{m:?} is digital but missing from the Digital menu row"
+                );
+            }
+        }
     }
 
     /// RTTY on an FM carrier is the same modem on a different radio, and every
