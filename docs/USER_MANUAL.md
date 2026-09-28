@@ -6422,8 +6422,7 @@ Choose **JTTY** from the DIGITAL row. JTTY is the **asynchronous keyboard
 mode** from the WSJT-X 3.2 release: it is worked like RTTY — either side types
 and sends whenever it likes — but carries forward error correction, so a signal
 that would be marginal and error-prone as 45.45-baud RTTY still copies. It is
-about 125 Hz wide, small enough to tuck into a gap in a crowded band, and it is
-**receive only here**.
+about 125 Hz wide, small enough to tuck into a gap in a crowded band.
 
 **It is not slotted.** Unlike FT8/FT4 there is no even/odd turn and no period
 to agree on: a transmission starts at any instant and lasts a few seconds, so
@@ -6435,6 +6434,15 @@ audio frequency and SNR. The text is what was decoded: a CQ (`CQ K1ABC CQ`), a
 call, a contest exchange (`599 123`, `1D EMA`, `599 FN42`), or a control phrase
 such as `AGN?` or `TU`. A partial message — one whose end was not heard — is
 shown dimmed, so a run cut off by the next transmission reads as incomplete.
+
+**Transmitting.** The **TX** row under the log is a single line: type the
+message (`W1ABC W9XYZ FN42`, or one of the exchange forms above) and press
+**TX**; **CALL CQ** fills the box with `CQ <your call> CQ` and sends it. The
+message is sent **once** — JTTY is asynchronous, so there is no period to wait
+for and nothing repeats; the over ends when the burst is done. The message is
+packed for the air automatically: a callsign, a contest exchange or a control
+phrase is sent as its compact typed form, and anything else is sent as plain
+text, so an 11 m CB identifier like `26AT715` goes out as it reads.
 
 **Where to find it.** There is no calling frequency and the mode is very new;
 tune where the station you want says it will be, and leave the audio cursor
@@ -16895,7 +16903,7 @@ using. Bind them under **Speech** on the Controls tab:
 | MSK144 | Meteor scatter on 6 m and 2 m: continuous-phase binary MSK at 2000 baud in a 15-second period, carrying the same 77-bit message as FT8. The decoder hunts the period for meteor-trail bursts. Receive only in this build. See [3.24](#324-msk144). |
 | Q65 | The modern WSJT weak-signal mode for EME, ionoscatter, rainscatter and troposcatter: 65-tone FSK in a 15/30/60/120/300-second T/R period, with a tone-spacing letter A–E for Doppler spread. Carries the same 77-bit message as FT8. Receive only in this build. See [3.25](#325-q65). |
 | UVPACKET | A packet protocol for private amateur VHF/UHF groups: a short π/4-DQPSK burst carrying an application byte pipe (app type, sequence, 1–32 payload blocks) rather than a WSJT message. The sub-mode is detected from the preamble. Receive only in this build. See [3.26](#326-uvpacket). |
-| JTTY | The WSJT-X 3.2 asynchronous RTTY-like text mode: no T/R slots, ~1.888-second frames of 4-GFSK about 125 Hz wide carrying free text or typed contest atoms behind a tail-biting convolutional code. Receive only in this build. See [3.28](#328-jtty). |
+| JTTY | The WSJT-X 3.2 asynchronous RTTY-like text mode: no T/R slots, ~1.888-second frames of 4-GFSK about 125 Hz wide carrying free text or typed contest atoms behind a tail-biting convolutional code. Sends a message once. See [3.28](#328-jtty). |
 | FSK441 | The original meteor-scatter mode on 6 m and 2 m: 4-FSK at 441 baud carrying free text and the `R26`/`R27`/`RRR`/`73` single-tone shorthand, in a 15/30-second period. The decoder hunts the period for meteor-trail pings; transmit repeats the message for the length of the over. See [3.27](#327-fsk441). |
 | OLIVIA | Robust MFSK keyboard mode (selectable tones/bandwidth). |
 | THOR | DominoEX-family IFK keyboard mode with FEC (THOR4…THOR32). |
