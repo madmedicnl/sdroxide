@@ -1955,20 +1955,32 @@ Two things worth keeping:
     reconstructs the engine's squelch from the published meter, so the thing a
     real receiver proves and a synthetic number cannot is that `passband_dbfs`
     against a real signal crosses the threshold the way the code assumes. Pick
-    a **keyed** signal — a CW beacon, where the squelch opens and closes on the
-    keying — and the whole chain is observable: one stamped file per
-    transmission, the hold closing the file, and specifically `RecGate`'s
-    `stop_asked` path where a second transmission arrives while the first file
-    is still closing. That is the case the unit test walks synthetically, and
-    it is the one that was actually losing recordings.
-  - What it **cannot** settle: a second radio. There is one device and it has
-    one RX channel, and there is no file/loopback `Backend` (the enum is `Auto`,
-    `Soapy`, `Cat`, `Hpsdr`, `Tci`, `RtlSdr`, `Rx888`, `SmartSdr`, `Pluto`,
-    `SdrPlay`), so a hidden-tab test needs a second real radio or a network SDR
-    — an RTL dongle, a HPSDR, or a Pluto on the LAN. Ask the operator to plug
-    one in rather than declaring the path unprovable. Equally, a **minimised
-    window** is a windowing fact and no amount of RF proves it; the honest claim
-    stays "the hidden-tab path is reasoned and unit-tested, the OS-hidden case is
+    a **keyed** signal — a CW beacon, say — and the whole chain is observable.
+    **Better, because it is fully under our control: the loopback below.**
+  - **The loopback test, which needs no new code.** A **CRT SS9900v** (11 m CB)
+    is on the bench and is reachable **only through VOX and audio in** — there
+    is no CAT link, so sdroxide cannot open it as a radio. But its audio in
+    makes it a *transmitter* under our control, which is the test vector the
+    gate needs: the RSP1 receives on the same band in the same program while the
+    rig keys, so the squelch follows real RF with timing we choose. The way to
+    key it is the **CW keyer panel's KEY** with `cw_keying = Sound card (MCW)` —
+    the keyer's sidetone is transmitted as audio to the rig, VOX picks it up, and
+    the paddle (**CH55x `1209:c550`**, also on the bench) gives exact on/off
+    edges. This route is **confirmed on air** (2026-09-27, iambic and straight).
+    So: key 3 s, release about 2–3 s so the gate orders its stop, key again. One
+    stamped file per keying, and the second transmission lands while the first
+    file is still closing — which is exactly the `RecGate.stop_asked` path that
+    was dropping the transmission ending the silence run. No software, a paddle
+    and a stopwatch. **It puts the rig on the air, so ask the operator first.**
+  - What it **cannot** settle: a second **receiver**. The SS9900v is a
+    transmitter, and with no CAT link it is not a second tab — `CatHandle` has
+    nothing to open, so it cannot be tuned or metered. A hidden-tab test still
+    needs a second real radio or a network SDR: an RTL dongle, a HPSDR, or a
+    Pluto on the LAN (there is none here now — `pluto.local` does not resolve
+    and `192.168.2.1` does not answer). Ask the operator to plug one in rather
+    than declaring the path unprovable. Equally, a **minimised window** is a
+    windowing fact and no amount of RF proves it; the honest claim stays "the
+    hidden-tab path is reasoned and unit-tested, the OS-hidden case is
     untouched".
 
 
