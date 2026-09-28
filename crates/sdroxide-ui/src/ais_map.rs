@@ -326,8 +326,10 @@ pub fn show(
     let lat_span = lon_span * aspect;
     let manual = view.manual;
 
-    paint_night(&p, rect, clat, clon, lon_span, lat_span, night);
     let dot_r = draw_base(&p, rect, clat, clon, lon_span, lat_span, map);
+    // Over the continents, so land darkens with the sea on the night side; the
+    // marks drawn below stay lit.
+    paint_night(&p, rect, clat, clon, lon_span, lat_span, night);
 
     let project = |lat: f64, lon: f64| {
         let dlon = wrap180(lon - clon);

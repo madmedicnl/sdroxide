@@ -228,8 +228,10 @@ pub fn show(
     let (clat, clon, lon_span) = (view.clat, view.clon, view.lon_span);
     let lat_span = lon_span * aspect;
 
-    paint_night(&p, rect, clat, clon, lon_span, lat_span, night);
     let dot_r = draw_base(&p, rect, clat, clon, lon_span, lat_span, map);
+    // Over the continents, so land darkens with the sea on the night side; the
+    // marks drawn below stay lit.
+    paint_night(&p, rect, clat, clon, lon_span, lat_span, night);
 
     // Nothing to plot yet is the normal state on a quiet channel — say so, so a
     // blank map is not read as a broken one. An HFDL position only arrives when

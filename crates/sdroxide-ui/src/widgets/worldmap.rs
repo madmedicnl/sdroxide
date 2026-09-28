@@ -547,10 +547,11 @@ fn paint_world_texture(
     }
 }
 
-/// Paint the grey-line overlay under a flat map's continents, when the operator
+/// Paint the grey-line overlay over a flat map's continents, when the operator
 /// has it on. Shared by every flat map (the operating panel's and the ADS-B,
 /// AIS, APRS and HFDL charts) so the terminator lands in the same place on all
-/// of them.
+/// of them. Call it *after* the base map, so the land darkens with the sea; the
+/// station and spot marks are drawn after it and keep their light.
 pub fn paint_night(
     p: &eframe::egui::Painter,
     rect: eframe::egui::Rect,
@@ -674,13 +675,15 @@ pub fn show(
     if let Some(tex) = heat {
         paint_world_texture(&p, rect, clat, clon, lon_span, lat_span, tex);
     }
-    // The grey line, over the heat and under the continents: on the night side
-    // the map is visibly darker, so the terminator reads even under the heat.
+
+    let dot_r = draw_base(&p, rect, clat, clon, lon_span, lat_span, map);
+
+    // The grey line, over the heat and the continents: both darken on the night
+    // side, so the terminator reads across land as well as sea. The station and
+    // spot marks are drawn after it and keep their light.
     if let Some(tex) = night {
         paint_world_texture(&p, rect, clat, clon, lon_span, lat_span, tex);
     }
-
-    let dot_r = draw_base(&p, rect, clat, clon, lon_span, lat_span, map);
 
     // Project (lat, lon) to screen using the current view; longitude wraps.
     let project = |lat: f64, lon: f64| -> Pos2 {
