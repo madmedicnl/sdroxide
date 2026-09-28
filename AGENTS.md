@@ -29,6 +29,14 @@ thread). The queue was worked on 2026-09-27 with upstream still one commit ahead
 review point raised so far is addressed and the rest are drafts. Check before
 starting anything new.
 
+**Two more PRs opened (2026-09-28).** Upstream was re-checked at `807b0fcf` and
+had not moved, and no maintainer comment had arrived on any of the fifteen, so
+the session added **#590** (the REC popup's **Quick clip** row) and **#591** (a
+**spoken reply** per alert event, so a new DXCC can be heard, not only rung) —
+**seventeen** open now. Both are behavioural/UX changes with no wire change, and
+both were cherry-picked cleanly onto `upstream/main`, so their branches are the
+same change there. The fork's `main` carries both (`cf6dfde1`, `b38125d5`).
+
 **Maintainer capacity (2026-09-27).** The maintainer is not keeping up with the
 queue — several PRs have sat unreviewed for days — so do not read silence as
 disinterest or re-ping. Let the branches sit; they are already rebased. When time
@@ -398,6 +406,36 @@ merged code still calls everything `sdroxide`.
     unchanged. Not tested on the reporter's hardware; the two-stream layout is a
     unit test. The fork's `main` carries the same fix (`804109e7`); it drops out
     when this lands.
+  - `dividebysandwich/sdroxide#591` — **a spoken reply per alert event**,
+    opened 2026-09-28 from `upstream/main` (branch `upstream-pr/voice-alerts`,
+    one commit, ~286 insertions across `sdroxide-types`, `sdroxide-speech`,
+    `sdroxide-ui` and the manual). The audible alerts are five synthesised
+    tones and the offline announcement voice (`sdroxide-speech`) was never
+    joined to them, so a new DXCC could only ring. `AlertRule` gains
+    `reply: AlertReply::{Tone, Voice, Both}` (default `Tone`, so configs are
+    unchanged); a Voice rule speaks the phrase through the announcement voice —
+    "<call>, new D X C C, <country>", "<call>, calling you", "<call>, new one on
+    20 metres" — with the callsign leading, "DXCC" spelled `D X C C` for the
+    TTS, and the country from `entity_name`. It fires from the **alarm path**,
+    not the focus-gated `Announcer::on_ft8`, so it is heard when the window is
+    not in front; `AlertCore::on_ft8` returns the fired `AlertFired` for the
+    caller to speak, and only plays the tone when the reply asks. The wording
+    is a pure `announce::alert` function. Settings → Alerts gains the per-event
+    reply. No wire change. The fork's `main` carries it (`b38125d5`); it drops
+    out when this lands if upstream takes the whole shape, otherwise the
+    fork's copy stays.
+  - `dividebysandwich/sdroxide#590` — **the REC popup's Quick clip row**,
+    opened 2026-09-28 from `upstream/main` (branch `upstream-pr/quick-clip`,
+    one commit). The **Stop after** chips only appeared once a recording ran
+    and their shortest preset was **15 min**, so a short sample was unreachable
+    in one action. A new **Quick clip** row (**30 s**, **1 min**) starts the
+    MP3 recording if none is running and stops it at the end of the span.
+    `recording_stop_at` now carries its preset in seconds; a clip's deadline
+    cannot be armed at the press (the timer tick drops any deadline whose
+    recording is not running), so it rides a small `rec_clip` until the
+    recorder is seen running. A clip disarms **Stop after** and **Auto-record**
+    and vice versa. No wire change, UI only. The fork's `main` carries it
+    (`cf6dfde1`); it drops out when this lands.
   - `dividebysandwich/sdroxide#579` — **decodes into the propagation field**,
     opened 2026-09-26 from `upstream/main` (branch `upstream-pr/prop-decodes`,
     one commit). `PropStore::observe_decodes` exists and places a decodes station
