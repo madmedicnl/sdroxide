@@ -3467,7 +3467,17 @@ impl SdroxideApp {
     ///
     /// Runs once a frame. The whole decision is [`rec_gate_tick`]'s, so that
     /// function is the one thing that has to be right.
-    pub(in crate::app) fn poll_recording_gate(&mut self, cmds: &mut Vec<Command>) {
+    pub(crate) fn poll_recording_gate(&mut self, ctx: &eframe::egui::Context) {
+        // An armed gate has to keep getting frames, and nothing else can be
+        // relied on to ask for them: the REC popup that shows the countdown draws
+        // only while it is open, and a radio whose tab is behind another one does
+        // not run its own frame loop at all. Asking here — where the decision
+        // actually lives — makes the cadence the gate's own rather than a side
+        // effect of the popup being open, and it is asked on the hidden-tab path
+        // too, so a monitor left in the background still splits.
+        if self.rec_gate_s.is_some() {
+            crate::repaint::after_ms(ctx, Self::GATE_POLL_MS);
+        }
         // The engine's own squelch decision, reconstructed from the meter it
         // publishes and the settings the operator chose, exactly as the receive
         // chain computes it: the passband power over the threshold *and* the
@@ -3491,13 +3501,26 @@ impl SdroxideApp {
             self.rec_gate,
         );
         self.rec_gate = gate;
+        // Sent here rather than pushed onto the frame's command vector, so a
+        // radio whose tab is not on screen can be ticked as well: the hidden-tab
+        // loop in `multi` has no vector of its own, and a gate that only ran on a
+        // visible tab would split files for the radio the operator happened to be
+        // looking at and for no other. Two commands, and only on a transition.
         if start {
-            cmds.push(Command::SetRecording(true));
+            self.ctrl.send(Command::SetRecording(true));
         }
         if stop {
-            cmds.push(Command::SetRecording(false));
+            self.ctrl.send(Command::SetRecording(false));
         }
     }
+
+    /// How often an armed silence gate asks for the next frame, so the decision
+    /// runs whether or not anything is on screen drawing.
+    ///
+    /// A quarter second is finer than the shortest hold (2 s) and costs a repaint
+    /// rather than a wake-up: egui coalesces a burst of requests into one frame,
+    /// and on a quiet band nothing here redraws.
+    const GATE_POLL_MS: u64 = 250;
 
     /// The tone popup behind the EQ chip: on/off and a shelf each for bass, mid
     /// and treble, on [`sdroxide_types::RadioState::rx_tone`] — the same control
@@ -3781,12 +3804,14 @@ impl SdroxideApp {
             ui.label(RichText::new(why).size(9.5).color(crate::theme::ALERT()));
         }
         if let Some(secs) = pick {
+            // Arming one of the two ends disarms the other; turning this row off
+            // does not, which is what [`gate_arm_clears_stop_after`] decides.
+            if gate_arm_clears_stop_after(secs) {
+                self.recording_stop_at = None;
+                self.rec_clip = None;
+            }
             self.rec_gate_s = secs;
             self.rec_gate = Default::default();
-            // "Stop after N minutes" and "split on silence" are two answers to
-            // when a recording ends; arming one disarms the other.
-            self.recording_stop_at = None;
-            self.rec_clip = None;
         }
         if let Some(hold) = self.rec_gate_s {
             let line = if self.state.recording {
@@ -6289,6 +6314,16 @@ pub(in crate::app) struct RecGate {
     /// A stop the gate did not order, or a start that never took, holds the next
     /// start off until the band goes quiet again.
     pub hold_off: bool,
+    /// Whether the stop in flight is one this gate asked for.
+    ///
+    /// The gate closes a file on its own after the hold of silence, and the
+    /// operator can stop one by hand at the same moment; from the next frame
+    /// alone the two are one observation — a recording that was running and now
+    /// is not, while a signal is present. Reading the gate's own stop as a
+    /// manual one holds the next transmission off, so the transmission that
+    /// ended the silence run is the one that gets dropped. This says which, and
+    /// is carried until the stop has been seen to take.
+    pub stop_asked: bool,
 }
 
 /// How long a requested start is waited for before it is judged failed, so a
@@ -6315,12 +6350,24 @@ fn rec_chip_fill(now: f64) -> Color32 {
     )
 }
 
+/// Whether picking `secs` on the Auto-record row clears a running "stop after"
+/// deadline or a quick clip.
+///
+/// Arming the gate is choosing one of the two answers to when a recording ends,
+/// so it takes the other one out of force. Turning the row **off** is not arming
+/// the other — it is choosing neither — so a timer the operator set and can watch
+/// counting down is left alone. It was being cleared by the same branch, which
+/// made a click on "off" drop a deadline without saying so.
+fn gate_arm_clears_stop_after(secs: Option<u16>) -> bool {
+    secs.is_some()
+}
+
 fn rec_gate_tick(
     now: i64,
     hold_s: Option<u16>,
     recording: bool,
     signal: bool,
-    st: RecGate,
+    mut st: RecGate,
 ) -> (RecGate, bool, bool) {
     let Some(hold) = hold_s else { return (RecGate::default(), false, false) };
 
@@ -6334,9 +6381,29 @@ fn rec_gate_tick(
         return (RecGate { hold_off: true, ..RecGate::default() }, false, false);
     }
 
+    // A stop this gate ordered and has not yet seen take. The recorder answers a
+    // frame or two later and the next transmission can be up before it has, so the
+    // marker is carried across those frames rather than being a one-frame flag. No
+    // silence run starts meanwhile: the file is still closing, and a run begun now
+    // would ask a second time to stop a recording already on its way out. Once the
+    // recording is seen to be gone the stop is finished with, and because it was
+    // ours it is not a manual one — both markers go, so a signal present now is
+    // the next transmission and is recorded like any other.
+    if st.stop_asked {
+        if recording {
+            return (
+                RecGate { stop_asked: true, was_recording: true, ..RecGate::default() },
+                false,
+                false,
+            );
+        }
+        st = RecGate::default();
+    }
+
     // A recording that stopped while a signal was present was stopped by hand:
-    // the gate's own stop only ever fires after the hold of silence. Hold off
-    // until the band goes quiet, so a manual stop is not undone next frame.
+    // the gate's own stop only ever fires after the hold of silence, and that case
+    // returned above. Hold off until the band goes quiet, so a manual stop is not
+    // undone next frame.
     if st.was_recording && !recording && signal && st.start_pending.is_none() {
         return (RecGate { hold_off: true, ..RecGate::default() }, false, false);
     }
@@ -6368,7 +6435,9 @@ fn rec_gate_tick(
         (RecGate::default(), false, false)
     } else {
         match st.silent_since {
-            Some(since) if now - since >= i64::from(hold) => (RecGate::default(), false, true),
+            Some(since) if now - since >= i64::from(hold) => {
+                (RecGate { stop_asked: true, ..RecGate::default() }, false, true)
+            }
             other => (
                 RecGate {
                     silent_since: other.or(Some(now)),
@@ -7866,7 +7935,9 @@ mod tests {
         assert_eq!(st2.silent_since, Some(200));
         let (st3, _, stop) = rec_gate_tick(203, Some(3), true, false, st2);
         assert!(stop);
-        assert_eq!(st3, RecGate::default());
+        // The stop is marked as ours, which is the whole of the next test.
+        assert!(st3.stop_asked);
+        assert_eq!(st3.silent_since, None);
 
         // A signal returning mid-run cancels it.
         let (st4, _, _) = rec_gate_tick(201, Some(3), true, true, st);
@@ -7890,6 +7961,61 @@ mod tests {
 
         // Silence with nothing recording is a quiet band, not a run.
         assert_eq!(rec_gate_tick(100, Some(3), false, false, off), (off, false, false));
+    }
+
+    /// The gate closes a file on its own, and the next transmission must not be
+    /// read as the operator having stopped that one by hand.
+    ///
+    /// The sequence: a 3 s hold ends a file, a second transmission is already up
+    /// when the recorder finishes closing the first, and that transmission is
+    /// then dropped — the gate holds off on a stop it ordered itself. Two frames
+    /// of the stop in flight are the awkward part, so they are walked one at a
+    /// time rather than jumped.
+    #[test]
+    fn the_gates_own_stop_does_not_hold_off_the_next_transmission() {
+        // Recording, silent for the length of the hold: the gate asks to stop
+        // and says so.
+        let running =
+            RecGate { silent_since: Some(200), was_recording: true, ..RecGate::default() };
+        let (asked, start, stop) = rec_gate_tick(203, Some(3), true, false, running);
+        assert!(stop && !start);
+        assert!(asked.stop_asked, "the gate marks the stop as its own");
+
+        // The recorder has not answered yet and a new signal is up. The stop is
+        // still in flight, so the gate waits rather than reading it as manual,
+        // and asks for no second stop.
+        let (waiting, start, stop) = rec_gate_tick(204, Some(3), true, true, asked);
+        assert!(!start && !stop, "the stop in flight is not re-asked");
+        assert!(waiting.stop_asked && waiting.was_recording);
+
+        // The recording is now seen to be gone while the signal is still up. This
+        // is the frame the old code mistook for a manual stop: it must start the
+        // new file instead of holding off.
+        let (next, start, stop) = rec_gate_tick(205, Some(3), false, true, waiting);
+        assert!(start && !stop, "the next transmission is recorded, not held off");
+        assert!(!next.hold_off, "the gate's own stop never sets hold_off");
+    }
+
+    /// Turning the gate **off** stops following the squelch and nothing else: a
+    /// "stop after" timer already running belongs to the operator and is left
+    /// counting down.
+    ///
+    /// The sequence: a timer was armed, Auto-record was then armed and disarmed to
+    /// try it, and the timer was gone — a click on "off" silently dropped a
+    /// deadline that had been set and could be seen ticking. Arming the gate is
+    /// what disarms the timer; disarming it is not arming the timer.
+    #[test]
+    fn disarming_the_gate_leaves_a_running_stop_after_alone() {
+        for hold in [2, 3, 5, 10] {
+            assert!(
+                gate_arm_clears_stop_after(Some(hold)),
+                "arming the gate on a {hold} s hold disarms the timer"
+            );
+        }
+        assert!(
+            !gate_arm_clears_stop_after(None),
+            "clicking off must leave a running stop-after timer and clip in place"
+        );
     }
 
     /// The REC chip's recording fill breathes: the top of the breath is the

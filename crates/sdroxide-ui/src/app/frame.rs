@@ -264,7 +264,7 @@ impl eframe::App for SdroxideApp {
         self.poll_recording_timer(&mut cmds);
         // A silence auto-split armed in the REC popup: start and stop the MP3
         // recording with the receiver's squelch (issue #546).
-        self.poll_recording_gate(&mut cmds);
+        self.poll_recording_gate(&ctx);
         // The gate decides once a frame, so while it is armed keep frames
         // coming even when nothing else is animating — otherwise an unattended
         // monitor on an idle screen would never notice a transmission. While a

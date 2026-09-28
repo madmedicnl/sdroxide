@@ -3108,11 +3108,16 @@ squelch and gives each transmission its own file: a recording starts when the
 squelch opens, and closes after the number of seconds of silence you pick —
 **2 s**, **3 s**, **5 s**, **10 s**, or **off**. A monitoring session then
 becomes one stamped file per transmission rather than a single file that grows
-all afternoon through the gaps. The squelch is what defines silence here, so
+all afternoon through the gaps. It follows its own radio, so a monitor left on
+a tab behind another keeps splitting its files while you are watching something
+else. The squelch is what defines silence here, so
 the chips are only offered when one is set; with the squelch wide open there is
 nothing to follow and the row says so. It is a session setting like **Stop
 after**, not a stored preference, and arming one clears the other — they are two
-answers to when a recording ends. It needs a front end whose squelch the program
+answers to when a recording ends. Turning **Auto-record** **off**, though, clears
+neither: a **Stop after** timer you set and can watch counting down is left to
+run, and a quick clip already asked for is left to finish. Choosing none of them
+is not choosing the other. It needs a front end whose squelch the program
 itself applies (an SDR); a CAT radio's squelch belongs to the radio and its
 meters carry no passband level to follow, so the row says that rather than
 arming a recorder that would never close. The REC chip shows the difference:
