@@ -29,7 +29,7 @@ fn fsk_burst(bits: &[u8], sig: f64, noise_amp: f64) -> Vec<i16> {
     let mut buf: Vec<i16> = Vec::with_capacity(1 << 20);
     let mut phase = 0.0f64;
     let mut rng = 12345u32;
-    let mut noise = |rng: &mut u32| {
+    let noise = |rng: &mut u32| {
         *rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
         ((*rng >> 16) as f64 - 32768.0) / 32768.0 * noise_amp
     };

@@ -541,22 +541,6 @@ impl DigiSkimmer {
         let k = k as i64;
         if k <= n / 2 { k } else { k - n }
     }
-
-    #[cfg(test)]
-    fn debug_dump(&self) {
-        let mx = self.smooth_power.iter().cloned().fold(0.0f32, f32::max);
-        let floor_avg = self.floor.iter().sum::<f32>() / self.floor.len().max(1) as f32;
-        eprintln!(
-            "floor(avg)={:.2e} maxsmooth/floor={:.1} tracks={} confirm={:?}",
-            floor_avg,
-            mx / floor_avg.max(1e-12),
-            self.tracks.len(),
-            self.confirm
-        );
-        for t in &self.tracks {
-            eprintln!("  track bin{} hits{} text={:?}", t.bin, t.hits, t.text);
-        }
-    }
 }
 
 fn append_capped(buf: &mut String, s: &str) {
@@ -614,7 +598,6 @@ mod tests {
             .collect()
     }
 
-    #[test]
     /// The PSK/RTTY skimmer is gated to the visible window too — and clearing
     /// the view puts the whole skim window back.
     #[test]

@@ -372,7 +372,7 @@ mod tests {
 
     #[test]
     fn a_region_cq_aimed_elsewhere_is_silent() {
-        let mut d = dec(None, Some("JA1ABC"), true, None);
+        let d = dec(None, Some("JA1ABC"), true, None);
         let d = Decode { cq_to: Some("JA".to_string()), ..d };
         // "CQ JA" is aimed at Japan, and this operator is in JO63.
         assert_eq!(AlertEvent::for_decode(&d, "DL1ABC", "JO63", Novelty::default()), None);

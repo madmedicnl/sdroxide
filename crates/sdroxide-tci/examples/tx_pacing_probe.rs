@@ -39,7 +39,12 @@ fn main() {
         let grow = mode == "outstanding";
         (mode, target_ms, every, grow)
     };
-    let (mut mode, mut target_ms, mut every, mut grow) = read_plan(&plan_path);
+    // The plan is re-read at every key down, so the opening read only sets the
+    // pacing numbers the loop sizes itself from; `mode` is named down there and
+    // read only after that, so it is left uninitialised rather than given a
+    // value nothing looks at.
+    let (_, mut target_ms, mut every, mut grow) = read_plan(&plan_path);
+    let mut mode;
     let cfg = TciServerConfig { port, allow_tx: true, ..TciServerConfig::default() };
     let caps = DeviceCaps {
         rx_channels: 1,

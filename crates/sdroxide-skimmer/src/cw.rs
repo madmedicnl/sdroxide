@@ -1186,7 +1186,6 @@ mod tests {
         );
     }
 
-    #[test]
     /// A station off the edge of the waterfall is not tracked at all.
     ///
     /// The point is the decoder time, not where the box lands: an off-screen

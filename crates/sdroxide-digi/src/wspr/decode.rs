@@ -1010,6 +1010,7 @@ mod tests {
     /// reports nothing false, so the guarantee above is only worth having
     /// beside a floor on how much actually comes back.
     #[test]
+    #[allow(non_snake_case)]
     fn a_busy_band_is_mostly_decoded_including_signals_under_twenty_five_dB_down() {
         let (slot, sent) = crowded_slot(0xB0B_0001);
         let got = decode_slot(&slot, 12_000);

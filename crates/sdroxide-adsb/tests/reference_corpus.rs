@@ -111,7 +111,7 @@ fn the_reference_recordings_decode_to_what_the_reference_says() {
         eprintln!("SDROXIDE_ADSB_IQ is not set to a directory of captures; skipping");
         return;
     };
-    let (mut want_total, mut got_total, mut common_total) = (0usize, 0usize, 0usize);
+    let (mut want_total, mut common_total) = (0usize, 0usize);
     let mut missing: Vec<String> = Vec::new();
     let mut extra: Vec<String> = Vec::new();
 
@@ -124,7 +124,6 @@ fn the_reference_recordings_decode_to_what_the_reference_says() {
         let want: BTreeSet<String> = expected.iter().map(|s| (*s).to_string()).collect();
         let got = decode(&read(&path));
         want_total += want.len();
-        got_total += got.len();
         common_total += want.intersection(&got).count();
         missing.extend(want.difference(&got).map(|m| format!("{name}: {m}")));
         extra.extend(got.difference(&want).map(|m| format!("{name}: {m}")));
