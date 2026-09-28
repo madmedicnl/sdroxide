@@ -511,6 +511,19 @@ impl SpotManager {
         self.feed_dirty = true;
     }
 
+    /// Mark a band's path as watched since `since`, for a feed that is up but
+    /// has not produced spots. The warm-up clock is watched time, not "oldest
+    /// spot", so a caller that knows a band's feed has been running says so.
+    pub fn watch_openings(
+        &mut self,
+        band: Band,
+        from_continent: &'static str,
+        to_continent: &'static str,
+        since: i64,
+    ) {
+        self.band_openings.watch(band, from_continent, to_continent, since);
+    }
+
     /// Force a fresh snapshot emit on the next poll (e.g. after age-out).
     fn snapshot(&self) -> Vec<Spot> {
         let now = now_utc();
@@ -901,7 +914,7 @@ mod tests {
         assert_eq!(m.report_call(), "19DCG373", "cleared again: back to the callsign");
     }
 
-/// A receive-only listener has no callsign at all; the number alone is
+    /// A receive-only listener has no callsign at all; the number alone is
     /// enough to be a receiver in the reporting networks.
     #[test]
     fn a_listener_with_no_callsign_still_has_a_report_identity() {
@@ -934,6 +947,12 @@ mod tests {
                 id: Some(format!("11m-base-{i}")),
             })
             .collect();
+        // The baseline is ingested at the time it was heard, so the path has
+        // actually been watched for that span — the warm-up clock is watched
+        // time, not "oldest spot in one batch", and a single ingest is not a
+        // watched span.
+        // The app has been watching 11 m; establish that, then ingest at now.
+        m.watch_openings(Band::M11, "AS", "EU", now - 3600);
         m.feed_openings(baseline, now);
         let burst: Vec<BandPath> = (0..8)
             .map(|i| BandPath {
