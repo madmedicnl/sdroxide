@@ -299,7 +299,23 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    coherent block power), `tbcc.f90` (422, encode + WAVA + CRC),
    `jtty_tbcc_list_decoder.f90` (1168, the optimized list decoder),
    `jtty_mod.f90` (447, source grammar), `jtty_source_codec.f90` (STRUCT30
-   atoms). **Not started beyond the FEC spike.**
+   atoms).
+
+   **Done (2026-09-28), receive and transmit, on branch `fork/jtty-rx`.** The
+   DSP is `sdroxide-dsp/src/jtty.rs`: the TBCC code, the source grammar both
+   ways (a circular Viterbi + CRC decoder, and the reference's DP text packer),
+   the 4-GFSK synthesizer and the sync search. It checks against the reference
+   at every layer — the encoder matches six golden tone vectors bit-for-bit, the
+   decoder renders every representative source vector exactly, a packed message
+   round-trips through the decoder, and a CQ packs to the spec's word bit for
+   bit. `JttyController` is the asynchronous receiver and transmitter (`Mode::
+   Jtty`, discriminant 52): a rolling window for receive and a one-shot burst
+   for transmit, with an end-to-end test that keys, plays the burst, resamples
+   both ways and reads the message back. The panel is a message log with a TX
+   row. An 11 m CB identifier falls back to TEXT5 and reads back exactly.
+   **Not tested off-air** — only synthetic frames; the WSJT-X sample WAV and a
+   real over are the bench check. No calling frequency (the mode is too new to
+   have one); `PROTO_VERSION` 179 → 180.
 3. **ALE / HF Selcall** (MIL-STD-188-141 2G automatic link establishment, plus
    the 2G/3G sounding and a selective call). 8-FSK at 125 baud, with FEC and
    word framing; the utility-HF monitoring staple — who is calling whom, and on
