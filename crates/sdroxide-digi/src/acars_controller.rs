@@ -83,6 +83,7 @@ impl AcarsController {
             acars: Some(self.acars_status()),
             dsc: None,
             uvpacket: None,
+            jtty: None,
             aprs: None,
             js8: None,
             atchat: None,

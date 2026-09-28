@@ -1175,6 +1175,7 @@ impl DigiEngine for Js8Controller {
             acars: None,
             dsc: None,
             uvpacket: None,
+            jtty: None,
             aprs: None,
             js8: Some(Js8Status {
                 speed: self.speed,

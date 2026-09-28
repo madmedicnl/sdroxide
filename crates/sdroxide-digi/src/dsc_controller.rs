@@ -94,6 +94,7 @@ impl DscController {
             acars: None,
             dsc: Some(self.dsc_status()),
             uvpacket: None,
+            jtty: None,
             aprs: None,
             js8: None,
             atchat: None,

@@ -149,6 +149,7 @@ impl HellController {
             acars: None,
             dsc: None,
             uvpacket: None,
+            jtty: None,
             aprs: None,
             js8: None,
             atchat: None,

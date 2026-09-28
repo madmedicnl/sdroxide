@@ -1563,7 +1563,16 @@ use sdroxide_types::{
 /// decode every config — the same break as v178's appended status field. No new
 /// wire type: the key drives the existing manual-key seam
 /// (`CwStraight`/`CwKey`).
-pub const PROTO_VERSION: u16 = 179;
+///
+/// v180: JTTY, the WSJT-X 3.2 asynchronous RTTY-like text mode.
+/// `Mode::Jtty` is appended to that enum, so no surviving discriminant moves,
+/// and `DigiStatus` gains `jtty` (`Option<JttyStatus>`) on its tail — the
+/// messages decoded and the audio level. `DigiStatus` rides `RadioState` whole,
+/// so a v179 peer reads the extra bytes as the start of the next field and
+/// fails to decode every digital status, the same break as v178's appended
+/// field. No new wire type: JTTY is receive-only and reports through the
+/// ordinary `DigiStatus` seam.
+pub const PROTO_VERSION: u16 = 180;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
