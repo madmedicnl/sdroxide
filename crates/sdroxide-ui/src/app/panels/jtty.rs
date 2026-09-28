@@ -8,17 +8,17 @@
 //!
 //! Receive only: there is no transmit row here yet.
 
-use eframe::egui::{self, RichText};
+use eframe::egui::{self, Color32, RichText};
 use sdroxide_types::{Command, JttyStatus};
 
-use crate::app::SdroxideApp;
+use crate::app::{SdroxideApp, tx_gated};
 use crate::theme;
 
 impl SdroxideApp {
     pub(in crate::app) fn jtty_panel(
         &mut self,
         ui: &mut egui::Ui,
-        _cmds: &mut Vec<Command>,
+        cmds: &mut Vec<Command>,
         _panel_h: f32,
     ) {
         let st: Option<JttyStatus> = self.digi_status.as_ref().and_then(|s| s.jtty.clone());
@@ -64,9 +64,7 @@ impl SdroxideApp {
                 let secs = m.at_unix.rem_euclid(86_400);
                 let stamp = format!("{:02}:{:02}:{:02}", secs / 3600, (secs / 60) % 60, secs % 60);
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        RichText::new(stamp).monospace().size(11.0).color(theme::gray(120)),
-                    );
+                    ui.label(RichText::new(stamp).monospace().size(11.0).color(theme::gray(120)));
                     ui.label(
                         RichText::new(format!("{:>5.0}", m.audio_hz))
                             .monospace()
@@ -86,5 +84,79 @@ impl SdroxideApp {
                 });
             }
         });
+
+        self.jtty_tx_row(ui, cmds);
+    }
+
+    /// JTTY's transmit row, under its message log.
+    ///
+    /// A single line: the message, a key and CQ. JTTY is asynchronous, so a
+    /// press sends the message once — there is no T/R period, no repeat, and no
+    /// sequencing. The over ends on its own when the burst is done.
+    fn jtty_tx_row(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+        let tx_on = self.digi_status.as_ref().is_some_and(|s| s.transmitting);
+        let refused = self.digi_status.as_ref().and_then(|s| s.tx_refused.clone());
+        let tx_ok = self.tx_capable();
+        ui.add_space(4.0);
+        ui.separator();
+        if let Some(why) = refused {
+            ui.label(RichText::new(why).size(10.0).color(theme::ALERT()));
+        }
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new("TX").size(10.5).strong().color(theme::CYAN()));
+            let field = ui.add(
+                egui::TextEdit::singleline(&mut self.text_tx)
+                    .desired_width(260.0)
+                    .hint_text("W1ABC W9XYZ FN42"),
+            );
+            if field.changed() {
+                cmds.push(Command::DigiTxText(self.text_tx.clone()));
+            }
+            let label = if tx_on { " SENDING " } else { "   TX   " };
+            if tx_gated(ui, tx_ok, |ui| {
+                crate::chrome::chip_accent(
+                    ui,
+                    tx_on,
+                    RichText::new(label).size(13.0).strong(),
+                    theme::ALERT(),
+                    Color32::WHITE,
+                )
+            })
+            .clicked()
+            {
+                cmds.push(Command::DigiTxText(self.text_tx.clone()));
+                cmds.push(Command::DigiTxActive(!tx_on));
+            }
+            if tx_gated(ui, tx_ok, |ui| {
+                crate::chrome::chip_accent(
+                    ui,
+                    false,
+                    RichText::new(" CALL CQ ").size(12.0).strong(),
+                    theme::GREEN(),
+                    theme::INK_ON_CYAN(),
+                )
+            })
+            .clicked()
+            {
+                let call = if self.digi_cfg_edit.my_call.is_empty() {
+                    "NOCALL".into()
+                } else {
+                    self.digi_cfg_edit.my_call.clone()
+                };
+                let cq = format!("CQ {call} CQ");
+                cmds.push(Command::DigiAbortTx);
+                self.text_tx = cq.clone();
+                cmds.push(Command::DigiTxText(cq));
+                cmds.push(Command::DigiTxActive(true));
+            }
+        });
+        ui.label(
+            RichText::new(
+                "The message is sent once when you press TX — JTTY is asynchronous, \
+                 so there is no period to wait for and nothing repeats.",
+            )
+            .size(9.5)
+            .color(theme::CYAN_DIM()),
+        );
     }
 }

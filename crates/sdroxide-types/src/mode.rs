@@ -933,9 +933,10 @@ impl Mode {
                 | Mode::Pi4
                 // MSK144, JT65/JT9, FST4 and Q65 are QSO modes, but transmit
                 // is not wired in this build — the panel is the decode list
-                // alone. FSK441 is *not* here: its transmit is wired (the
-                // message loops for the length of the over), so it offers a
-                // transmit row under its decode list. UVPacket is receive-only.
+                // alone. FSK441 and JTTY are *not* here: their transmit is
+                // wired (FSK441 loops for the length of the over, JTTY sends
+                // the message once), so each offers a transmit row. UVPacket
+                // is receive-only.
                 | Mode::Msk144
                 | Mode::Jt65
                 | Mode::Jt9

@@ -1731,6 +1731,10 @@ mod tests {
             "599 FN42",
             "1D EMA",
             "THE QUICK BROWN FOX",
+            // An 11 m CB identifier is not a standard amateur call, so it must
+            // pack as text and still read back exactly.
+            "26AT715",
+            "CQ 26AT715 CQ",
         ];
         for msg in cases {
             let frames = pack_message(msg).unwrap_or_else(|| panic!("{msg}: did not pack"));
