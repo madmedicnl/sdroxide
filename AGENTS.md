@@ -29,13 +29,15 @@ thread). The queue was worked on 2026-09-27 with upstream still one commit ahead
 review point raised so far is addressed and the rest are drafts. Check before
 starting anything new.
 
-**Two more PRs opened (2026-09-28).** Upstream was re-checked at `807b0fcf` and
-had not moved, and no maintainer comment had arrived on any of the fifteen, so
-the session added **#590** (the REC popup's **Quick clip** row) and **#591** (a
-**spoken reply** per alert event, so a new DXCC can be heard, not only rung) —
-**seventeen** open now. Both are behavioural/UX changes with no wire change, and
-both were cherry-picked cleanly onto `upstream/main`, so their branches are the
-same change there. The fork's `main` carries both (`cf6dfde1`, `b38125d5`).
+**Three more PRs opened (2026-09-28).** Upstream was re-checked at `807b0fcf`
+and had not moved, and no maintainer comment had arrived on any of the fifteen,
+so the session added **#590** (the REC popup's **Quick clip** row), **#591** (a
+**spoken reply** per alert event, so a new DXCC can be heard, not only rung) and
+**#593** (the grey line's contrast — shade the continents too, and stronger) —
+**eighteen** open now. All are behavioural/UX changes with no wire change; #590
+and #591 were cherry-picked cleanly onto `upstream/main`, and #593 is the
+upstream-shaped two-file version (upstream has no ADS-B/AIS/APRS/HFDL overlays).
+The fork's `main` carries all three (`cf6dfde1`, `b38125d5`, `ac4811dc`).
 
 **Maintainer capacity (2026-09-27).** The maintainer is not keeping up with the
 queue — several PRs have sat unreviewed for days — so do not read silence as
@@ -436,6 +438,18 @@ merged code still calls everything `sdroxide`.
     recorder is seen running. A clip disarms **Stop after** and **Auto-record**
     and vice versa. No wire change, UI only. The fork's `main` carries it
     (`cf6dfde1`); it drops out when this lands.
+  - `dividebysandwich/sdroxide#593` — **the grey line's contrast**, opened
+    2026-09-28 from `upstream/main` (branch `upstream-pr/greyline-contrast`, one
+    commit, two files). The night overlay was painted *before* `draw_base`, so
+    it darkened only the ocean and the propagation heat and left the continents
+    lit, and its darkest alpha (0.62) read dark-on-dark on the dark themes —
+    the operator reported it as "hardly visible". It is now painted after the
+    base map with `NIGHT_MAX_ALPHA` 0.78, so land darkens with the sea;
+    coastlines and borders darken too, the deliberate trade for a terminator
+    that reads. Upstream carries the overlay only in `worldmap::show`, so the
+    PR is the two-file change; the fork's `main` also moved the fork-only
+    `paint_night` on ADS-B, AIS, APRS and HFDL. The fork's `main` carries it
+    (`ac4811dc`); it drops out when this lands.
   - `dividebysandwich/sdroxide#579` — **decodes into the propagation field**,
     opened 2026-09-26 from `upstream/main` (branch `upstream-pr/prop-decodes`,
     one commit). `PropStore::observe_decodes` exists and places a decodes station
