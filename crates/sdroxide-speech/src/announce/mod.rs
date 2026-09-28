@@ -28,7 +28,9 @@ pub mod settle;
 pub mod swr;
 pub mod tail;
 
-use sdroxide_types::{AlertEvent, Band, Decode, DigiStatus, Meters, Mode, RadioState, SpeechSettings};
+use sdroxide_types::{
+    AlertEvent, Band, Decode, DigiStatus, Meters, Mode, RadioState, SpeechSettings,
+};
 
 use crate::queue::{Gag, Key, Priority, Push, SpeechQueue, Utterance};
 use crate::sink::{NullSink, SpeechSink};
@@ -270,6 +272,10 @@ impl Announcer {
     /// the alert runtime, which is why it can fire while this tab is not the
     /// focused one: reaching the operator in another window is the point of an
     /// alert.
+    ///
+    /// [`Priority::Notable`], not `Alert`: an alert phrase is news, not a
+    /// fault, and must not get through the transmit gag — speech reaches the
+    /// operator's speakers, and therefore the microphone.
     pub fn on_alert(
         &mut self,
         event: AlertEvent,
@@ -283,7 +289,7 @@ impl Announcer {
         }
         let sp = self.speaker();
         let text = alert::phrase(event, &sp.callsign(call), band, country);
-        self.push(Utterance::new(text, Priority::Alert, now));
+        self.push(Utterance::new(text, Priority::Notable, now));
     }
 
     /// Fresh FT8/FT4 decodes.

@@ -69,7 +69,8 @@ pub(in crate::app) fn alerts_settings(
                 let rule = event.rule_mut(&mut cfg.events);
                 let tone = rule.reply.plays_tone();
                 let speaks = rule.reply.speaks();
-                ui.horizontal(|ui| {
+                // Wrapped: a checkbox and two combos are wider than a phone.
+                ui.horizontal_wrapped(|ui| {
                     crate::chrome::checkbox(ui, &mut rule.enabled, event.label());
                     // The sound only matters when the reply makes one; a
                     // voice-only rule greys it rather than hiding it, so the
@@ -119,7 +120,8 @@ pub(in crate::app) fn alerts_settings(
             ui.label(
                 RichText::new(
                     "Each station is quiet for a while after an alert, so a busy band \
-                         does not ring every slot.",
+                         does not ring every slot. Voice and Tone + voice are read by the \
+                         spoken-announcement voice — switch it on in Settings → UI.",
                 )
                 .weak()
                 .small(),

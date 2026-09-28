@@ -418,6 +418,16 @@ The **OPERATE** tab's rows:
 - **DIGITAL:** `FT8 FT4 FT2 JT65 JT9 FST4 MSK144 FSK441 Q65 UVPACKET JS8 WSPR PSK RTTY RTTY-FM OLIVIA THOR FSQ ATCHAT HELL SSTV SSTV-FM NAVTEX DSC RIFP RFPAINT RADE PACKET PACKET-HF APRS ADS-B VDL2 AIS HFDL` (see
   [Digital modes](#3-digital-modes)).
 
+On a desktop or tablet layout the popup carries a **DOCK** chip. It moves the
+selector into a resizable column beside the waterfall so it stays open while you
+tune, instead of closing after every choice. **UNDOCK** in the column's header
+returns it to the popup, and **×** hides the column — the Band / Mode button then
+shows and hides it. The column is 180 to 320 points wide and always leaves the
+waterfall at least 600, so docking needs a window of about 780 points or more,
+and never happens on a phone layout. In a narrower window the column is hidden
+and the Band / Mode button opens the popup again; widen the window and the
+column comes back.
+
 ![The band and mode selector popup](images/04-band-mode-popup.jpg)
 
 See the [appendix](#16-appendix) for what each mode is.
@@ -3515,6 +3525,26 @@ of each band is an all-modes segment). The DX will be there and so will everyone
 chasing it — but check your own band plan before you key, because sdroxide will
 not stop you.
 
+#### Saving what a panel has decoded
+
+The text and message panels carry a **SAVE** chip, next to **CLEAR RX** where
+the panel has one. It writes what the panel holds to a file, through the same
+save dialog the logbook and the ADIF export use, and the suggested file name
+carries the mode. With nothing decoded yet the chip is greyed out rather than
+saving an empty file. What goes in the file depends on the mode:
+
+| Panel | What is saved |
+| --- | --- |
+| CW and the keyboard modes (RTTY, PSK, Olivia, THOR, …) | The receive text as it stands, as a `.txt` file |
+| FSQ | One line per message: whether it was for you, sender, addressee and text. FSQ messages carry no time, so there is no time column |
+| ACARS, packet, JS8 and APRS | A `.csv` file, one row per message or frame, with its UTC time |
+| NAVTEX, VDL2 and HFDL | A tab-separated `.txt` file, one line per message, with its UTC time |
+| WSPR and PI4 | The reception list as a `.csv` file, in the **RECEPTIONS** header |
+| The CW/RTTY skimmer | Its spot list, from the **Spots** row of the skimmer's settings |
+
+The FT8/FT4/FT2 decode list has its own **CSV** and **ADIF** buttons instead
+([3.2.2](#322-the-operating-panel)).
+
 ### 3.2 FT8, FT4 and FT2
 
 **FT8**, **FT4** and **FT2** are the automatic modes: timeslot-based, with QSO
@@ -3701,6 +3731,16 @@ The borders and rivers are drawn from the **geometry** they were surveyed as,
 not from a picture of it, so they are one dot wide at every zoom — a frontier
 stays a hairline in the right place whether the map is showing a hemisphere or
 a valley, instead of swelling into a band as you go in.
+
+**NIGHT**, beside **PROP** above the map, shades the side of the Earth where the
+Sun is down, with the twilight between as a graded band, so the grey line shows
+on the map. Low bands go long and high bands close on the night side, and the
+terminator itself is where DX often turns up. It follows the clock, not the
+decodes, so it works with nothing heard yet; it is off by default and is the
+same switch on the FT8/FT4/FT2 and WSPR maps. The shade darkens land and sea
+alike, while the cities and the station marks stay on top of it at full
+strength. On a light theme it is lighter, because there the station marks are
+dark and would vanish into a dark night.
 
 Drag (or one finger) to pan, wheel or pinch to zoom about the pointer, and
 double-click to hand the view back to the auto-fit.
@@ -12104,12 +12144,13 @@ is clipped, and the spoken alert fires from the alarm path, so it too is heard
 whether or not sdroxide's window is in front. With the voice switched off a
 **Voice** reply is silent — there is no tone to fall back on — so pick **Tone +
 voice** if you would rather hear something either way; the sound is greyed on a
-voice-only row because it is not used. So you are choosing on more than a label,
-any event that speaks also shows the words it will say beneath it, and its
-**SAY** button reads them out through the announcement voice — so you can hear
-what you are switching on without waiting for the band to produce one. The
-button is greyed until the reply speaks *and* the voice is on, and it then says
-which of the two is missing.
+voice-only row because it is not used. A phrase is not spoken while you
+transmit, because it would go out through the microphone. And so you are
+choosing on more than a label: any event that speaks also shows the words it
+will say beneath it, and its **SAY** button reads them out through the
+announcement voice — so you can hear what you are switching on without waiting
+for the band to produce one. The button is greyed until the reply speaks *and*
+the voice is on, and it then says which of the two is missing.
 
 The settings are stored in `config.toml` under `[alerts]` and belong to the
 screen in front of you, like the announcements. On a station with several radios

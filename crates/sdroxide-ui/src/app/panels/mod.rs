@@ -44,7 +44,7 @@ pub(in crate::app) mod widgets;
 pub(in crate::app) mod wspr;
 
 use eframe::egui::{self, Color32, RichText};
-use sdroxide_types::{Band, Command, Mode};
+use sdroxide_types::{Band, Command, DigiStatus, Mode};
 
 use crate::app::{SdroxideApp, tx_gated};
 
@@ -127,6 +127,24 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
     }
 }
 
+/// Which propagation source a mode's own decodes are filed under, or `None`
+/// for a mode whose decodes are not evidence of an ionospheric path.
+///
+/// Every slotted HF mode's decodes are observations of a path; which mode they
+/// came from only changes the decode floor they are measured against, so each
+/// keeps its own source. Meteor scatter and moonbounce are not skip at all,
+/// and a meteor ping or an echo off the Moon filed here would paint a band as
+/// open that is not.
+pub(in crate::app) fn prop_source_for(mode: Mode) -> Option<sdroxide_types::PropSource> {
+    match mode {
+        Mode::Ft8 => Some(sdroxide_types::PropSource::Ft8),
+        Mode::Ft4 => Some(sdroxide_types::PropSource::Ft4),
+        Mode::Ft2 => Some(sdroxide_types::PropSource::Ft2),
+        Mode::Js8 => Some(sdroxide_types::PropSource::Js8),
+        _ => None,
+    }
+}
+
 /// A **SAVE** chip for a log a panel holds outside [`sdroxide_types::DigiStatus`]
 /// — HFDL, VDL2, WSPR, PI4 and the skimmer. `text` is built only on click, so a
 /// long log costs nothing until the operator asks for it (issue #533).
@@ -164,6 +182,40 @@ fn save_chip(ui: &mut egui::Ui, ready: bool, hover: &str) -> egui::Response {
     }
 }
 
+/// [`SdroxideApp::clear_rx_chip_enabled`] for a header row drawn by a free
+/// function, which has the commands but not the app.
+pub(in crate::app) fn clear_rx_chip_at(ui: &mut egui::Ui, cmds: &mut Vec<Command>, enabled: bool) {
+    let resp = crate::chrome::chip_accent_enabled(
+        ui,
+        enabled,
+        false,
+        " CLEAR RX ",
+        Some(10.5),
+        crate::theme::CYAN(),
+        crate::theme::INK_ON_CYAN(),
+    );
+    let resp = if enabled {
+        resp.on_hover_text("Empty the receive window. Nothing that is on the air stops.")
+    } else {
+        resp.on_disabled_hover_text("Nothing received to clear")
+    };
+    if resp.clicked() {
+        cmds.push(Command::DigiClearRx);
+    }
+}
+
+/// [`SdroxideApp::save_rx_chip`] for a header row drawn by a free function:
+/// `status` is the app's `digi_status`.
+pub(in crate::app) fn save_rx_chip_for(ui: &mut egui::Ui, status: Option<&DigiStatus>) {
+    let ready = status.is_some_and(crate::app::save_text::digi_has_log);
+    let resp = save_chip(ui, ready, "Save what this panel has decoded to a file");
+    if resp.clicked()
+        && let Some((name, text)) = status.and_then(crate::app::save_text::digi_log)
+    {
+        crate::download::save(&name, text.as_bytes());
+    }
+}
+
 impl SdroxideApp {
     /// Fold everything this frame knows into the propagation field, and hand
     /// back the texture the map should paint under itself.
@@ -191,18 +243,10 @@ impl SdroxideApp {
         if !my_grid.trim().is_empty() {
             self.prop.set_home(&my_grid);
 
-            // Every slotted mode's decodes are observations of a path; which
-            // mode they came from only changes the decode floor they are
-            // measured against.
-            let mode = self.state.rx[0].mode;
-            let src = match mode {
-                Mode::Ft8 => Some(sdroxide_types::PropSource::Ft8),
-                Mode::Ft4 => Some(sdroxide_types::PropSource::Ft4),
-                Mode::Ft2 => Some(sdroxide_types::PropSource::Ft2),
-                Mode::Js8 => Some(sdroxide_types::PropSource::Js8),
-                _ => None,
-            };
-            if let Some(src) = src {
+            // The rolling decode list again. Each batch was folded as it
+            // arrived (see `frame.rs`); the store keys what it has seen, so
+            // this adds only what a source switched on since then had missed.
+            if let Some(src) = prop_source_for(self.state.rx[0].mode) {
                 let decodes = std::mem::take(&mut self.digi_decodes);
                 self.prop.observe_decodes(&decodes, src, dial_hz, &my_grid, now);
                 self.digi_decodes = decodes;
@@ -1023,23 +1067,7 @@ impl SdroxideApp {
         cmds: &mut Vec<Command>,
         enabled: bool,
     ) {
-        let resp = crate::chrome::chip_accent_enabled(
-            ui,
-            enabled,
-            false,
-            " CLEAR RX ",
-            Some(10.5),
-            crate::theme::CYAN(),
-            crate::theme::INK_ON_CYAN(),
-        );
-        let resp = if enabled {
-            resp.on_hover_text("Empty the receive window. Nothing that is on the air stops.")
-        } else {
-            resp.on_disabled_hover_text("Nothing received to clear")
-        };
-        if resp.clicked() {
-            cmds.push(Command::DigiClearRx);
-        }
+        clear_rx_chip_at(ui, cmds, enabled);
     }
 
     /// A **SAVE** chip that writes the current mode's decoded log to a file.
@@ -1050,14 +1078,7 @@ impl SdroxideApp {
     /// nothing decoded yet greys the chip rather than opening an empty file
     /// (issue #533).
     pub(in crate::app) fn save_rx_chip(&self, ui: &mut egui::Ui) {
-        let ready = self.digi_status.as_ref().is_some_and(crate::app::save_text::digi_has_log);
-        let resp = save_chip(ui, ready, "Save what this panel has decoded to a file");
-        if resp.clicked()
-            && let Some((name, text)) =
-                self.digi_status.as_ref().and_then(crate::app::save_text::digi_log)
-        {
-            crate::download::save(&name, text.as_bytes());
-        }
+        save_rx_chip_for(ui, self.digi_status.as_ref());
     }
 
     /// Commit the transmit box: hand the whole buffer over and start the over.
@@ -1400,6 +1421,71 @@ impl SdroxideApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The header rows that carry SAVE, on the narrowest phones in their
+    /// widest state — a busy channel, bad frames, a repaired/lost count — stay
+    /// on the screen: a row too long for one line takes a second rather than
+    /// pushing its last chips off the edge. Those were packet's ⚙ SETUP,
+    /// NAVTEX's REV and ACARS's SAVE itself, where no finger can reach them.
+    #[test]
+    fn the_save_rows_stay_on_a_phone_screen() {
+        use sdroxide_types::{AcarsStatus, DigiConfig, NavtexStatus, PacketBaud, PacketStatus};
+        let tier = crate::layout::Tier::Phone;
+        let acars = AcarsStatus { level: 1.0, frames: 123_456, bad: 9_999, ..Default::default() };
+        let navtex =
+            NavtexStatus { in_sync: false, repaired: 9_999, lost: 999, ..Default::default() };
+        let packet = PacketStatus {
+            baud: PacketBaud::Vhf1200,
+            dcd: true,
+            bad_frames: 99_999,
+            ..Default::default()
+        };
+        let mut status = DigiStatus::idle(DigiConfig::default());
+        status.text_rx = "something to save".into();
+        let mut off_screen = Vec::new();
+        for w in [360.0f32, 393.0] {
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx);
+            crate::layout::set_tier(&ctx, tier);
+            crate::theme::apply_metrics(&ctx, tier);
+            let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, 800.0));
+            let mut rows: Vec<(&str, egui::Rect)> = Vec::new();
+            let mut cmds = Vec::new();
+            ctx.run_ui(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ui| {
+                let s = Some(&status);
+                let r = ui.scope(|ui| acars::acars_header(ui, &acars, s, &mut cmds));
+                rows.push(("ACARS", r.response.rect));
+                let r = ui.scope(|ui| navtex::navtex_list_header(ui, &navtex, s, true));
+                rows.push(("NAVTEX", r.response.rect));
+                let r =
+                    ui.scope(|ui| packet::packet_monitor_header(ui, &packet, s, true, &mut cmds));
+                rows.push(("packet", r.response.rect));
+            })
+            .drop_without_applying_deltas();
+            for (name, r) in rows {
+                if r.right() > w + 0.5 {
+                    off_screen
+                        .push(format!("{w} pt phone: the {name} header runs to {}", r.right()));
+                }
+            }
+        }
+        assert!(off_screen.is_empty(), "{off_screen:#?}");
+    }
+
+    /// This station's decodes are filed under their own mode — FT4 is not
+    /// FT8, and filing it as FT8 counted it twice — and meteor scatter and
+    /// moonbounce not at all: a ping or an echo is not a band that is open.
+    #[test]
+    fn own_decodes_file_under_their_own_mode_and_never_meteor_or_moon() {
+        use sdroxide_types::PropSource;
+        assert_eq!(prop_source_for(Mode::Ft8), Some(PropSource::Ft8));
+        assert_eq!(prop_source_for(Mode::Ft4), Some(PropSource::Ft4));
+        assert_eq!(prop_source_for(Mode::Ft2), Some(PropSource::Ft2));
+        assert_eq!(prop_source_for(Mode::Js8), Some(PropSource::Js8));
+        for m in [Mode::Msk144, Mode::Fsk441, Mode::Jt65, Mode::Q65] {
+            assert_eq!(prop_source_for(m), None, "{m:?}");
+        }
+    }
 
     /// The waterfall is the tab one past the mode's own panes — that is how
     /// `App::ui` tells "show the panadapter" from "show the panel", so a mode

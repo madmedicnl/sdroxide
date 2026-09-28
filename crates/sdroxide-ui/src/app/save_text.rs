@@ -69,7 +69,25 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
     if !digi_has_log(status) {
         return None;
     }
-    // Free-running text first: CW and every keyboard mode share it, and it is
+    // FSQ's messages ahead of the free-running text: FSQ fills `text_rx` too —
+    // the same traffic, unparsed, which is what the messages are cut from — so
+    // with the text first this log could never be written.
+    if !status.fsq_messages.is_empty() {
+        // FSQ messages carry no time, so there is no UTC column to write: a
+        // stamp(0) column read 1970 on every row.
+        let mut out = String::from("direction\tfrom\tto\ttext\n");
+        for m in &status.fsq_messages {
+            out.push_str(&format!(
+                "{}\t{}\t{}\t{}\n",
+                if m.to_me { "to-me" } else { "all" },
+                tsv(&m.from),
+                tsv(&m.to),
+                tsv(&m.text)
+            ));
+        }
+        return Some((format!("sdroxide-{}-log.txt", slug(status)), out));
+    }
+    // Free-running text next: CW and every keyboard mode share it, and it is
     // what a listener most often wants to keep.
     if !status.text_rx.trim().is_empty() {
         return Some((format!("sdroxide-{}-rx.txt", slug(status)), status.text_rx.clone()));
@@ -85,21 +103,6 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
     }
     if let Some(u) = &status.uvpacket {
         return Some((format!("sdroxide-{}-log.txt", slug(status)), uvpacket_text(u)));
-    }
-    if !status.fsq_messages.is_empty() {
-        // FSQ messages carry no time, so there is no UTC column to write: a
-        // stamp(0) column read 1970 on every row.
-        let mut out = String::from("direction\tfrom\tto\ttext\n");
-        for m in &status.fsq_messages {
-            out.push_str(&format!(
-                "{}\t{}\t{}\t{}\n",
-                if m.to_me { "to-me" } else { "all" },
-                tsv(&m.from),
-                tsv(&m.to),
-                tsv(&m.text)
-            ));
-        }
-        return Some((format!("sdroxide-{}-log.txt", slug(status)), out));
     }
     if let Some(p) = &status.packet
         && !p.heard.is_empty()
@@ -160,23 +163,6 @@ pub fn digi_log(status: &DigiStatus) -> Option<(String, String)> {
     None
 }
 
-fn acars_csv(a: &AcarsStatus) -> String {
-    let mut out = String::from("utc,mode,address,label,block_id,crc_ok,text\n");
-    for m in &a.messages {
-        out.push_str(&format!(
-            "{},{},{},{},{},{},{}\n",
-            stamp(m.at),
-            csv(&m.mode),
-            csv(&m.address),
-            csv(&m.label),
-            csv(&m.block_id),
-            if m.crc_ok { "ok" } else { "bad" },
-            csv(&m.text)
-        ));
-    }
-    out
-}
-
 fn dsc_text(d: &DscStatus) -> String {
     let mut out = String::from("utc\tmmsi\tsummary\n");
     for h in &d.messages {
@@ -185,22 +171,6 @@ fn dsc_text(d: &DscStatus) -> String {
             stamp(h.at),
             h.message.self_mmsi,
             tsv(&h.message.summary())
-        ));
-    }
-    out
-}
-
-fn navtex_text(n: &NavtexStatus) -> String {
-    let mut out = String::from("utc\tstation\tkind\tserial\tlost\ttext\n");
-    for m in &n.messages {
-        out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\n",
-            stamp(m.at),
-            m.station,
-            m.kind,
-            m.serial,
-            m.lost,
-            tsv(&m.text)
         ));
     }
     out
@@ -221,6 +191,39 @@ fn uvpacket_text(u: &UvPacketStatus) -> String {
             f.block_count,
             f.snr_db,
             tsv(&payload)
+        ));
+    }
+    out
+}
+
+fn acars_csv(a: &AcarsStatus) -> String {
+    let mut out = String::from("utc,mode,address,label,block_id,crc_ok,text\n");
+    for m in &a.messages {
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
+            stamp(m.at),
+            csv(&m.mode),
+            csv(&m.address),
+            csv(&m.label),
+            csv(&m.block_id),
+            if m.crc_ok { "ok" } else { "bad" },
+            csv(&m.text)
+        ));
+    }
+    out
+}
+
+fn navtex_text(n: &NavtexStatus) -> String {
+    let mut out = String::from("utc\tstation\tkind\tserial\tlost\ttext\n");
+    for m in &n.messages {
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\n",
+            stamp(m.at),
+            m.station,
+            m.kind,
+            m.serial,
+            m.lost,
+            tsv(&m.text)
         ));
     }
     out
@@ -359,7 +362,8 @@ mod tests {
     }
 
     /// The APRS panel carries the chip like every other text panel, so its
-    /// traffic log has to be gated and formatted.
+    /// traffic log has to be gated and formatted — it was neither, and the chip
+    /// never enabled.
     #[test]
     fn an_aprs_traffic_log_saves_and_is_gated() {
         let mut st = DigiStatus::idle(sdroxide_types::DigiConfig::default());
@@ -381,6 +385,132 @@ mod tests {
         assert_eq!(name, "sdroxide-aprs-log.csv");
         assert!(text.starts_with("utc,from,to,via,kind,sent,info\n"), "{text}");
         assert!(text.contains("W1ABC-9"), "{text}");
+    }
+
+    /// FSQ receives its traffic as free-running text as well as parsed
+    /// messages, and the messages are the log it saves. With the text checked
+    /// first, the FSQ branch was never reached.
+    #[test]
+    fn fsq_saves_its_messages_not_the_raw_stream_beside_them() {
+        let mut st = DigiStatus::idle(sdroxide_types::DigiConfig::default());
+        st.mode = sdroxide_types::Mode::Fsq;
+        st.text_rx = "W1ABC:ALLCALL hello\n".into();
+        st.fsq_messages = vec![sdroxide_types::FsqMsg {
+            from: "W1ABC".into(),
+            to: "ALLCALL".into(),
+            text: "hello".into(),
+            to_me: false,
+        }];
+        let (name, text) = digi_log(&st).expect("something to save");
+        assert_eq!(name, "sdroxide-fsq-log.txt");
+        assert!(text.starts_with("direction\tfrom\tto\ttext\n"), "{text}");
+    }
+
+    /// Every panel with a SAVE chip keeps its log where [`digi_has_log`] and
+    /// [`digi_log`] look, or its chip never lights: APRS's did not, because the
+    /// test looked at every sub-log but that one. One case per panel.
+    #[test]
+    fn every_panel_with_a_save_chip_has_something_to_save() {
+        use sdroxide_types::{
+            AcarsMessage, AcarsStatus, AprsStatus, AprsTraffic, DigiConfig, FsqMsg, Js8Msg,
+            Js8Status, Mode, NavtexMessage, NavtexStatus, PacketHeard, PacketStatus,
+        };
+        let base = |mode| {
+            let mut st = DigiStatus::idle(DigiConfig::default());
+            st.mode = mode;
+            st
+        };
+        let mut cases: Vec<(DigiStatus, &str)> = Vec::new();
+        // CW and the keyboard modes (the text-modem panel).
+        for mode in [Mode::Cw, Mode::Rtty, Mode::Psk, Mode::Olivia, Mode::Thor] {
+            let mut st = base(mode);
+            st.text_rx = "CQ CQ DE W1ABC".into();
+            cases.push((st, "-rx.txt"));
+        }
+        let mut st = base(Mode::Fsq);
+        st.fsq_messages = vec![FsqMsg {
+            from: "W1ABC".into(),
+            to: String::new(),
+            text: "hi".into(),
+            to_me: true,
+        }];
+        cases.push((st, "-log.txt"));
+        let mut st = base(Mode::Js8);
+        st.js8 = Some(Js8Status {
+            messages: vec![Js8Msg {
+                from: "W1ABC".into(),
+                to: "@ALLCALL".into(),
+                text: "HELLO".into(),
+                cmd: None,
+                snr_db: -10,
+                audio_hz: 1500.0,
+                first_slot_utc: 1_700_000_000,
+                last_slot_utc: 1_700_000_000,
+                frames: 1,
+                complete: true,
+                to_me: false,
+                speed: Default::default(),
+            }],
+            ..Default::default()
+        });
+        cases.push((st, "-log.csv"));
+        let mut st = base(Mode::Acars);
+        st.acars = Some(AcarsStatus {
+            messages: vec![AcarsMessage { at: 1_700_000_000, ..Default::default() }],
+            ..Default::default()
+        });
+        cases.push((st, "-log.csv"));
+        let mut st = base(Mode::Navtex);
+        st.navtex = Some(NavtexStatus {
+            messages: vec![NavtexMessage {
+                station: 'A',
+                kind: 'A',
+                serial: 1,
+                text: "NAVAREA".into(),
+                at: 1_700_000_000,
+                complete: true,
+                lost: 0,
+            }],
+            ..Default::default()
+        });
+        cases.push((st, "-log.txt"));
+        for mode in [Mode::Packet, Mode::PacketHf] {
+            let mut st = base(mode);
+            st.packet = Some(PacketStatus {
+                heard: vec![PacketHeard {
+                    at: 1_700_000_000,
+                    from: "W1ABC".into(),
+                    to: "CQ".into(),
+                    via: Vec::new(),
+                    kind: "UI".into(),
+                    text: "hello".into(),
+                    sent: false,
+                }],
+                ..Default::default()
+            });
+            cases.push((st, "-log.csv"));
+        }
+        let mut st = base(Mode::Aprs);
+        st.aprs = Some(Box::new(AprsStatus {
+            traffic: vec![AprsTraffic {
+                at: 1_700_000_000,
+                from: "W1ABC-9".into(),
+                to: "APRS".into(),
+                via: Vec::new(),
+                info: ">status".into(),
+                kind: "status".into(),
+                sent: false,
+            }],
+            ..Default::default()
+        }));
+        cases.push((st, "-log.csv"));
+
+        for (st, suffix) in cases {
+            assert!(digi_has_log(&st), "{:?}: the SAVE chip stays grey", st.mode);
+            let (name, text) = digi_log(&st).unwrap_or_else(|| panic!("{:?}: nothing", st.mode));
+            assert!(name.ends_with(suffix), "{:?}: saved as {name}", st.mode);
+            assert!(!text.trim().is_empty(), "{:?}: an empty file", st.mode);
+        }
     }
 
     /// FSQ messages carry no time, so the file must not invent one: the column

@@ -495,11 +495,6 @@ pub struct SdroxideApp {
     /// VHF, UHF or all). Session UI state: it does not move the dial and is not
     /// worth remembering across restarts.
     band_filter: top_bar::BandFilter,
-    /// Whether the band/mode selector is docked beside the panadapter rather
-    /// than popped up from the top-bar chip, and whether it is currently shown
-    /// while docked. Session UI state, like `band_filter`.
-    band_docked: bool,
-    band_dock_visible: bool,
     fft_popup_since: Option<f64>,
     skimmer_popup_since: Option<f64>,
     /// Fade clock for the SPEC popup's layer chips, like `skimmer_popup_since`.
@@ -568,6 +563,19 @@ pub struct SdroxideApp {
     /// and the TONE encoder — like `tone_popup_since`.
     duplex_popup_since: Option<f64>,
     rpt_tone_popup_since: Option<f64>,
+    /// Whether the band/mode selector is docked beside the panadapter rather
+    /// than opened from the top-bar chip, and whether the docked column is
+    /// currently shown. Session UI state: hiding the column leaves it docked,
+    /// so the band chip brings it straight back. A window too narrow for the
+    /// column (see `band_dock_room`) leaves both alone and simply does not draw
+    /// it, so widening the window again brings it back.
+    band_docked: bool,
+    band_dock_visible: bool,
+    /// How wide the docked column may be this frame, or `None` where it cannot
+    /// dock — see [`top_bar::band_dock_room`]. Settled at the top of the frame
+    /// from this app's own column, before the top bar draws the chip that
+    /// shows and hides it.
+    band_dock_room: Option<f32>,
     /// The layout in force last frame, so a change can re-apply the style
     /// metrics (chip padding, text sizes) exactly once instead of every frame.
     tier: crate::layout::Tier,
@@ -1585,8 +1593,6 @@ impl SdroxideApp {
             mode_popup_since: None,
             band_menu_tab: top_bar::BandMenuTab::Operate,
             band_filter: top_bar::BandFilter::default(),
-            band_docked: false,
-            band_dock_visible: false,
             fft_popup_since: None,
             skimmer_popup_since: None,
             layers_popup_since: None,
@@ -1604,6 +1610,9 @@ impl SdroxideApp {
             bw_popup_since: None,
             duplex_popup_since: None,
             rpt_tone_popup_since: None,
+            band_docked: false,
+            band_dock_visible: false,
+            band_dock_room: None,
             // Corrected on the first frame, once the viewport size is known.
             tier: crate::layout::Tier::Desktop,
             ptt: Default::default(),

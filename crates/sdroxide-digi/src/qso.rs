@@ -454,8 +454,7 @@ impl QsoMachine {
         // DX repeating the report that was not answered must not move us back
         // to answering it. Any other pick releases that hold — the operator is
         // steering the exchange again rather than ending it.
-        self.manual_signoff =
-            matches!(step, QsoStep::TxRr73 | QsoStep::Tx73).then_some(step);
+        self.manual_signoff = matches!(step, QsoStep::TxRr73 | QsoStep::Tx73).then_some(step);
         self.operator_acted();
         self.step = step;
         true
@@ -1001,9 +1000,8 @@ impl QsoMachine {
         // dragging on. What the DX sends next is exactly the message we have
         // decided not to answer — a report, or the R+report we already sent —
         // and `reply_step` would read it as "we owe R+report" and put us back
-        // there, every slot, which is the bug this holds against. Their report
-        // is still recorded above; the exchange simply does not move until the
-        // sign-off has gone out.
+        // there, every slot. Their report is still recorded above; the exchange
+        // simply does not move until the sign-off has gone out.
         if self.manual_signoff.is_some() {
             return false;
         }
@@ -1962,10 +1960,12 @@ mod tests {
         q.start_qso("W9XYZ".into(), Some("EM48".into()), -10, false, 100);
         q.on_rx(&[decode("AB1CD W9XYZ -13")], 115);
         q.set_step(QsoStep::Tx73);
-        // Back to answering them: their next report moves us as it always did.
+        // Back to answering them: their next message moves us as it always did.
+        // An RR73 is one that *moves* the step — a report would leave us on
+        // R+report held or not, and prove nothing.
         q.set_step(QsoStep::TxRReport);
-        q.on_rx(&[decode("AB1CD W9XYZ -05")], 130);
-        assert_eq!(q.step(), QsoStep::TxRReport);
+        q.on_rx(&[decode("AB1CD W9XYZ RR73")], 130);
+        assert_eq!(q.step(), QsoStep::Tx73, "the released hold let their RR73 move the exchange");
     }
 
     #[test]

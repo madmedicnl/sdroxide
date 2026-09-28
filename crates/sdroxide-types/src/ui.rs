@@ -763,8 +763,8 @@ pub struct UiSettings {
     /// Where the solar-system 3D window last was — see [`Solar3dWindow`].
     ///
     /// Here rather than in the operator's view state because window geometry is
-    /// a property of this screen, not of the radio: there is one 3D window, and
-    /// a remote client keeps its own.
+    /// a property of this screen, not of the radio, and a remote client keeps
+    /// its own.
     #[serde(default)]
     pub solar3d_window: Option<Solar3dWindow>,
 }

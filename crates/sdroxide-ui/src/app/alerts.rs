@@ -103,6 +103,11 @@ enum Job {
 /// the [`crate::app::speech::SpeechRuntime`]'s, and saying the phrase through it
 /// is the caller's job. This is left unfocused on purpose — the alarm path does
 /// not wait for focus, so neither should the voice.
+///
+/// Upstream's review of its #591 added a `sound` field here so a caller that
+/// suppressed the phrase could ring the rule's tone in its place. We do not
+/// suppress, so the field would have no reader: the runtime already plays the
+/// tone itself whenever the reply asks for one.
 #[derive(Debug, Clone)]
 pub struct AlertFired {
     pub event: AlertEvent,
