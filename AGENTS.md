@@ -674,7 +674,10 @@ merged code still calls everything `sdroxide`.
     three-second catch-up were unusable for that, and the receive tap never
     carries our own sidetone). Both CLEAR controls empty it, and the message
     editor's `MSG` chip moved up beside SIDETONE and SEND ON RETURN. Not
-    verified on air here (no transmit licence). The maintainer took the
+    verified on air here — **though the blocker is gone**: the operator is on a
+    licence-free frequency and transmitting is authorised (see "The bench"), so
+    this is testable on 11 m CB with a short keyed transmission through the
+    MCW/VOX route. The maintainer took the
     **rig-keys-itself** half upstream on the 2026-09-20 merge (`bcef7787`,
     `CwStatus::rig_keys_itself`, upstream's 160) — the CW panel keeps both that
     and the fork's sidetone/read-back, since `CwStatus` carries both fields.
@@ -730,7 +733,9 @@ merged code still calls everything `sdroxide`.
     copy is the same commit and drops out on the next merge. **Taken upstream;
     reconciled to its canonical form on the 2026-09 merge.** The DX_CALL_HOLD
     hold-off and the "hearing something" report are confirmed in the merged
-    code; not confirmed on air — no transmit licence here.
+    code; not confirmed on air — the blocker is gone, since transmitting is
+    authorised on the operator's licence-free frequency (see "The bench"), so
+    this is now testable rather than blocked.
   - `dividebysandwich/sdroxide#505` — the fork's SSTV picture styling, offered
     upstream (branch `upstream-pr/sstv-style`, one squashed commit). One new
     `DigiConfig::sstv_style` (`SstvStyle`): strip gradient, banner text colour,
@@ -1945,7 +1950,12 @@ Two things worth keeping:
 - **Use it to prove recording behaviour rather than writing "not tested".**
   The operator's standing note (2026-09-28): if a change turns on something that
   needs real RF to show, reach for the RSP1 rather than settling for a unit test
-  and a caveat. It was live at this writing (`SoapySDRUtil --find` sees
+  and a caveat. **Transmitting is authorised**: the operator is on a
+  **licence-free frequency**, and we are free to test — **keep transmissions
+  short**. That is permission to key up, not permission to guess a dial: a rig
+  with no CAT link has to be tuned by hand, so ask which channel and confirm it
+  before anything goes out, and never sit on the air.
+  It was live at this writing (`SoapySDRUtil --find` sees
   `sdrplay Dev0 RSP1 0000000001`, so the `sdrplay_api` service is up) and there
   is **no Pluto on the network** — `pluto.local` does not resolve and
   `192.168.2.1` does not answer, which is also why `sdroxide-pluto`'s
@@ -1971,7 +1981,25 @@ Two things worth keeping:
     stamped file per keying, and the second transmission lands while the first
     file is still closing — which is exactly the `RecGate.stop_asked` path that
     was dropping the transmission ending the silence run. No software, a paddle
-    and a stopwatch. **It puts the rig on the air, so ask the operator first.**
+    and a stopwatch. **The operator tunes the rig and arms the row** — no CAT
+    link and no scripting, so both need a hand; what an agent can do is check
+    the signal path and read the results afterwards.
+  - **The numbers, so it is not re-derived.** The hold is the **2 s** chips —
+    the shortest, and the one that leaves the least room for the race. The gap
+    between the two transmissions should be **2–3 s**: long enough that the gate
+    reaches its `Some(since) if now - since >= 2 s` arm and orders the stop, and
+    short enough that the recorder is still closing when the second one starts,
+    which is the whole point. The gate's start is re-asked for up to
+    `REC_START_TIMEOUT_S` (3 s), so a gap much under 2 s would be swallowed as
+    one transmission and prove nothing. The rig's carrier alone is enough — the
+    test is about the **squelch crossing**, not about intelligible audio, so the
+    keyer's sidetone need not be decoded. **Check the meter first**: with the
+    rig keyed, `passband_dbfs` must sit clear of the set `squelch_db`, or the
+    gate never opens a file and the run tells you nothing about the gate. Then
+    **look for the files** in the config dir's `recordings/` (`config_dir()` is
+    the `-brown` one), named with the existing UTC/frequency/mode stamps: one
+    per keying, and the second one *existing at all* is the assertion — under
+    the old logic it was dropped and no file appeared.
   - What it **cannot** settle: a second **receiver**. The SS9900v is a
     transmitter, and with no CAT link it is not a second tab — `CatHandle` has
     nothing to open, so it cannot be tuned or metered. A hidden-tab test still
