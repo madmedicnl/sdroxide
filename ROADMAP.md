@@ -301,7 +301,8 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    `jtty_mod.f90` (447, source grammar), `jtty_source_codec.f90` (STRUCT30
    atoms).
 
-   **Done (2026-09-28), receive and transmit, on branch `fork/jtty-rx`.** The
+   **Done (2026-09-28), receive and transmit, merged to `main` — EXPERIMENTAL
+   and fork-only, not offered upstream.** The
    DSP is `sdroxide-dsp/src/jtty.rs`: the TBCC code, the source grammar both
    ways (a circular Viterbi + CRC decoder, and the reference's DP text packer),
    the 4-GFSK synthesizer and the sync search. It checks against the reference

@@ -404,14 +404,17 @@ pub enum Mode {
     /// as [`Mode::Fst4`] is. Appended for the same reason as [`Mode::Hell`].
     UvPacket,
     /// JTTY — the WSJT-X 3.2 RTTY-like **asynchronous** text mode.
+    /// **Experimental and fork-only**: checked against the reference off the
+    /// air, not on it, and not offered upstream.
     ///
     /// Not slotted: a transmission can start at any instant, so
     /// [`Mode::slot_timing`] answers `None` and the receiver keeps a rolling
     /// audio window rather than a slot buffer. Each ~1.888 s frame carries a
     /// short text or typed contest atom (calls, serials, grids, Field Day
     /// class/section, control phrases) over a narrow ≈127 Hz 4-GFSK signal with
-    /// a tail-biting convolutional code. Receive only in this build, as
-    /// [`Mode::UvPacket`] is. Appended for the same reason as [`Mode::Hell`].
+    /// a tail-biting convolutional code. Transmit sends a message once, since
+    /// there is no period to key on. Appended for the same reason as
+    /// [`Mode::Hell`].
     Jtty,
 }
 

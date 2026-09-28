@@ -82,7 +82,7 @@ rest.
    carriers labelled on the waterfall; keep the separate **SWL log** with
    **SINPO/SIO** and send a **reception report**; replay the last two minutes
    with **REPLAY**; record a band on a timer; or scan 49 m and stop on carriers.
- 7. **Everything else** — FT8/FT4/FT2, JT65/JT9, FST4, MSK144, FSK441, Q65, UVPACKET, JTTY, WSPR, PSK/RTTY, Olivia, SSTV, RIFP,
+ 7. **Everything else** — FT8/FT4/FT2, JT65/JT9, FST4, MSK144, FSK441, Q65, UVPACKET, JTTY (experimental), WSPR, PSK/RTTY, Olivia, SSTV, RIFP,
    weather fax, DRM, HD Radio, ADS-B/VDL2/ACARS/HFDL, the logbook, awards, QSL
    upload, MIDI control — is in the **[User Manual](docs/USER_MANUAL.md)**.
 
@@ -162,7 +162,7 @@ The full interface: the radio, receiver, display and system controls along the t
   WFM (stereo + **RDS/RBDS**), DSB, **ISB**, DIGU/DIGL, SPEC, **DRM**,
   **HD Radio** (FM, stereo), and the receive-only utility decoders **ADS-B**,
   **VDL2**, **ACARS**, **HFDL**, **NAVTEX**, **DSC**, **weather fax**.
-- **Digital modes** — **FT8/FT4/FT2**, **JT65/JT9**, **FST4**, **MSK144**, **FSK441**, **Q65**, **UVPACKET**, **JTTY**, **JS8**, **WSPR**, **PSK31/RTTY**,
+- **Digital modes** — **FT8/FT4/FT2**, **JT65/JT9**, **FST4**, **MSK144**, **FSK441**, **Q65**, **UVPACKET**, **JTTY** (experimental), **JS8**, **WSPR**, **PSK31/RTTY**,
   **Olivia/THOR/FSQ**, **Hellschreiber**, **SSTV**, **RIFP**, **RF Paint**,
   **RADE** digital voice, **packet/APRS**, **AtCHAT NET**, **Winlink** email.
   Details and setup are in the [manual's digital-modes chapter](docs/USER_MANUAL.md#3-digital-modes).

@@ -6418,6 +6418,11 @@ arranged by ear and by the shorthand, which is what the mode has always been.
 
 ### 3.28 JTTY
 
+> **Experimental.** JTTY is new — it arrived in the WSJT-X 3.2 release — and
+> this implementation has been checked against the reference off the air only,
+> not off-air. It is here to try, not yet to rely on: treat a decode as worth a
+> second look and a first contact as a test.
+
 Choose **JTTY** from the DIGITAL row. JTTY is the **asynchronous keyboard
 mode** from the WSJT-X 3.2 release: it is worked like RTTY — either side types
 and sends whenever it likes — but carries forward error correction, so a signal
@@ -16903,7 +16908,7 @@ using. Bind them under **Speech** on the Controls tab:
 | MSK144 | Meteor scatter on 6 m and 2 m: continuous-phase binary MSK at 2000 baud in a 15-second period, carrying the same 77-bit message as FT8. The decoder hunts the period for meteor-trail bursts. Receive only in this build. See [3.24](#324-msk144). |
 | Q65 | The modern WSJT weak-signal mode for EME, ionoscatter, rainscatter and troposcatter: 65-tone FSK in a 15/30/60/120/300-second T/R period, with a tone-spacing letter A–E for Doppler spread. Carries the same 77-bit message as FT8. Receive only in this build. See [3.25](#325-q65). |
 | UVPACKET | A packet protocol for private amateur VHF/UHF groups: a short π/4-DQPSK burst carrying an application byte pipe (app type, sequence, 1–32 payload blocks) rather than a WSJT message. The sub-mode is detected from the preamble. Receive only in this build. See [3.26](#326-uvpacket). |
-| JTTY | The WSJT-X 3.2 asynchronous RTTY-like text mode: no T/R slots, ~1.888-second frames of 4-GFSK about 125 Hz wide carrying free text or typed contest atoms behind a tail-biting convolutional code. Sends a message once. See [3.28](#328-jtty). |
+| JTTY | **Experimental.** The WSJT-X 3.2 asynchronous RTTY-like text mode: no T/R slots, ~1.888-second frames of 4-GFSK about 125 Hz wide carrying free text or typed contest atoms behind a tail-biting convolutional code. Sends a message once. See [3.28](#328-jtty). |
 | FSK441 | The original meteor-scatter mode on 6 m and 2 m: 4-FSK at 441 baud carrying free text and the `R26`/`R27`/`RRR`/`73` single-tone shorthand, in a 15/30-second period. The decoder hunts the period for meteor-trail pings; transmit repeats the message for the length of the over. See [3.27](#327-fsk441). |
 | OLIVIA | Robust MFSK keyboard mode (selectable tones/bandwidth). |
 | THOR | DominoEX-family IFK keyboard mode with FEC (THOR4…THOR32). |
