@@ -448,6 +448,20 @@ impl Band {
                 Mode::Packet,
                 Mode::PacketHf,
                 Mode::Aprs,
+                // The weak-signal and keyboard text modes CB operators use —
+                // the WSJT-CB family and JTTY. They belong here as much as
+                // FT8 does; the list simply predated them and JTTY was greyed
+                // out under Operate until it was added. Marine and broadcast
+                // lanes (DSC, NAVTEX, ACARS, WEFAX) are deliberately not here:
+                // they are other services' signals, not CB traffic.
+                Mode::Msk144,
+                Mode::Jt65,
+                Mode::Jt9,
+                Mode::Fst4,
+                Mode::Q65,
+                Mode::Fsk441,
+                Mode::UvPacket,
+                Mode::Jtty,
             ]),
             // Every amateur allocation takes anything. 2 m is among them and
             // is *not* restricted: the marine DSC channel 70 (156.525 MHz)
@@ -779,6 +793,13 @@ mod tests {
         }
         assert!(!Band::M11.is_amateur());
         assert!(!Band::Gen.is_amateur());
+        // 11 m is a two-way band in this fork, so the weak-signal and keyboard
+        // text modes are offered there and must not be greyed out under
+        // Operate. JTTY was missing from the list and greyed until it was
+        // added; this pins the CB-first digital set.
+        for m in [Mode::Ft8, Mode::Msk144, Mode::Jt65, Mode::Fst4, Mode::Fsk441, Mode::UvPacket, Mode::Jtty] {
+            assert!(Band::M11.accepts_mode(m), "{m:?} must be offered on 11 m");
+        }
         // ...and it is the only band on the bar that is not, so nothing else
         // has quietly lost its transmit permission.
         for b in Band::ALL {
