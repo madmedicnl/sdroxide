@@ -22,11 +22,19 @@ impl SdroxideApp {
         _panel_h: f32,
     ) {
         let st: Option<JttyStatus> = self.digi_status.as_ref().and_then(|s| s.jtty.clone());
-        let Some(st) = st else {
+        // The transmit row is drawn whatever the receiver has heard — on a
+        // quiet band there are no messages, and returning early here left the
+        // whole TX row missing, which is the only thing the operator wanted.
+        if let Some(st) = &st {
+            self.jtty_log(ui, st);
+        } else {
             ui.label(RichText::new("starting the JTTY receiver…").weak());
-            return;
-        };
+        }
+        self.jtty_tx_row(ui, cmds);
+    }
 
+    /// The rolling log of messages heard.
+    fn jtty_log(&mut self, ui: &mut egui::Ui, st: &JttyStatus) {
         ui.horizontal(|ui| {
             ui.label(RichText::new("JTTY").strong().color(theme::CYAN()));
             // The audio level: an asynchronous mode is bursts between silences,
@@ -84,8 +92,6 @@ impl SdroxideApp {
                 });
             }
         });
-
-        self.jtty_tx_row(ui, cmds);
     }
 
     /// JTTY's transmit row, under its message log.
