@@ -65,8 +65,18 @@ conflict; #545 and #554 were already behind before it). Checked with
 `git merge-tree --write-tree upstream/main <branch>`: #557 conflicts in
 `app/mod.rs`, `top_bar.rs` and the manual; #568 in `panels/cw.rs`; #561 in
 `panels/mod.rs`. All three are the same files the main merge just resolved, so
-the rebase is small — **but do not push to them without asking the operator**,
-since "do not push new commits onto the open ones" is still the standing rule.
+the rebase is small.
+
+**The maintainer is evaluating again (2026-09-28, latest), so rebase rather than
+leave them behind.** The standing "do not push new commits onto the open ones"
+restriction is **lifted for rebases onto current `upstream/main`** — that was its
+only purpose, keeping a moving target from accumulating noise on a queue nobody
+was reading. **New features still do not go upstream**: the direction is
+fork-only for *new work*, and that is unchanged. When a PR branch is rebased,
+say so in a comment on the PR so the maintainer is not surprised by a force-push,
+and **check the thread for a maintainer comment first** — if he has already
+reviewed the old head, the rebase may answer a point he raised, and the comment
+should say which.
 
 **Do first, every session.** `git fetch upstream` and merge if upstream has
 moved, and read the open upstream PRs for maintainer comments (`gh pr list
@@ -94,19 +104,23 @@ divergence, spelled out at the top of this section.
 
 **Stop opening upstream PRs; new work is fork-only (2026-09-28, later).** This is
 the operator's standing direction and it overrides the upstream-first rule in
-"Keeping up with upstream" below: **do not open another upstream PR, and do not
-push new commits onto the open ones.** There was already too much open
+"Keeping up with upstream" below: **do not open another upstream PR.** There was
+already too much open
 (#590, #591, #593 plus the fifteen older), and — the operative reason — **this
 fork now serves a different user group**, so most of what this build adds is
 *their* need rather than a general one and has no upstream audience to serve.
 Only a genuine upstream *bug* found in the course of fork work is worth raising,
 and even then raise it as an issue rather than a PR. Everything else goes on
 fork `main`, which is the only repository to push to. **Still in force after the
-2026-09-28 merge, which took #590, #591 and #593** — the eleven that remain open
-are left exactly as they are. The one exception the operator has since allowed
-is a **rebase of a PR the merge invalidated**: #557, #568 and #561 now conflict
-and want it, but **ask before pushing to any of them**, because a rebase is a
-push.
+2026-09-28 merge, which took #590, #591 and #593.**
+
+**Amendment, same day: the "do not push to the open PRs" half is lifted.** It
+was there to keep a queue nobody was reading from accumulating noise, and the
+maintainer is evaluating the open PRs again, so leaving them behind their own
+merge is now the wrong trade. **Rebasing a PR branch onto current
+`upstream/main` is fine** — force-push it and leave a comment saying so. **New
+features still do not go upstream**; that half stands, and a rebase must not
+become a place to slip one in.
 
 **Three more commits on fork `main` (2026-09-28, later), all fork-only:**
 
@@ -1035,16 +1049,19 @@ label the RX strip has no room for. The fork carries the same chip change on
 `main` (`6052b3ad`); the pieces are `rec_chip_fill`, the 120 ms frame clock
 while recording, and `the_recording_fill_breathes_the_alert_red`.
 
-**#557 now needs a rebase.** The 2026-09-28 merge brought in #590's Quick clip
+**#557 now needs a rebase, and the push restriction is lifted (2026-09-28).** The
+2026-09-28 merge brought in #590's Quick clip
 into the same three files — `app/mod.rs`, `top_bar.rs` and the manual — so
 `upstream-pr/rec-silence` conflicts with `upstream/main` (3 conflicts, confirmed
 with `git merge-tree --write-tree`). The resolutions are the ones in `90733eb2`'s
 commit message: keep the fork's `RecGate` and its own `REC_START_TIMEOUT_S`
 alongside upstream's `REC_CLIP_START_TIMEOUT_S`, and keep the arming-one-clears-
-the-other rule for all three. **Ask the operator before pushing** — a rebase to
-a PR branch is a push, and "do not push new commits onto the open ones" is the
-standing rule. #568 (`panels/cw.rs`) and #561 (`panels/mod.rs`) are stale the
-same way.
+the-other rule for all three. **Rebase it and push** — the maintainer is
+evaluating again, so a PR sitting behind the maintainer's own merge is worse
+than a force-push. #568 (`panels/cw.rs`) and #561 (`panels/mod.rs`) are stale the
+same way. **Read each thread before rebasing**: if the maintainer has commented
+on the old head, the comment after the force-push has to say how the rebase
+answers him, not just that it happened.
 
 **Done (2026-09-24): upstream issue #533** (save decoded text). Every text
 panel now carries a **SAVE** chip beside **CLEAR RX**, plus WSPR, PI4 and the
