@@ -1079,6 +1079,14 @@ remembering, because all three are still defects the fork had:
    choosing one of the two answers to when a recording ends; turning the row off
    is choosing *neither*. The decision is the named `gate_arm_clears_stop_after`.
 
+**This is provable on the bench and was not proved.** The gate reconstructs the
+squelch from the published meter, which is exactly the part a synthetic number
+cannot vouch for; the **RSP1** on the bench can, against a keyed signal. See
+"The bench" for what it settles and what it cannot. Point 1 in particular needs
+a *second* radio, which this bench does not have — so on a reviewer's request
+for proof, ask for a dongle or a network SDR rather than answering with a unit
+test.
+
 **All three are on fork `main` too (`712871cc`)**, ported by hand — a
 cherry-pick of `c9d6589c` would be wrong, since the fork already carries the
 feature and only the corrections are new. (2) and (3) were losing recordings on
@@ -1934,6 +1942,35 @@ Two things worth keeping:
   3-minute watch here, and 8414.5 kHz had no burst in a 20 s capture; 40 m was
   busy at the same time. A missing signal is not a broken decoder — check a
   known carrier (WWV at 10 MHz) before blaming the DSP.
+- **Use it to prove recording behaviour rather than writing "not tested".**
+  The operator's standing note (2026-09-28): if a change turns on something that
+  needs real RF to show, reach for the RSP1 rather than settling for a unit test
+  and a caveat. It was live at this writing (`SoapySDRUtil --find` sees
+  `sdrplay Dev0 RSP1 0000000001`, so the `sdrplay_api` service is up) and there
+  is **no Pluto on the network** — `pluto.local` does not resolve and
+  `192.168.2.1` does not answer, which is also why `sdroxide-pluto`'s
+  `iiod_loopback` is a local mock and flakes under a parallel run rather than
+  needing hardware.
+  - What it settles: the **recording silence auto-split** end to end. The gate
+    reconstructs the engine's squelch from the published meter, so the thing a
+    real receiver proves and a synthetic number cannot is that `passband_dbfs`
+    against a real signal crosses the threshold the way the code assumes. Pick
+    a **keyed** signal — a CW beacon, where the squelch opens and closes on the
+    keying — and the whole chain is observable: one stamped file per
+    transmission, the hold closing the file, and specifically `RecGate`'s
+    `stop_asked` path where a second transmission arrives while the first file
+    is still closing. That is the case the unit test walks synthetically, and
+    it is the one that was actually losing recordings.
+  - What it **cannot** settle: a second radio. There is one device and it has
+    one RX channel, and there is no file/loopback `Backend` (the enum is `Auto`,
+    `Soapy`, `Cat`, `Hpsdr`, `Tci`, `RtlSdr`, `Rx888`, `SmartSdr`, `Pluto`,
+    `SdrPlay`), so a hidden-tab test needs a second real radio or a network SDR
+    — an RTL dongle, a HPSDR, or a Pluto on the LAN. Ask the operator to plug
+    one in rather than declaring the path unprovable. Equally, a **minimised
+    window** is a windowing fact and no amount of RF proves it; the honest claim
+    stays "the hidden-tab path is reasoned and unit-tested, the OS-hidden case is
+    untouched".
+
 
 ## House rules
 
