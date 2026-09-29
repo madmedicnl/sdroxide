@@ -322,11 +322,19 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    word framing; the utility-HF monitoring staple — who is calling whom, and on
    which channel. Reference: **PC-ALE** (C++17, MIT, clean-room from the
    standard). Moderate: start decode-only (no ARQ). **Not started.**
-4. **M17** (the open amateur digital-voice standard, 4-FSK + Codec2). The
-   cleanest digital-voice win because there is no AMBE patent exposure and the
-   implementation is already Rust: **`m17core`/`m17app`** (MIT). Low effort;
-   Codec2 is LGPL (dynamic-link caveat) and would sit behind a feature like the
-   existing vocoders. **Not started.**
+4. **M17** (the open amateur digital-voice standard, 4-FSK 4800 sym/s + Codec2
+   3200). Asked for upstream as **#449**, with a sensible v1 sketched there: LSF
+   decode showing the other station's call, sync/SNR, own-call LSF on transmit,
+   and packet/data mode as a stretch. No AMBE patent exposure, which is the
+   whole draw. **Licence caution on the reference code:** the canonical
+   implementations (`M17-Project/libm17`, `M17_Implementations`) are **C and
+   GPL-2.0**, and GPL-2.0-*only* is incompatible with this GPL-3 program — so
+   this is either a clean-room Rust port from the open spec or first confirm the
+   `m17core`/`m17app` Rust crates this entry used to name are really MIT (that
+   line was never re-checked). Codec2 is LGPL and sits behind a feature like the
+   existing vocoders. **Scope: RX-only first** — the LSF and the packet/SMS data
+   half are the cheap, dependency-free part; voice needs Codec2. Medium–high.
+   **Not started.**
 5. **POCSAG / FLEX** (VHF/UHF paging). Same FSK DSP as several modes already
    present; reference `multimon-ng` (GPL-2+) or an MIT POCSAG in
    `AXRoux/sigint-decoder`. Moderate. **Not started.**
