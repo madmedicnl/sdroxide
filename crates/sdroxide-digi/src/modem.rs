@@ -1508,6 +1508,40 @@ mod eu_vhf_tests {
         assert_eq!(eu_vhf::exchange(59, 3), "590003");
     }
 
+    /// The whole point of the fix, end to end: a station that is working an
+    /// activation answers every one of these, not just the bare call. Before
+    /// it, `pack_message` refused them all — the gate was the union of two
+    /// narrow predicates, so a call WSJT-CB decodes had nowhere to go on the
+    /// way back out.
+    #[test]
+    fn a_modified_cb_call_can_be_answered() {
+        // The CB-to-CB sequence WSJT-CB runs, against a portable call.
+        for (line, expect) in [
+            ("CQ 19DC373/P", "CQ 19DC373/P"),
+            ("19DC373/P 26AT715", "<19DC373/P> <26AT715>"),
+            ("19DC373/P 26AT715 R+12", "<19DC373/P> <26AT715> R+12"),
+            ("19DC373/P 26AT715 RR73", "<19DC373/P> <26AT715> RR73"),
+            ("19DC373/P 26AT715 73", "<19DC373/P> <26AT715> 73"),
+        ] {
+            let (bits, sent) = pack_message(line, false)
+                .unwrap_or_else(|| panic!("{line} must pack — a station answering it needs a reply"));
+            assert_eq!(sent, expect);
+            assert_ne!(bits, [0u8; 77], "{line} produced an empty transmission");
+        }
+        // The low-power form, which is the longest identifier the wire carries.
+        let (bits, sent) = pack_message("19DC373/QRP 26AT715 RR73", false).expect("packs at the length limit");
+        assert_eq!(sent, "<19DC373/QRP> <26AT715> RR73");
+        assert_ne!(bits, [0u8; 77]);
+        // …and one character past it is not a call this wire can carry.
+        // One character past the field, the call no longer fits beside a
+        // report, and the ladder does what it does for any call too long to
+        // pair: the call goes out alone and the exchange is dropped. This is
+        // the pre-existing degradation, not something the modifier introduced
+        // — the 11-character bound itself is pinned in the grammar's own tests.
+        let (_, sent) = pack_message("19DC373/QRPP 26AT715 RR73", false).expect("the call still gets out");
+        assert_eq!(sent, "19DC373/QRPP", "the exchange is dropped, not silently mangled");
+    }
+
     /// The message packer has to recognise the exchange for what it is. Before
     /// it did, the whole thing went out as thirteen characters of free text —
     /// which is a valid transmission and completely useless.
@@ -2522,6 +2556,19 @@ mod tests {
         assert!(!is_cb_compatible_call("26ABC715", false));
         assert!(is_cb_compatible_call("26ABC715", true));
         assert!(!is_cb_compatible_call("G47OXF", true));
+        // A modifier on a legal 11 m call is WSJT-CB's own shape, so it needs
+        // neither half of the union widened — the base is already CB-legal.
+        // This is the station the fork could hear and could not answer.
+        assert!(is_cb_compatible_call("19DC373/P", false));
+        assert!(is_cb_compatible_call("19DC373/QRP", false));
+        assert!(is_cb_compatible_call("26AT715/MM", false));
+        // …and the encode gate agrees, so REPLY can now pack a reply to them.
+        assert!(is_packable_call("19DC373/P", false));
+        assert!(is_packable_call("19DC373/QRP", false));
+        assert!(!is_packable_call("19DC373/QRPP", false)); // past the 11-char field
+        // A modifier cannot rescue a base that is not an 11 m call.
+        assert!(!is_cb_compatible_call("ABC373/P", false));
+        assert!(!is_cb_compatible_call("G47OXF/P", false));
         assert!(wsjt77::is_plausible_call("PA3XYZ"));
         assert!(!wsjt77::is_plausible_call("G47OXF"));
         assert!(!wsjt77::is_plausible_call("26AT715"));
@@ -2811,3 +2858,5 @@ mod tests {
         println!();
     }
 }
+
+

@@ -132,7 +132,10 @@ pub use broadcast::{BroadcastStation, BroadcastStations};
 pub use callsign::{CallsignInfo, LoginTarget, LoginTestResult, UploadResult, UploadTarget};
 pub use caps::{DeviceCaps, DeviceSetting, Direction, GainElement, GainUnit, SettingKind};
 pub use cb::{CbPlan, cb_plan, cb_tx_allowed, set_cb_plan, set_cb_tx_allowed};
-pub use cb_callsign::{is_cb_callsign, is_cb_callsign_wide, is_cb_callsign_with};
+pub use cb_callsign::{
+    is_cb_callsign, is_cb_callsign_wide, is_cb_callsign_with, looks_like_cb_call,
+    cb_call_length_problem, CB_CALL_MAX_LEN,
+};
 /// The first WSJT-CB-shaped callsign in a decoded message, for the spot
 /// reporters (see [`cb_country::cb_callsign_in`]).
 pub use cb_country::cb_callsign_in;

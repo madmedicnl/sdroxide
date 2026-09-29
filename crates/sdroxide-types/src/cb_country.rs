@@ -16,9 +16,9 @@
 //! have no current DXCC entity (Geneva, Walvis Bay) and fall back to the
 //! override table below.
 //!
-//! Shape checking mirrors WSJT-CB's `Radio::cb_callsign_*_re` exactly: a lead
-//! of 1–3 digits, 1–2 letters, then digits (1–4, a 4-digit suffix only behind
-//! a single-digit prefix) or a `/LL` split form.
+//! Shape checking is not repeated here: the country of a call is asked of the
+//! one grammar in [`crate::cb_callsign`], so the flag on a decode and the gate
+//! that admitted the call can never disagree.
 
 /// CB country number → (WSJT-CB country name, DXCC primary prefix for its flag).
 ///
@@ -405,10 +405,16 @@ static FALLBACK: &[(&str, &str, &str)] = &[
 /// right-justifies the run to three digits (`26AT715` → `026`).
 pub(crate) fn cb_country_number(call: &str) -> Option<u32> {
     let call = call.trim().to_ascii_uppercase();
-    if !is_cb_shape(call.as_bytes()) {
+    if !is_cb_callsign(&call) {
         return None;
     }
-    call[..call.bytes().take_while(|b| b.is_ascii_digit()).count()].parse().ok()
+    // The country is the *base* call's leading digit run. A modifier is a
+    // suffix and never contributes digits, so this reads the same either way —
+    // but taking it from the base explicitly is what keeps a modified call
+    // resolving now that the grammar accepts modifiers.
+    let base = call.split('/').next().unwrap_or(&call);
+    let digits = base.bytes().take_while(|b| b.is_ascii_digit()).count();
+    base[..digits].parse().ok()
 }
 
 /// WSJT-CB country name + DXCC prefix for a CB country number.
@@ -424,7 +430,7 @@ pub(crate) fn name_prefix(code: u16) -> Option<(&'static str, &'static str)> {
 /// the few separators a decoded line uses.
 pub fn cb_callsign_in(text: &str) -> Option<&str> {
     text.split(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | ':'))
-        .find(|t| !t.is_empty() && is_cb_shape(t.as_bytes()))
+        .find(|t| !t.is_empty() && is_cb_callsign(t))
 }
 
 /// `(primary prefix → (flag, continent))` for a CB entity.
@@ -432,45 +438,14 @@ pub(crate) fn fallback_cell(pfx: &str) -> Option<(&'static str, &'static str)> {
     FALLBACK.iter().find(|(p, _, _)| *p == pfx).map(|(_, f, c)| (*f, *c))
 }
 
-/// Whether the call matches WSJT-CB's CB-callsign shape (`Radio::cb_callsign_*_re`):
-/// `N{1,3}L{1,2}N{1,3}` (or a 4-digit suffix behind a one-digit prefix), or the
-/// split `N{1,3}L{1,2}/LL`.
-fn is_cb_shape(b: &[u8]) -> bool {
-    if b.is_empty() {
-        return false;
-    }
-    let digits = b.iter().take_while(|&&c| c.is_ascii_digit()).count();
-    if !(1..=3).contains(&digits) {
-        return false;
-    }
-    // Split form `999ZZ/ZZ` — a single slash delimiting the final two letters.
-    if let Some(sl) = b.iter().rposition(|&c| c == b'/') {
-        if b[..sl].contains(&b'/') {
-            return false;
-        }
-        let sfx = &b[sl + 1..];
-        return sfx.len() == 2
-            && sfx.iter().all(u8::is_ascii_uppercase)
-            && digits_letters(&b[..sl]) == Some(digits);
-    }
-    let rest = &b[digits..];
-    let letters = rest.iter().take_while(|&&c| c.is_ascii_uppercase()).count();
-    if !(1..=2).contains(&letters) {
-        return false;
-    }
-    let units = rest[letters..].iter().take_while(|&&c| c.is_ascii_digit()).count();
-    if digits + letters + units != b.len() {
-        return false;
-    }
-    (1..=4).contains(&units) && (units < 4 || digits == 1)
-}
-
-/// For a digit-then-letters run (split form's base) confirm the digit count.
-fn digits_letters(b: &[u8]) -> Option<usize> {
-    let digits = b.iter().take_while(|&&c| c.is_ascii_digit()).count();
-    let letters = b[digits..].iter().take_while(|&&c| c.is_ascii_uppercase()).count();
-    (1..=2).contains(&letters).then_some(digits)
-}
+/// Whether the call matches WSJT-CB's CB-callsign shape.
+///
+/// This used to be a second, hand-rolled copy of the shape check, which is
+/// exactly how the two drifted apart: the copy here predated the modifier
+/// suffix, so a call the decoder accepted named no country and lost its flag on
+/// the decode row. The shape is now asked of the one grammar, in
+/// [`crate::cb_callsign`], so the country and the gate cannot disagree again.
+use crate::cb_callsign::is_cb_callsign;
 
 #[cfg(test)]
 mod tests {
@@ -490,5 +465,29 @@ mod tests {
         assert_eq!(cb_callsign_in("CQ 26AT1000"), None);
         assert_eq!(cb_callsign_in("CQ DX"), None);
         assert_eq!(cb_callsign_in(""), None);
+    }
+
+    /// A modifier does not change which country the call is from, so the row
+    /// keeps its flag and name. This used to resolve to `None` and drop the
+    /// station's country off the decode entirely, because this file carried its
+    /// own copy of the shape check and the copy predated the modifier.
+    #[test]
+    fn a_modified_call_still_names_its_country() {
+        assert_eq!(cb_country_number("19DC373"), Some(19));
+        assert_eq!(cb_country_number("19DC373/P"), Some(19));
+        assert_eq!(cb_country_number("19DC373/QRP"), Some(19));
+        assert_eq!(cb_country_number("26AT715/MM"), Some(26));
+        // The split form is unchanged, and still is not read as a modifier.
+        assert_eq!(cb_country_number("999ZZ/ZZ"), Some(999));
+        // A modifier cannot invent a country for a base that is not CB-shaped.
+        assert_eq!(cb_country_number("G47OXF/P"), None);
+    }
+
+    /// The free-text spot reporters read the callsign out of the message, so a
+    /// modified call has to be found there as one token rather than skipped.
+    #[test]
+    fn finds_a_modified_call_in_a_message() {
+        assert_eq!(cb_callsign_in("CQ 19DC373/P"), Some("19DC373/P"));
+        assert_eq!(cb_callsign_in("19DC373/QRP RR73"), Some("19DC373/QRP"));
     }
 }

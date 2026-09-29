@@ -1942,6 +1942,29 @@ impl SdroxideApp {
                         },
                     );
                 });
+                // The 11 m field is 11 characters for the whole identifier,
+                // `/zzz` included, and an activation callsign is chosen right
+                // above — so say so while it is being chosen rather than let
+                // the first transmission silently fail to pack. CB callsigns
+                // only; an amateur call opens with a letter and is never
+                // flagged. Kept outside the grid so the two-column station
+                // rows stay aligned.
+                if let Some(len) = sdroxide_types::cb_call_length_problem(&io.digi_edit.my_call) {
+                    ui.add_space(4.0);
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(format!(
+                                "⚠ Too long for 11 m — {len} characters, and FT8 carries 11 for \
+                                 a CB call *including* any /P, /MM or /QRP suffix. This \
+                                 activation callsign cannot be sent. 19DC3733/P (10) fits; \
+                                 19TST1001/QRP (13) does not."
+                            ))
+                            .size(11.0)
+                            .color(crate::theme::ALERT()),
+                        )
+                        .wrap(),
+                    );
+                }
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new(
@@ -1970,7 +1993,11 @@ impl SdroxideApp {
                          N{1,3}L{1,2}N{1,3}. Experimental: WSJT-CB itself rejects the wider \
                          shape, so a call that needs it may not be understood by a WSJT-CB \
                          station; it widens what this station hears more than what it can \
-                         reliably send. Off keeps WSJT-CB's exact grammar.",
+                         reliably send. Off keeps WSJT-CB's exact grammar. \
+                         \
+                         This toggle changes the *shape*, not the *length*: an 11 m call is \
+                         still 11 characters including any /P, /MM or /QRP suffix, so \
+                         19DCG3733/P fits and 19TST1001/QRP does not.",
                     )
                     .clicked()
                     {
@@ -1980,8 +2007,9 @@ impl SdroxideApp {
                         RichText::new(
                             "Turn on if your 11 m community uses three-letter groups or \
                              four-digit unit numbers. Applies to the CB digital modes' decode \
-                             and transmit; the longest call it admits is well inside what FT8 \
-                             can carry.",
+                             and transmit. Either way an 11 m call may not exceed **11 \
+                             characters**, suffix included — 19DC3733/P fits, 19TST1001/QRP \
+                             does not.",
                         )
                         .weak(),
                     );
@@ -4647,5 +4675,25 @@ mod tests {
     fn soapy_only_appears_when_supported() {
         assert!(iface_opts(true).contains(&sdroxide_types::Backend::Soapy));
         assert!(!iface_opts(false).contains(&sdroxide_types::Backend::Soapy));
+    }
+
+    /// The 11 m callsign is chosen in this tab, so the length rule is checked
+    /// here — an activation organiser types the call they are about to
+    /// announce, and a call one suffix too long would otherwise go out
+    /// refused with no explanation. It fires on 11 m shapes only, so a long
+    /// amateur callsign is never nagged.
+    #[test]
+    fn an_over_long_eleven_metre_callsign_is_flagged_as_it_is_typed() {
+        use sdroxide_types::cb_call_length_problem;
+        // The bench cases, both directions.
+        assert_eq!(cb_call_length_problem("19DC3733/P"), None);
+        assert_eq!(cb_call_length_problem("19DC373/QRP"), None);
+        assert_eq!(cb_call_length_problem("19DCG3733/P"), None);
+        assert_eq!(cb_call_length_problem("19TST1001/QRP"), Some(13));
+        assert_eq!(cb_call_length_problem("19DC373/QRPP"), Some(12));
+        // Not this tab's business.
+        assert_eq!(cb_call_length_problem("DL1ABCDEFGH"), None);
+        assert_eq!(cb_call_length_problem(""), None);
+        assert_eq!(cb_call_length_problem("K1ABC"), None);
     }
 }
