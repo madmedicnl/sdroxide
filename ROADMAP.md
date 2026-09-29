@@ -364,10 +364,17 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    `mtable[512]`/`utable[512]`. A Python mirror of `RxFEC` runs over the sample
    but does not yet converge (no preamble triple), so the remaining suspect is
    the **front end** — symbol timing and the tone→symbol mapping — not the FEC.
-   Next: round-trip the FEC synthetically to prove the mirror, then fix symbol
-   timing (proper resampler / PLL) against the WAV. (ALELite is GPL; use its
-   tables to validate only, and derive the Golay generator and interleaver for
-   the shipped code.)
+   **Done (2026-09-29): the FEC is proven.** `TxFEC` (from the same file) fed
+   through the Python `RxFEC` mirror round-trips **six words exactly**, so the
+   Golay + ping-pong interleaver is right. **Still open: the front end.** A
+   naive per-symbol extraction of the MP3 sample (8 tone correlators, 64-sample
+   windows) does **not** decode — and an earlier apparent `RAK/QEO/02R` run was
+   a mistake (per-*sample* symbols fed by accident; the pattern was chance). So
+   the real remaining work is an **8-FSK demodulator with symbol-timing
+   recovery** (matched filter + clock tracking, as ALELite's own modem does),
+   and a cleaner capture than a lossy MP3 to validate it. (ALELite is GPL; use
+   its tables to validate only, and derive the Golay generator and interleaver
+   for the shipped code.)
 
    **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
    `Signal file` (not an image, which is why the API's `images` list missed it)
