@@ -599,24 +599,23 @@ merged code still calls everything `sdroxide`.
     sits after `cw_macros` (the PR's own placement, so the merge is clean). The
     fork's only delta is the version number — **when it lands, the fork's copy
     drops out; do not re-add the feature.**
-  - **JTTY upstream (issue #584) — queued, not opened (2026-09-29).** The operator
-    asked for the fork's JTTY to be offered upstream. It is a **hand-port, not a
-    cherry-pick**: the feature's plumbing was written against the fork's mode set,
-    so cherry-picking the JTTY commits conflicts in ~29 files and, worse, drags
-    the fork's own modes (`UvPacket`, `Dsc`, `Hfdl`…) into upstream's tables as
-    context. Port **Jtty only**: copy the four new files verbatim
-    (`crates/sdroxide-dsp/src/jtty.rs`, `crates/sdroxide-types/src/jtty.rs`,
-    `crates/sdroxide-digi/src/jtty_controller.rs`,
-    `crates/sdroxide-ui/src/app/panels/jtty.rs`), then add only the `Mode::Jtty`
-    arms. `git grep -l Jtty main` is the checklist: the ten CAT/TCI/rigctld/
-    smartsdr/speech mode tables, `mode.rs` (variant + `Mode::ALL` length),
-    `proto` (`PROTO_VERSION` + register), `digi.rs` (`DigiStatus::jtty`),
-    `types/lib.rs`, `dsp/demod.rs`, `dsp/modulator.rs`, `radio/engine.rs`,
-    `types/band.rs`, the panel registry, `ui/frame.rs`, `ui/save_text.rs`, and the
-    manual. **State the test status honestly in the PR**: the DSP is checked
-    against the reference encoder bit-for-bit on six golden vectors and
-    round-trips synthetically, but it has **never decoded off the air** — say so
-    and offer the bench check rather than implying it is proven.
+  - `dividebysandwich/sdroxide#597` — **JTTY, the WSJT-X 3.2 asynchronous text
+    mode** (issue #584), opened 2026-09-29 from `upstream/main` (branch
+    `upstream-pr/jtty`, **one squashed commit**, 46 files, ~2,700 lines). A
+    **hand-port, not a cherry-pick**: the fork's JTTY commits were written against
+    the fork's mode set, so replaying them drags `UvPacket`/`Dsc`/`Hfdl` into
+    upstream's tables. The upstream form adds **only** `Mode::Jtty` (four new
+    files verbatim: `dsp/jtty.rs`, `types/jtty.rs`, `digi/jtty_controller.rs`,
+    `ui/panels/jtty.rs`; then the one-line `Jtty` arms across the ten CAT/TCI/
+    rigctld/smartsdr/speech tables, `mode.rs` + `ALL`/`DIGITAL`, `proto`
+    `PROTO_VERSION` 170→171, `digi.rs` `DigiStatus::jtty`, `dsp` demod/modulator,
+    `engine.rs`, the panel registry, `frame.rs`, `save_text.rs`, the manual).
+    **The fork's copy is *not* this one**: the fork's JTTY still carries the
+    `DigiStatus::tx_refused` refusal line and the CB identifiers, which the
+    upstream port dropped to stay isolated. When #597 lands, reconcile rather
+    than drop — the merge will bring upstream's Jtty plumbing and the fork must
+    keep its extras. **Test status stated in the PR**: golden-vector and synthetic
+    verified, **never off-air**.
   - `dividebysandwich/sdroxide#593` — **the grey line's contrast**, opened
     2026-09-28 from `upstream/main` (branch `upstream-pr/greyline-contrast`, one
     commit, two files). The night overlay was painted *before* `draw_base`, so
