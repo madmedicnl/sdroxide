@@ -384,8 +384,12 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    is the tone index directly, not Gray. The off-air MP3 still does not decode
    with this front end (no clock/AGC handling, lossy audio), so that sample
    stays a weaker check than the synthetic round-trip and a live capture. Next:
-   port it to Rust (`sdroxide-dsp`, tables derived clean-room), validate on the
-   synthetic vector, then a live RSP1 capture before offering it upstream.
+   **Rust core done (2026-09-29) — `sdroxide-dsp/src/ale.rs`,
+   upstream draft PR #598.** Table-driven NTIA/ITS constants in
+   `ale_tables.rs` (public domain, cited); four tests pass, including a full
+   synthesized-tone → demod → FEC round-trip. **Still to do: the mode wiring
+   (`Mode::Ale`, status, controller, panel) and symbol-clock recovery for real
+   signals, then an off-air check.**
 
    **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
    `Signal file` (not an image, which is why the API's `images` list missed it)
