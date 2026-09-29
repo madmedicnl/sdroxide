@@ -389,7 +389,14 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    `ale_tables.rs` (public domain, cited); four tests pass, including a full
    synthesized-tone → demod → FEC round-trip. **Still to do: the mode wiring
    (`Mode::Ale`, status, controller, panel) and symbol-clock recovery for real
-   signals, then an off-air check.**
+   signals, then an off-air check.** The front end landed too (PR #598,
+   2026-09-29): a per-burst symbol-clock search and repeat-filtered decode,
+   with a synthetic test that carries a clock offset and noise. **The Sigidwiki
+   MP3 sample still does not decode under any tone mapping or a +/-150 Hz tone
+   offset**, while the synthetic path does — so either that recording is not
+   plain 2G ALE, or it is too degraded, and **a live RSP1 capture on an ALE
+   channel (HFGCS 8992/11175 kHz USB) is the real pass test.** Mode wiring
+   still to do.
 
    **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
    `Signal file` (not an image, which is why the API's `images` list missed it)
