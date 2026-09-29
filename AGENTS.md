@@ -887,6 +887,10 @@ Tests: `the_wide_grammar_adds_the_three_letter_shape`,
 `the_wide_grammar_packs_a_three_letter_cb_pair` and the widened gate assertions
 in `cb_calls_pass_the_decode_gate` (digi).
 
+**Tested and confirmed live on the bench (2026-09-29).** The operator switched
+it on and the wider shape decoded and keyed as intended, so the toggle is
+verified end to end, not only in the unit tests.
+
 ### FT8 runs signal subtraction (2026-09-27)
 
 `Ft8Modem::decode_slot`'s FT8 request now ends `.sic_early()`. mfsk-core 0.11's
