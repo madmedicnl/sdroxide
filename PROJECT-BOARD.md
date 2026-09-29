@@ -31,6 +31,8 @@ granted (`gh auth refresh -h github.com -s project`).
 
 ## Open (In Progress)
 
+- **FT8/FT4/FT2 session ignore list** — mute a callsign for the session (see design below)
+
 - **ALE**: decode a real burst off-air; wire TX; fold the mode into PR #598
 - Upstream PRs awaiting review: **#537** band openings, **#545** (tr)uSDX nG,
   **#554** UVPacket, **#557** rec silence, **#559** band-menu captions,
@@ -39,6 +41,27 @@ granted (`gh auth refresh -h github.com -s project`).
   **#598** ALE
 - **Rebase #568 and #561** onto current `upstream/main`
 - ALE experimental release: publish/finish once the live decode works
+
+## Session ignore list — design (not yet coded)
+
+**Why session-only:** a memory `HashSet` with no file, no wire, no schema is
+cheaper to run and to build than a persisted list, and avoids permanent hiding.
+Familiar `−` UX without the permanence. Keep the filter as
+`session_ignored ∪ (future persisted)` so persistence can be added later.
+
+**Plan (fork-only, UI layer):**
+- `SdroxideApp` gains `session_ignored: std::collections::HashSet<String>`
+  (init in `app/mod.rs` alongside `digi_status`). No `PROTO_VERSION` change.
+- Decode row: next to the queue `+`/`＋` chip (`panels/decodes.rs` ~line
+  747–759, `qresp`), add a `−` chip that toggles `d.from` in the set. Return it
+  with the row responses and handle it where `(resp, qresp)` is destructured.
+- **Filter at ingress**: skip (or dim first, then hide) any decode whose `from`
+  is ignored, in the decode-list loop.
+- **Mute everything**: filter ignored calls *before* alerts and auto-mode too
+  (`frame.rs` `RadioEvent::Ft8Decodes` handling), or a muted station still rings
+  a new-DXCC alert / gets auto-answered. Leave spotting/upload alone.
+- **Undo/visibility**: an `N ignored · clear` chip in the decode header so a
+  mis-click is reversible; dim the row for a beat rather than vanish.
 
 ## Roadmap (Todo)
 
