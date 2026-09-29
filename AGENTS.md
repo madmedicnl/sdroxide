@@ -599,6 +599,24 @@ merged code still calls everything `sdroxide`.
     sits after `cw_macros` (the PR's own placement, so the merge is clean). The
     fork's only delta is the version number — **when it lands, the fork's copy
     drops out; do not re-add the feature.**
+  - **JTTY upstream (issue #584) — queued, not opened (2026-09-29).** The operator
+    asked for the fork's JTTY to be offered upstream. It is a **hand-port, not a
+    cherry-pick**: the feature's plumbing was written against the fork's mode set,
+    so cherry-picking the JTTY commits conflicts in ~29 files and, worse, drags
+    the fork's own modes (`UvPacket`, `Dsc`, `Hfdl`…) into upstream's tables as
+    context. Port **Jtty only**: copy the four new files verbatim
+    (`crates/sdroxide-dsp/src/jtty.rs`, `crates/sdroxide-types/src/jtty.rs`,
+    `crates/sdroxide-digi/src/jtty_controller.rs`,
+    `crates/sdroxide-ui/src/app/panels/jtty.rs`), then add only the `Mode::Jtty`
+    arms. `git grep -l Jtty main` is the checklist: the ten CAT/TCI/rigctld/
+    smartsdr/speech mode tables, `mode.rs` (variant + `Mode::ALL` length),
+    `proto` (`PROTO_VERSION` + register), `digi.rs` (`DigiStatus::jtty`),
+    `types/lib.rs`, `dsp/demod.rs`, `dsp/modulator.rs`, `radio/engine.rs`,
+    `types/band.rs`, the panel registry, `ui/frame.rs`, `ui/save_text.rs`, and the
+    manual. **State the test status honestly in the PR**: the DSP is checked
+    against the reference encoder bit-for-bit on six golden vectors and
+    round-trips synthetically, but it has **never decoded off the air** — say so
+    and offer the bench check rather than implying it is proven.
   - `dividebysandwich/sdroxide#593` — **the grey line's contrast**, opened
     2026-09-28 from `upstream/main` (branch `upstream-pr/greyline-contrast`, one
     commit, two files). The night overlay was painted *before* `draw_base`, so
