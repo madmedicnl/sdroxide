@@ -106,15 +106,25 @@ pub fn auto_block_reason(
 /// already in the log, and has not already been tried this session. The
 /// strongest is chosen — the one most likely to complete a contact — with the
 /// newest slot breaking ties.
+///
+/// `skip` is asked about every row before anything else, so a caller can rule
+/// a station out here instead of handing over a filtered copy. The decode list
+/// is borrowed for the whole call and holds up to 200 rows, and this runs every
+/// frame: building a copy of it to drop a handful of rows would cost far more
+/// than the handful of comparisons it saves.
 pub fn pick_cq(
     decodes: &[Decode],
     log: &LogIndex,
     my_call: &str,
     my_grid: &str,
     tried: &HashSet<String>,
+    skip: impl Fn(&Decode) -> bool,
 ) -> Option<AutoTarget> {
     let mut best: Option<&Decode> = None;
     for d in decodes {
+        if skip(d) {
+            continue;
+        }
         let Some(from) = d.from.as_deref().filter(|c| !c.is_empty()) else { continue };
         if !d.is_cq || !cq_is_for_us(d, my_call, my_grid) {
             continue;
@@ -185,7 +195,8 @@ mod tests {
     #[test]
     fn picks_the_strongest_new_cq() {
         let d = [cq("19LR121", -5, 1), cq("14AT276", 12, 2), cq("30AO010", 3, 3)];
-        let got = pick_cq(&d, &log_with(&[]), "26AT715", "", &HashSet::new()).expect("a CQ");
+        let got =
+            pick_cq(&d, &log_with(&[]), "26AT715", "", &HashSet::new(), |_| false).expect("a CQ");
         assert_eq!(got.call, "14AT276");
         assert_eq!(got.snr_db, 12);
     }
@@ -193,14 +204,32 @@ mod tests {
     #[test]
     fn never_answers_a_call_already_in_the_log() {
         let d = [cq("19LR121", 20, 1)];
-        assert!(pick_cq(&d, &log_with(&["19LR121"]), "26AT715", "", &HashSet::new()).is_none());
+        assert!(
+            pick_cq(&d, &log_with(&["19LR121"]), "26AT715", "", &HashSet::new(), |_| false)
+                .is_none()
+        );
     }
 
     #[test]
     fn skips_a_station_already_tried_this_session() {
         let d = [cq("19LR121", 20, 1)];
         let tried: HashSet<String> = ["19LR121".to_string()].into_iter().collect();
-        assert!(pick_cq(&d, &log_with(&[]), "26AT715", "", &tried).is_none());
+        assert!(pick_cq(&d, &log_with(&[]), "26AT715", "", &tried, |_| false).is_none());
+    }
+
+    #[test]
+    fn a_skipped_station_is_never_chosen_even_when_it_is_the_strongest() {
+        // The session ignore list arrives here as a predicate rather than as a
+        // filtered copy of the decode list, so this is the case that says the
+        // rule is actually consulted: the muted station is the best CQ on the
+        // band, and it must still lose to a weaker one.
+        let d = [cq("19LR121", -5, 1), cq("14AT276", 20, 2), cq("30AO010", 3, 3)];
+        let muted = ["14AT276".to_string()];
+        let got = pick_cq(&d, &log_with(&[]), "26AT715", "", &HashSet::new(), |d| {
+            d.from.as_deref().is_some_and(|c| muted.iter().any(|m| m == c))
+        })
+        .expect("a CQ");
+        assert_eq!(got.call, "30AO010", "the muted station is the strongest and must not win");
     }
 
     #[test]
@@ -208,14 +237,14 @@ mod tests {
         let mut d = cq("JA1ABC", 20, 1);
         d.cq_to = Some("JA".to_string());
         // Not a Japanese station: "CQ JA" is not ours to answer.
-        assert!(pick_cq(&[d], &log_with(&[]), "26AT715", "", &HashSet::new()).is_none());
+        assert!(pick_cq(&[d], &log_with(&[]), "26AT715", "", &HashSet::new(), |_| false).is_none());
     }
 
     #[test]
     fn ignores_non_cq_traffic() {
         let mut d = cq("19LR121", 20, 1);
         d.is_cq = false;
-        assert!(pick_cq(&[d], &log_with(&[]), "26AT715", "", &HashSet::new()).is_none());
+        assert!(pick_cq(&[d], &log_with(&[]), "26AT715", "", &HashSet::new(), |_| false).is_none());
     }
 
     #[test]

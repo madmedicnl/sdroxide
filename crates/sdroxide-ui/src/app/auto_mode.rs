@@ -136,6 +136,11 @@ impl SdroxideApp {
     /// instruction not to answer somebody, and auto mode answers on its own
     /// initiative — so it honours the list for a decode it would otherwise
     /// pick out of the ones already held.
+    ///
+    /// The list is borrowed, not copied: the rule is handed to the picker as a
+    /// predicate so it can drop those rows in place. An earlier cut built a
+    /// filtered `Vec` of the whole decode list instead, which meant cloning up
+    /// to 200 rows every frame for the sake of the few that were muted.
     fn auto_target(&mut self, my_call: &str, my_grid: &str) -> Option<auto::AutoTarget> {
         let len = self.qso_log.len();
         if self.log_index_cache.as_ref().map(|(l, _)| *l) != Some(len) {
@@ -143,15 +148,18 @@ impl SdroxideApp {
         }
         let ix = &self.log_index_cache.as_ref().expect("just filled").1;
         if self.session_ignored.is_empty() {
-            return auto::pick_cq(&self.digi_decodes, ix, my_call, my_grid, &self.auto_tried);
+            return auto::pick_cq(
+                &self.digi_decodes,
+                ix,
+                my_call,
+                my_grid,
+                &self.auto_tried,
+                |_| false,
+            );
         }
-        let live: Vec<sdroxide_types::Decode> = self
-            .digi_decodes
-            .iter()
-            .filter(|d| !crate::app::ignore::is_ignored(&self.session_ignored, d.from.as_deref()))
-            .cloned()
-            .collect();
-        auto::pick_cq(&live, ix, my_call, my_grid, &self.auto_tried)
+        auto::pick_cq(&self.digi_decodes, ix, my_call, my_grid, &self.auto_tried, |d| {
+            crate::app::ignore::is_ignored(&self.session_ignored, d.from.as_deref())
+        })
     }
 
     /// Disarm auto mode, leaving `note` as the reason shown on the toggle.
