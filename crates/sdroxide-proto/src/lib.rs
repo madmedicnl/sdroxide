@@ -1581,7 +1581,17 @@ use sdroxide_types::{
 /// decode every config — the same break as v179's appended CW-key fields. No
 /// new wire type: the flag only widens a validator the codec gate already
 /// calls.
-pub const PROTO_VERSION: u16 = 181;
+/// v182: editable message buttons for the keyboard modes (PSK / RTTY / Olivia
+/// / THOR — upstream issue #463, offered as an upstream PR and carried here
+/// until it lands). `DigiConfig` gains `text_macros` (`Vec<CwMacro>`) just
+/// after `cw_macros` — the upstream PR's own placement, kept so the field sits
+/// in the same spot when that PR merges. The same label-and-text buttons the CW
+/// panel has, on a list of their own. `DigiConfig` rides
+/// `Command::SetDigiConfig` and `DigiStatus` whole, so
+/// a v181 peer reads the extra bytes as the start of the next field and fails
+/// to decode every config — the same break as v181's appended wide-CB flag.
+/// A downstream (fork) addition until the upstream PR merges.
+pub const PROTO_VERSION: u16 = 182;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
