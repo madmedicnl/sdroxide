@@ -28,6 +28,11 @@ WebSocket. It includes a persistent logbook, many digital modes built in, and
 **TCI and Hamlib rigctld servers** so third-party programs like WSJT-X can use
 it as their radio.
 
+![The main window: radio, receiver, display and system controls across the top, waterfall with its level slider](docs/images/01-main-window.jpg)
+
+*One program, three audiences: a ham transceiver, a full-blooded 11 m CB rig
+(voice *and* the digital modes), and a listener's receiver.*
+
 ## Read the manual first
 
 This README is a quick orientation, not the documentation. **The
@@ -82,17 +87,21 @@ rest.
    carriers labelled on the waterfall; keep the separate **SWL log** with
    **SINPO/SIO** and send a **reception report**; replay the last two minutes
    with **REPLAY**; record a band on a timer; or scan 49 m and stop on carriers.
- 7. **Everything else** — FT8/FT4/FT2, JT65/JT9, FST4, MSK144, FSK441, Q65, UVPACKET, JTTY (experimental), WSPR, PSK/RTTY, Olivia, SSTV, RIFP,
-   weather fax, DRM, HD Radio, ADS-B/VDL2/ACARS/HFDL, the logbook, awards, QSL
-   upload, MIDI control — is in the **[User Manual](docs/USER_MANUAL.md)**.
+7. **Everything else** — FT8/FT4/FT2, JT65/JT9, FST4, MSK144, FSK441, Q65,
+   UVPACKET, JTTY (experimental), WSPR, PSK/RTTY, Olivia, SSTV, RIFP, weather
+   fax, DRM, HD Radio, ADS-B/VDL2/ACARS/HFDL, the logbook, awards, QSL upload,
+   MIDI control — is in the **[User Manual](docs/USER_MANUAL.md)**.
 
 ## How this fork differs from upstream
+
+Upstream is an amateur transceiver. This build runs **the CB band used to the
+full — voice *and* the digital modes — plus the listener's tools**.
 
 | | Upstream (`dividebysandwich/sdroxide`) | This fork |
 | --- | --- | --- |
 | **Focus** | amateur (ham) transceiver | **CB used in full (voice and digital), SWL and decoding**; 11 m transmit is a one-time opt-in only because the ham lockout is generic |
 | **Amateur bands** | 160 m … 3 cm, by IARU region, with band-plan lockout | identical, untouched |
-| **11 m / citizens' band** | the band itself (26.965–27.860 MHz) and its digimode conventions | **per-country channel plans** (`WORLD EU DE UK US AU`) with the channels and modes each allows, **CB country flags**, a one-time transmit opt-in so the band is used in full, opt-in **spotting to the WSJT-CB spot server**, and an **experimental** wider callsign grammar (`N{1,3}L{1,3}N{1,4}`) for the community's newer identifiers, off by default |
+| **11 m / citizens' band** | the band itself (26.965–27.860 MHz) and its digimode conventions | **per-country channel plans** (`WORLD EU DE UK US AU`), **CB country flags**, a one-time transmit opt-in, opt-in **WSJT-CB spot-server spotting**, and an **experimental** wider callsign grammar for the community's newer identifiers, off by default |
 | **LOG11DX logbook** | — | uploads each logged QSO straight to the 11 m [LOG11DX](https://log11dx.com/) logbook — no separate bridge program, which its own WSJT-X integration otherwise needs |
 | **Broadcast & utility bands** | general coverage only | **LW / MW / SW / FM**, the VHF civil **AIR**band (108–137 MHz, AM) and the **MIL**itary UHF airband (225–400 MHz, AM) on the selector and in the band plan; on shortwave the **metre band** is named ("SW 49m · AM") and offered as a shortcut |
 | **Broadcast schedule** | EiBi transmitters labelled on the waterfall | plus a **SCHEDULE** window that filters them by time, band, language and target and tunes or logs a station; utilities (time signals, VOLMET) labelled and stations starred |
@@ -106,7 +115,7 @@ rest.
 | **Signal ID guide** | — | a **SIG ID** window in the SWL LOG window names what is on the dial — ranked against the mode, frequency, band and passband from a built-in catalogue of ~60 amateur, broadcast, marine, aviation, utility and satellite signals, with a free-text search and a **sigidwiki** link for the sample |
 | **Morse trainer** | — | a **TRAINER** window on the CW panel: text to Morse and back, paced playback with **Farnsworth** spacing, a **Koch drill** that unlocks a character at a time and remembers the score, and a **SEND** pane that reads a real USB paddle (the iambic timing is made in software) |
 | **CW key** | the keyboard straight key | **Settings → CW**: the key is the keyboard's straight-key binding or a **USB paddle**, typed **Straight** / **Iambic A** / **Iambic B**, with a **REVERSE** switch for the paddle. With **KEY THE TRANSMITTER** it keys the radio through the ordinary manual-key path — the same band lockout, watchdog and read-back — iambic and straight; off, it drives only the trainer. Linux desktop for the USB reader |
-| **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio** (Settings → Radio → Transmit controls), so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. A receive-only radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning banner, which switches it to this screen. **Start in SWL mode** in Settings → UI, or **`--swl`**, forces it for every radio |
+| **SWL mode** | — | hides every transmit control and swaps the ham chips (awards) for the listener's — **per radio**, so a listening set and a transceiver can sit side by side; the SPOTS window keeps the receive-only networks and drops only the ham feeds. A receive-only radio (a public SDR, an RTL-SDR) is offered **Listening controls** in its warning banner. Start in SWL mode from Settings → UI, or **`--swl`** |
 | **Per-radio identity** | one station callsign | a **callsign per radio** (Settings → Radio), falling back to the station callsign on the General tab — a CB callsign on the 11 m set and an amateur callsign on the HF rig at the same time |
 | **Simple interface** | — | hides the advanced chips |
 | **Band/mode menu** | one long list, no band/mode rule | **LISTEN / OPERATE** tabs, a **Primary modes** row above the full list, and an **HF / VHF / UHF / ALL** band row. OPERATE greys out (and the engine refuses) a mode that does not apply on the band — AM on the FM broadcast band, WFM on 11 m; LISTEN offers **every mode on every band**. On desktop it can be **docked** beside the waterfall (undock/hide from the panel, toggle from the band chip) |
@@ -134,21 +143,35 @@ offered upstream as [#568](https://github.com/dividebysandwich/sdroxide/pull/568
 (the no-control-link keying fix), with the whole key as
 [#573](https://github.com/dividebysandwich/sdroxide/pull/573).
 
-The full interface: the radio, receiver, display and system controls along the top, the waterfall with its level slider on the right.
+## A look inside
+
+The band and mode menu leads with a **Primary modes** row above the full mode and
+digital lists, so AM/FM/USB/LSB are one click away and everything else is a tab
+away.
 
 ![The band and mode menu, leading with the primary modes](docs/images/04-band-mode-popup.jpg)
 
-*The band/mode menu — a **Primary modes** row above the full mode and digital lists.*
+On 11 m the WSJT-CB exchange runs like FT8 does, with country flags on the
+decode. The FT8/FT4/FT2 panel is the same one amateur operators already know:
 
-![The General settings tab](docs/images/settings-general.jpg)
+![The FT8 panel](docs/images/07-ft8-panel.png)
 
-*Settings → General: station identity, the reception-report identity, IARU region and band plan, the settings file, the SWR guard and the audio devices.*
+For the listener, **SWL mode** hides every transmit control and swaps the ham
+chips for the listener's — a reception log with SINPO, a signal-ID guide, a
+broadcast schedule, and the receive-only spot networks:
+
+![The spots panel](docs/images/14-spots-panel.jpg)
+
+And **Simple UI** hides the advanced chips entirely, leaving tuning, mode,
+volume, squelch, bandwidth, the waterfall, memories and scanning:
 
 ![The simple interface, with the advanced chips hidden](docs/images/simple-ui.jpg)
 
-*Simple UI: the advanced chips hidden, leaving tuning, mode, volume, squelch, bandwidth, the waterfall, memories and scanning.*
+More screenshots — the panadapter, logbook, awards, ADS-B, APRS, the 3-D globe,
+the browser client — are in [`docs/images/`](docs/images).
 
-## What it does
+<details>
+<summary><h2>What it does — the full feature list</h2></summary>
 
 - **Radios** — CAT/audio, CAT/stereo I/Q, TCI (SunSDR), OpenHPSDR P1/P2
   (Hermes Lite 2, Apache Labs), SoapySDR, and native drivers for RTL-SDR,
@@ -186,6 +209,7 @@ The full interface: the radio, receiver, display and system controls along the t
   credentials, control bindings and the logbook under `~/.config/sdroxide-brown/`,
   plus named **station profiles**.
 
+</details>
 ## Installing
 
 Every release carries, for Linux:
@@ -200,7 +224,8 @@ Every release carries, for Linux:
 Windows gets an `.msi` and a portable `.zip`, macOS a `.dmg`. Or build it
 yourself.
 
-## Building
+<details>
+<summary><h2>Building from source</h2></summary>
 
 **Toolchain.** Install Rust with [rustup](https://rustup.rs/), not your
 distribution's `rust`/`cargo`. The workspace is edition 2024 (Rust 1.85+), and
@@ -270,6 +295,8 @@ To bake the client into the binary, build it first, then:
 Without `embed-web`, `--server` still serves native `--connect` clients; pass
 `--web-root crates/sdroxide-web/dist` to serve a Trunk build from disk.
 
+</details>
+
 ## Running
 
 ```sh
@@ -283,7 +310,8 @@ sdroxide --connect 192.168.1.10:4950              # native UI driving a remote s
 sdroxide detects it and renders through OpenGL ES instead, at the cost of about
 one core. `WGPU_BACKEND=vulkan sdroxide` takes Vulkan back where it is steady.
 
-## Startup parameters
+<details>
+<summary><h2>Startup parameters — every command-line flag</h2></summary>
 
 | Flag | Description |
 | --- | --- |
@@ -307,7 +335,10 @@ one core. `WGPU_BACKEND=vulkan sdroxide` takes Vulkan back where it is steady.
 | `--oob-tx` | Lift the amateur-band transmit lockout for this run (licensed out-of-band use; not persisted). |
 | smoke tests | `--tx-tune <SECS>`, `--ft8-cq <SECS>`, `--rade-rx <SECS>` |
 
-## Keyboard and mouse
+</details>
+
+<details>
+<summary><h2>Keyboard and mouse</h2></summary>
 
 Defaults — all of them, plus PTT, band, mode, filter and more, are rebindable on
 the **Controls** tab. The full reference is in the
@@ -324,6 +355,8 @@ On the panadapter: left-click tunes the active VFO, **Shift**+click places the
 second receiver, left-drag pans and tunes, right-drag pans only, the wheel zooms
 around the cursor, and dragging a passband edge or the frequency-scale strip
 resizes the filter or the split.
+
+</details>
 
 ## Contributing, LLM usage, licensing
 
@@ -343,14 +376,60 @@ built program as a whole. The practical difference is AGPL section 13: **running
 conveying, so they must be offered the Corresponding Source.** Running it for
 yourself changes nothing.
 
+## What we took from WSJT-CB
+
+The 11 m side of this fork interoperates with,
+**[WSJT-CB](https://github.com/vash909/WSJT-CB)** — thanks to its developers.
+Their README is a careful description of every convention this fork follows, and
+it is worth reading in full; this is the short list of what was borrowed, and of
+what was not.
+
+**Borrowed — the on-the-air conventions, so a CB station and this station
+interoperate:**
+
+- **The callsign grammar and its acceptance table.** An 11 m identifier is
+  `N{1,3}L{1,2}N{1,3}` — a country prefix, one or two letters, a unit number —
+  plus the compound `N{1,3}L{1,2}/L{2}` form, the four-digit unit behind a
+  one-digit prefix, and the **portable-style modifier suffixes** (`/P`, `/MM`,
+  `/QRP`, an event marker) that their `is_callsign` *widens* the standard rules
+  to accept. Mirrored case for case.
+- **The CB country numbering and names** — the `cb_NNN_to_country` list, and
+  the historical country names it shows ("East Germany", "Czechoslovakia",
+  "Alaska"). The DXCC flag/continent mapping bolted onto each entry is this
+  fork's, so the decode row reuses the same flag machinery as the amateur
+  bands.
+- **The message layouts and etiquette** — the `<HISCALL> MYCALL` identity
+  opener, the one-call free-text answer, the `R±NN` / `RR73` / `73` handling,
+  and answering a CQ on the frequency it was heard on.
+- **The both-hashed, grid-less CB exchange** — when both stations are CB, one
+  call is abbreviated as a 28-bit hash. Their README documents this (third
+  parties may see `<...> 26AT016`) as a protocol behaviour, not a bug; this
+  fork arrived at the same layout independently and implements the same
+  sequence.
+- **The band entry and its default dial** — 11 m is a full two-way band, so
+  the same modes are offered on it as anywhere else, and **FT8 sits on CB
+  channel 26 (27.265 MHz)** as the WSJT-CB community settled, beside the other
+  CB channels the per-country plans list.
+- **The 11-character ceiling, and its consequence.** A CB call travels in clear
+  as a 58-bit base-38 number, and `38^11` is just under `2^58` — so **an 11 m
+  callsign may not exceed 11 characters, and any `/zzz` suffix is counted as
+  part of that**, not added to it. `19DC3733/P` (10) goes out; `19DC373/QRP`
+  (11) is exactly at the limit; `19TST1001/QRP` (13) is not sendable by anyone.
+  **If you are running an activation on 11 m, budget the suffix into the call
+  before you announce it** — the slash counts, so `/P` costs 2, `/QRP` costs 4.
+  This build flags a too-long 11 m call as you type it, in **Settings → General
+  → Callsign**. Amateur callsigns are not affected.
+
+**Not borrowed — this fork's own work:** the decoder is the shared `mfsk-core`
+crate, the DSP is this fork's, and the decoder, packer, QSO sequencer and
+interoperability glue are written here. WSJT-CB was never a dependency — it is a
+protocol this build speaks fluently, not code it runs.
+
 ## Acknowledgements
 
-The 11 m band interoperates with, and follows the framing, callsign conventions
-and CB country numbering of,
-[WSJT-CB](https://github.com/vash909/WSJT-CB) — thanks to its developers — and
-the amateur-side FT8/FT4/FT2 it builds on comes from the WSJT-X project. The
-original program is [sdroxide](https://github.com/dividebysandwich/sdroxide) by
-dividebysandwich; this fork is upstream's work plus the CB and listener
+The amateur-side FT8/FT4/FT2 that 11 m builds on comes from the WSJT-X project.
+The original program is [sdroxide](https://github.com/dividebysandwich/sdroxide)
+by dividebysandwich; this fork is upstream's work plus the CB and listener
 additions. All of it stands on your work.
 
 A special shout-out to the **[Dutch CB Group](https://www.dutchcbgroup.nl/)** and

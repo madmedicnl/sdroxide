@@ -4133,6 +4133,45 @@ everything the sequencer puts on the air changes:
   transceiver, keyed by VOX or CAT. Both are the band's bullet in
   [6.1](#61-general-station-audio-and-remote-access).
 
+**Modifier suffixes are plain WSJT-CB, and they just work.** A station may put
+the usual portable-style suffix on its 11 m call — `19DC373/P`, `/MM`, `/QRP`,
+or an event marker like `/F1` — and this build accepts it, because WSJT-CB does.
+It *widens* the standard callsign rules rather than replacing them, so those
+suffixes ride on a CB identifier unchanged. Nothing has to be switched on, and
+the country and flag on the decode row still resolve from the base call.
+
+> ### ⚠ An 11 m callsign may not exceed 11 characters — including any `/zzz`
+>
+> This is a hard limit of the FT8 callsign field, not a setting and not a
+> limitation of this build: a CB call travels **in clear** as a 58-bit base-38
+> number, and `38^11` is just under `2^58`, so **eleven characters is the
+> ceiling for the whole identifier**. Any implementation refuses a longer one.
+>
+> **The suffix is counted.** `19DC3733/P` is 10 characters and fits.
+> `19TST1001/QRP` is **13** and cannot be sent by anyone — a station announcing
+> it is announcing something that will not go out.
+>
+> **Plan the activation call to this budget before you announce it.** The
+> slash counts too: `/P` costs 2 of the 11, `/F1` costs 3, `/QRP` costs 4, and
+> the grammar allows up to 5 (`/XXXX`). However the call is written, **base
+> plus suffix must come to 11 characters or fewer**:
+>
+> | Activation callsign | Length | Sendable |
+> | --- | --- | --- |
+> | `19DC373` | 8 | yes |
+> | `19DC373/P` | 10 | yes |
+> | `19DC3733/P` | 10 | yes |
+> | `19DC373/QRP` | 11 | yes — exactly at the limit |
+> | `19TST1001/QRP` | 13 | **no** |
+> | `19DCG3733/P` | 11 | yes (needs the wide grammar, below) |
+>
+> The same rule is checked live in **Settings → General**: type a too-long 11 m
+> call there and it is flagged as it is typed, before the first transmission
+> rather than after it.
+>
+> This applies to the **citizens' band only**. An amateur callsign is not held
+> to this and is not flagged.
+
 **The experimental wider CB callsign grammar.** WSJT-CB's identifier shape is
 `N{1,3}L{1,2}N{1,3}` — a country prefix, one or two letters, a unit number — and
 that is what runs by default. The 11 m community has grown past it, and some
@@ -4144,14 +4183,19 @@ wider shape `N{1,3}L{1,3}N{1,4}` — and the matching slash form
 grammar takes is still taken. It is **experimental and off by default**: WSJT-CB
 itself does not accept the wider shape, so switching it on widens what this
 station *hears* and lets it pack a wider call pair, but a call that needs it may
-not be understood by a station running WSJT-CB. Two limits are worth knowing. A
-Type-4 non-standard call can be at most **11 characters** on the wire, and the
-widest shape here is ten, so it fits with a character to spare — the toggle adds
-no new message format. And every non-standard call travels as a shared **22-bit
-hash** (4.2 million values), so the more distinct CB calls there are, the
-likelier two of them collide and resolve to the wrong one; that is a property of
-the FT8 family, not of this setting, and it is why the toggle is a widening and
-not a fix. The wire format is unchanged either way.
+not be understood by a station running WSJT-CB. The toggle is **not** what makes
+modifiers work — those are accepted either way, since they are WSJT-CB's own
+behaviour. Nor does it buy any extra **length**: it changes the *shape* a call
+may have, and the 11-character ceiling above applies exactly as it does with the
+toggle off, so `19DCG3733/P` (11) is sendable and `19TST1001/QRP` (13) is not.
+
+A note on what a CB call looks like on the wire, because it is not a hash and the
+older wording here said it was. A non-standard call is carried **in clear**, as a
+58-bit base-38 number, which is why it is at most 11 characters and why two
+different calls can never be confused for one another. The 22-bit hash belongs to
+only one case — the grid-less layout used when *both* stations are CB, where one
+call is abbreviated — and it is a property of the FT8 family, not of this
+setting.
 
 ### 3.3 PSK31 and RTTY
 

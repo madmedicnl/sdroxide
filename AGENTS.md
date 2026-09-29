@@ -888,15 +888,90 @@ grammar (their first `cb_ok(&str)` sketch could not do that). It merged on
    The `ft8_eu` module itself stays: packing, the eu hash table and the
    exchange parsing (`eu_vhf` in modem.rs) are all still live.
 
+### Modifier suffixes on an 11 m call (fixed 2026-09-29 — read this before the wide grammar)
+
+**WSJT-CB accepts `/P`, `/MM`, `/QRP`, `/F1` on an 11 m call, and so do we
+now.** This is plain WSJT-CB behaviour, not a fork experiment, and nothing has
+to be switched on. Their README says it plainly: the CB regex was used to
+**extend** `Radio::is_callsign` "so CB calls are treated as valid callsigns" —
+they *widened* the standard rules rather than replacing them, so the
+portable-style suffixes the standard rules already knew ride on a CB base call
+unchanged.
+
+**The bug was ours.** The fork's gate was `is_valid_callsign || is_cb_callsign`
+— a *union of two narrow predicates*, where theirs is a *widening*. Neither half
+of ours knew a suffix, so `19DC373/P` was rejected even though `pack77_type4`
+packs it. The fork could **decode the station and then not answer it**, on a
+two-way band. Fixed inside `cb_shape`, so the decode gate, the pack ladder, the
+QSO machine's bare-call recognition and the country lookup all get it through the
+one grammar; no call site changed. No wire change, no `PROTO_VERSION`.
+
+- The suffix is `1..=4` of `A-Z0-9`. That is deliberately the general rule, not
+  a transcription of the ham suffix list, which is open-ended for event callouts
+  and is not ours to pin.
+- **`CB_CALL_MAX_LEN = 11` is now enforced in the grammar**, from the wire
+  rather than from taste: a non-standard call is a 58-bit base-38 number and
+  `38^11 < 2^58`. One character past it, the pack ladder drops the exchange and
+  sends the call alone — pre-existing degradation, not new.
+- **The 11 characters are the WHOLE identifier, suffix included** — this is the
+  part that is easy to get wrong, and the operator has to be told. `pack77_type4`
+  caps `nonstd.len() > 11` on the **whole string**, `/zzz` and all, so
+  `19DC3733/P` (10) and `19DC373/QRP` (11) go out and `19TST1001/QRP` (13) is
+  **unsendable by anyone**. The wide grammar changes the call's *shape*, never
+  its *length* — the ceiling applies identically with the toggle on or off.
+  **Proven on the bench (2026-09-29):** `19DC373/QRP`, `19DC373/P`,
+  `19DC3733/P` and `19DCG3733/P` all transmit; `19TST1001/QRP` does not activate
+  transmit, and that is correct rather than a regression. The last two are
+  wide-grammar shapes, so the operator had the **WIDE CB CALLSIGNS** toggle on.
+  Because an **activation callsign is chosen by typing it**, the rule is
+  enforced where it is typed: `cb_call_length_problem` (`cb_callsign.rs`, with
+  `looks_like_cb_call` — CB calls open with a digit, amateur calls with a
+  letter, which is what keeps the warning off ham operators) drives a live
+  amber line under **Settings → General → Callsign**. It is **CB-only** by
+  construction. Pinned by `the_eleven_character_ceiling_counts_the_suffix`,
+  `the_length_warning_is_citizens_band_only` (types) and
+  `an_over_long_eleven_metre_callsign_is_flagged_as_it_is_typed` (ui). The
+  manual carries it as a boxed rule with a worked table, and the README's
+  WSJT-CB section states it for activation organisers.
+  A too-long 11 m call can still **arrive as free text** and will be shown as an
+  unflagged line: `cb_callsign_in` returns `None` for it, so it gets no country
+  and cannot be answered. That is the honest ceiling, not a display bug.
+- The compound `N{1,3}L{1,2}/L{2}` is a **base shape, not a modifier**; the two
+  are told apart by shape, and `999ZZ/ZZ` still resolves to country 999.
+- A modifier never rescues a base that is not CB-shaped: `G47OXF/P` and
+  `ABC373/P` are still refused.
+- **`cb_country.rs` had its own hand-rolled copy of the shape check**, which is
+  how the two drifted: the copy predated modifiers, so a modified call named no
+  country and lost its flag on the decode row. The duplicate is **deleted** and
+  the country is asked of `is_cb_callsign`. Do not reintroduce a second shape
+  check — that is the bug class.
+
+Tests: `a_modifier_rides_on_a_legal_cb_call`,
+`a_modifier_does_not_need_the_wide_grammar`,
+`a_modified_call_still_fits_the_type4_field` (types);
+`a_modified_call_still_names_its_country`,
+`finds_a_modified_call_in_a_message` (`cb_country`); the modified-call
+assertions in `cb_calls_pass_the_decode_gate` and
+`a_modified_cb_call_can_be_answered` (digi — the last one drives the whole
+`CQ` → identity → `R+12` → `RR73` → `73` sequence through `pack_message`).
+
+**The lesson worth keeping.** An earlier session read the `/LL` compound rule
+off WSJT-CB's README, concluded modifiers were a protocol limitation, and spent a
+long time drafting an upstream issue about it. The premise was false and the
+whole argument rested on it. **The gate being narrower than the thing it
+mirrors is the first hypothesis to test, not the last** — read what the reference
+says it *does*, not only the pattern it quotes.
+
 ### The experimental wide CB callsign grammar (fork, 2026-09-29)
 
-WSJT-CB's grammar is `N{1,3}L{1,2}N{1,3}`, mirrored exactly by
+WSJT-CB's grammar is `N{1,3}L{1,2}N{1,3}`, mirrored by
 `sdroxide_types::is_cb_callsign`. The 11 m community has outgrown it — three
 letter groups and four-digit unit numbers are in use — so
 `is_cb_callsign_wide` adds `N{1,3}L{1,3}N{1,4}` (and the slash form
 `N{1,3}L{1,3}/L{2}`) as an **opt-in, off-by-default** superset. Both are picked
 through `is_cb_callsign_with(call, wide)`; the strict 25-case WSJT-CB table is
-untouched, so the two grammars stay separately pinned.
+untouched, so the two grammars stay separately pinned. A **modifier suffix is not
+part of this** — both grammars accept it, so the toggle buys nothing there.
 
 It is switched by `DigiConfig::cb_wide_callsigns` — appended, so
 `PROTO_VERSION` 180 -> **181** (the field rides `DigiConfig` whole in
@@ -912,8 +987,13 @@ Why it is experimental, and the limits to keep in mind:
   station *hears* and lets it pack a wider pair, but a call that needs it may
   not be understood by a WSJT-CB station. That is the user-facing caveat.
 - **11 characters** is the hard cap for a Type-4 non-standard call
-  (`wsjt77::pack77_type4`), and the widest shape here is ten, so it fits with a
-  character to spare — no new wire format.
+  (`wsjt77::pack77_type4`), and it is the cap for the **whole identifier**,
+  `/zzz` included — see the modifier section above. The widest *base* shape the
+  wide grammar admits is ten, so `19DCG3733` fits and `19DCG3733/P` is exactly
+  at the limit. No new wire format. The same cap is enforced in `cb_shape` as
+  `CB_CALL_MAX_LEN`. An earlier note here claimed the widest shape fitted "with
+  a character to spare" and was wrong once a suffix rode on it — that is what
+  the bench test caught.
 - **A CB callsign is not hashed on the main path — it is carried in the
   clear.** This corrects an earlier claim here, which said the "22-bit hash
   (4.2 M) is shared by every non-standard call, so a larger call set makes
@@ -924,20 +1004,16 @@ Why it is experimental, and the limits to keep in mind:
   every distinct callsign gets a distinct bit pattern. There is no collision,
   and no possibility of one call being decoded as another. The 12-bit hash in
   that function is on the *other*, standard, station — not on the CB call.
-  Checked 2026-09-29 against mfsk-core 0.11's `wsjt77.rs` after a user report
-  argued the opposite; the report is right that this is a protocol question
-  and wrong about the mechanism.
 - The **one** place a CB callsign is hashed is the both-ends-CB, grid-less
   layout (`modem.rs`, the `h1 && h2` overlay), which writes each call as a
-  28-bit `ihashcall(call, 22)`. There a wider call population does marginally
-  raise the odds of two calls colliding, and a collision can only mis-resolve
-  a callsign the receiver has already heard. That is the pre-existing
-  property of that layout, not something the wide grammar introduces.
-- **The real interop cost is interpretation, not corruption.** A wide call
-  reaches the far end as clear text, so it is exactly as decodable as a strict
-  CB call; what a WSJT-CB or WSJT-X station will not do is *act* on it — read
-  it as a callsign, or let you answer it. Nothing about it degrades a third
-  station's decode.
+  28-bit `ihashcall(call, 22)` — the whole call, suffix included, which is what
+  WSJT-X does. There a wider call population does marginally raise the odds of
+  two calls colliding, and a collision can only mis-resolve a callsign the
+  receiver has already heard. That is the pre-existing property of that layout.
+  **This is documented upstream**: WSJT-CB's README has an "Important Note"
+  describing exactly this, third parties seeing `<...> 26AT016`, and calls it
+  "a protocol/encoding behavior, not an AutoSeq bug". We independently arrived
+  at the same design, and the same `genStdMsgs` sequence.
 - The strict grammar's "four-digit unit only behind a one-digit prefix" coupling
   is **dropped** in the wide grammar (confirmed 2026-09-29: any prefix).
 
@@ -949,6 +1025,25 @@ in `cb_calls_pass_the_decode_gate` (digi).
 **Tested and confirmed live on the bench (2026-09-29).** The operator switched
 it on and the wider shape decoded and keyed as intended, so the toggle is
 verified end to end, not only in the unit tests.
+
+**What we took from WSJT-CB, in one place** (asked after the modifier
+misdiagnosis, because it was not written down anywhere):
+1. **The callsign regex and its 25-case acceptance table** — `cb_callsign.rs`.
+2. **The CB country numbering and names** — `cb_country.rs`, their
+   `cb_NNN_to_country` table in `logbook/AD1CCty.cpp`; the DXCC prefix on each
+   entry is ours, added to reuse the flag/continent machinery.
+3. **The message layouts and etiquette** — the `<HISCALL> MYCALL` identity
+   opener, the one-call free-text answer, `R±NN` / `RR73` / `73` handling, and
+   answering a CQ on the frequency it was heard on (`modem.rs`, `qso.rs`).
+4. **The both-hashed, grid-less CB exchange** — the `h1 && h2` overlay and the
+   28-bit `ihashcall`; theirs documents the same thing.
+5. **The 11 m band entry and its default dial** — 11 m is a full two-way band,
+   so every mode is offered on it, and **FT8 sits on CB channel 26
+   (27.265 MHz)** as the WSJT-CB community settled (`CB11_DIALS` in
+   `band_segments.rs`; the band accepts ~25 modes, `Band::M11` in `band.rs`,
+   **not** the four the README used to claim).
+6. **Nothing else.** The decoder is `mfsk-core` 0.11, the DSP is ours, and the
+   grammar is our code — theirs was never a dependency.
 
 ### FT8 runs signal subtraction (2026-09-27)
 
