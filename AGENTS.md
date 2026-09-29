@@ -3,7 +3,10 @@
 > **ALE (issue #262) is mid-flight — read [`ALE-HANDOVER.md`](ALE-HANDOVER.md)
 > first if you are continuing it.** It has the state, the exact capture/decode
 > commands, the fixed RSP1 settings, and the next steps. Everything below is
-> the rest of the fork.
+> the rest of the fork. Upstream ask is open: draft PR
+> [dividebysandwich/sdroxide#598](https://github.com/dividebysandwich/sdroxide/pull/598)
+> (proven RX core + TX primitive) and a comment on issue #262. Experimental
+> release **`v1.9.6_brown.experimental`** names ALE (pre-release).
 
 ## What this repository is
 
