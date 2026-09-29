@@ -22,6 +22,16 @@ use crate::ale_tables::{ENC, ERR, MTABLE, WT};
 pub const ALE_RATE: f64 = 8000.0;
 /// The eight ALE tones, Hz.
 pub const TONES: [f64; 8] = [750.0, 1000.0, 1250.0, 1500.0, 1750.0, 2000.0, 2250.0, 2500.0];
+
+/// Tone index → 3-bit symbol, the waveform's own map from MIL-STD-188-141A
+/// (Appendix A, A.5.1.2, "the represented three bits of data per tone … least
+/// significant bit to the right"): 750 Hz carries `000`, 1000 Hz `001`,
+/// 1250 Hz `011`, 1500 Hz `010`, 1750 Hz `110`, 2000 Hz `111`, 2250 Hz `101`,
+/// 2500 Hz `100`. It is **not** the tone index itself.
+pub const TONE_TO_SYMBOL: [u8; 8] = [0, 1, 3, 2, 6, 7, 5, 4];
+
+/// The inverse map, symbol → tone index, for the transmitter.
+pub const SYMBOL_TO_TONE: [u8; 8] = [0, 1, 3, 2, 7, 6, 4, 5];
 /// Samples per 125-baud symbol at [`ALE_RATE`].
 pub const SAMPLES_PER_SYMBOL: usize = 64;
 /// Golay errors the decoder will correct in one 24-bit codeword.
@@ -234,7 +244,7 @@ pub fn demodulate(audio: &[f32]) -> Vec<u8> {
                 best = k;
             }
         }
-        out.push(best as u8);
+        out.push(TONE_TO_SYMBOL[best]);
     }
     out
 }
@@ -286,7 +296,7 @@ pub fn demodulate_from(audio: &[f32], phase: usize) -> Vec<u8> {
                 best = k;
             }
         }
-        out.push(best as u8);
+        out.push(TONE_TO_SYMBOL[best]);
         p += SAMPLES_PER_SYMBOL;
     }
     out
@@ -400,7 +410,7 @@ pub fn synthesize_word(word: u32, copies: usize, amp: f32) -> Vec<f32> {
     let mut out = Vec::with_capacity(copies * 49 * SAMPLES_PER_SYMBOL);
     for _ in 0..copies {
         for s in transmit_symbols(word) {
-            let f = TONES[s as usize];
+            let f = TONES[SYMBOL_TO_TONE[s as usize] as usize];
             for i in 0..SAMPLES_PER_SYMBOL {
                 let t = i as f64 / ALE_RATE;
                 out.push(amp * (2.0 * std::f64::consts::PI * f * t).cos() as f32);
@@ -471,6 +481,26 @@ mod tests {
         }
     }
 
+    /// The waveform's tone ↔ symbol map, pinned from MIL-STD-188-141A itself.
+    ///
+    /// The round-trip tests above pass under *any* map, because the encoder and
+    /// decoder use the same one — which is exactly how identity survived here
+    /// while real signals did not decode. This test is the one that can tell
+    /// the two apart: 750 Hz carries `000`, 1250 Hz `011`, 1750 Hz `110`,
+    /// 2500 Hz `100` (LSB to the right), i.e. a Gray code, not the index.
+    #[test]
+    fn the_tone_map_is_the_standards_gray_code() {
+        assert_eq!(TONE_TO_SYMBOL, [0, 1, 3, 2, 6, 7, 5, 4]);
+        assert_ne!(TONE_TO_SYMBOL, [0, 1, 2, 3, 4, 5, 6, 7], "identity is not the waveform");
+        for (t, &s) in TONE_TO_SYMBOL.iter().enumerate() {
+            assert_eq!(SYMBOL_TO_TONE[s as usize] as usize, t, "tone {t} <-> symbol {s}");
+        }
+        assert_eq!(TONE_TO_SYMBOL[0], 0b000); // 750 Hz
+        assert_eq!(TONE_TO_SYMBOL[2], 0b011); // 1250 Hz
+        assert_eq!(TONE_TO_SYMBOL[4], 0b110); // 1750 Hz
+        assert_eq!(TONE_TO_SYMBOL[7], 0b100); // 2500 Hz
+    }
+
     #[test]
     fn a_word_parses_to_its_type_and_address() {
         // type = FROM (4), address "ABC" = 0x41,0x42,0x43 in 7-bit fields.
@@ -490,17 +520,11 @@ mod tests {
     #[test]
     fn audio_round_trips_through_the_demodulator() {
         let word = 0x2c_c4c5u32 & 0xff_ffff;
-        let tone_of = |s: u8| TONES[s as usize];
-        let mut audio = Vec::new();
-        for _ in 0..3 {
-            for &s in &transmit_symbols(word) {
-                let f = tone_of(s);
-                for i in 0..SAMPLES_PER_SYMBOL {
-                    let t = i as f64 / ALE_RATE;
-                    audio.push((2.0 * std::f64::consts::PI * f * t).cos() as f32);
-                }
-            }
-        }
+        // Through the real transmitter, so the demodulator has to invert the
+        // actual tone map. A hand-built tone list here would re-encode whatever
+        // map the test assumed and hide a wrong one — which is how identity
+        // survived this suite in the first place.
+        let audio = synthesize_word(word, 3, 1.0);
         let syms = demodulate(&audio);
         let mut rx = AleRx::new();
         let mut got = Vec::new();
@@ -518,16 +542,7 @@ mod tests {
 
     fn synth(word: u32, copies: usize, offset: usize, amp: f32, noise: f32) -> Vec<f32> {
         let mut audio = vec![0.0f32; offset];
-        for c in 0..copies {
-            for &s in &transmit_symbols(word) {
-                let f = TONES[s as usize];
-                for i in 0..SAMPLES_PER_SYMBOL {
-                    let t = i as f64 / ALE_RATE;
-                    audio.push(amp * (2.0 * std::f64::consts::PI * f * t).cos() as f32);
-                }
-            }
-            let _ = c;
-        }
+        audio.extend(synthesize_word(word, copies, amp));
         let mut seed = 0x1234_5678u32;
         for a in audio.iter_mut() {
             seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);

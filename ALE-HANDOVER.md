@@ -36,8 +36,18 @@ CMD / REP. A call is a run of words (`TO`, `FROM`, `TIS`, …). Text: USB.
   `cargo test -p sdroxide-dsp --release ale::` (5 pass, 1 ignored).
 - **NOT proven off-air.** No real signal has decoded yet. The Sigidwiki MP3
   (`2G_ALEaudio.mp3`) did not decode under any tone map or ±150 Hz offset.
-  Tone→symbol map is the **tone index directly** (identity), not Gray —
-  confirmed by the synthetic round-trip.
+  Tone→symbol map: **the standard's Gray code** (`[0,1,3,2,6,7,5,4]`,
+  MIL-STD-188-141A A.5.1.2, LSB to the right: 750→`000`, 1250→`011`,
+  1750→`110`, 2500→`100`). It had been left as **identity** — and the note here
+  used to claim that was right "confirmed by the synthetic round-trip". That
+  reasoning was wrong: an encoder and decoder that share a map round-trip under
+  *any* map, so the test cannot tell identity from Gray. Fixed 2026-09-29 in
+  `demodulate`/`demodulate_from` (`TONE_TO_SYMBOL`) and `synthesize_word`
+  (`SYMBOL_TO_TONE`), pinned by
+  `the_tone_map_is_the_standards_gray_code` — which asserts the map against the
+  standard, not against our own output. The two round-trip tests that broke when
+  the map changed were rebuilt on `synthesize_word` so they cannot re-hide it.
+  **This is the prime suspect for the failure to decode off the air.**
 
 ## The capture (this is where it stood)
 
@@ -81,9 +91,11 @@ The fixed tool works: with defaults at 1.536 Msps, a 10 MHz WWV check gave raw
 rms 0.028 / peak 0.909, and a 11175 kHz run gave raw rms 0.025 / peak 0.996 —
 real energy, at last. Two gotchas seen:
 
-- **The capture is often short.** A 60 s request returned only ~11.5 M samples
-  (~7.5 s); check `stat` size ≈ 8 × rate × seconds and retry/loop if short.
-  `readStream` can stall without the loop noticing the shortfall.
+- **The capture was always short — fixed 2026-09-29.** The tool counted
+  `want = secs × 192000` samples while the stream runs at **1 536 000** samples/s,
+  so every request was silently cut to **1/8** of the time asked for (a "60 s"
+  run gave ~7.5 s). It was never a `readStream` stall. `alecap.c` now uses
+  `secs × 1536000`; a 180 s request comes back a full 180.0 s.
 - **The 1.536 Msps span is 1.5 MHz wide**, so it also pulls in strong SW
   broadcasters hundreds of kHz away (peaks seen at −303, +710, −135, +485 kHz).
   ALE is at the dial ±2.5 kHz; look near 0 offset, don't be fooled by the loud
