@@ -524,6 +524,18 @@ mod tests {
             ..Default::default()
         }));
         cases.push((st, "-log.csv"));
+        let mut st = base(Mode::Jtty);
+        st.jtty = Some(JttyStatus {
+            messages: vec![JttyMessage {
+                at_unix: 1_700_000_000,
+                text: "CQ K1ABC".into(),
+                audio_hz: 1500.0,
+                snr_db: -12,
+                complete: true,
+            }],
+            ..Default::default()
+        });
+        cases.push((st, "-log.txt"));
 
         for (st, suffix) in cases {
             assert!(digi_has_log(&st), "{:?}: the SAVE chip stays grey", st.mode);

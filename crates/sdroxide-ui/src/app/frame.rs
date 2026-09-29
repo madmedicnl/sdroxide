@@ -126,6 +126,47 @@ fn paint_panadapter_chrome(ui: &egui::Ui, area: egui::Rect) {
     crate::chrome::corner_brackets(painter, area, crate::theme::scope().chrome);
 }
 
+/// The "the levels are hiding the picture" hint: a clickable pill centred on
+/// the panadapter, shown only while auto-fit is off and every visible bin sits
+/// on the display floor or ceiling. Returns true when clicked.
+///
+/// A waterfall in that state is indistinguishable from one with no data — the
+/// frame is real, the floor/ceiling are just past everything on it — and the
+/// FIT chip that fixes it lives at the bottom of the Display module, which is
+/// not where anyone is looking at a flat black screen. The fix belongs next to
+/// the symptom, and one click of this pill is the same as switching FIT back on
+/// (`SdroxideApp::fit_levels_now`).
+fn levels_hidden_chip(ui: &mut egui::Ui, area: egui::Rect) -> bool {
+    let galley = ui.painter().layout_no_wrap(
+        "No contrast — click to FIT".to_owned(),
+        egui::FontId::proportional(13.0),
+        egui::Color32::WHITE,
+    );
+    let rect = egui::Rect::from_center_size(area.center(), galley.size() + egui::vec2(24.0, 12.0));
+    let resp = ui.interact(
+        rect,
+        crate::layout::salted_id(ui.ctx(), "levels-hidden-hint"),
+        egui::Sense::click(),
+    );
+    let p = ui.painter_at(rect);
+    p.rect_filled(rect, 5.0, egui::Color32::from_black_alpha(205));
+    if resp.hovered() {
+        p.rect_stroke(
+            rect,
+            5.0,
+            egui::Stroke::new(1.0, crate::theme::CYAN()),
+            egui::StrokeKind::Inside,
+        );
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    p.galley(rect.center() - galley.size() / 2.0, galley, egui::Color32::WHITE);
+    resp.on_hover_text(
+        "The display floor/ceiling are past everything on screen, so the waterfall is one flat \
+         colour. Click to fit them to what the radio is hearing.",
+    )
+    .clicked()
+}
+
 /// A short note centred on the panadapter, over a dark pill so it reads on any
 /// waterfall. Used for the ATS Mini's tune-in-flight line, which belongs where
 /// an audio-only source's eye already is.
@@ -793,6 +834,10 @@ impl eframe::App for SdroxideApp {
                         self.view.auto_fit = false;
                     }
                     paint_panadapter_chrome(ui, area);
+                    if self.levels_hidden(now) && levels_hidden_chip(ui, spec_area) {
+                        self.view.auto_fit = true;
+                        self.fit_levels_now(now);
+                    }
                 });
             }
             // Only between two things: with the panadapter switched off there
@@ -1041,6 +1086,10 @@ impl eframe::App for SdroxideApp {
                         self.view.auto_fit = false;
                     }
                     paint_panadapter_chrome(ui, area);
+                    if self.levels_hidden(now) && levels_hidden_chip(ui, spec_area) {
+                        self.view.auto_fit = true;
+                        self.fit_levels_now(now);
+                    }
                 });
             }
             if show_panel {

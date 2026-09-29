@@ -52,6 +52,12 @@ const FIT_MIN_GAP_S: f64 = 5.0;
 /// window in.
 const FIT_SETTLE_S: f64 = 0.75;
 
+/// How long the picture has to stay uniformly at the floor or the ceiling,
+/// with auto-fit off, before the panadapter says so over the waterfall. Long
+/// enough not to blink on a single dead frame, short enough that nobody has to
+/// stare at a flat block wondering whether the radio has stopped.
+const LEVELS_HIDDEN_S: f64 = 1.2;
+
 /// How often the levels are measured, and how often a glide steps.
 ///
 /// Longer than [`CFG_DEBOUNCE_S`], and that is the whole reason for the number:
@@ -94,6 +100,22 @@ fn hash_call(s: &str) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     s.hash(&mut h);
     h.finish()
+}
+
+/// Whether a slice of drawn bins is uniformly at one end — every bin on the
+/// floor or every bin on the ceiling, so the picture is a flat block of one
+/// colour that carries no information.
+///
+/// This is what a waterfall that has "gone black" actually is: the frame is
+/// real, the floor/ceiling are simply past everything on it (or below it), and
+/// every bin clamps to the same value. A slice too short to judge answers
+/// `false`, as does one with even a single signal in it — one visible carrier
+/// is a picture, not a flat block.
+fn saturated_bins(bins: &[u8]) -> bool {
+    if bins.len() < 16 {
+        return false;
+    }
+    bins.iter().all(|&b| b <= 1) || bins.iter().all(|&b| b >= 254)
 }
 
 /// Pick `(floor, ceil)` dB for best waterfall contrast from a frame's u8
@@ -162,6 +184,10 @@ pub(in crate::app) struct AutoFit {
     /// elapse or the view to settle. Kept rather than dropped, so a band change
     /// that lands inside the interval is fitted late instead of never.
     pending: bool,
+    /// When the picture first went uniformly black or white with auto-fit off.
+    /// `None` while the display carries information, or while auto-fit is on
+    /// and would be about to fix it itself.
+    hidden_since: Option<f64>,
 }
 
 /// What an automatic fit is a fit *of*: the visible window, the two numbers the
@@ -745,6 +771,19 @@ impl SdroxideApp {
     /// the emitted frame carries slack beyond the view. `None` when there is no
     /// frame to measure yet.
     fn wanted_levels(&self) -> Option<(f32, f32)> {
+        let (slice, floor, ceil) = self.visible_bins()?;
+        pick_levels(slice, floor, ceil)
+    }
+
+    /// The bins the operator can actually see: the slice of the current frame
+    /// inside the view window, or the whole frame when the window does not
+    /// intersect it — together with the frame's own `[db_floor, db_ceil]`
+    /// mapping, which is what its u8 bins stand for. `None` when there is no
+    /// frame to measure yet, or it is degenerate.
+    ///
+    /// Shared so the fit and the "levels are hiding everything" check always
+    /// look at exactly the same bins.
+    fn visible_bins(&self) -> Option<(&[u8], f32, f32)> {
         let f = self.frame.as_ref()?;
         let n = f.bins.len();
         if n == 0 || f.span_hz <= 0.0 {
@@ -755,7 +794,33 @@ impl SdroxideApp {
         let i_lo = (to_idx(self.view.view_lo_hz).floor().max(0.0) as usize).min(n);
         let i_hi = (to_idx(self.view.view_hi_hz).ceil().max(0.0) as usize).min(n);
         let slice = if i_hi > i_lo { &f.bins[i_lo..i_hi] } else { &f.bins[..] };
-        pick_levels(slice, f.db_floor, f.db_ceil)
+        Some((slice, f.db_floor, f.db_ceil))
+    }
+
+    /// Whether the visible span is uniformly at one end, so the waterfall reads
+    /// as a flat block — see [`saturated_bins`].
+    fn display_saturated(&self) -> bool {
+        self.visible_bins().is_some_and(|(slice, _, _)| saturated_bins(slice))
+    }
+
+    /// Track how long the picture has been uniformly black or white with
+    /// auto-fit off. Runs every frame, whether or not auto-fit is on, so
+    /// switching auto-fit off on an already-flat display starts the clock
+    /// rather than waiting for a fit that will never come.
+    fn note_levels_hidden(&mut self, now: f64) {
+        let hidden = !self.view.auto_fit && self.display_saturated();
+        match (hidden, self.fit.hidden_since) {
+            (false, _) => self.fit.hidden_since = None,
+            (true, None) => self.fit.hidden_since = Some(now),
+            (true, Some(_)) => {}
+        }
+    }
+
+    /// Whether the panadapter should say, over the picture, that the levels are
+    /// hiding everything. Only after the state has lasted a moment, so a single
+    /// dead frame on a band change does not flash a hint.
+    pub(in crate::app) fn levels_hidden(&self, now: f64) -> bool {
+        self.fit.hidden_since.is_some_and(|t| now - t >= LEVELS_HIDDEN_S)
     }
 
     /// Fit the floor/ceiling now, on the operator's say-so (the FIT chip): it
@@ -821,6 +886,10 @@ impl SdroxideApp {
             // last session left in the settings file.
             self.fit.pending |= self.view.auto_fit;
         }
+        // Ahead of the auto-fit gate: the "levels are hiding everything" clock
+        // has to run while auto-fit is *off*, which is the only time the hint
+        // is warranted.
+        self.note_levels_hidden(now);
         if !self.view.auto_fit {
             self.fit.pending = false;
             self.fit.gliding = false;
@@ -1057,8 +1126,25 @@ mod tests {
     use super::{
         AutoFit, FIT_ARRIVED_DB, FIT_MIN_GAP_S, FIT_SETTLE_S, FIT_STEP_S, average_in,
         base_fft_for_rate, fit_due, glide_step, levels_drifted, pick_levels,
-        refit_on_window_growth, slack_viewport,
+        refit_on_window_growth, saturated_bins, slack_viewport,
     };
+
+    /// The "levels are hiding everything" test: a slice that is *all* at one
+    /// end is a flat block and warrants the hint; anything with a signal in it
+    /// is a picture, however dark, and does not. A slice too short to judge is
+    /// not evidence either way.
+    #[test]
+    fn only_a_uniformly_flat_span_counts_as_saturated() {
+        assert!(saturated_bins(&[0u8; 64]), "an all-floor span is flat black");
+        assert!(saturated_bins(&[255u8; 64]), "an all-ceiling span is flat white");
+        assert!(!saturated_bins(&[0u8; 8]), "too short to mean anything");
+        let mut one_signal = [0u8; 100];
+        one_signal[42] = 180;
+        assert!(!saturated_bins(&one_signal), "one carrier is still a picture");
+        let mut one_dip = [255u8; 100];
+        one_dip[7] = 20;
+        assert!(!saturated_bins(&one_dip), "and so is one gap in a blown-out span");
+    }
 
     /// The six sample rates one KiwiSDR reported across six connections. A view
     /// fitted to any of them must still read as "the whole passband" against
