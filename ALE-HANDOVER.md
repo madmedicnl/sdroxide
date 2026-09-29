@@ -1,0 +1,106 @@
+# ALE (issue #262) — handover
+
+State as of 2026-09-29. Read this top-to-bottom before touching ALE; it says
+what is proven, what is not, and the exact commands.
+
+## What ALE is / the signal
+
+MIL-STD-188-141A **2G ALE**. 8-ary FSK, **125 baud**, tones **750–2500 Hz,
+250 Hz apart**, 3 bits/symbol. A **word** is 24 bits = `3-bit type + 21-bit
+payload` (three 7-bit characters from `A–Z 0–9 space @ ? . - /`); Golay(24,12)
+over the two 12-bit halves → 48 bits, bit-interleaved + 1 stuff → 49, and each
+word sent **three times**. Word types: DATA / THRU / TO / TWS / FROM / TIS /
+CMD / REP. A call is a run of words (`TO`, `FROM`, `TIS`, …). Text: USB.
+
+## Where the code is
+
+- **Fork `main`, commit `7bd1838a`** — ALE wired as a mode (test build).
+  - `crates/sdroxide-dsp/src/ale.rs` — demod + FEC + word parse + `decode_burst`.
+  - `crates/sdroxide-dsp/src/ale_tables.rs` — Golay/interleave tables
+    (NTIA/ITS, US Government, public domain — provenance in the header).
+  - `crates/sdroxide-types/src/ale.rs` — `AleMessage` / `AleStatus`.
+  - `crates/sdroxide-digi/src/ale_controller.rs` — resamples 48k→8k, scans,
+    de-dupes, writes `ale.log`.
+  - `crates/sdroxide-ui/src/app/panels/ale.rs` — the WORDS panel.
+  - `Mode::Ale` appended (discriminant 53); `DigiStatus.ale`; `PROTO_VERSION`
+    **183**. Receive only.
+- **Upstream draft PR #598**, branch `upstream-pr/ale` (off `upstream/main`) —
+  carries only the proven decoder core + front end (`ale.rs`, `ale_tables.rs`),
+  NOT the mode wiring. Fold the wiring in once ALE decodes on the air.
+
+## What is proven, and what is not
+
+- **Proven:** the FEC. `transmit_symbols` → synthesized 8 kHz tones →
+  `demodulate` → `AleRx` returns the exact 24-bit word; and `decode_burst`
+  finds the symbol clock with a deliberate **offset and noise**. Tests:
+  `cargo test -p sdroxide-dsp --release ale::` (5 pass, 1 ignored).
+- **NOT proven off-air.** No real signal has decoded yet. The Sigidwiki MP3
+  (`2G_ALEaudio.mp3`) did not decode under any tone map or ±150 Hz offset.
+  Tone→symbol map is the **tone index directly** (identity), not Gray —
+  confirmed by the synthetic round-trip.
+
+## The capture (this is where it stood)
+
+The RSP1 needs the app **closed** (SDRplay API is single-client). Throwaway
+tool at `/tmp/opencode/alecap.c` (+ compiled `alecap`); build with
+`gcc -O2 alecap.c -o alecap -lSoapySDR`.
+
+**Critical setting:** do **not** call `setGain`/`setGainMode` — use device
+defaults. Earlier captures set gain and came back as noise (rms ~0.005, flat);
+with defaults, WWV at 10 MHz gave rms 0.028, peak 0.909. Match the app's own
+rate, **1.536 Msps**.
+
+```
+./alecap 11175000 60 /tmp/opencode/live.iq.f32     # 11175, 8992, 15016 kHz USB
+```
+
+Demodulate IQ → 8 kHz audio (Python):
+
+```python
+import numpy as np
+from scipy.signal import butter, sosfilt, resample_poly
+iq = np.fromfile('live.iq.f32', np.float32)
+x  = iq[0::2].astype(np.float64)                    # Re = USB audio above dial
+x  = sosfilt(butter(6,[400,3000],'bandpass',fs=192000,output='sos'), x)
+a  = resample_poly(x, 1, 24)                        # 192k -> 8k
+a  = (a/ (np.abs(a).max()+1e-9) *0.9).astype(np.float32)
+a.tofile('live8k.f32')                              # raw f32le, 8 kHz mono
+```
+
+Then decode with the ignored test:
+
+```
+cd /home/druid/sdroxide
+SDROXIDE_ALE_SAMPLE=/tmp/opencode/live8k.f32 \
+  cargo test -p sdroxide-dsp --release ale::tests::an_off_air_recording_decodes -- --ignored --nocapture
+```
+
+## Immediate next steps
+
+1. **Capture 11175/8992 with the fixed tool** and run the steps above. If words
+   appear, the front end is proven and the mode is done; if not, this is the
+   real signal to debug against (the last live capture decoded 0, but it was
+   noise — the fixed capture is the first real test).
+2. If it fails, the suspects are, in order: (a) symbol-clock/phase selection,
+   (b) tone-frequency offset (nature of the RX audio), (c) the `ale::decode_burst`
+   per-burst segmentation. Debug in the scratch first; only change `ale.rs` once
+   a real burst decodes.
+3. On success: fold the mode wiring into PR #598 (or a follow-up PR), and record
+   the on-air confirmation in `AGENTS.md` / `ROADMAP.md`.
+
+## Test build (already installed)
+
+`~/.cargo/bin/sdroxide` (v1.9.6_brown, PROTO 183). Start with `sdroxide`; mode
+**ALE** is in the DIGITAL row (use the LISTEN tab if greyed under OPERATE).
+Panel = **WORDS**; words also append to `~/.config/sdroxide-brown/ale.log`.
+
+## Detail worth not re-deriving
+
+- The reference is `dB-SPL/ALELite` (`SourceALE/ALEDoc.cpp` `RxFEC`/`DeGolay`/
+  `TxFEC`, `SourceALE/ALEConstants.h`). Its tables are the standard MIL-STD
+  ones; the code is NTIA/ITS (public domain). PC-ALE is unreliable — its tone
+  list is wrong (750–1625/125 Hz).
+- The GitHub repo `madmedicnl/sdroxide-brown` (origin) is the fork; tags
+  `vX.Y.Z_brown`. Upstream PRs push from `origin` too (it is the fork of
+  `dividebysandwich/sdroxide`). Homebrew is `opencode-go/deepseek-v4.1-flash`.
+- Rebuild/install: `cargo build --release && cp target/release/sdroxide ~/.cargo/bin/`.
