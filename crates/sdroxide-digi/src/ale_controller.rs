@@ -17,9 +17,9 @@ use sdroxide_types::{
 use crate::{DigiAction, DigiEngine};
 
 /// Audio window scanned, in seconds.
-const WINDOW_S: f64 = 5.0;
+const WINDOW_S: f64 = 3.0;
 /// How much new audio accumulates before the window is scanned again.
-const SCAN_STEP_S: f64 = 0.5;
+const SCAN_STEP_S: f64 = 1.0;
 /// How long a decoded word suppresses a repeat, in seconds.
 const DEDUP_TTL_S: f64 = 10.0;
 

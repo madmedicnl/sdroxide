@@ -237,17 +237,37 @@ pub fn demodulate(audio: &[f32]) -> Vec<u8> {
     out
 }
 
+/// The DFT basis for the eight tones over one symbol, `(cos, sin)` per sample.
+///
+/// Computed once. Calling `sin`/`cos` per sample per tone in the hot path was
+/// the waterfall stutter: a scan runs this over every window of every phase,
+/// so the trig calls dominated the engine thread and stalled the picture.
+fn basis() -> &'static [[(f32, f32); SAMPLES_PER_SYMBOL]; 8] {
+    use std::sync::OnceLock;
+    static BASIS: OnceLock<[[(f32, f32); SAMPLES_PER_SYMBOL]; 8]> = OnceLock::new();
+    BASIS.get_or_init(|| {
+        let mut b = [[(0.0f32, 0.0f32); SAMPLES_PER_SYMBOL]; 8];
+        for (k, &f) in TONES.iter().enumerate() {
+            for (i, slot) in b[k].iter_mut().enumerate() {
+                let ph = -2.0 * std::f64::consts::PI * f * i as f64 / ALE_RATE;
+                *slot = (ph.cos() as f32, ph.sin() as f32);
+            }
+        }
+        b
+    })
+}
+
 /// The eight tone energies of one 64-sample window.
 fn window_energies(win: &[f32]) -> [f64; 8] {
+    let b = basis();
     let mut e = [0.0f64; 8];
-    for (k, &f) in TONES.iter().enumerate() {
-        let (mut re, mut im) = (0.0f64, 0.0f64);
+    for (k, row) in b.iter().enumerate() {
+        let (mut re, mut im) = (0.0f32, 0.0f32);
         for (i, &s) in win.iter().enumerate() {
-            let ph = -2.0 * std::f64::consts::PI * f * i as f64 / ALE_RATE;
-            re += f64::from(s) * ph.cos();
-            im += f64::from(s) * ph.sin();
+            re += s * row[i].0;
+            im += s * row[i].1;
         }
-        e[k] = re * re + im * im;
+        e[k] = f64::from(re) * f64::from(re) + f64::from(im) * f64::from(im);
     }
     e
 }
@@ -293,13 +313,16 @@ pub fn timing_metric(audio: &[f32], phase: usize) -> f64 {
 
 /// The phase whose windows best line up with the symbols.
 pub fn best_phase(audio: &[f32]) -> usize {
-    (0..SAMPLES_PER_SYMBOL)
-        .max_by(|&a, &b| {
-            timing_metric(audio, a)
-                .partial_cmp(&timing_metric(audio, b))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-        .unwrap_or(0)
+    let mut best = 0usize;
+    let mut best_v = f64::NEG_INFINITY;
+    for p in 0..SAMPLES_PER_SYMBOL {
+        let v = timing_metric(audio, p);
+        if v > best_v {
+            best_v = v;
+            best = p;
+        }
+    }
+    best
 }
 
 /// Decode a burst of 8 kHz audio into the ALE words it carries, collapsing the
