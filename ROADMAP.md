@@ -338,14 +338,23 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
 8. **UAT 978 MHz ADS-B** (the US 978 MHz sibling; the wideband-lane pattern
    already exists). `dump978-fa` (BSD-2). Moderate (RS FEC + a 2 Msps lane).
    **Not started.**
+9. **Inmarsat** (the L-band maritime/aero satellite downlink — Aero, STD-C/EGC
+   and the classic voice). Asked for upstream as **#187**. A listener's classic
+   target, and the one item here that is a **wideband-lane** decoder rather than
+   a 12 kHz audio mode: the L-band downlink is a different front end from HF, so
+   it needs the ADS-B-style wide lane plus its own demodulators. The reachable
+   targets are **STD-C/EGC** text and **Aero**; a SatDump-derived chain is the
+   reference. Higher effort and a new research line. **Not costed, not
+   started** — added at the operator's request (2026-09-29).
 
 **Not recommended.** The **DMR/D-STAR/YSF/P25/NXDN/TETRA** family (GopherTrunk,
 Apache-2.0, and DSD-FME, GPL-3) is high effort *and* its AMBE/AMBE+2 vocoder is
 patent-encumbered — M17 above avoids both. **VARA** is proprietary with no open
 codec; **PACTOR**'s only open attempt is AGPL, incompatible with this GPL-3
 program. **MFSK16/Contestia/DominoEX/Throb** are close cousins of modes already
-present and only complete in fldigi (GPL-3), so low urgency. L-band Inmarsat /
-Aero / Iridium need a front end most listeners do not have.
+present and only complete in fldigi (GPL-3), so low urgency. L-band **Iridium**
+needs a front end most listeners do not have (Inmarsat, the reachable L-band
+target, is item 9).
 
 ## Phase 4 — polish
 
