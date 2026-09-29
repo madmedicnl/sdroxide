@@ -140,6 +140,30 @@ licensed/utility system; the fork's licence-free transmit is 11 m CB, so ALE TX
 is for the operator's own testing on an authorised channel only. **Do RX first**:
 none of this is worth wiring until a real off-air burst decodes.
 
+## Experimental release naming ALE (recipe — not yet run)
+
+1. Bump `Cargo.toml` `[workspace.package] version` 1.9.6 → 1.9.7; refresh
+   `Cargo.lock` with `cargo metadata --format-version 1 >/dev/null`; commit.
+2. Build the release notes (lead with the ALE experimental line), then
+   **pre-create** it so the workflow only uploads assets into it:
+   ```
+   gh release create v1.9.7_brown --repo madmedicnl/sdroxide-brown \
+     --title "SDR Oxide Brown v1.9.7_brown (experimental)" \
+     --notes-file /tmp/opencode/rel-1.9.7.md --prerelease --draft
+   ```
+   Notes should include, near the top:
+   `**Experimental:** ALE (MIL-STD-188-141A 2G) receive — decode may be
+   unreliable; not yet proven off the air.`
+3. `git tag -a v1.9.7_brown -m "SDR Oxide Brown v1.9.7" && git push origin v1.9.7_brown`
+   (the tag triggers the release workflow).
+4. When the run is green: `gh release edit v1.9.7_brown --draft=false` (keeping
+   `--prerelease` leaves `/releases/latest` on a stable tag).
+
+Upstream feedback already asked: draft **PR #598** retitled "2G ALE receiver +
+TX primitive (experimental, draft)", body asks whether a 2G ALE RX is wanted and
+whether DSP-first is the right shape. If the maintainer declines, ALE stays
+fork-only — label the release experimental regardless.
+
 ## Detail worth not re-deriving
 
 - The reference is `dB-SPL/ALELite` (`SourceALE/ALEDoc.cpp` `RxFEC`/`DeGolay`/
