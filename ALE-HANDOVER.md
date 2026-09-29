@@ -115,6 +115,31 @@ used /24 for the old 192 kSPS attempts; use `resample_poly(x, 1, 192)` at
 **ALE** is in the DIGITAL row (use the LISTEN tab if greyed under OPERATE).
 Panel = **WORDS**; words also append to `~/.config/sdroxide-brown/ale.log`.
 
+## TX (prepared, not wired)
+
+The **DSP transmit primitive is in**: `ale::synthesize_word(word, copies, amp)`
+in `crates/sdroxide-dsp/src/ale.rs` renders a word's 8-FSK tones at 8 kHz
+(`copies = 3` for an on-air word), and `a_synthesized_word_decodes_back` proves
+it round-trips through `decode_burst`.
+
+What remains to actually transmit, cheapest first:
+
+1. **Controller one-shot** — mirror `JttyController`: fields `tx_audio`,
+   `tx_pos`, `keyed`; `set_tx_word(w)` fills `tx_audio = synthesize_word(w, 3, 0.5)`;
+   `tx_burst_active`; `fill_tx_block` plays it once; `tx_peak = 1.0`;
+   `tx_rate = 8000.0`; `on_burst_done` unkeys. (Fallback `tx_rate` is 48 kHz;
+   override it or the engine plays the burst at the wrong speed.)
+2. **UI** — a TX row: pick a type (TO/FROM/TIS…), type a 3-character address
+   (ALE-64 set), SEND. Build the 24-bit word `type | c0<<3 | c1<<10 | c2<<17`.
+3. **Engine** already routes `DigiTxText`/`DigiTxActive`; no new command.
+
+**Scope warning.** This is only the *physical layer*: one word, on demand. A
+real ALE **call is a protocol** — the `TO`/`FROM`/`TIS` sequence, sounding,
+and the ARQ handshake — and is not attempted here. Also ALE is a
+licensed/utility system; the fork's licence-free transmit is 11 m CB, so ALE TX
+is for the operator's own testing on an authorised channel only. **Do RX first**:
+none of this is worth wiring until a real off-air burst decodes.
+
 ## Detail worth not re-deriving
 
 - The reference is `dB-SPL/ALELite` (`SourceALE/ALEDoc.cpp` `RxFEC`/`DeGolay`/
