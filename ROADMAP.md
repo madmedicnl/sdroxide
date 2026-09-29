@@ -376,6 +376,17 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    its tables to validate only, and derive the Golay generator and interleaver
    for the shipped code.)
 
+   **Core proven synthetically (2026-09-29).** ALE audio synthesized from the
+   reference `TxFEC` (a known 24-bit word → 49 symbols → 8-FSK tones) runs
+   through the Python demod (8 tone correlators, 64-sample windows, **identity**
+   tone→symbol map) and `RxFEC`, and the exact word comes back **three times**.
+   So the **demod, interleaver and Golay are all correct**; the tone→symbol map
+   is the tone index directly, not Gray. The off-air MP3 still does not decode
+   with this front end (no clock/AGC handling, lossy audio), so that sample
+   stays a weaker check than the synthetic round-trip and a live capture. Next:
+   port it to Rust (`sdroxide-dsp`, tables derived clean-room), validate on the
+   synthetic vector, then a live RSP1 capture before offering it upstream.
+
    **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
    `Signal file` (not an image, which is why the API's `images` list missed it)
    is **`https://www.sigidwiki.com/images/a/ab/2G_ALEaudio.mp3`** — 30 s of real
