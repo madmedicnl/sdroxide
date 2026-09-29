@@ -383,6 +383,13 @@ impl SdroxideApp {
         #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
         self.ensure_cw_key(use_usb && self.cw_straight && tx_ok);
         if self.cw_straight && tx_ok && (use_usb || self.focused) {
+            // Poll the key every frame while it is armed rather than only when
+            // an event wakes egui: key-down is edge-triggered and arrives as an
+            // event, but a straight key is *held*, and its release has to be
+            // seen promptly too or the element runs on. The keyboard key has no
+            // timer thread of its own — the USB paddle does (`cw_key.rs`) — so
+            // the frame is its only clock.
+            ui.ctx().request_repaint();
             let down = if use_usb {
                 #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
                 {
