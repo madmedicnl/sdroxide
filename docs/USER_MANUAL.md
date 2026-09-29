@@ -3666,6 +3666,31 @@ The panel has two halves:
   Neither filter ever hides a message addressed to your own station: a station
   calling you is not calling CQ, and may well be a dupe, but it is the one row
   in the list you owe an answer to.
+  The **−** button at the right of a row mutes that station for the rest of the
+  session. It is the button for the station you have had enough of — a CB
+  frequency full of one machine, a pile-up calling the same station over and
+  over, the net you are not working — and it is drawn for any decode that names
+  a station, whether or not there is a sequencer behind the row, so a listener
+  watching a busy band can use it too. Once muted, that station's **new decodes
+  stop appearing anywhere**: not as rows in the list, not as dots on the map,
+  not as paths on the propagation charts. It does not sound the audible alerts,
+  is not read out, and is never offered to **AUTO** as one to answer. Two things
+  it deliberately does *not* do: it sends nothing on the station's behalf, and
+  it does not touch spotting or the online logbooks, so a station you have muted
+  is still uploaded if you work it by hand.
+  The list is memory only — there is no file and no saved copy, so **closing
+  sdroxide brings every station back** and nothing stays hidden because of
+  something pressed by accident one evening. That is also the fastest way out of
+  it. Within the session there are two more: press **−** again on the same
+  station's row to unmute it, or press the **N ignored · clear** chip in the
+  DECODES header to unmute everyone at once. The chip only appears while
+  something is muted, and hovering it lists who. Rows already on screen when
+  you press **−** are dimmed and badged **MUTED** rather than vanishing —
+  enough to see that the press took, and the way to change your mind. They are
+  the only thing left of that station, and nothing new arrives to replace them,
+  so they fade out of the list by themselves. You can still tune to a dimmed
+  row and still **REPLY** to it: muting is about what interrupts you, not about
+  refusing to answer.
   **Changing band empties the list**, along with the callsign boxes on the
   waterfall, the dots on the world map and any stations you had marked to work.
   A decode records the audio tone it arrived on and nothing about the dial, so

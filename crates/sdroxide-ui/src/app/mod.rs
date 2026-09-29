@@ -29,6 +29,7 @@ pub(in crate::app) mod drm;
 pub(in crate::app) mod frame;
 pub(in crate::app) mod hd;
 pub(in crate::app) mod hfdl;
+pub(in crate::app) mod ignore;
 pub(in crate::app) mod ism;
 pub(in crate::app) mod konami;
 pub(in crate::app) mod logbook;
@@ -608,6 +609,15 @@ pub struct SdroxideApp {
     /// an older decode was heard on.
     digi_decode_dials: Vec<f64>,
     digi_status: Option<DigiStatus>,
+    /// Callsigns muted for this session, from a decode row's **−** button.
+    ///
+    /// Deliberately a `HashSet` in the app and nothing more: no file, no wire
+    /// type, no schema, and no `PROTO_VERSION`. A memory list is cheaper to
+    /// run and to build than a persisted one, and it cannot leave a station
+    /// permanently hidden because of a press made by accident. Filtered at
+    /// ingress — see [`ignore`] — so a muted station is out of the list, the
+    /// alerts, the read-out and auto mode at once.
+    session_ignored: ignore::Ignored,
     /// PSK/RTTY outgoing text buffer (UI-owned; streamed to the engine, which
     /// reports back how many characters have been sent so we colour them green).
     text_tx: String,
@@ -1630,6 +1640,7 @@ impl SdroxideApp {
             digi_decodes: Vec::new(),
             digi_decode_dials: Vec::new(),
             digi_status: None,
+            session_ignored: ignore::Ignored::new(),
             text_tx: String::new(),
             qso_log: load_qso_log(storage),
             swl_log: load_swl_log(storage),

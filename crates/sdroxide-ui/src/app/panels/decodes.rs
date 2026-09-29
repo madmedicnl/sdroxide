@@ -48,6 +48,14 @@ fn is_ft8_or_ft4(mode: &str) -> bool {
         || m.eq_ignore_ascii_case("FT2")
 }
 
+/// The left edge of the leftmost of a decode row's own buttons, so the row
+/// body's click area can stop short of them — otherwise the full-row
+/// interaction sits on top of the buttons and swallows their clicks. `None`
+/// when the row drew none.
+fn buttons_left(bs: [&Option<egui::Response>; 3]) -> Option<f32> {
+    bs.iter().filter_map(|r| r.as_ref().map(|r| r.rect.left())).reduce(f32::min)
+}
+
 impl SdroxideApp {
     /// A small confirmation, beside a completed QSO, that the contact reached
     /// the online logbooks it was set to be uploaded to — or a red warning that
@@ -227,6 +235,24 @@ impl SdroxideApp {
                 .clicked()
             {
                 new_only = !new_only;
+            }
+            // The session ignore list, with the one-click way back out of it.
+            // Beside the other filters because that is exactly what it is — a
+            // fourth way of reading the list — and drawn only when something is
+            // in it, so the row costs nothing on an ordinary evening.
+            let n_ignored = self.session_ignored.len();
+            if n_ignored > 0 {
+                ui.add_space(8.0);
+                if crate::chrome::chip(
+                    ui,
+                    false,
+                    RichText::new(format!("{n_ignored} ignored · clear")).size(10.0),
+                )
+                .on_hover_text(self.ignored_hover())
+                .clicked()
+                {
+                    self.clear_ignored();
+                }
             }
         });
         if (sort_by, sort_desc, single, cq_only, new_only) != was {
@@ -438,6 +464,9 @@ impl SdroxideApp {
         // Staged preview change: `None` = no click this frame; `Some(v)` =
         // replace the preview with `v` (`Some(None)` clears it).
         let mut new_preview: Option<Option<(String, (f64, f64))>> = None;
+        // Staged mute press, for the same reason: the row loop holds borrows of
+        // `self`, so the set is written once the list has been drawn.
+        let mut ignore_toggle: Option<String> = None;
         // Location of the row hovered this frame → yellow dot on the map.
         let mut hover_ll: Option<(f64, f64)> = None;
         let cq_only = self.ui_settings.decode_cq_only;
@@ -462,6 +491,12 @@ impl SdroxideApp {
         // decodes for the per-row novelty lookups.
         self.log_index();
         let log_ix = &self.log_index_cache.as_ref().expect("just refreshed").1;
+        // Stations muted this session, read once for the whole list — each row
+        // asks the same question of the same set. Taken after `log_index()`,
+        // which needs the app mutably. The press that changes the set lands
+        // after the row loop, so the row the operator hit dims on the next
+        // frame along with the header's count.
+        let ignored_set = &self.session_ignored;
         // Filter (CQ-only / new-only) and precompute distance for sorting and
         // display. Entries stay newest-turn-first; same-slot decodes are
         // contiguous in the list. A "CQ DX" from a station we're local to is not
@@ -598,17 +633,33 @@ impl SdroxideApp {
                         .unwrap_or_else(|| if d.free_text { "TEXT".into() } else { "?".into() });
                     // What this station would be worth working: one badge, and
                     // a dupe fades the row back so the new ones carry the eye.
-                    let (badge, badge_col) = match novelty.highlight() {
-                        Some(sdroxide_types::Highlight::NewDxcc) => ("DXCC", crate::theme::PINK()),
-                        Some(sdroxide_types::Highlight::NewDxccBand) => {
-                            ("BAND", crate::theme::YELLOW())
+                    //
+                    // A muted station's badge says MUTED instead, taking the
+                    // slot a highlight would have had: the row is on screen to
+                    // be taken back, not to be worked, and the operator has to
+                    // be able to see at a glance which state it is in.
+                    let ignored = crate::app::ignore::is_ignored(ignored_set, d.from.as_deref());
+                    let (badge, badge_col) = if ignored {
+                        ("MUTED", crate::theme::gray(95))
+                    } else {
+                        match novelty.highlight() {
+                            Some(sdroxide_types::Highlight::NewDxcc) => {
+                                ("DXCC", crate::theme::PINK())
+                            }
+                            Some(sdroxide_types::Highlight::NewDxccBand) => {
+                                ("BAND", crate::theme::YELLOW())
+                            }
+                            Some(sdroxide_types::Highlight::NewGrid) => {
+                                ("GRID", crate::theme::CYAN())
+                            }
+                            Some(sdroxide_types::Highlight::NewCall) => {
+                                ("NEW", crate::theme::CYAN_DIM())
+                            }
+                            Some(sdroxide_types::Highlight::Dupe) => {
+                                ("DUPE", crate::theme::gray(85))
+                            }
+                            None => ("", Color32::TRANSPARENT),
                         }
-                        Some(sdroxide_types::Highlight::NewGrid) => ("GRID", crate::theme::CYAN()),
-                        Some(sdroxide_types::Highlight::NewCall) => {
-                            ("NEW", crate::theme::CYAN_DIM())
-                        }
-                        Some(sdroxide_types::Highlight::Dupe) => ("DUPE", crate::theme::gray(85)),
-                        None => ("", Color32::TRANSPARENT),
                     };
                     let dupe = novelty.dupe;
                     let grid = d.grid.clone().unwrap_or_default();
@@ -716,18 +767,47 @@ impl SdroxideApp {
                             if dupe { crate::theme::gray(95) } else { crate::theme::TEXT() },
                         ))
                         .truncate();
-                    // REPLY and the queue button, drawn right-to-left so they
-                    // pin to the right edge in either layout. The queue chip
-                    // marks a station for later; pressing it again drops the
-                    // station, so one button both queues and un-queues.
+                    // REPLY, the queue button and the mute button, drawn
+                    // right-to-left so they pin to the right edge in either
+                    // layout. The queue chip marks a station for later;
+                    // pressing it again drops the station, so one button both
+                    // queues and un-queues.
                     //
-                    // Neither is drawn where there is no sequencer behind it —
-                    // answering a station and lining one up to answer later are
-                    // the same promise to transmit, and a mode with no QSO to
-                    // sequence should not offer the promise at all.
+                    // REPLY and the queue chip are not drawn where there is no
+                    // sequencer behind them — answering a station and lining
+                    // one up to answer later are the same promise to transmit,
+                    // and a mode with no QSO to sequence should not offer the
+                    // promise at all. The mute button is not that kind of
+                    // control: it promises nothing to transmit, and a listener
+                    // watching a band wants to hide the station that is
+                    // shouting over everything in it as much as an operator
+                    // does. So it is drawn for any decode that names a sender.
                     let buttons = |ui: &mut egui::Ui| {
+                        let mut mute = None;
+                        if d.from.is_some() {
+                            // `−` to mute, `×` while muted. Both glyphs are
+                            // already load-bearing elsewhere in this UI; a
+                            // pictographic "no entry" sign was the one at risk of
+                            // the font atlas not carrying it, and a blank chip is
+                            // worse than a plain one.
+                            let glyph = if ignored { "×" } else { "−" };
+                            let iresp = crate::chrome::chip(
+                                ui,
+                                ignored,
+                                RichText::new(glyph).size(12.0).strong(),
+                            )
+                            .on_hover_text(if ignored {
+                                "Muted for this session — click to hear it again"
+                            } else {
+                                "Ignore this station for the rest of the session: it leaves the \
+                                 decode list, stops sounding the alerts, and is never offered to \
+                                 auto mode. Nothing is sent or uploaded on its behalf, and \
+                                 restarting sdroxide brings it back."
+                            });
+                            mute = Some(iresp);
+                        }
                         if !qso_mode {
-                            return None;
+                            return (None, None, mute);
                         }
                         let resp = tx_gated(ui, tx_ok, |ui| {
                             crate::chrome::chip_accent(
@@ -756,11 +836,19 @@ impl SdroxideApp {
                                 "Work this station after the current one"
                             })
                         });
-                        Some((resp, qresp))
+                        (Some(resp), Some(qresp), mute)
                     };
 
                     let inner = egui::Frame::new()
-                        .fill(if to_me {
+                        .fill(if ignored {
+                            // Receded rather than gone: the row is how a
+                            // mistaken mute is taken back, and it is also the
+                            // only place the operator can see that it took
+                            // effect. New decodes from this station are dropped
+                            // at ingress, so these age out of the list by
+                            // themselves and nothing refills the space.
+                            crate::theme::ROW_BG().linear_multiply(0.45)
+                        } else if to_me {
                             crate::theme::TOME_BG()
                         } else if cq {
                             crate::theme::CQ_BG()
@@ -792,12 +880,15 @@ impl SdroxideApp {
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if let Some((resp, qresp)) = buttons(ui) {
-                                                reply = resp.clicked();
-                                                queue = qresp.clicked();
-                                                reply_left =
-                                                    Some(resp.rect.left().min(qresp.rect.left()));
+                                            let (r, q, m) = buttons(ui);
+                                            reply = r.as_ref().is_some_and(|r| r.clicked());
+                                            queue = q.as_ref().is_some_and(|q| q.clicked());
+                                            if m.as_ref().is_some_and(|m| m.clicked())
+                                                && let Some(from) = &d.from
+                                            {
+                                                ignore_toggle = Some(from.clone());
                                             }
+                                            reply_left = buttons_left([&r, &q, &m]);
                                             ui.with_layout(
                                                 egui::Layout::left_to_right(egui::Align::Center),
                                                 |ui| {
@@ -874,17 +965,20 @@ impl SdroxideApp {
                                     }
                                     cell(ui, 44.0, false, grid_lbl);
                                     cell(ui, 58.0, true, dist_lbl);
-                                    // Message fills the remaining width; REPLY and
-                                    // the queue button pinned right.
+                                    // Message fills the remaining width; the
+                                    // row's own buttons pinned right.
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            if let Some((resp, qresp)) = buttons(ui) {
-                                                reply = resp.clicked();
-                                                queue = qresp.clicked();
-                                                reply_left =
-                                                    Some(resp.rect.left().min(qresp.rect.left()));
+                                            let (r, q, m) = buttons(ui);
+                                            reply = r.as_ref().is_some_and(|r| r.clicked());
+                                            queue = q.as_ref().is_some_and(|q| q.clicked());
+                                            if m.as_ref().is_some_and(|m| m.clicked())
+                                                && let Some(from) = &d.from
+                                            {
+                                                ignore_toggle = Some(from.clone());
                                             }
+                                            reply_left = buttons_left([&r, &q, &m]);
                                             ui.with_layout(
                                                 egui::Layout::left_to_right(egui::Align::Center),
                                                 |ui| {
@@ -902,7 +996,13 @@ impl SdroxideApp {
                     // for a to-us decode so it really pops — and for a directed CQ
                     // (DX, EU, JA …) that names us, which is a better prospect than
                     // a plain CQ anyone in the world is free to answer.
-                    let (accent, aw) = if to_me {
+                    //
+                    // A muted row's bar goes grey and loses the extra width: the
+                    // colour is what says "this one is for you", and a station
+                    // that is no longer for you must stop claiming it.
+                    let (accent, aw) = if ignored {
+                        (crate::theme::gray(70), 2.5)
+                    } else if to_me {
                         (crate::theme::YELLOW(), 4.0)
                     } else if cq {
                         (crate::theme::PINK(), if d.cq_to.is_some() { 4.0 } else { 2.5 })
@@ -1023,6 +1123,13 @@ impl SdroxideApp {
         self.digi_hover_ll = hover_ll;
         if let Some(sel) = new_preview {
             self.digi_preview = sel;
+        }
+        // Written here rather than inside the row loop, which is holding
+        // borrows of the decodes it is walking. One press muting two rows in a
+        // slot is the same answer either way — the set is keyed on the
+        // callsign, not the row.
+        if let Some(from) = ignore_toggle {
+            self.toggle_ignore(&from);
         }
     }
 

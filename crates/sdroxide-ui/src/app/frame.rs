@@ -1538,6 +1538,21 @@ impl SdroxideApp {
                 // shows under the dial while it is true.
                 RadioEvent::AtsMiniTuning(on) => self.atsmini_tuning = on,
                 RadioEvent::Ft8Decodes(d) => {
+                    // The session ignore list is applied here, at ingress, and
+                    // nowhere else. This is the one point every consumer of a
+                    // decode passes through — the announcer, the audible
+                    // alarms, the propagation field, the list itself and auto
+                    // mode's choice of a station — so a muted station is
+                    // genuinely out of the way instead of hidden from one view
+                    // while still ringing and still being auto-answered. Rows
+                    // already on screen are drawn dimmed rather than yanked
+                    // (`app::ignore`), and nothing new arrives to replace
+                    // them. Nothing leaves the program on a muted station's
+                    // behalf: spotting and the online logbooks are untouched.
+                    let d = crate::app::ignore::retain_unignored(&self.session_ignored, d);
+                    if d.is_empty() {
+                        continue;
+                    }
                     if let Some(st) = self.digi_status.as_ref()
                         && self.focused
                     {

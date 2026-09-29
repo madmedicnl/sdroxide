@@ -129,13 +129,29 @@ impl SdroxideApp {
     /// The index is borrowed directly rather than cloned: it is the whole log
     /// as sets, and cloning it every frame would be the one expensive thing in
     /// this path.
+    ///
+    /// The ignore list is asked again here even though the ingress filter
+    /// already drops new decodes, because a row that was in the list *before*
+    /// the operator muted that station is still in it. Muting is an
+    /// instruction not to answer somebody, and auto mode answers on its own
+    /// initiative — so it honours the list for a decode it would otherwise
+    /// pick out of the ones already held.
     fn auto_target(&mut self, my_call: &str, my_grid: &str) -> Option<auto::AutoTarget> {
         let len = self.qso_log.len();
         if self.log_index_cache.as_ref().map(|(l, _)| *l) != Some(len) {
             self.log_index_cache = Some((len, sdroxide_types::LogIndex::build(&self.qso_log)));
         }
         let ix = &self.log_index_cache.as_ref().expect("just filled").1;
-        auto::pick_cq(&self.digi_decodes, ix, my_call, my_grid, &self.auto_tried)
+        if self.session_ignored.is_empty() {
+            return auto::pick_cq(&self.digi_decodes, ix, my_call, my_grid, &self.auto_tried);
+        }
+        let live: Vec<sdroxide_types::Decode> = self
+            .digi_decodes
+            .iter()
+            .filter(|d| !crate::app::ignore::is_ignored(&self.session_ignored, d.from.as_deref()))
+            .cloned()
+            .collect();
+        auto::pick_cq(&live, ix, my_call, my_grid, &self.auto_tried)
     }
 
     /// Disarm auto mode, leaving `note` as the reason shown on the toggle.
