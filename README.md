@@ -92,7 +92,8 @@ rest.
    fax, DRM, HD Radio, ADS-B/VDL2/ACARS/HFDL, the logbook, awards, QSL upload,
    MIDI control — is in the **[User Manual](docs/USER_MANUAL.md)**.
 
-## How this fork differs from upstream
+<details>
+<summary><h2>How this fork differs from upstream</h2></summary>
 
 Upstream is an amateur transceiver. This build runs **the CB band used to the
 full — voice *and* the digital modes — plus the listener's tools**.
@@ -142,6 +143,8 @@ offered upstream as [#568](https://github.com/dividebysandwich/sdroxide/pull/568
 [#572](https://github.com/dividebysandwich/sdroxide/pull/572)
 (the no-control-link keying fix), with the whole key as
 [#573](https://github.com/dividebysandwich/sdroxide/pull/573).
+
+</details>
 
 ## A look inside
 
