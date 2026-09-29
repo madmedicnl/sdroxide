@@ -124,7 +124,9 @@ pub fn make_modulator(mode: Mode, rate: f64, passband: (f32, f32)) -> Option<Box
         | Mode::Fst4
         | Mode::Msk144
         | Mode::Q65
-        | Mode::UvPacket => None,
+        | Mode::UvPacket
+        // ALE is receive only in this build.
+        | Mode::Ale => None,
     }
 }
 

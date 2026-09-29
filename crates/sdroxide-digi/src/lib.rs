@@ -13,6 +13,7 @@
 //! for anything that links it.
 
 pub mod acars_controller;
+pub mod ale_controller;
 pub mod aprs_controller;
 pub mod atchat_controller;
 pub(crate) mod ax25_channel;
@@ -53,6 +54,7 @@ pub mod wspr;
 pub mod wspr_controller;
 
 pub use acars_controller::AcarsController;
+pub use ale_controller::AleController;
 pub use aprs_controller::AprsController;
 pub use atchat_controller::AtChatController;
 pub use clock::ClockMonitor;

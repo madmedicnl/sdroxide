@@ -640,6 +640,7 @@ impl AprsController {
             dsc: None,
             uvpacket: None,
             jtty: None,
+            ale: None,
             aprs: Some(Box::new(self.aprs_status())),
             js8: None,
             atchat: None,

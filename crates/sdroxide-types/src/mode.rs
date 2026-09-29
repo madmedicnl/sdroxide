@@ -416,6 +416,14 @@ pub enum Mode {
     /// there is no period to key on. Appended for the same reason as
     /// [`Mode::Hell`].
     Jtty,
+    /// ALE — MIL-STD-188-141A 2G Automatic Link Establishment: the utility-HF
+    /// selective-calling system, 8-FSK at 125 baud carrying a 3-character
+    /// address in each word (`TO`, `FROM`, `TIS`, …).
+    ///
+    /// Receive only in this build. Not slotted, so [`Mode::slot_timing`]
+    /// answers `None`; the controller keeps a rolling audio window and reports
+    /// the words it hears. Appended for the same reason as [`Mode::Hell`].
+    Ale,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -436,7 +444,7 @@ const PHONE_LSB_BANDS: [(f64, f64); 3] =
 impl Mode {
     /// Every mode, in the order they cycle and appear in the picker — which is
     /// deliberately *not* the enum's declaration order (see [`Mode::Hell`]).
-    pub const ALL: [Mode; 53] = [
+    pub const ALL: [Mode; 54] = [
         Mode::Lsb,
         Mode::Usb,
         Mode::Cw,
@@ -490,6 +498,7 @@ impl Mode {
         Mode::Fsk441,
         Mode::UvPacket,
         Mode::Jtty,
+        Mode::Ale,
     ];
 
     /// The digital modes handled by a dedicated decode/encode engine (the
@@ -497,7 +506,7 @@ impl Mode {
     /// packet, RF Paint). All are USB underneath except RIFP, VHF packet and
     /// VHF SSTV, which frequency-modulate the carrier, and ACARS, which is
     /// received in AM.
-    pub const DIGITAL: [Mode; 34] = [
+    pub const DIGITAL: [Mode; 35] = [
         Mode::Ft8,
         Mode::Ft4,
         Mode::Ft2,
@@ -532,6 +541,7 @@ impl Mode {
         Mode::Dsc,
         Mode::UvPacket,
         Mode::Jtty,
+        Mode::Ale,
     ];
 
     /// True for modes that use a dedicated decode/QSO layer over USB.
@@ -567,7 +577,7 @@ impl Mode {
                 | Mode::Msk144
                 | Mode::Q65
                 | Mode::UvPacket
-                | Mode::Jtty
+                | Mode::Jtty | Mode::Ale
                 | Mode::Fsk441
                 | Mode::Packet
                 | Mode::PacketHf
@@ -1008,6 +1018,7 @@ impl Mode {
             Mode::Q65 => "Q65",
             Mode::UvPacket => "UVPACKET",
             Mode::Jtty => "JTTY",
+            Mode::Ale => "ALE",
             Mode::Fsk441 => "FSK441",
             Mode::Acars => "ACARS",
             Mode::Sstv => "SSTV",
@@ -1183,7 +1194,7 @@ impl Mode {
             | Mode::Q65
             | Mode::Fsk441
             | Mode::UvPacket
-            | Mode::Jtty
+            | Mode::Jtty | Mode::Ale
             | Mode::Psk
             | Mode::Rtty
             | Mode::Sstv
@@ -1443,7 +1454,7 @@ impl Mode {
             | Mode::Msk144
             | Mode::Q65
             | Mode::UvPacket
-            | Mode::Jtty
+            | Mode::Jtty | Mode::Ale
             | Mode::Fsk441
             | Mode::Olivia
             | Mode::Thor
@@ -1708,7 +1719,7 @@ impl Mode {
             | Mode::Msk144
             | Mode::Q65
             | Mode::UvPacket
-            | Mode::Jtty
+            | Mode::Jtty | Mode::Ale
             | Mode::Fsk441
             | Mode::Acars
             | Mode::PacketHf
@@ -2267,6 +2278,7 @@ mod tests {
             (Mode::Fsk441, 50),
             (Mode::UvPacket, 51),
             (Mode::Jtty, 52),
+            (Mode::Ale, 53),
         ];
         for (mode, index) in pinned {
             assert_eq!(mode as u8, index, "{} moved", mode.label());
@@ -2314,7 +2326,7 @@ mod tests {
         // The last variant *by discriminant*, which is the one appended most
         // recently — not the one that reads last in the picker. JTTY is the
         // fork's (and the list's) last appended variant, after UVPacket.
-        let last = Mode::Jtty as u8;
+        let last = Mode::Ale as u8;
         for i in 0..=last {
             let present = Mode::ALL.iter().filter(|m| **m as u8 == i).count();
             assert_eq!(present, 1, "discriminant {i} appears {present} times in Mode::ALL");

@@ -251,7 +251,7 @@ fn mode_digit(m: Mode) -> char {
         | Mode::Navtex
         | Mode::Dsc
         | Mode::UvPacket
-        | Mode::Jtty
+        | Mode::Jtty | Mode::Ale
         | Mode::RfPaint => '2',
     }
 }

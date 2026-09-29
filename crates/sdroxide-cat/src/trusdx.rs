@@ -331,7 +331,7 @@ fn mode_digit(m: Mode) -> char {
         | Mode::Msk144
         | Mode::Q65
         | Mode::UvPacket
-        | Mode::Jtty
+        | Mode::Jtty | Mode::Ale
         | Mode::Fsk441
         | Mode::RfPaint
         | Mode::Digu

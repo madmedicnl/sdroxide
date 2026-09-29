@@ -164,6 +164,7 @@ impl<'a> Speaker<'a> {
             Mode::Q65 => "Q sixty five",
             Mode::UvPacket => "U V packet",
             Mode::Jtty => "J T T Y",
+            Mode::Ale => "A L E",
             Mode::Fsk441 => "F S K four forty one",
             Mode::Js8 => "J S eight",
             // Pronounced "whisper" — the joke the name is built on.

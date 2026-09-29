@@ -883,6 +883,8 @@ impl eframe::App for SdroxideApp {
                                     self.uvpacket_panel(ui, &mut cmds, panel_h);
                                 } else if mode == Mode::Jtty {
                                     self.jtty_panel(ui, &mut cmds, panel_h);
+                                } else if mode == Mode::Ale {
+                                    self.ale_panel(ui, &mut cmds, panel_h);
                                 } else if mode.is_image() {
                                     self.image_panel(ui, &mut cmds, mode);
                                 } else if mode.is_rf_paint() {

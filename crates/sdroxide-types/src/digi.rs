@@ -561,6 +561,10 @@ pub struct DigiStatus {
     /// Last in the struct, after `uvpacket`, for the same positional reason.
     #[serde(default)]
     pub jtty: Option<crate::JttyStatus>,
+    /// ALE: the words decoded, and the audio level. `None` in every other mode,
+    /// as the rest of these are. Appended after `jtty`.
+    #[serde(default)]
+    pub ale: Option<crate::AleStatus>,
 }
 
 /// The running detail of the contact in progress: when it started and what has
@@ -1108,6 +1112,7 @@ impl DigiStatus {
             dsc: None,
             uvpacket: None,
             jtty: None,
+            ale: None,
             aprs: None,
             js8: None,
             atchat: None,

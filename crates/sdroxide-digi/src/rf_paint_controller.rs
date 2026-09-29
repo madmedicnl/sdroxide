@@ -75,6 +75,7 @@ impl RfPaintController {
             dsc: None,
             uvpacket: None,
             jtty: None,
+            ale: None,
             aprs: None,
             js8: None,
             atchat: None,

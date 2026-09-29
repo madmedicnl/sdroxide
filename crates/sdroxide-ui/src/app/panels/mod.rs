@@ -20,6 +20,7 @@
 //! - [`widgets`] — the row and station-card widgets several panels draw
 
 mod acars;
+pub(in crate::app) mod ale;
 pub(in crate::app) mod adsb;
 pub(in crate::app) mod ais;
 pub(in crate::app) mod aprs;
@@ -110,6 +111,7 @@ pub(in crate::app) fn panel_panes(mode: Mode) -> &'static [&'static str] {
         // JTTY is keyboard text, so its panel is a single rolling log of the
         // messages heard, like the CW and text-modem receive panes.
         Mode::Jtty => &["MESSAGES"],
+        Mode::Ale => &["WORDS"],
         // The decode list alone: the QSO pane is FT8's sequencer, which a
         // receive-only JT/FST4/MSK144/Q65 build has nothing to put in.
         Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65 | Mode::Fsk441 => {

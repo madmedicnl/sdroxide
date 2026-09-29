@@ -76,7 +76,7 @@ pub fn mode_to_civ(m: Mode) -> u8 {
         | Mode::Navtex
         | Mode::Dsc
         | Mode::UvPacket
-        | Mode::Jtty
+        | Mode::Jtty | Mode::Ale
         | Mode::Olivia
         | Mode::Thor
         | Mode::Fsq

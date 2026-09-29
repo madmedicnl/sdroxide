@@ -391,7 +391,7 @@ fn mode_digit(m: Mode) -> (char, bool) {
         | Mode::Navtex
         | Mode::Dsc
         | Mode::UvPacket
-        | Mode::Jtty
+        | Mode::Jtty | Mode::Ale
         | Mode::RfPaint => ('2', false),
     }
 }

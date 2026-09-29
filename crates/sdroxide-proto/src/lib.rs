@@ -1591,7 +1591,14 @@ use sdroxide_types::{
 /// a v181 peer reads the extra bytes as the start of the next field and fails
 /// to decode every config — the same break as v181's appended wide-CB flag.
 /// A downstream (fork) addition until the upstream PR merges.
-pub const PROTO_VERSION: u16 = 182;
+///
+/// v183: the ALE decoder. `Mode::Ale` is appended to that enum and
+/// `DigiStatus` gains `ale` (`Option<AleStatus>`) on its tail — the words
+/// decoded and the audio level. `DigiStatus` rides `RadioState` whole, so a
+/// v182 peer reads the extra bytes as the start of the next field and fails to
+/// decode every digital status. No new wire type: ALE reports through the
+/// ordinary `DigiStatus` seam. A downstream (fork) addition for now.
+pub const PROTO_VERSION: u16 = 183;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

@@ -6,6 +6,7 @@
 mod access;
 mod adsb;
 mod ais;
+mod ale;
 mod alert;
 mod aprs;
 mod atchat;
@@ -317,6 +318,7 @@ pub use ui::{
 };
 pub use ui::{force_swl, set_force_swl};
 pub use jtty::{JTTY_MESSAGE_MAX, JttyMessage, JttyStatus};
+pub use ale::{ALE_WORD_MAX, AleMessage, AleStatus};
 pub use uvpacket::{
     UVPACKET_AUDIO_CENTRE_HZ, UVPACKET_FRAME_MAX, UvPacketFrame, UvPacketMode, UvPacketStatus,
 };
