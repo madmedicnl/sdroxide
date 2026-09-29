@@ -346,7 +346,14 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    the Golay variant/bit order (PC-ALE's parity table does not match a plain
    systematic `0xAE3`/`0xC75` encode, so it is not the one), the 48-bit
    interleaver permutation, and whether the 3× redundancy is over the 49-bit
-   codeword before or after symbol grouping.
+   codeword before or after symbol grouping. **Tried empirically (2026-09-29)
+   and it did not converge:** brute-forcing timing offset × bit order ×
+   Gray/direct × stuff position × three interleavers × two Golay generators ×
+   word order over the sample produced only ~8 charset-valid words and **no
+   repeated 3× preamble**, which a correct ALE decoder must show at every
+   transmission start — so one of those assumptions is still wrong and the
+   tables have to come from the reference, not a search. (The sample is also
+   MP3, so its timing jitter hurts a blind search.)
 
    **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
    `Signal file` (not an image, which is why the API's `images` list missed it)
