@@ -28,10 +28,11 @@ WebSocket. It includes a persistent logbook, many digital modes built in, and
 **TCI and Hamlib rigctld servers** so third-party programs like WSJT-X can use
 it as their radio.
 
-![The main window: radio, receiver, display and system controls across the top, waterfall with its level slider](docs/images/01-main-window.jpg)
+![The main window: radio, receiver, display and system controls across the top, waterfall with its level slider](docs/images/main-ft8-cb.jpg)
 
 *One program, three audiences: a ham transceiver, a full-blooded 11 m CB rig
-(voice *and* the digital modes), and a listener's receiver.*
+(voice *and* the digital modes), and a listener's receiver. Shown here working
+FT8 on 11 m CB.*
 
 ## Read the manual first
 
@@ -148,30 +149,49 @@ offered upstream as [#568](https://github.com/dividebysandwich/sdroxide/pull/568
 
 ## A look inside
 
-The band and mode menu leads with a **Primary modes** row above the full mode and
-digital lists, so AM/FM/USB/LSB are one click away and everything else is a tab
-away.
+The band and mode menu has two sides. **OPERATE** is the ham view, where a mode
+the band does not carry is greyed out; **LISTEN** offers every mode on every
+band, for exploring the dial.
 
-![The band and mode menu, leading with the primary modes](docs/images/04-band-mode-popup.jpg)
+| OPERATE | LISTEN |
+| --- | --- |
+| ![The band and mode menu, OPERATE tab](docs/images/band-menu-operate.jpg) | ![The band and mode menu, LISTEN tab](docs/images/band-menu-listen.jpg) |
 
 On 11 m the WSJT-CB exchange runs like FT8 does, with country flags on the
-decode. The FT8/FT4/FT2 panel is the same one amateur operators already know:
+decode, and the propagation globe behind it:
 
-![The FT8 panel](docs/images/07-ft8-panel.png)
+![11 m CB with the 3-D propagation globe](docs/images/cb-3d-globe.jpg)
 
 For the listener, **SWL mode** hides every transmit control and swaps the ham
-chips for the listener's — a reception log with SINPO, a signal-ID guide, a
-broadcast schedule, and the receive-only spot networks:
+chips for the listener's. The **SCHEDULE** window tunes or logs a broadcast
+station, the reception log keeps the listening record, and the globe works the
+same on a receive-only set:
 
-![The spots panel](docs/images/14-spots-panel.jpg)
+![SWL mode with the broadcast schedule](docs/images/swl-schedule.jpg)
 
-And **Simple UI** hides the advanced chips entirely, leaving tuning, mode,
-volume, squelch, bandwidth, the waterfall, memories and scanning:
+![The reception log](docs/images/swl-log.jpg)
 
-![The simple interface, with the advanced chips hidden](docs/images/simple-ui.jpg)
+![SWL with the 3-D propagation globe](docs/images/swl-3d-globe.jpg)
 
-More screenshots — the panadapter, logbook, awards, ADS-B, APRS, the 3-D globe,
-the browser client — are in [`docs/images/`](docs/images).
+<details>
+<summary><h2>More screenshots</h2></summary>
+
+![The reception-log entry form](docs/images/swl-log-entry.jpg)
+
+![Settings → Radio: per-radio identity and the SWL switch](docs/images/settings-radio.jpg)
+
+![The CW panel](docs/images/cw-panel.jpg)
+
+![Station profiles](docs/images/station-profiles.jpg)
+
+![Settings → UI](docs/images/ui-menu.jpg)
+
+![Settings → Uploads](docs/images/settings-uploads.jpg)
+
+</details>
+
+More still — the panadapter, logbook, awards, ADS-B, APRS and the browser
+client — are in [`docs/images/`](docs/images).
 
 <details>
 <summary><h2>What it does — the full feature list</h2></summary>
