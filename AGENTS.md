@@ -914,9 +914,30 @@ Why it is experimental, and the limits to keep in mind:
 - **11 characters** is the hard cap for a Type-4 non-standard call
   (`wsjt77::pack77_type4`), and the widest shape here is ten, so it fits with a
   character to spare — no new wire format.
-- **The 22-bit hash** (4.2 M) is shared by every non-standard call, so a larger
-  call set makes collisions likelier; that is inherent to the FT8 family and is
-  why the toggle is a widening, not a fix.
+- **A CB callsign is not hashed on the main path — it is carried in the
+  clear.** This corrects an earlier claim here, which said the "22-bit hash
+  (4.2 M) is shared by every non-standard call, so a larger call set makes
+  collisions likelier". That is wrong for the layout that carries a CB
+  contact. `wsjt77::pack77_type4` encodes the non-standard callsign as a
+  **58-bit base-38 number** — the actual characters, space-padded to eleven —
+  and 38^11 (2.386e17) is under 2^58 (2.882e17), so the mapping is injective:
+  every distinct callsign gets a distinct bit pattern. There is no collision,
+  and no possibility of one call being decoded as another. The 12-bit hash in
+  that function is on the *other*, standard, station — not on the CB call.
+  Checked 2026-09-29 against mfsk-core 0.11's `wsjt77.rs` after a user report
+  argued the opposite; the report is right that this is a protocol question
+  and wrong about the mechanism.
+- The **one** place a CB callsign is hashed is the both-ends-CB, grid-less
+  layout (`modem.rs`, the `h1 && h2` overlay), which writes each call as a
+  28-bit `ihashcall(call, 22)`. There a wider call population does marginally
+  raise the odds of two calls colliding, and a collision can only mis-resolve
+  a callsign the receiver has already heard. That is the pre-existing
+  property of that layout, not something the wide grammar introduces.
+- **The real interop cost is interpretation, not corruption.** A wide call
+  reaches the far end as clear text, so it is exactly as decodable as a strict
+  CB call; what a WSJT-CB or WSJT-X station will not do is *act* on it — read
+  it as a callsign, or let you answer it. Nothing about it degrades a third
+  station's decode.
 - The strict grammar's "four-digit unit only behind a one-digit prefix" coupling
   is **dropped** in the wide grammar (confirmed 2026-09-29: any prefix).
 
