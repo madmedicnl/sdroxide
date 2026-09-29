@@ -560,22 +560,16 @@ impl SdroxideApp {
     /// show, and the way to save the whole log. The band and day choices come
     /// from the log itself, so a filter can never offer one that shows nothing.
     fn swl_filter_row(&mut self, ui: &mut egui::Ui) {
-        let mut bands: Vec<sdroxide_types::Band> = self
-            .swl_log
-            .iter()
-            .map(|e| sdroxide_types::Band::containing(e.freq_hz))
-            .collect();
+        let mut bands: Vec<sdroxide_types::Band> =
+            self.swl_log.iter().map(|e| sdroxide_types::Band::containing(e.freq_hz)).collect();
         bands.sort_by(|a, b| {
             let ka = a.edges().map(|(lo, _)| lo).unwrap_or(f64::INFINITY);
             let kb = b.edges().map(|(lo, _)| lo).unwrap_or(f64::INFINITY);
             ka.partial_cmp(&kb).unwrap_or(std::cmp::Ordering::Equal)
         });
         bands.dedup();
-        let mut days: Vec<String> = self
-            .swl_log
-            .iter()
-            .map(|e| utc_text(e.heard_at_unix)[..10].to_string())
-            .collect();
+        let mut days: Vec<String> =
+            self.swl_log.iter().map(|e| utc_text(e.heard_at_unix)[..10].to_string()).collect();
         days.sort();
         days.dedup();
         days.reverse();
@@ -603,11 +597,7 @@ impl SdroxideApp {
                         ui.selectable_value(&mut self.swl_filter.band, Some(*b), b.label());
                     }
                 });
-            let day_text = self
-                .swl_filter
-                .day
-                .clone()
-                .unwrap_or_else(|| "All days".into());
+            let day_text = self.swl_filter.day.clone().unwrap_or_else(|| "All days".into());
             egui::ComboBox::from_id_salt("swl-filter-day")
                 .width(84.0)
                 .selected_text(day_text)
@@ -725,13 +715,9 @@ impl SdroxideApp {
                             tip.push_str("transmitted from ");
                             tip.push_str(&e.site);
                         }
+                        let station = ui.selectable_label(is_sel, RichText::new(label).monospace());
                         let station =
-                            ui.selectable_label(is_sel, RichText::new(label).monospace());
-                        let station = if tip.is_empty() {
-                            station
-                        } else {
-                            station.on_hover_text(tip)
-                        };
+                            if tip.is_empty() { station } else { station.on_hover_text(tip) };
                         if station.clicked() {
                             selected = Some(e.id);
                         }
@@ -930,7 +916,9 @@ impl SdroxideApp {
                                     .desired_width(220.0)
                                     .hint_text("street, city, country"),
                             )
-                            .on_hover_text("The fallback report destination when there is no e-mail");
+                            .on_hover_text(
+                                "The fallback report destination when there is no e-mail",
+                            );
                             ui.end_row();
 
                             ui.label("Heard");
@@ -1035,11 +1023,10 @@ impl SdroxideApp {
                                     .hint_text("programme notes"),
                             );
                             ui.label("");
-                            crate::chrome::checkbox(ui, &mut f.pirate, "Pirate")
-                                .on_hover_text(
-                                    "An unlicensed broadcast — a station transmitting outside any \
+                            crate::chrome::checkbox(ui, &mut f.pirate, "Pirate").on_hover_text(
+                                "An unlicensed broadcast — a station transmitting outside any \
                                      allocation. The log marks it with a pirate flag.",
-                                );
+                            );
                             ui.end_row();
                         },
                     );
@@ -1079,7 +1066,7 @@ impl SdroxideApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{prefill_station, sinpo_strength, station_at, SwlEditForm, SwlEntry, SwlFilter};
+    use super::{SwlEditForm, SwlEntry, SwlFilter, prefill_station, sinpo_strength, station_at};
     use sdroxide_types::{Mode, SignalReport, Sinpo};
 
     /// The meter grades into the five SINPO figures, strongest at S9 and up.

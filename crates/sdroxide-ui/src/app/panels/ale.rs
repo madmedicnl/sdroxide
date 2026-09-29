@@ -24,9 +24,7 @@ impl SdroxideApp {
                         .color(crate::theme::gray(150)),
                 );
                 let bars = (st.level * 20.0).clamp(0.0, 20.0) as usize;
-                ui.label(
-                    RichText::new("█".repeat(bars)).size(10.0).color(crate::theme::GREEN()),
-                );
+                ui.label(RichText::new("█".repeat(bars)).size(10.0).color(crate::theme::GREEN()));
             }
         });
         ui.separator();
@@ -55,9 +53,7 @@ impl SdroxideApp {
                                 .color(crate::theme::gray(140)),
                         );
                         ui.label(RichText::new(&m.kind).size(11.0).strong());
-                        ui.label(
-                            RichText::new(&m.address).size(11.5).color(crate::theme::GREEN()),
-                        );
+                        ui.label(RichText::new(&m.address).size(11.5).color(crate::theme::GREEN()));
                     });
                 }
             },

@@ -262,6 +262,9 @@ mod tests {
         // Recovery clears the line.
         fail.store(false, Ordering::Relaxed);
         h.report(spot());
-        assert!(matches!(events_rx.recv_timeout(Duration::from_secs(2)), Ok(NetEvent::Status(None))));
+        assert!(matches!(
+            events_rx.recv_timeout(Duration::from_secs(2)),
+            Ok(NetEvent::Status(None))
+        ));
     }
 }

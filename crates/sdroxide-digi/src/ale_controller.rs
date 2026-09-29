@@ -10,9 +10,7 @@ use std::time::SystemTime;
 
 use sdroxide_dsp::MonoResampler;
 use sdroxide_dsp::ale::{self, ALE_RATE};
-use sdroxide_types::{
-    ALE_WORD_MAX, AleMessage, AleStatus, DigiConfig, DigiStatus, Mode, QsoStep,
-};
+use sdroxide_types::{ALE_WORD_MAX, AleMessage, AleStatus, DigiConfig, DigiStatus, Mode, QsoStep};
 
 use crate::{DigiAction, DigiEngine};
 
@@ -73,8 +71,11 @@ impl AleController {
         let mut s = DigiStatus::idle(self.cfg.clone());
         s.mode = Mode::Ale;
         s.step = QsoStep::Idle;
-        s.ale =
-            Some(AleStatus { level: self.level, messages: self.messages.clone(), total: self.total });
+        s.ale = Some(AleStatus {
+            level: self.level,
+            messages: self.messages.clone(),
+            total: self.total,
+        });
         s
     }
 }
@@ -115,8 +116,11 @@ impl DigiEngine for AleController {
                         .duration_since(SystemTime::UNIX_EPOCH)
                         .map(|d| d.as_secs() as i64)
                         .unwrap_or(0);
-                    self.messages
-                        .push(AleMessage { at_unix: at, kind: w.kind.label().into(), address: w.address() });
+                    self.messages.push(AleMessage {
+                        at_unix: at,
+                        kind: w.kind.label().into(),
+                        address: w.address(),
+                    });
                     self.total += 1;
                     self.status_dirty = true;
                     tracing::info!("ALE {key}");
@@ -175,10 +179,10 @@ impl DigiEngine for AleController {
 /// The debug log, appended beside the rest of the config. `None` if it cannot
 /// be opened — the decoder still runs and the panel still shows words.
 fn open_log() -> Option<std::fs::File> {
-    let base = std::env::var("XDG_CONFIG_HOME")
-        .map(std::path::PathBuf::from)
-        .ok()
-        .or_else(|| std::env::var("HOME").ok().map(|h| std::path::PathBuf::from(h).join(".config")))?;
+    let base =
+        std::env::var("XDG_CONFIG_HOME").map(std::path::PathBuf::from).ok().or_else(|| {
+            std::env::var("HOME").ok().map(|h| std::path::PathBuf::from(h).join(".config"))
+        })?;
     let dir = base.join("sdroxide-brown");
     let _ = std::fs::create_dir_all(&dir);
     std::fs::OpenOptions::new().create(true).append(true).open(dir.join("ale.log")).ok()

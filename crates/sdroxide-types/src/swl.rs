@@ -452,10 +452,7 @@ mod tests {
         let mut e = entry();
         e.station = "Voice of, \"Hope\"".into();
         let csv = swl_log_to_csv(std::slice::from_ref(&e));
-        assert!(
-            csv.lines().nth(1).unwrap().contains("\"Voice of, \"\"Hope\"\"\""),
-            "{csv}"
-        );
+        assert!(csv.lines().nth(1).unwrap().contains("\"Voice of, \"\"Hope\"\"\""), "{csv}");
 
         e.station = "   ".into();
         assert!(swl_entry_to_adif_record(&e).is_none());

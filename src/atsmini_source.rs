@@ -363,7 +363,11 @@ impl IqSource for AtsMiniSource {
         let tuning = self.shared.lock().map(|s| s.tuning).unwrap_or(false);
         if tuning != self.tuning_reported {
             self.tuning_reported = tuning;
-            tracing::debug!(tuning, "ATS Mini: tune-in-flight note {}", if tuning { "on" } else { "off" });
+            tracing::debug!(
+                tuning,
+                "ATS Mini: tune-in-flight note {}",
+                if tuning { "on" } else { "off" }
+            );
             out.push(ControlUpdate::AtsMiniTuning(tuning));
         }
         out
@@ -722,7 +726,10 @@ fn control_thread(
                                 && band_pick == Some(cur)
                             {
                                 if let Some(ms) = band_pick_sent.map(|s| s.elapsed().as_millis()) {
-                                    tracing::debug!(ms, "ATS Mini: band pick confirmed after {ms} ms");
+                                    tracing::debug!(
+                                        ms,
+                                        "ATS Mini: band pick confirmed after {ms} ms"
+                                    );
                                 }
                                 band_pick = None;
                                 band_pick_deadline = None;
@@ -775,15 +782,15 @@ fn control_thread(
                                     let ours = target_hz.is_some()
                                         || settle_until.is_some_and(|t| Instant::now() < t)
                                         || band_pick.is_some()
-                                        || commanded_hz
-                                            .is_some_and(|c| (dial - c).abs() <= OUT_OF_BAND_MIN_HZ);
+                                        || commanded_hz.is_some_and(|c| {
+                                            (dial - c).abs() <= OUT_OF_BAND_MIN_HZ
+                                        });
                                     if !ours {
                                         tracing::debug!(
                                             hz = dial,
                                             "ATS Mini: radio dial moved out-of-band"
                                         );
-                                        let _ =
-                                            control_tx.send(ControlUpdate::Freq(dial as f64));
+                                        let _ = control_tx.send(ControlUpdate::Freq(dial as f64));
                                     }
                                 }
                                 _ => {}

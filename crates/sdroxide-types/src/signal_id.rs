@@ -680,13 +680,7 @@ pub static PROFILES: &[SignalProfile] = &[
         modulation: "CW carrier, 100 W–100 mW",
         bandwidth_hz: (50.0, 500.0),
         bands: HF,
-        frequencies_hz: &[
-            14_100_000.0,
-            18_110_000.0,
-            21_150_000.0,
-            24_930_000.0,
-            28_200_000.0,
-        ],
+        frequencies_hz: &[14_100_000.0, 18_110_000.0, 21_150_000.0, 24_930_000.0, 28_200_000.0],
         modes: &[Mode::Cw],
         summary: "Eighteen propagation beacons, one per minute per band, stepping power as they send.",
         sigidwiki: None,
@@ -881,7 +875,17 @@ pub static PROFILES: &[SignalProfile] = &[
         family: SignalFamily::Amateur,
         modulation: "SSB, suppressed carrier",
         bandwidth_hz: (1_800.0, 3_000.0),
-        bands: &[Band::M160, Band::M80, Band::M40, Band::M20, Band::M17, Band::M15, Band::M12, Band::M10, Band::M6],
+        bands: &[
+            Band::M160,
+            Band::M80,
+            Band::M40,
+            Band::M20,
+            Band::M17,
+            Band::M15,
+            Band::M12,
+            Band::M10,
+            Band::M6,
+        ],
         frequencies_hz: &[],
         modes: &[Mode::Usb, Mode::Lsb, Mode::Digu, Mode::Digl, Mode::Dsb],
         summary: "Single-sideband voice: the ordinary HF phone mode, a clean band of speech on the waterfall.",
@@ -937,12 +941,7 @@ pub static PROFILES: &[SignalProfile] = &[
         modulation: "OOK/FSK bursts",
         bandwidth_hz: (10_000.0, 100_000.0),
         bands: &[],
-        frequencies_hz: &[
-            315_000_000.0,
-            433_920_000.0,
-            868_000_000.0,
-            915_000_000.0,
-        ],
+        frequencies_hz: &[315_000_000.0, 433_920_000.0, 868_000_000.0, 915_000_000.0],
         modes: &[],
         summary: "Short bursts from weather stations, remotes, meters and alarms on the licence-free ISM bands.",
         sigidwiki: Some("ISM_Band_device"),
@@ -1015,10 +1014,7 @@ mod tests {
     use super::*;
 
     fn top(freq_hz: f64, band: Option<Band>, mode: Mode, bw_hz: Option<f64>) -> &'static str {
-        identify(freq_hz, band, mode, bw_hz)
-            .first()
-            .map(|p| p.name)
-            .unwrap_or("")
+        identify(freq_hz, band, mode, bw_hz).first().map(|p| p.name).unwrap_or("")
     }
 
     #[test]

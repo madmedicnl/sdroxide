@@ -84,7 +84,9 @@ impl AleWord {
 
 /// Whether a byte is in the ALE-64 character set.
 fn ale_char(c: u8) -> bool {
-    c.is_ascii_uppercase() || c.is_ascii_digit() || matches!(c, b' ' | b'@' | b'?' | b'.' | b'-' | b'/')
+    c.is_ascii_uppercase()
+        || c.is_ascii_digit()
+        || matches!(c, b' ' | b'@' | b'?' | b'.' | b'-' | b'/')
 }
 
 fn encode(x: u16) -> u32 {
@@ -423,7 +425,7 @@ pub fn transmit_symbols(w: u32) -> [u8; 49] {
             t[i as usize] = ((*a & 0o40) | (*b & 0o20)) as u8;
             *a >>= 1;
             *b >>= 1;
-            t[i as usize] = (((u32::from(t[i as usize]) | (*a & 0o10))) >> 3) as u8;
+            t[i as usize] = ((u32::from(t[i as usize]) | (*a & 0o10)) >> 3) as u8;
             t[i as usize + 1] = (*b & 4) as u8;
             *a >>= 1;
             *b >>= 1;
@@ -565,10 +567,8 @@ mod tests {
             return;
         };
         let bytes = std::fs::read(path).expect("read sample");
-        let audio: Vec<f32> = bytes
-            .chunks_exact(4)
-            .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-            .collect();
+        let audio: Vec<f32> =
+            bytes.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
         let words = decode_burst(&audio);
         eprintln!("decoded {} words", words.len());
         for w in &words {

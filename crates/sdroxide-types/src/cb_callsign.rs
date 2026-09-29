@@ -98,9 +98,7 @@ fn cb_shape(call: &str, max_letters: usize, unit4_coupled: bool) -> bool {
 fn cb_prefix_digits_letters(b: &[u8], max_letters: usize) -> bool {
     let digits = b.iter().take_while(|&&c| c.is_ascii_digit()).count();
     let letters = b[digits..].iter().take_while(|&&c| c.is_ascii_uppercase()).count();
-    (1..=3).contains(&digits)
-        && (1..=max_letters).contains(&letters)
-        && digits + letters == b.len()
+    (1..=3).contains(&digits) && (1..=max_letters).contains(&letters) && digits + letters == b.len()
 }
 
 /// The closed form `N{1,3}L{1,max}N{1,4}`, with the four-digit-unit caveat when

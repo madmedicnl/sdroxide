@@ -164,16 +164,19 @@ become a place to slip one in.
    `allow(non_snake_case)` as `smeter.rs`/`theme.rs` already do. Net 10
    insertions, 23 deletions, all of it code nothing read.
 
-**The fmt decision is settled by evidence, not preference (2026-09-28).** The
-tree's 19 `cargo fmt` diffs were examined rather than assumed: rustfmt wants to
-collapse the author's vertical method chains (`swl_log.rs:560`,
-`top_bar.rs:2501`) and expanded `if`/`else` (`top_bar.rs:3136`) that fit on one
-line anyway — and, the other way, to *split* a 99-char label
-(`signal_id.rs:57`). Three of the 19 are in code this fork wrote this week
-(`frame.rs:1498`, `top_bar.rs:3637`, `clip_label`) and match the surrounding
-house style, which is the point: a sweep would make the tree *less* consistent,
-not more. The house rule below stands, and the files you touch should be left in
-the style their neighbours are in.
+**The fmt decision is settled by evidence, not preference (2026-09-28,
+re-measured 2026-09-29).** The 2026-09-28 note examined "the tree's 19
+`cargo fmt` diffs" and concluded a sweep would make the tree *less* consistent.
+The conclusion held; the number was wrong, and it is now measured properly —
+see "Formatting" under the house rules. Two things came out of the re-measure:
+the tree is far cleaner than the old note implied (26 dirty files, not a
+fifth of it), and every dirty file is one upstream also edits, so the *fork-only*
+half could simply be swept. It was, on 2026-09-29, in one style-only commit
+(13 files, 42 hunks). A token-stream comparison confirmed the sweep changed no
+behaviour; the only non-whitespace edits were rustfmt's own normalisations —
+import reordering, braces added around single-expression closure bodies, and one
+redundant paren dropped.
+
 
 **Maintainer capacity (2026-09-27).** The maintainer is not keeping up with the
 queue — several PRs have sat unreviewed for days — so do not read silence as
@@ -2152,15 +2155,30 @@ Two things worth keeping:
   become dependencies of a wasm-targeted crate.
 - Search with `rg -n`, never `rg -rn`: `-r` is ripgrep's replace flag and
   rewrites what it prints.
-- No repo-wide `cargo fmt`. The tree is not rustfmt-clean and a sweep produces
-  an unreadable diff; format only a file you are already editing, if at all.
-  (Upstream runs rustfmt over what it merges; do not fight it there.) **Now
-  confirmed rather than assumed:** upstream's `adf3fd48` in the 2026-09-28
-  merge is a whole-tree rustfmt, so the files he has touched now *are*
-  rustfmt-clean and the fork's own are not. In a merge, take his formatting
-  where he reformatted a line and left the surrounding house style alone —
-  which is what the 2026-09-28 merge did for `audio`, `qso` and the
-  `digi_has_log` ordering.
+- **Formatting: no repo-wide `cargo fmt`, but the tree is nearly clean, and the
+  reason is smaller than it used to be.** Measured 2026-09-29: of 982 tracked
+  `.rs` files, **26 are not rustfmt-clean, 50 hunks between them** — all 26
+  `fork-modified`, i.e. files upstream also edits. Every *fork-only* file is
+  clean; they were swept that day (13 files, 42 hunks, one style-only commit)
+  precisely because they can never conflict with an upstream merge.
+  `vendor/` (7 files, 58 hunks) is never touched. So the practical rule is
+  **format what you touch, and leave the 26 alone**: upstream keeps editing them
+  unformatted, so a hunk we fix now is a hunk that can conflict at the next
+  merge. In a merge, take his formatting where he reformatted a line and left
+  the surrounding house style alone — which is what the 2026-09-28 merge did for
+  `audio`, `qso` and the `digi_has_log` ordering.
+- **`rustfmt.toml` sets `use_small_heuristics = "Max"`, and it is only found
+  when the file is inside the repo.** This cost a real wrong answer once:
+  running `rustfmt` on a scratch copy in `/tmp` silently falls back to stock
+  defaults and reports a file that is actually clean as having ~50 diffs, and
+  the `‑w`/direction of `--check`'s `-`/`+` is then read backwards. Measure
+  in place, or pass `--config-path`. To re-measure the whole tree, run
+  `rustfmt --edition 2024 <file>` on each tracked file **with the path still
+  under the repo root** (a scratch file in `target/` works) and count the
+  differing opcodes. A one-liner is what `use_small_heuristics = "Max"` keeps
+  a short `if`/`else`, struct literal or call argument on; the vertical chains
+  and the split labels the old note complained about are what it *rejects*.
+
 - After resolving a merge, `git add` every edit the resolution produced and
   compile the **committed** tree, not just the working one. A merge went up
   non-compiling because three resolution edits were left unstaged while the

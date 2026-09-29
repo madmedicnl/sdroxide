@@ -188,11 +188,9 @@ pub(in crate::app) fn macro_window(
                     changed = true;
                 }
                 ui.label(
-                    RichText::new(
-                        "{MYCALL} and {MYGRID} are filled in as the message goes out.",
-                    )
-                    .size(10.5)
-                    .color(crate::theme::gray(140)),
+                    RichText::new("{MYCALL} and {MYGRID} are filled in as the message goes out.")
+                        .size(10.5)
+                        .color(crate::theme::gray(140)),
                 );
             });
         });

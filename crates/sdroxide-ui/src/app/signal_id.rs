@@ -57,7 +57,9 @@ impl super::SdroxideApp {
 
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new("Tuned now").size(11.0).color(crate::theme::gray(150)));
-            ui.label(RichText::new(fmt_hz(freq_hz)).monospace().strong().color(crate::theme::CYAN()));
+            ui.label(
+                RichText::new(fmt_hz(freq_hz)).monospace().strong().color(crate::theme::CYAN()),
+            );
             ui.label(RichText::new(mode.label()).strong());
             ui.label(
                 RichText::new(format!("passband {}", fmt_hz(bw_hz)))
@@ -135,16 +137,10 @@ fn profile_row(ui: &mut egui::Ui, p: &SignalProfile) {
             ui.set_width(ui.available_width());
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(p.name).strong().color(crate::theme::CYAN()));
+                ui.label(RichText::new(p.family.label()).size(10.5).color(crate::theme::gray(150)));
+                ui.label(RichText::new(p.modulation).size(10.5).color(crate::theme::gray(170)));
                 ui.label(
-                    RichText::new(p.family.label()).size(10.5).color(crate::theme::gray(150)),
-                );
-                ui.label(
-                    RichText::new(p.modulation).size(10.5).color(crate::theme::gray(170)),
-                );
-                ui.label(
-                    RichText::new(p.bandwidth_text())
-                        .size(10.5)
-                        .color(crate::theme::gray(150)),
+                    RichText::new(p.bandwidth_text()).size(10.5).color(crate::theme::gray(150)),
                 );
                 if let Some(url) = p.wiki_url()
                     && crate::chrome::chip(ui, false, "sigidwiki")

@@ -119,20 +119,13 @@ impl UvPacketController {
 
     fn seen_recently(&self, hash: u64, now: SystemTime) -> bool {
         self.seen.iter().any(|&(h, t)| {
-            h == hash
-                && now
-                    .duration_since(t)
-                    .map(|d| d.as_secs() < DEDUP_TTL_S)
-                    .unwrap_or(false)
+            h == hash && now.duration_since(t).map(|d| d.as_secs() < DEDUP_TTL_S).unwrap_or(false)
         })
     }
 
     fn prune_seen(&mut self, now: SystemTime) {
         while let Some(&(_, t)) = self.seen.front() {
-            let expired = now
-                .duration_since(t)
-                .map(|d| d.as_secs() >= DEDUP_TTL_S)
-                .unwrap_or(true);
+            let expired = now.duration_since(t).map(|d| d.as_secs() >= DEDUP_TTL_S).unwrap_or(true);
             if expired {
                 self.seen.pop_front();
             } else {
@@ -169,9 +162,7 @@ fn frame_hash(f: &UvPacketFrame) -> u64 {
 }
 
 fn now_unix(now: SystemTime) -> i64 {
-    now.duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+    now.duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
 impl DigiEngine for UvPacketController {
