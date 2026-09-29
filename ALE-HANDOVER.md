@@ -62,7 +62,7 @@ from scipy.signal import butter, sosfilt, resample_poly
 iq = np.fromfile('live.iq.f32', np.float32)
 x  = iq[0::2].astype(np.float64)                    # Re = USB audio above dial
 x  = sosfilt(butter(6,[400,3000],'bandpass',fs=192000,output='sos'), x)
-a  = resample_poly(x, 1, 24)                        # 192k -> 8k
+a  = resample_poly(x, 1, 192)                       # 1536k -> 8k
 a  = (a/ (np.abs(a).max()+1e-9) *0.9).astype(np.float32)
 a.tofile('live8k.f32')                              # raw f32le, 8 kHz mono
 ```
@@ -74,6 +74,27 @@ cd /home/druid/sdroxide
 SDROXIDE_ALE_SAMPLE=/tmp/opencode/live8k.f32 \
   cargo test -p sdroxide-dsp --release ale::tests::an_off_air_recording_decodes -- --ignored --nocapture
 ```
+
+## Confirmed 2026-09-29 (capture chain)
+
+The fixed tool works: with defaults at 1.536 Msps, a 10 MHz WWV check gave raw
+rms 0.028 / peak 0.909, and a 11175 kHz run gave raw rms 0.025 / peak 0.996 —
+real energy, at last. Two gotchas seen:
+
+- **The capture is often short.** A 60 s request returned only ~11.5 M samples
+  (~7.5 s); check `stat` size ≈ 8 × rate × seconds and retry/loop if short.
+  `readStream` can stall without the loop noticing the shortfall.
+- **The 1.536 Msps span is 1.5 MHz wide**, so it also pulls in strong SW
+  broadcasters hundreds of kHz away (peaks seen at −303, +710, −135, +485 kHz).
+  ALE is at the dial ±2.5 kHz; look near 0 offset, don't be fooled by the loud
+  out-of-band carriers.
+- This particular 11175 s had **no ALE near the dial** (flat 0.4–3 kHz band) —
+  retry when a burst is actually up, or capture longer. Nothing decoded, but
+  the capture was no longer the blocker.
+
+Demod decimation for 1.536 Msps is **/192** (not /24). The handover Python
+used /24 for the old 192 kSPS attempts; use `resample_poly(x, 1, 192)` at
+1536 kSPS.
 
 ## Immediate next steps
 
