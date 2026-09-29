@@ -355,6 +355,20 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    tables have to come from the reference, not a search. (The sample is also
    MP3, so its timing jitter hurts a blind search.)
 
+   **Exact algorithm located (2026-09-29).** `dB-SPL/ALELite`'s
+   `SourceALE/ALEDoc.cpp` (`RxFEC`/`DeGolay`/`decode`) and
+   `SourceALE/ALEConstants.h` are the authority: standard systematic extended
+   Golay(24,12) with `enc[4096]`/`e[4096]`/`wt[4096]` (`encode(x)=(x<<12)|enc[x]`,
+   `enc[1]=0x5C7`), and a **bit-level ping-pong deinterleaver** over 49 symbols
+   with the three copies at circular offsets 0 / 16–17 / 32–33, combined through
+   `mtable[512]`/`utable[512]`. A Python mirror of `RxFEC` runs over the sample
+   but does not yet converge (no preamble triple), so the remaining suspect is
+   the **front end** — symbol timing and the tone→symbol mapping — not the FEC.
+   Next: round-trip the FEC synthetically to prove the mirror, then fix symbol
+   timing (proper resampler / PLL) against the WAV. (ALELite is GPL; use its
+   tables to validate only, and derive the Golay generator and interleaver for
+   the shipped code.)
+
    **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
    `Signal file` (not an image, which is why the API's `images` list missed it)
    is **`https://www.sigidwiki.com/images/a/ab/2G_ALEaudio.mp3`** — 30 s of real
