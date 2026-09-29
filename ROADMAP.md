@@ -318,10 +318,34 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    real over are the bench check. No calling frequency (the mode is too new to
    have one); `PROTO_VERSION` 179 → 180.
 3. **ALE / HF Selcall** (MIL-STD-188-141 2G automatic link establishment, plus
-   the 2G/3G sounding and a selective call). 8-FSK at 125 baud, with FEC and
-   word framing; the utility-HF monitoring staple — who is calling whom, and on
-   which channel. Reference: **PC-ALE** (C++17, MIT, clean-room from the
-   standard). Moderate: start decode-only (no ARQ). **Not started.**
+   the 2G/3G sounding and a selective call). The utility-HF monitoring staple —
+   who is calling whom, and on which channel. Asked for upstream as **#262**.
+   Moderate–high: receive-only first (no ARQ), the way FSK441 and ACARS shipped.
+
+   **Physical layer (pinned 2026-09-29).** 8-ary FSK, **tones 750–2500 Hz spaced
+   250 Hz**, **125 baud** (8 ms/symbol), 3 bits/symbol, 375 bps; the 24-bit ALE
+   word is `3-bit type + 21-bit payload` (three 7-bit ASCII characters), extended
+   **Golay(24,12)** over the two 12-bit halves → 48 bits, bit-interleaved, one
+   stuffing bit → 49, and each 49-bit word sent **three times** (majority vote).
+   Word types: DATA / THRU / TO / TWS / FROM / TIS / CMD / REP; the ASCII-64 set
+   is `A–Z 0–9 space @ ? . - /`. A message is a run of words (`TO`, `FROM`, …).
+
+   **Reference-quality warning — do not port blind.** `Alex-Pennington/PC-ALE`
+   (C++17, MIT) looks like a clean-room implementation but is **internally
+   contradictory**: its `ale_types.h` puts the tones at 750–1625 Hz **125 Hz**
+   apart (the standard is 750–2500 Hz at **250 Hz**), and its word parser's own
+   comments say first "49 symbols = 147 bits", then "the 24 bits ARE the word, no
+   Golay at word level" — the opposite of the spec. It cannot be trusted as the
+   decode authority; **MIL-STD-188-141B Appendix A is**, and a second
+   independent decoder should confirm the interleaver and the symbol mapping
+   before any of it is written here.
+
+   **Gating item before code: an off-air validation fixture.** FSK441 and ACARS
+   were each proven against a real recording (a Sigidwiki sample / `acarsdec`'s
+   `test.wav`) before they shipped; ALE needs the same — a short off-air capture
+   with a known `TO`/`FROM` pair to decode bit-for-bit. Without it a decoder can
+   be self-consistent and still wrong, and a confident wrong "who called whom"
+   is worse than no decode at all. **Not started.**
 4. **M17** (the open amateur digital-voice standard, 4-FSK 4800 sym/s + Codec2
    3200). Asked for upstream as **#449**, with a sensible v1 sketched there: LSF
    decode showing the other station's call, sync/SNR, own-call LSF on transmit,
