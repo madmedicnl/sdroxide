@@ -589,6 +589,16 @@ merged code still calls everything `sdroxide`.
     maintainer's review commits changed it first — `REC_CLIP_START_TIMEOUT_S` is his
     rename and the `(time, seconds)` pair is now the named `RecSpan` (clippy's
     `type_complexity`).
+  - `dividebysandwich/sdroxide#596` — **editable message buttons for the keyboard
+    modes** (upstream issue #463), opened 2026-09-29 from `upstream/main` (branch
+    `upstream-pr/digi-macros`, one commit). Adds `DigiConfig::text_macros` — the
+    same `CwMacro` label+text shape the CW panel already has, on a list of its
+    own — and draws the row and editor on the PSK/RTTY/Olivia/THOR panel, with
+    the control extracted to `panels/macros.rs` and shared by both. The fork's
+    `main` carries it (`1e93799f`) with `PROTO_VERSION` 181 → **182**; the field
+    sits after `cw_macros` (the PR's own placement, so the merge is clean). The
+    fork's only delta is the version number — **when it lands, the fork's copy
+    drops out; do not re-add the feature.**
   - `dividebysandwich/sdroxide#593` — **the grey line's contrast**, opened
     2026-09-28 from `upstream/main` (branch `upstream-pr/greyline-contrast`, one
     commit, two files). The night overlay was painted *before* `draw_base`, so
