@@ -1,5 +1,10 @@
 # Agent notes — SDR Oxide, the CB and SWL fork
 
+> **ALE (issue #262) is mid-flight — read [`ALE-HANDOVER.md`](ALE-HANDOVER.md)
+> first if you are continuing it.** It has the state, the exact capture/decode
+> commands, the fixed RSP1 settings, and the next steps. Everything below is
+> the rest of the fork.
+
 ## What this repository is
 
 A fork of [sdroxide](https://github.com/dividebysandwich/sdroxide) tuned for the
