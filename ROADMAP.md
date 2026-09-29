@@ -336,9 +336,17 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    apart (the standard is 750–2500 Hz at **250 Hz**), and its word parser's own
    comments say first "49 symbols = 147 bits", then "the 24 bits ARE the word, no
    Golay at word level" — the opposite of the spec. It cannot be trusted as the
-   decode authority; **MIL-STD-188-141B Appendix A is**, and a second
+   decode    authority; **MIL-STD-188-141B Appendix A is**, and a second
    independent decoder should confirm the interleaver and the symbol mapping
-   before any of it is written here.
+   before any of it is written here. The standard's PDF is not cheaply
+   machine-readable, so the practical route to those two tables is a compact C
+   decoder of the same waveform — **`dB-SPL/ALELite`** (FED-STD-1045A) or
+   **LinuxALE** (MIL-STD-188-141A) — read only for the Golay(24,12) generator
+   and the 48-bit interleaver, then reimplemented. **Exact items still open:**
+   the Golay variant/bit order (PC-ALE's parity table does not match a plain
+   systematic `0xAE3`/`0xC75` encode, so it is not the one), the 48-bit
+   interleaver permutation, and whether the 3× redundancy is over the 49-bit
+   codeword before or after symbol grouping.
 
    **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
    `Signal file` (not an image, which is why the API's `images` list missed it)
