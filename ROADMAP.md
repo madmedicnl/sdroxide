@@ -340,12 +340,18 @@ cleanly, so it needs tuning against a captured ITU-R M.493 burst. After that,
    independent decoder should confirm the interleaver and the symbol mapping
    before any of it is written here.
 
-   **Gating item before code: an off-air validation fixture.** FSK441 and ACARS
-   were each proven against a real recording (a Sigidwiki sample / `acarsdec`'s
-   `test.wav`) before they shipped; ALE needs the same — a short off-air capture
-   with a known `TO`/`FROM` pair to decode bit-for-bit. Without it a decoder can
-   be self-consistent and still wrong, and a confident wrong "who called whom"
-   is worse than no decode at all. **Not started.**
+   **Validation material: found (2026-09-29).** The Sigidwiki 2G ALE page's
+   `Signal file` (not an image, which is why the API's `images` list missed it)
+   is **`https://www.sigidwiki.com/images/a/ab/2G_ALEaudio.mp3`** — 30 s of real
+   ALE. Decoded to 8 kHz mono and FFT'd, its peaks sit exactly on the eight
+   tones **750/1000/1250/1500/1750/2000/2250/2500 Hz**, confirming the physical
+   layer above. Two caveats for the fixture: it is a **lossy MP3** (fine for a
+   lock/tone check, less so for a bit-for-bit FEC assertion), and the page
+   publishes **no ground-truth decode** (no `TO`/`FROM` text), so a first pass
+   validates that the front end locks and the words come out coherent and
+   plausible, not that they match a known pair. Better ground truth — an
+   off-air capture with a known address pair, or a second decoder to cross-check
+   — is still wanted before this is offered upstream. **Not started.**
 4. **M17** (the open amateur digital-voice standard, 4-FSK 4800 sym/s + Codec2
    3200). Asked for upstream as **#449**, with a sensible v1 sketched there: LSF
    decode showing the other station's call, sync/SNR, own-call LSF on transmit,
