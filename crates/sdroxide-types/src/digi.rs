@@ -2252,6 +2252,16 @@ pub struct DigiConfig {
     /// a listener or a rig whose keyer the app cannot drive; on for MCW/VOX.
     #[serde(default)]
     pub cw_key_tx: bool,
+    /// 11 m / WSJT-CB: accept the **experimental** wider callsign grammar
+    /// `N{1,3}L{1,3}N{1,4}` ([`crate::is_cb_callsign_wide`]) alongside
+    /// WSJT-CB's `N{1,3}L{1,2}N{1,3}`.
+    ///
+    /// Off by default, because the wider shape is not what WSJT-CB itself
+    /// accepts: turning it on widens what this station *hears*, but a call
+    /// that needs it may not be understood by a WSJT-CB station. The wire
+    /// format is unchanged — see [`crate::is_cb_callsign_wide`].
+    #[serde(default)]
+    pub cb_wide_callsigns: bool,
 }
 
 fn cw_default_tx_idle_s() -> f32 {
@@ -2448,6 +2458,7 @@ impl Default for DigiConfig {
             cw_key_mode: CwKeyMode::IambicB,
             cw_key_reverse: false,
             cw_key_tx: false,
+            cb_wide_callsigns: false,
         }
     }
 }

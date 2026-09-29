@@ -1955,6 +1955,38 @@ impl SdroxideApp {
                     .weak(),
                 );
 
+                ui.add_space(10.0);
+                ui.add_enabled_ui(io.digi_seeded, |ui| {
+                    ui.label(RichText::new("11 m / WSJT-CB callsign grammar").strong());
+                    ui.add_space(4.0);
+                    if crate::chrome::chip(
+                        ui,
+                        io.digi_edit.cb_wide_callsigns,
+                        "WIDE CB CALLSIGNS — EXPERIMENTAL",
+                    )
+                    .on_hover_text(
+                        "Accept the wider 11 m callsign shape N{1,3}L{1,3}N{1,4} — three \
+                         letters in the middle, up to four digits after — alongside WSJT-CB's \
+                         N{1,3}L{1,2}N{1,3}. Experimental: WSJT-CB itself rejects the wider \
+                         shape, so a call that needs it may not be understood by a WSJT-CB \
+                         station; it widens what this station hears more than what it can \
+                         reliably send. Off keeps WSJT-CB's exact grammar.",
+                    )
+                    .clicked()
+                    {
+                        io.digi_edit.cb_wide_callsigns = !io.digi_edit.cb_wide_callsigns;
+                    }
+                    ui.label(
+                        RichText::new(
+                            "Turn on if your 11 m community uses three-letter groups or \
+                             four-digit unit numbers. Applies to the CB digital modes' decode \
+                             and transmit; the longest call it admits is well inside what FT8 \
+                             can carry.",
+                        )
+                        .weak(),
+                    );
+                });
+
                 // Its own grid, outside the enabled-ui above: the region comes
                 // from `config.toml` by way of the station announcement, not
                 // from the digi config, so it is neither waiting on the same

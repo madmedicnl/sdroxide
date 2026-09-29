@@ -698,7 +698,7 @@ impl QsoMachine {
                 && !d.is_cq
                 && matches!(self.step, QsoStep::CallingCq | QsoStep::WaitCq)
                 && d.message.split_whitespace().count() == 1
-                && sdroxide_types::is_cb_callsign(&d.message)
+                && sdroxide_types::is_cb_callsign_with(&d.message, self.cfg.cb_wide_callsigns)
                 && d.message != my_call
             {
                 let call = d.message.clone();

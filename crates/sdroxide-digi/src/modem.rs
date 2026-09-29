@@ -20,16 +20,25 @@ use crate::params::{AUDIO_MAX_HZ, AUDIO_MIN_HZ};
 /// per-field gate refuses a CB-shaped call such as "26AT715", which
 /// drops the whole line, so we widen it. The hook yields only the
 /// callsign fields, so a grid or a report never reaches the grammar.
-fn is_cb_compatible_call(call: &str) -> bool {
-    wsjt77::is_plausible_call(call) || sdroxide_types::is_cb_callsign(call)
+fn is_cb_compatible_call(call: &str, wide: bool) -> bool {
+    wsjt77::is_plausible_call(call) || cb_ok(call, wide)
+}
+
+/// Whether a string is an 11 m callsign under the grammar in force: WSJT-CB's
+/// own ([`sdroxide_types::is_cb_callsign`]), or the experimental wider one
+/// ([`sdroxide_types::is_cb_callsign_wide`]) when the operator has opted in.
+/// One place, so the decode gate and the pack ladder can never disagree about
+/// which grammar a station is running.
+fn cb_ok(call: &str, wide: bool) -> bool {
+    sdroxide_types::is_cb_callsign_with(call, wide)
 }
 
 /// Whether a callsign may be packed or hashed — an 11 m identifier or a
 /// call the codec's validator accepts. The mfsk-core fork used to widen
 /// `is_valid_callsign` itself for CB identifiers; the union is that same
 /// widening, kept at the call sites that have to decide.
-fn is_packable_call(call: &str) -> bool {
-    wsjt77::is_valid_callsign(call) || sdroxide_types::is_cb_callsign(call)
+fn is_packable_call(call: &str, wide: bool) -> bool {
+    wsjt77::is_valid_callsign(call) || cb_ok(call, wide)
 }
 
 const SYNC_MIN: f32 = 1.5;
@@ -166,15 +175,32 @@ pub struct Ft8Modem {
     /// The same callsigns again, hashed the way the EU VHF contest layout
     /// needs them — see [`eu_vhf::Hashes`].
     eu_hashes: eu_vhf::Hashes,
+    /// Accept the experimental wider 11 m callsign grammar
+    /// ([`sdroxide_types::is_cb_callsign_wide`]) as well as WSJT-CB's. Off
+    /// unless the operator opts in — see [`Ft8Modem::set_cb_wide`].
+    cb_wide: bool,
 }
 
 impl Ft8Modem {
     pub fn new(mode: Mode) -> Self {
-        Ft8Modem { mode, hashes: CallsignHashTable::new(), eu_hashes: eu_vhf::Hashes::default() }
+        Ft8Modem {
+            mode,
+            hashes: CallsignHashTable::new(),
+            eu_hashes: eu_vhf::Hashes::default(),
+            cb_wide: false,
+        }
     }
 
     pub fn mode(&self) -> Mode {
         self.mode
+    }
+
+    /// Choose the 11 m callsign grammar: WSJT-CB's own, or the experimental
+    /// wider one. Set from [`sdroxide_types::DigiConfig::cb_wide_callsigns`] on
+    /// every config change, so the decode gate, the pack ladder and the encoder
+    /// all follow the operator's switch.
+    pub fn set_cb_wide(&mut self, wide: bool) {
+        self.cb_wide = wide;
     }
 
     /// Register callsigns we already know (ours, and the station we're
@@ -234,6 +260,7 @@ impl Ft8Modem {
         listening_hz: f32,
     ) -> (Vec<Decode>, Vec<Decode>) {
         let mode = self.mode;
+        let wide = self.cb_wide;
         let ht = &self.hashes;
         let eu = &self.eu_hashes;
         // FT8 fills this with the SIC extras; empty for every other mode.
@@ -249,7 +276,7 @@ impl Ft8Modem {
             .osd(true)
             // Same CB widening as the FT8 pass below (mfsk-core#386): FT4
             // carries a message policy through the generic pipeline too.
-            .also_accept(|m| m.callsigns().all(is_cb_compatible_call))
+            .also_accept(|m| m.callsigns().all(|c| is_cb_compatible_call(c, wide)))
             // Subtraction, so a weak signal inside a stronger neighbour's
             // occupied bandwidth is still decoded — FT4's whole reason for
             // multi-pass SIC, and what WSJT-X/WSJT-CB run by default. The
@@ -309,7 +336,7 @@ impl Ft8Modem {
                     // Widen the per-call plausibility gate to the 11 m callsign
                     // grammar (see is_cb_compatible_call) — upstream's FT8
                     // decoder has no allowlist entry for a CB-shaped call.
-                    .also_accept(|m| m.callsigns().all(is_cb_compatible_call));
+                    .also_accept(|m| m.callsigns().all(|c| is_cb_compatible_call(c, wide)));
                     let r = if sic { r.sic_early() } else { r };
                     match hint.as_ref() {
                         Some(h) => r.ap_hint(h),
@@ -361,7 +388,7 @@ impl Ft8Modem {
                 .osd(true)
                 .eq_mode(mfsk_core::engine::equalize::EqMode::Off)
                 .ap_hint(&hint)
-                .also_accept(|m| m.callsigns().all(is_cb_compatible_call))
+                .also_accept(|m| m.callsigns().all(|c| is_cb_compatible_call(c, wide)))
                 .decode()
                 .results
                 .into_iter()
@@ -396,7 +423,7 @@ impl Ft8Modem {
         audio_hz: f32,
         amplitude: f32,
     ) -> Option<(Vec<f32>, String)> {
-        let (msg77, sent) = pack_message(text)?;
+        let (msg77, sent) = pack_message(text, self.cb_wide)?;
         let audio = match self.mode {
             Mode::Ft4 => {
                 let tones = mfsk_core::ft4::encode::message_to_tones(&msg77);
@@ -728,7 +755,7 @@ fn jt_decode(
 /// its hash ([`pack77_hashed`]), then the non-standard-callsign layout (which
 /// spells the callsign out but can only carry `RRR` / `RR73` / `73` beside
 /// it), then 13 characters of free text.
-fn pack_message(text: &str) -> Option<([u8; 77], String)> {
+fn pack_message(text: &str, wide: bool) -> Option<([u8; 77], String)> {
     let text = text.trim().to_ascii_uppercase();
     let toks: Vec<&str> = text.split_whitespace().collect();
     let (c1, c2, payload) = (
@@ -794,8 +821,8 @@ fn pack_message(text: &str) -> Option<([u8; 77], String)> {
         && c1.starts_with('<')
         && c1.ends_with('>')
         && dx != c2
-        && sdroxide_types::is_cb_callsign(dx)
-        && sdroxide_types::is_cb_callsign(c2)
+        && cb_ok(dx, wide)
+        && cb_ok(c2, wide)
     {
         if let Some(mut m) = wsjt77::pack77_type4(c2, dx, "", false) {
             m[70] = 0; // iflip=0: the DX's hash reads first, "<DX> MYCALL"
@@ -807,7 +834,7 @@ fn pack_message(text: &str) -> Option<([u8; 77], String)> {
     //     signal report — neither of which the layout below has anywhere to
     //     put. The standard layout does, so long as that callsign travels as
     //     its hash instead of spelled out (issue #348).
-    if let Some((m, sent)) = pack77_hashed(c1, c2, payload) {
+    if let Some((m, sent)) = pack77_hashed(c1, c2, payload, wide) {
         return Some((m, sent));
     }
 
@@ -821,7 +848,7 @@ fn pack_message(text: &str) -> Option<([u8; 77], String)> {
     //     *pair* in the same two tokens ("26AT715 25TT304") is not this shape
     //     and stays on the two-hash ladder above.
     if !c1.is_empty()
-        && sdroxide_types::is_cb_callsign(c1)
+        && cb_ok(c1, wide)
         && matches!(toks.len(), 1 | 2)
         && (toks.len() == 1 || is_cb_payload_tok(c2))
     {
@@ -846,7 +873,7 @@ fn pack_message(text: &str) -> Option<([u8; 77], String)> {
     let nonstd_second = !c2.is_empty() && !wsjt77::is_standard_callsign(c2);
     if nonstd_first != nonstd_second {
         let (nonstd, std_call) = if nonstd_first { (c1, c2) } else { (c2, c1) };
-        if is_packable_call(nonstd) && wsjt77::is_standard_callsign(std_call) {
+        if is_packable_call(nonstd, wide) && wsjt77::is_standard_callsign(std_call) {
             if let Some(mut m) = wsjt77::pack77_type4(nonstd, std_call, rpt, false) {
                 // Bit 70 (`iflip`) decides which call is read first. mfsk-core
                 // always hashes-first, which is the layout for *being* the
@@ -909,7 +936,12 @@ const NTOKENS: u32 = 2_063_592;
 ///   those fit the non-standard layout whole, and spelling the callsign out is
 ///   worth more than the hash saves — it is what lets a third station resolve
 ///   the hashes in everything around it.
-fn pack77_hashed(c1: &str, c2: &str, payload: &str) -> Option<([u8; 77], String)> {
+fn pack77_hashed(
+    c1: &str,
+    c2: &str,
+    payload: &str,
+    wide: bool,
+) -> Option<([u8; 77], String)> {
     // A callsign the operator wrote in brackets is one they are asking to have
     // hashed; one that will not fit the 28-bit field has to be, brackets or no.
     let (b1, b2) = (eu_vhf::bare(c1), eu_vhf::bare(c2));
@@ -930,7 +962,7 @@ fn pack77_hashed(c1: &str, c2: &str, payload: &str) -> Option<([u8; 77], String)
     // payloads ride too: those are all a pair of hashes leaves room for anyway,
     // and no third amateur station is listening to prefer a spelled form.
     if h1 && h2 {
-        if !is_packable_call(b1) || !is_packable_call(b2) {
+        if !is_packable_call(b1, wide) || !is_packable_call(b2, wide) {
             return None;
         }
         const STAND_IN: &str = "K1ABC";
@@ -958,7 +990,7 @@ fn pack77_hashed(c1: &str, c2: &str, payload: &str) -> Option<([u8; 77], String)
         return None;
     }
     let (hashed, spelled) = if h1 { (b1, b2) } else { (b2, b1) };
-    if !is_packable_call(hashed) || !wsjt77::is_standard_callsign(spelled) {
+    if !is_packable_call(hashed, wide) || !wsjt77::is_standard_callsign(spelled) {
         return None;
     }
     // Packed with a stand-in where the hash goes and then overwritten, rather
@@ -1482,10 +1514,10 @@ mod eu_vhf_tests {
     #[test]
     fn the_packer_picks_the_contest_layout() {
         let (bits, sent) =
-            pack_message("<PA9XYZ> <G4ABC/P> R 570007 JO22DB").expect("packs as a contest message");
+            pack_message("<PA9XYZ> <G4ABC/P> R 570007 JO22DB", false).expect("packs as a contest message");
         assert_eq!(msg_kind(&bits), MsgKind::EuVhf);
         assert_eq!(sent, "<PA9XYZ> <G4ABC/P> R 570007 JO22DB");
-        let (bits, _) = pack_message("<PA9XYZ> <G4ABC/P> 590003 IO91NP").expect("packs");
+        let (bits, _) = pack_message("<PA9XYZ> <G4ABC/P> 590003 IO91NP", false).expect("packs");
         assert_eq!(msg_kind(&bits), MsgKind::EuVhf);
     }
 
@@ -1496,7 +1528,7 @@ mod eu_vhf_tests {
         let mut eu = eu_vhf::Hashes::default();
         eu.insert("PA9XYZ");
         eu.insert("G4ABC/P");
-        let (bits, _) = pack_message("<PA9XYZ> <G4ABC/P> R 570007 JO22DB").expect("packs");
+        let (bits, _) = pack_message("<PA9XYZ> <G4ABC/P> R 570007 JO22DB", false).expect("packs");
         let d = build_decode(&bits, -5.0, 0.2, 1200.0, 0, &CallsignHashTable::new(), &eu)
             .expect("decodes");
         assert_eq!(d.to.as_deref(), Some("PA9XYZ"));
@@ -2227,14 +2259,14 @@ mod tests {
         // decoder drops any message whose words aren't callsign-shaped (its
         // guard against CRC-14 false decodes), which takes real free text with
         // it — so what we can verify here is that we transmit the right thing.
-        let (bits, sent) = pack_message("TNX QSO 73 GL").expect("packs");
+        let (bits, sent) = pack_message("TNX QSO 73 GL", false).expect("packs");
         assert_eq!(sent, "TNX QSO 73 GL");
         assert_eq!(msg_kind(&bits), MsgKind::FreeText);
         assert_eq!(wsjt77::unpack77(&bits).as_deref(), Some("TNX QSO 73 GL"));
 
         // Over-long text is cut to the 13 characters FT8 carries, and the
         // caller is told what actually went out.
-        let (_, sent) = pack_message("THANKS FOR THE CONTACT").expect("packs");
+        let (_, sent) = pack_message("THANKS FOR THE CONTACT", false).expect("packs");
         assert_eq!(sent, "THANKS FOR TH");
     }
 
@@ -2247,7 +2279,7 @@ mod tests {
         // instead (see a_cb_pair_packs_as_two_hashes_including_the_status_payloads);
         // a lone bare call is still a legal free-text identity.
         for text in ["25TT304", "26AT715 -10", "26AT715 R-10", "26AT715 RR73", "26AT715 73"] {
-            let (bits, sent) = pack_message(text).expect("packs");
+            let (bits, sent) = pack_message(text, false).expect("packs");
             assert_eq!(sent, text);
             assert_eq!(msg_kind(&bits), MsgKind::FreeText, "{text}");
             assert_eq!(wsjt77::unpack77(&bits).as_deref(), Some(text));
@@ -2313,7 +2345,7 @@ mod tests {
     /// standard one hashes its own callsign, in the second field.
     #[test]
     fn a_report_from_a_compound_call_hashes_the_senders_own() {
-        let (bits, sent) = pack_message("F4CYH R7KJG/QRP -12").expect("packs");
+        let (bits, sent) = pack_message("F4CYH R7KJG/QRP -12", false).expect("packs");
         assert_eq!(sent, "F4CYH <R7KJG/QRP> -12");
         assert_eq!(msg_kind(&bits), MsgKind::Standard);
         let mut ht = CallsignHashTable::new();
@@ -2327,7 +2359,7 @@ mod tests {
     /// ...and a grid, which the non-standard layout drops just as silently.
     #[test]
     fn a_grid_to_a_compound_call_survives_too() {
-        let (_, sent) = pack_message("R7KJG/QRP F4CYH JN18").expect("packs");
+        let (_, sent) = pack_message("R7KJG/QRP F4CYH JN18", false).expect("packs");
         assert_eq!(sent, "<R7KJG/QRP> F4CYH JN18");
     }
 
@@ -2337,7 +2369,7 @@ mod tests {
     #[test]
     fn an_acknowledgement_to_a_compound_call_still_spells_it_out() {
         for rpt in ["RRR", "RR73", "73"] {
-            let (bits, sent) = pack_message(&format!("R7KJG/QRP F4CYH {rpt}")).expect("packs");
+            let (bits, sent) = pack_message(&format!("R7KJG/QRP F4CYH {rpt}"), false).expect("packs");
             assert_eq!(sent, format!("R7KJG/QRP <F4CYH> {rpt}"));
             assert_eq!(msg_kind(&bits), MsgKind::NonStandard);
         }
@@ -2372,7 +2404,7 @@ mod tests {
             ("26AT715 25TT304 73", "<26AT715> <25TT304> 73"),
             ("26AT715 25TT304 JO31", "<26AT715> <25TT304> JO31"),
         ] {
-            let (bits, sent) = pack_message(text).expect("packs");
+            let (bits, sent) = pack_message(text, false).expect("packs");
             // Both hashed calls stay bracketed in the display text.
             let toks: Vec<&str> = text.split_whitespace().collect();
             let shown = ["<26AT715>", "<25TT304>"]
@@ -2399,7 +2431,7 @@ mod tests {
     #[test]
     fn a_cb_opener_is_hash_then_spelled_out() {
         use mfsk_core::msg::hash_table::CallsignHashTable;
-        let (bits, sent) = pack_message("<26AT715> 25TT304").expect("packs");
+        let (bits, sent) = pack_message("<26AT715> 25TT304", false).expect("packs");
         assert_eq!(sent, "<26AT715> 25TT304");
         assert_eq!(msg_kind(&bits), MsgKind::NonStandard);
         // The exact WSJT-CB reference encoding for these two calls.
@@ -2423,8 +2455,24 @@ mod tests {
     /// other nonstandard callsign — `<26AT715> 25TT304 R-07`.
     #[test]
     fn a_cb_pair_against_a_standard_call_hashes_just_the_cb_side() {
-        let (bits, sent) = pack_message("26AT715 AB1CD R-07").expect("packs");
+        let (bits, sent) = pack_message("26AT715 AB1CD R-07", false).expect("packs");
         assert_eq!(sent, "<26AT715> AB1CD R-07");
+        assert_eq!(msg_kind(&bits), MsgKind::Standard);
+    }
+
+    /// The experimental grammar's whole point: a three-letter CB pair packs as
+    /// a two-hash contact only with the switch on. Strict, neither call is a CB
+    /// one, so the pair has nowhere to go and degrades to 13 characters of free
+    /// text — which no WSJT-CB station will read as two calls.
+    #[test]
+    fn the_wide_grammar_packs_a_three_letter_cb_pair() {
+        let (strict_bits, strict_sent) =
+            pack_message("26ABC715 25TT304", false).expect("packs as free text");
+        assert_ne!(msg_kind(&strict_bits), MsgKind::Standard);
+        assert_ne!(strict_sent, "<26ABC715> <25TT304>");
+
+        let (bits, sent) = pack_message("26ABC715 25TT304", true).expect("packs as a CB pair");
+        assert_eq!(sent, "<26ABC715> <25TT304>");
         assert_eq!(msg_kind(&bits), MsgKind::Standard);
     }
 
@@ -2456,18 +2504,24 @@ mod tests {
         // The union: 11 m identifiers pass, and so do everything the codec's
         // own per-field verdict already passes — the CQ/DE/QRZ and `<...>`
         // tags that ride in the callsign fields, and ordinary amateur calls.
-        assert!(is_cb_compatible_call("26AT715"));
-        assert!(is_cb_compatible_call("1AT106"));
-        assert!(is_cb_compatible_call("999ZZ/ZZ"));
-        assert!(is_cb_compatible_call("CQ"));
-        assert!(is_cb_compatible_call("CQ DX"));
-        assert!(is_cb_compatible_call("<25TT304>"));
-        assert!(is_cb_compatible_call("PA3XYZ"));
+        assert!(is_cb_compatible_call("26AT715", false));
+        assert!(is_cb_compatible_call("1AT106", false));
+        assert!(is_cb_compatible_call("999ZZ/ZZ", false));
+        assert!(is_cb_compatible_call("CQ", false));
+        assert!(is_cb_compatible_call("CQ DX", false));
+        assert!(is_cb_compatible_call("<25TT304>", false));
+        assert!(is_cb_compatible_call("PA3XYZ", false));
         // A callsign the ITU allowlist rejects and CB grammar refuses — the
         // crate's own documented CRC survivor "CQ G47OXF RD84" — still can't
         // get through the union.
-        assert!(!is_cb_compatible_call("G47OXF"));
+        assert!(!is_cb_compatible_call("G47OXF", false));
         assert!(!sdroxide_types::is_cb_callsign("G47OXF"));
+        // The wider grammar is a separate gate: the three-letter shape passes
+        // only with it on, and nothing the strict gate refused for another
+        // reason (a bad prefix, letters only) sneaks through.
+        assert!(!is_cb_compatible_call("26ABC715", false));
+        assert!(is_cb_compatible_call("26ABC715", true));
+        assert!(!is_cb_compatible_call("G47OXF", true));
         assert!(wsjt77::is_plausible_call("PA3XYZ"));
         assert!(!wsjt77::is_plausible_call("G47OXF"));
         assert!(!wsjt77::is_plausible_call("26AT715"));
@@ -2475,8 +2529,9 @@ mod tests {
         use mfsk_core::msg::wsjt77::Wsjt77Fields;
         // The whole gate, base verdict or our widening — the same
         // `base || predicate` the hook and the codec combine into.
-        let accept =
-            |m: &Wsjt77Fields| m.is_plausible() || m.callsigns().all(is_cb_compatible_call);
+        let accept = |m: &Wsjt77Fields| {
+            m.is_plausible() || m.callsigns().all(|c| is_cb_compatible_call(c, false))
+        };
         // A CQ to a CB call, and a CB-only pair, both hashed when sent.
         assert!(accept(&Wsjt77Fields::Standard {
             call1: "CQ".into(),

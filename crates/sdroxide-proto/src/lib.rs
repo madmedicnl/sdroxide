@@ -1572,7 +1572,16 @@ use sdroxide_types::{
 /// fails to decode every digital status, the same break as v178's appended
 /// field. No new wire type: JTTY is receive-only and reports through the
 /// ordinary `DigiStatus` seam.
-pub const PROTO_VERSION: u16 = 180;
+///
+/// v181: the experimental wide CB callsign grammar. `DigiConfig` gains
+/// `cb_wide_callsigns` (`bool`) on its tail — whether to accept
+/// `N{1,3}L{1,3}N{1,4}` alongside WSJT-CB's `N{1,3}L{1,2}N{1,3}`, opt-in and
+/// off by default. `DigiConfig` rides whole in `SetDigiConfig`/`DigiStatus`, so
+/// a v180 peer reads the extra byte as the start of the next field and fails to
+/// decode every config — the same break as v179's appended CW-key fields. No
+/// new wire type: the flag only widens a validator the codec gate already
+/// calls.
+pub const PROTO_VERSION: u16 = 181;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

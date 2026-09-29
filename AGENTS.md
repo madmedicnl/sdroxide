@@ -850,6 +850,43 @@ grammar (their first `cb_ok(&str)` sketch could not do that). It merged on
    The `ft8_eu` module itself stays: packing, the eu hash table and the
    exchange parsing (`eu_vhf` in modem.rs) are all still live.
 
+### The experimental wide CB callsign grammar (fork, 2026-09-29)
+
+WSJT-CB's grammar is `N{1,3}L{1,2}N{1,3}`, mirrored exactly by
+`sdroxide_types::is_cb_callsign`. The 11 m community has outgrown it — three
+letter groups and four-digit unit numbers are in use — so
+`is_cb_callsign_wide` adds `N{1,3}L{1,3}N{1,4}` (and the slash form
+`N{1,3}L{1,3}/L{2}`) as an **opt-in, off-by-default** superset. Both are picked
+through `is_cb_callsign_with(call, wide)`; the strict 25-case WSJT-CB table is
+untouched, so the two grammars stay separately pinned.
+
+It is switched by `DigiConfig::cb_wide_callsigns` — appended, so
+`PROTO_VERSION` 180 -> **181** (the field rides `DigiConfig` whole in
+`SetDigiConfig`/`DigiStatus`, the same break as v179's CW-key fields). The flag
+threads from the config to `Ft8Modem::set_cb_wide` (decode gate + pack ladder),
+through `DecodeJob::cb_wide` to the decode worker, and into the QSO machine's
+bare-call recognition. The toggle is on Settings → General, under the WSJT-CB
+callsign grammar heading, labelled **experimental**, with the caveat in its
+hover; the manual's 3.2.8 and the README's 11 m row carry the same.
+
+Why it is experimental, and the limits to keep in mind:
+- **WSJT-CB itself rejects the wider shape**, so the toggle widens what this
+  station *hears* and lets it pack a wider pair, but a call that needs it may
+  not be understood by a WSJT-CB station. That is the user-facing caveat.
+- **11 characters** is the hard cap for a Type-4 non-standard call
+  (`wsjt77::pack77_type4`), and the widest shape here is ten, so it fits with a
+  character to spare — no new wire format.
+- **The 22-bit hash** (4.2 M) is shared by every non-standard call, so a larger
+  call set makes collisions likelier; that is inherent to the FT8 family and is
+  why the toggle is a widening, not a fix.
+- The strict grammar's "four-digit unit only behind a one-digit prefix" coupling
+  is **dropped** in the wide grammar (confirmed 2026-09-29: any prefix).
+
+Tests: `the_wide_grammar_adds_the_three_letter_shape`,
+`the_strict_grammar_is_untouched_by_the_wide_one` (types),
+`the_wide_grammar_packs_a_three_letter_cb_pair` and the widened gate assertions
+in `cb_calls_pass_the_decode_gate` (digi).
+
 ### FT8 runs signal subtraction (2026-09-27)
 
 `Ft8Modem::decode_slot`'s FT8 request now ends `.sic_early()`. mfsk-core 0.11's

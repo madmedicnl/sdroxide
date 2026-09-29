@@ -161,6 +161,11 @@ struct DecodeJob {
     ap: ApHints,
     /// Where we are listening, for FT4's targeted a-priori pass.
     audio_hz: f32,
+    /// The 11 m grammar in force at the moment the slot completed: WSJT-CB's
+    /// own, or the experimental wider one. Read off the config here rather than
+    /// held on the worker's modem, which the job is the only thing that knows
+    /// how to update.
+    cb_wide: bool,
 }
 
 pub struct DigiController {
@@ -312,6 +317,7 @@ impl DigiController {
             .spawn(move || {
                 let mut modem = Ft8Modem::new(worker_mode);
                 while let Ok(job) = job_rx.recv() {
+                    modem.set_cb_wide(job.cb_wide);
                     modem.seed_hashes(&job.ap.calls());
                     // Two stages for FT8: the quick result is sent as soon as it
                     // is ready, so an auto-sequenced reply can be decided inside
@@ -330,13 +336,17 @@ impl DigiController {
             .expect("spawn ft8 decode worker");
 
         let tx_even = cfg.tx_even;
+        let cb_wide = cfg.cb_wide_callsigns;
         let qso = QsoMachine::new(params.mode, cfg);
+
+        let mut modem = Ft8Modem::new(params.mode);
+        modem.set_cb_wide(cb_wide);
 
         DigiController {
             params,
             scheduler: SlotScheduler::for_mode(mode),
             qso,
-            modem: Ft8Modem::new(params.mode),
+            modem,
             resampler,
             slot_buf: Vec::with_capacity(params.slot_samples()),
             tap_scratch: Vec::new(),
@@ -372,6 +382,7 @@ impl DigiController {
         if cfg.dxped_mode == sdroxide_types::DxpedMode::Fox {
             self.tx_even = cfg.tx_even;
         }
+        self.modem.set_cb_wide(cfg.cb_wide_callsigns);
         self.qso.set_config(cfg);
         self.status_dirty = true;
     }
@@ -901,7 +912,14 @@ impl DigiController {
                     };
                     if self
                         .job_tx
-                        .send(DecodeJob { audio, slot_idx, slot_utc, ap, audio_hz: self.audio_hz })
+                        .send(DecodeJob {
+                            audio,
+                            slot_idx,
+                            slot_utc,
+                            ap,
+                            audio_hz: self.audio_hz,
+                            cb_wide: self.qso.status(false).config.cb_wide_callsigns,
+                        })
                         .is_ok()
                     {
                         self.decoding += 1;

@@ -4105,6 +4105,26 @@ everything the sequencer puts on the air changes:
   transceiver, keyed by VOX or CAT. Both are the band's bullet in
   [6.1](#61-general-station-audio-and-remote-access).
 
+**The experimental wider CB callsign grammar.** WSJT-CB's identifier shape is
+`N{1,3}L{1,2}N{1,3}` — a country prefix, one or two letters, a unit number — and
+that is what runs by default. The 11 m community has grown past it, and some
+stations now use **three-letter groups** or **four-digit unit numbers**
+(`26ABC715`, `26ABC1000`), which that grammar refuses. **Settings → General →
+11 m / WSJT-CB callsign grammar → WIDE CB CALLSIGNS — EXPERIMENTAL** accepts the
+wider shape `N{1,3}L{1,3}N{1,4}` — and the matching slash form
+`N{1,3}L{1,3}/L{2}` — *on top of* the default one, so everything the strict
+grammar takes is still taken. It is **experimental and off by default**: WSJT-CB
+itself does not accept the wider shape, so switching it on widens what this
+station *hears* and lets it pack a wider call pair, but a call that needs it may
+not be understood by a station running WSJT-CB. Two limits are worth knowing. A
+Type-4 non-standard call can be at most **11 characters** on the wire, and the
+widest shape here is ten, so it fits with a character to spare — the toggle adds
+no new message format. And every non-standard call travels as a shared **22-bit
+hash** (4.2 million values), so the more distinct CB calls there are, the
+likelier two of them collide and resolve to the wrong one; that is a property of
+the FT8 family, not of this setting, and it is why the toggle is a widening and
+not a fix. The wire format is unchanged either way.
+
 ### 3.3 PSK31 and RTTY
 
 Choose **PSK** or **RTTY** from the DIGITAL row of the Band/Mode popup. As with
