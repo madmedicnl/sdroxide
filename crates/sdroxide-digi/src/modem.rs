@@ -422,13 +422,37 @@ impl Ft8Modem {
         }
         // Remember who we heard, for the next slot's hashed messages. Both
         // batches, so an extras-only station is still remembered.
-        for d in decodes.iter().chain(staged_extras.iter()) {
+        self.remember_heard(decodes.iter().chain(staged_extras.iter()));
+        (decodes, staged_extras)
+    }
+
+    /// Feed decodes' callsigns to the hash tables, so a hash heard later
+    /// resolves.
+    ///
+    /// Beyond the calls the decoder already spelled out, a **bare CB call** — a
+    /// one-token free-text decode that is an 11 m callsign — is remembered too.
+    /// WSJT-CB answers a CQ with exactly that ("26AT715", free text, no
+    /// addressing) *so that* every listener can resolve the station's hash in
+    /// everything that follows: it is the only message that spells the call
+    /// out, and the exchange messages that carry it are hashed (`<us> <them>`,
+    /// `<us> <them> -02`). Without this the pair decodes with `from = None`,
+    /// the contact is never attributed, and the exchange stalls one message in
+    /// (issue #396 follow-up).
+    fn remember_heard<'d>(&mut self, decodes: impl IntoIterator<Item = &'d Decode>) {
+        for d in decodes {
             for call in [d.to.as_deref(), d.from.as_deref()].into_iter().flatten() {
                 self.hashes.insert(call);
                 self.eu_hashes.insert(call);
             }
+            if d.free_text
+                && !d.is_cq
+                && d.message.split_whitespace().count() == 1
+                && sdroxide_types::is_cb_callsign_with(&d.message, self.cb_wide)
+            {
+                self.hashes.insert(&d.message);
+                self.eu_hashes.insert(&d.message);
+            }
         }
-        (decodes, staged_extras)
     }
 
     /// Synthesize a message into 12 kHz mono f32 burst audio at tone offset
@@ -3030,6 +3054,47 @@ mod tests {
         report(Mode::Ft4, "CQ AB1CD FN42", 0x5eed_0010);
         println!();
     }
+
+    /// A CB station answers our CQ, and the exchange must not stall one message
+    /// in. WSJT-CB sends its bare call first (`26AT715`, free text) *so the
+    /// hash can be resolved* in everything after it — its pair opener and every
+    /// report travel hashed (`<us> <them>`, `<us> <them> -02`). If that bare
+    /// call is not fed to the hash table, the pair decodes with `from = None`,
+    /// the contact is never attributed, and the machine sits on `CallingCq`
+    /// while the operator has to make every reply by hand. This pins the seed.
+    #[test]
+    fn a_bare_cb_call_seeds_the_hash_a_later_pair_needs() {
+        let mut rx = Ft8Modem::new(Mode::Ft8);
+        rx.set_cb_wide(true);
+        // Our own call, seeded as the controller does from `ap.calls()`.
+        rx.seed_hashes(&["25TT304".to_string()]);
+
+        // The bare call arrives and is remembered (the fix under test).
+        let bare = Decode {
+            slot_utc: 0,
+            snr_db: -10,
+            dt: 0.1,
+            audio_hz: 1500.0,
+            message: "26AT715".into(),
+            to: None,
+            from: None,
+            grid: None,
+            is_cq: false,
+            cq_to: None,
+            free_text: true,
+            rr73_to: None,
+        };
+        rx.remember_heard([&bare]);
+
+        // Now the pair opener decodes with the station resolved, not `<...>`.
+        let (burst, _) = rx.encode_burst_12k("25TT304 26AT715", 1500.0, 0.5).expect("encode");
+        let mut slot = vec![0.0f32; (0.5 * 12_000.0) as usize];
+        slot.extend_from_slice(&burst);
+        slot.resize((15.0 * 12_000.0) as usize, 0.0);
+        let i16buf: Vec<i16> = slot.iter().map(|&s| (s * 20_000.0) as i16).collect();
+        let decodes = rx.decode_slot(&i16buf, 0, &ApHints::default(), 1500.0);
+        let pair = decodes.iter().find(|d| d.from.is_some()).expect("the pair resolves");
+        assert_eq!(pair.to.as_deref(), Some("25TT304"));
+        assert_eq!(pair.from.as_deref(), Some("26AT715"));
+    }
 }
-
-
