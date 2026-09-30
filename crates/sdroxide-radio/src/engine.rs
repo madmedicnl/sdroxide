@@ -11834,6 +11834,7 @@ impl Engine {
         self.play_dab_audio(&pcm);
         let rx = self.dab.as_ref().expect("checked above");
         let e = rx.ensemble();
+        let (frames, fibs) = rx.counters();
         let st = sdroxide_types::DabStatus {
             ensemble: e.label,
             services: e
@@ -11851,6 +11852,8 @@ impl Engine {
             window_center_hz: self.dab_center_hz,
             window_rate_hz: self.dab_ddc.as_ref().map_or(0.0, |d| d.out_rate()),
             degraded: self.dab_degraded(),
+            frames,
+            fibs,
             ..Default::default()
         };
         let _ = self.event_tx.send(RadioEvent::DabStatus(Box::new(st)));

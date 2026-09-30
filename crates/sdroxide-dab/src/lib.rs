@@ -174,7 +174,16 @@ impl DabReceiver {
             let soft_bits = dabradio::ofdm::decoder::dqpsk_decode(&frame.symbols);
             // The FIC rides the first three symbols of every CIF.
             if soft_bits.len() >= 3 {
-                for fib in dabradio::fic::handler::process_fic(&soft_bits[..3]) {
+                let fibs = dabradio::fic::handler::process_fic(&soft_bits[..3]);
+                // Feed the decode ratio back to the OFDM processor. This is not
+                // a statistic: it is how the front end knows it has locked and
+                // stops applying coarse-frequency corrections. Without it the
+                // loop runs open — frames sync, symbols are mis-rotated, and
+                // not one FIB decodes (4 sub-blocks × 3 FIBs = 12 expected a
+                // frame, the ratio dradio's own receiver computes).
+                let ratio = ((fibs.len() as f32 / 12.0) * 100.0).round().min(100.0) as u8;
+                self.ofdm.set_fic_decode_ratio(ratio);
+                for fib in fibs {
                     self.ensemble.parse_fib(&fib);
                     self.fibs += 1;
                 }

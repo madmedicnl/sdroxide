@@ -106,7 +106,10 @@ impl SdroxideApp {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
-                    RichText::new(format!("{:.0} MHz", st.window_center_hz / 1e6))
+                    RichText::new(format!(
+                        "{:.0} MHz · {} frames · {} fibs",
+                        st.window_center_hz / 1e6, st.frames, st.fibs
+                    ))
                         .size(10.0)
                         .color(theme::gray(140)),
                 );
