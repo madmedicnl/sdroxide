@@ -244,6 +244,21 @@ def push(pages: dict[str, str], remote: str, dry: bool) -> None:
         print(f"pushed {len(pages)} pages to the wiki")
 
 
+def wiki_exists(remote: str) -> bool:
+    """Whether the wiki git repo exists yet.
+
+    GitHub creates `<repo>.wiki.git` only once the wiki has its **first page**,
+    and offers **no API** for that — it is a one-time step in the web UI
+    (`https://github.com/<owner>/<repo>/wiki` -> *Create the first page*). Until
+    then a push gets "Repository not found". This check turns that into a plain
+    instruction rather than a git error.
+    """
+    out = subprocess.run(
+        ["git", "ls-remote", remote], capture_output=True, text=True
+    )
+    return out.returncode == 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true", help="print what would be written, push nothing")
@@ -268,6 +283,17 @@ def main() -> int:
             print(f"warning: duplicate page name {s.page}", file=sys.stderr)
         pages[s.page] = build_page(s, index)
     print(f"{len(pages)} pages from {len(sections)} sections")
+    if not args.dry_run and not wiki_exists(args.remote):
+        print(
+            "\nThe wiki does not exist yet. GitHub creates it with its first "
+            "page, which has no API:\n"
+            "  1. Open https://github.com/madmedicnl/sdroxide-brown/wiki\n"
+            "  2. Click \"Create the first page\", save anything (this run "
+            "overwrites it)\n"
+            "  3. Re-run this script\n",
+            file=sys.stderr,
+        )
+        return 1
     push(pages, args.remote, args.dry_run)
     return 0
 
