@@ -1099,6 +1099,18 @@ check is *not* thread count (measured flat) but whether their gains are the
 same checkpoint recall we now have — i.e. compare decode sets on a shared
 recording, not the count alone.
 
+**It is now the operator's choice (2026-09-30).** The ~1.2 s price is real and
+the checkpoint chain cannot be parallelised, so `DigiConfig::ft8_depth`
+(`Ft8Depth`) selects the strategy and ships **Deep** — the recall above.
+Measured on `qso3_busy.wav` with `.osd(true)`: **Fast** (one pass) 16 decodes /
+31 ms, **Normal** (`.sic_rounds(2)`, flat) 19 / 412 ms, **Deep**
+(`.sic_early()`) 22 / 1.14 s. The flat pass plateaus at **20** however many
+rounds (2…8 measured), so only the checkpointed pass reaches 22 — and FFT-cache
+reuse across the passes bought nothing (1.169 s → 1.137 s). `DigiConfig` rides
+whole, so the appended field is a wire change: `PROTO_VERSION` 183 → 184. The
+control is on the FT8 setup dialog; the plain single pass is still emitted first
+whatever the depth, so the auto-reply staging is unchanged.
+
 ### The HD Radio capture harness
 
 Upstream took `dielectric-coder`'s harness with #466, so it is no longer ours to
