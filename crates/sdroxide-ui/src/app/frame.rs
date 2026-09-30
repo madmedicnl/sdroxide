@@ -1639,6 +1639,24 @@ impl SdroxideApp {
                         self.qso_log = crate::app::persist::load_qso_log(None);
                     }
                     r.id = self.next_log_id();
+                    // A contest session running takes every digital QSO that
+                    // completes while it is on: tag it with the contest, and
+                    // fill the sent serial and our own exchange from the
+                    // session, so the FT8 side logs itself while the operator
+                    // only types on CW/SSB. The station's own exchange comes
+                    // from the digi exchange when the mode is in a contest
+                    // (`DigiConfig::contest`), and is left blank otherwise.
+                    if let Some(session) = self.contest.as_mut() {
+                        r.contest_id = session.contest.label().to_string();
+                        if session.contest.sends_serial() && r.stx.is_none() {
+                            r.stx = Some(session.next_serial);
+                            session.next_serial =
+                                sdroxide_types::next_contest_serial(session.next_serial);
+                        }
+                        if r.stx_string.is_empty() {
+                            r.stx_string = session.my_exchange.clone();
+                        }
+                    }
                     let call = r.call.clone();
                     let adif = auto_upload_adif(&self.net_cfg_edit, &r);
                     self.last_logged_qso_id = Some(r.id);
