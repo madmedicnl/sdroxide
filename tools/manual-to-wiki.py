@@ -44,22 +44,26 @@ MANUAL = REPO / "docs" / "USER_MANUAL.md"
 RAW_IMAGE_BASE = "https://raw.githubusercontent.com/madmedicnl/sdroxide-brown/main/docs/images/"
 
 HEADING = re.compile(r"^(#{2,4})\s+(.*?)\s*$")
-# An internal link: `](#anything)`.
-LINK = re.compile(r"\]\(#([^)]+)\)")
+# An internal link, whole: `[text](#anchor)`. The text is kept; only the target
+# is rewritten. Matching the whole link (not just `](#...)`) is what stops the
+# text being left welded to the new page name.
+LINK = re.compile(r"\[([^\]]+)\]\(#([^)]+)\)")
 # An image: `![alt](path)`.
 IMAGE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 
 
 def slug(text: str) -> str:
-    """GitHub's heading slug: lower-case, punctuation dropped, spaces to `-`.
+    """GitHub's heading slug: lower-case, punctuation dropped, **each** space to
+    a hyphen (not runs of them collapsed — `a + b` is `a--b`, which is what the
+    manual's own anchors use).
 
-    Matches the anchors the manual already uses (`#328-11-m-and-the-citizens-band-wsjt-cb`),
-    so a rewritten link lands on the same sub-heading it used to.
+    Matches the anchors the manual already writes
+    (`#622-cat-radios-serial-control--usb-audio`), so a rewritten link lands on
+    the same sub-heading it used to.
     """
     s = text.strip().lower()
     s = re.sub(r"[^\w\s-]", "", s)  # drop punctuation, keep word chars/space/hyphen
-    s = re.sub(r"\s+", "-", s.strip())
-    return s
+    return s.replace(" ", "-")
 
 
 class Section:
@@ -68,7 +72,11 @@ class Section:
         self.title = title  # "3.2.1  Some heading"
         # Page name: `Section-3-2-1-...` from the leading number.
         num_slug = number.replace(".", "-")
-        rest = slug(re.sub(r"^[\d.]+\s*", "", title))
+        # The title slug for the *filename*: collapse runs of hyphens, so a
+        # heading with `+` or `/` does not give `a--b` in the page name. The
+        # anchors inside the page keep GitHub's rule (see `slug`) and so keep
+        # the double.
+        rest = re.sub(r"-{2,}", "-", slug(re.sub(r"^[\d.]+\s*", "", title))).strip("-")
         self.page = f"Section-{num_slug}-{rest}" if rest else f"Section-{num_slug}"
         self.level = level
         self.lines: list[str] = []
@@ -156,7 +164,7 @@ def build_page(section: Section, index: dict[str, str]) -> str:
     out: list[str] = []
     for line in section.lines:
         line = IMAGE.sub(lambda m: f"![{m.group(1)}]({RAW_IMAGE_BASE}{m.group(2).split('/')[-1]})", line)
-        line = LINK.sub(lambda m: rewrite_link(m.group(1), index), line)
+        line = LINK.sub(lambda m: f"[{m.group(1)}]({rewrite_link(m.group(2), index)})", line)
         out.append(line)
     body = "\n".join(out).rstrip() + "\n"
     # A footer linking back to the manual and the home page, on every page.
