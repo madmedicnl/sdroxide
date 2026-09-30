@@ -2041,6 +2041,36 @@ autocorrelation) as a measured DSP feature to feed identification. It is an
 "isolate it" DSP change and has no home until something computes it from the
 receive chain, so keep it separate from the catalogue.
 
+## The Retro Radio faceplate (fork-only, 2026-09-30)
+
+A listener's skin over the same engine: a wooden faceplate with one big tuning
+scale and a needle, BAND and MODE chips, VOLUME, SQUELCH, the receive TONE
+shelves, an S-meter, SCAN/SEEK, PRESET buttons from the memories, and an
+optional decode window. It holds **no station state** — every control pushes an
+ordinary `Command` — so leaving it restores the workspace unchanged, and
+nothing is on the wire.
+
+- **Code:** `crates/sdroxide-ui/src/app/retro.rs` holds the whole faceplate.
+  `UiSettings::retro_radio` and `Action::ToggleRetroRadio` are both
+  **client-local** (no `PROTO_VERSION` change); the action ships the default
+  **Ctrl+Alt+R**, `InputSettings::SCHEMA` is **2** and the binding rides `ADDED`,
+  so an existing `input.json` picks the shortcut up.
+- **How it hooks in:** `frame::ui` guards the top bar and the band dock with
+  one-line `!retro_radio` conditions and **prepends** the retro branch to the
+  existing panadapter if-else chain — deliberately *not* a wrap, so there is no
+  mass re-indent to fight at the next upstream merge. The dialogs still run, so
+  Settings (and turning the mode off) stays reachable. The operating-panel
+  dispatch was extracted to `SdroxideApp::operating_panel`, shared by the normal
+  layout and the retro decode window.
+- **Controls map to:** BAND → `SetBand`; MODE → `SetModeListen` (no band rule
+  for a listener); the scale → `SetVfo`; VOLUME → `SetVolume`; SQUELCH → the
+  rig's `SetRigSquelch` when the radio commands squelch, else `SetSquelch` (the
+  top strip's split, issue #192); TONE → `SetRxTone`; SCAN/SEEK →
+  `SetScanning`/`ScanNext`; PRESET → `RecallMemory`. The S-meter and the lit
+  readout reuse `widgets::smeter` and `widgets::freq_display`.
+- **Not done yet:** the manual and the README have no Retro Radio entry (the
+  operator deferred the manual pass), and the faceplate is look-and-feel only.
+
 ### The 3D window in the multi-radio shell (2026-09-26)
 
 The solar-system view is a **native child viewport**, and the multi-radio shell
