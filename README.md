@@ -223,6 +223,9 @@ client — are in [`docs/images/`](docs/images).
 - **Control** — every shortcut rebindable, any class-compliant **MIDI** controller
   (jog wheel, pads, faders, LEDs), mouse-button bindings, and optional **spoken
   announcements** through a bundled local neural voice (plus NVDA/Orca/VoiceOver).
+- **Retro Radio** — a listener's faceplate drawn over the same engine: one big
+  tuning scale and a needle, band and mode selectors, volume, squelch, tone, an
+  S-meter and an optional decode window. **Settings → UI**, or **Ctrl+Alt+R**.
 - **T/R switch** — drives an external relay that grounds the antenna while
   transmitting and sequences an amplifier with it; several USB/serial/GPIO
   relay kinds supported. A contact can take a **band-decoder** role instead,
