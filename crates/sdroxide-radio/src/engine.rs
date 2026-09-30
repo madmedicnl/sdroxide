@@ -2620,6 +2620,9 @@ struct Engine {
     cw_monitor_q: Vec<f32>,
     cw_monitor_rs: Option<MonoResampler>,
     cw_monitor_rate: f64,
+    /// DAB's decoded PCM, resampled from the codec's 48 kHz to the speaker.
+    dab_monitor_rs: Option<MonoResampler>,
+    dab_monitor_rate: f64,
     /// Resampled and waiting for the speaker, drained from the front a block at
     /// a time. Separate from `cw_monitor_q` because the two ends do not deal in
     /// the same samples: the transmit loop pushes 10 ms of 48 kHz, the speaker
@@ -2768,6 +2771,17 @@ struct Engine {
     /// rather than on every block. The outer `None` means nothing has been said
     /// yet, which is different from having said "there is nothing wrong".
     ais_idle_sent: Option<Option<String>>,
+    /// The DAB / DAB+ lane: raw I/Q at its own rate, a service list out. A
+    /// wideband lane like AIS's, for the same reason.
+    dab_ddc: Option<Ddc>,
+    dab: Option<sdroxide_dab::DabReceiver>,
+    dab_buf: Vec<Complex32>,
+    dab_center_hz: f64,
+    dab_in_rate: f64,
+    /// The operator's persisted preference, kept apart from `state.dab` for the
+    /// same reason `adsb_cfg` is.
+    dab_cfg: sdroxide_types::DabSettings,
+    dab_idle_sent: Option<Option<String>>,
     /// QO-100 beacon decoder: a fixed downconversion onto
     /// [`sdroxide_types::QO100_BEACON_HZ`] plus a worker-thread demodulator,
     /// present only while the decoder is enabled. Simpler than the ISM
@@ -3837,6 +3851,12 @@ fn engine_thread(
     } else {
         ais_cfg
     };
+    let dab_cfg = sdroxide_types::DabSettings::default();
+    state.dab = if audio_mode {
+        sdroxide_types::DabSettings::OFF // wideband-only, like the rest of the lanes
+    } else {
+        dab_cfg.clone()
+    };
 
     // Read before the DSP below rather than with the rest of the session
     // further down: the remembered decimation decides what rate the analyzer
@@ -4150,6 +4170,8 @@ fn engine_thread(
         cw_monitor_ready: std::collections::VecDeque::new(),
         cw_monitor_rs: None,
         cw_monitor_rate: 0.0,
+        dab_monitor_rs: None,
+        dab_monitor_rate: 0.0,
         cw_monitor_out: Vec::new(),
         cw_monitor_warned: false,
         voice_started: None,
@@ -4192,6 +4214,13 @@ fn engine_thread(
         ais_in_rate: 0.0,
         ais_cfg,
         ais_idle_sent: None,
+        dab_ddc: None,
+        dab: None,
+        dab_buf: Vec::new(),
+        dab_center_hz: 0.0,
+        dab_in_rate: 0.0,
+        dab_cfg,
+        dab_idle_sent: None,
         qo100_ddc: None,
         qo100: None,
         qo100_buf: Vec::new(),
@@ -4589,6 +4618,7 @@ fn engine_thread(
         engine.poll_adsb();
         engine.poll_vdl2();
         engine.poll_ais();
+        engine.poll_dab();
         engine.poll_qo100();
         engine.poll_hfdl();
         engine.poll_scanner();
@@ -5479,6 +5509,14 @@ impl Engine {
             ddc.process(iq, &mut self.ais_buf);
             if let Some(d) = self.ais.as_ref() {
                 d.on_rx_iq(&self.ais_buf);
+            }
+        }
+        // ...and the DAB lane, from the selected Band III channel.
+        if let Some(ddc) = self.dab_ddc.as_mut() {
+            self.dab_buf.clear();
+            ddc.process(iq, &mut self.dab_buf);
+            if let Some(d) = self.dab.as_mut() {
+                d.feed(&self.dab_buf);
             }
         }
         // ...and the QO-100 beacon decoder from its own fixed downconversion
@@ -9425,9 +9463,17 @@ impl Engine {
                     warn!("saving AIS config: {e}");
                 }
                 self.sync_ais();
+                self.sync_dab();
                 if let Some(d) = self.ais.as_ref() {
                     d.set_config(cfg);
                 }
+            }
+            SetDabConfig(cfg) => {
+                // The settings are the panel's; the lane that acts on them is
+                // `sync_dab`, driven below like the other wideband lanes.
+                self.state.dab = cfg;
+                self.dab_cfg = self.state.dab.clone();
+                self.sync_dab();
             }
 
             SetQo100Config(cfg) => {
@@ -11541,6 +11587,148 @@ impl Engine {
         }
     }
 
+    /// The ensemble's centre, from the selected channel name.
+    fn dab_channel_hz(&self) -> Option<f64> {
+        let want = self.state.dab.channel.trim();
+        sdroxide_types::DAB_BAND_III.iter().find(|(n, _)| n.eq_ignore_ascii_case(want)).map(|c| c.1)
+    }
+
+    /// The DAB lane wants the ensemble at the decoder's 2.048 Msps where the
+    /// front end can, so no resampling is needed; below that the lane still
+    /// works but the crate resamples, so the target is what the device offers.
+    fn dab_target_rate_hz(&self) -> f64 {
+        (sdroxide_dab::DAB_SAMPLE_RATE as f64).min(self.state.sample_rate)
+    }
+
+    /// Why the DAB receiver cannot run here, if it cannot. `None` means it can.
+    fn dab_unavailable(&self) -> Option<String> {
+        if self.audio_mode {
+            return Some(
+                "this front end hands over demodulated audio; DAB needs the raw I/Q stream"
+                    .to_string(),
+            );
+        }
+        if self.state.sample_rate < sdroxide_dab::DAB_BANDWIDTH_HZ {
+            return Some(format!(
+                "DAB needs at least {:.0} kHz of stream and this one is {:.1} kHz — \
+                 lower the front-end decimation, or raise the device sample rate",
+                sdroxide_dab::DAB_BANDWIDTH_HZ / 1e3,
+                self.state.sample_rate / 1e3
+            ));
+        }
+        let Some(channel_hz) = self.dab_channel_hz() else {
+            return Some("no DAB channel selected".to_string());
+        };
+        if !self.caps.may_rx_hz(channel_hz) {
+            return Some(format!("this receiver does not tune to {:.3} MHz", channel_hz / 1e6));
+        }
+        None
+    }
+
+    /// Why the DAB receiver will do badly here even though it can run. `None`
+    /// when there is nothing to say.
+    ///
+    /// A different kind of statement from [`Self::dab_unavailable`]: the lane is
+    /// decoding and a strong ensemble may still lock, and the operator would
+    /// otherwise have no way of knowing that a marginal stream — the RSP1 at
+    /// 2.0 Msps right at its ADC floor drops samples, and DAB needs a continuous
+    /// OFDM stream — is why nothing is found rather than propagation.
+    fn dab_degraded(&self) -> Option<String> {
+        if self.dab_unavailable().is_some() {
+            return None;
+        }
+        let rate = Ddc::rate_for(self.state.sample_rate, self.dab_target_rate_hz());
+        if rate >= sdroxide_dab::DAB_GOOD_RATE_HZ {
+            return None;
+        }
+        Some(format!(
+            "this stream is {:.3} Msps; at the bare width a DAB ensemble needs, the front \
+             end is at its floor and may drop samples, which stops OFDM sync. {:.1} Msps or \
+             more gives it margin — widen the receiver's window if it has the setting.",
+            rate / 1e6,
+            sdroxide_dab::DAB_GOOD_RATE_HZ / 1e6
+        ))
+    }
+
+    /// A down-converter for the DAB window, already mixed onto it, and the
+    /// absolute frequency it is centred on.
+    fn build_dab_window(&mut self) -> Option<(Ddc, f64)> {
+        let center = self.dab_channel_hz()?;
+        let mut ddc = Ddc::new(self.state.sample_rate, self.dab_target_rate_hz());
+        ddc.set_offset_hz(center - self.state.center_hz);
+        self.dab_in_rate = self.state.sample_rate;
+        Some((ddc, center))
+    }
+
+    /// Start or stop the DAB lane to match the mode and the front end.
+    ///
+    /// Follows the *mode*, like the other wideband lanes: the receiver is
+    /// parked on a Band III channel, and nothing else can be listened to
+    /// through it.
+    fn sync_dab(&mut self) {
+        let want = self.state.rx[0].mode == Mode::Dab && self.dab_unavailable().is_none();
+        if self.audio_mode {
+            self.state.dab = sdroxide_types::DabSettings::OFF;
+        } else {
+            self.state.dab = self.dab_cfg.clone();
+        }
+        match (want, self.dab.is_some()) {
+            (true, false) => {
+                let Some((ddc, center)) = self.build_dab_window() else { return };
+                let rate = ddc.out_rate();
+                match sdroxide_dab::DabReceiver::new(rate) {
+                    Ok(rx) => {
+                        self.dab = Some(rx);
+                        self.dab_ddc = Some(ddc);
+                        self.dab_center_hz = center;
+                        info!(rate, center, "DAB receiver started");
+                    }
+                    Err(e) => warn!("DAB: {e}"),
+                }
+            }
+            (false, true) => {
+                self.dab = None;
+                self.dab_ddc = None;
+                self.dab_buf.clear();
+                info!("DAB receiver stopped");
+            }
+            (true, true) => self.sync_dab_window(),
+            _ => {}
+        }
+    }
+
+    /// Re-place the window after a retune or a rate change — a `Ddc` bakes in
+    /// both its input rate and its decimation, so a change in either is a
+    /// rebuild rather than a retune. A moved channel is a rebuild too: the
+    /// ensemble is a different one and its service list no longer applies.
+    fn sync_dab_window(&mut self) {
+        let Some(ddc) = self.dab_ddc.as_ref() else { return };
+        let want_rate = Ddc::rate_for(self.state.sample_rate, self.dab_target_rate_hz());
+        let moved = self
+            .dab_channel_hz()
+            .is_some_and(|c| (c - self.dab_center_hz).abs() >= 1.0);
+        if (want_rate - ddc.out_rate()).abs() >= 1.0
+            || (self.state.sample_rate - self.dab_in_rate).abs() >= 1.0
+            || moved
+        {
+            let Some((ddc, center)) = self.build_dab_window() else { return };
+            let rate = ddc.out_rate();
+            // A moved channel is a fresh ensemble: rebuild the receiver so its
+            // service list is not last channel's.
+            match (moved, sdroxide_dab::DabReceiver::new(rate)) {
+                (true, Ok(rx)) => self.dab = Some(rx),
+                (true, Err(e)) => {
+                    warn!("DAB: {e}");
+                    self.dab = None;
+                }
+                (false, _) => {}
+            }
+            self.dab_ddc = Some(ddc);
+            self.dab_center_hz = center;
+            info!(rate, center, "DAB window rebuilt");
+        }
+    }
+
     /// Re-place the window after a retune or a rate change.
     ///
     /// The vessel table survives: a receiver nudged a few kilohertz is still
@@ -11612,6 +11800,60 @@ impl Engine {
                 .then_some(sdroxide_types::AIS_PLAN_CENTER_HZ);
             let _ = self.event_tx.send(RadioEvent::AisStatus(st));
         }
+    }
+
+    /// The DAB receiver's lane, drained once per loop into a status snapshot.
+    ///
+    /// Unlike the other lanes there is no controller polling an action stream:
+    /// the crate is driven by `feed` and read for its state, so this builds the
+    /// `DabStatus` the panel draws and sends it while the mode is on.
+    fn poll_dab(&mut self) {
+        if self.state.rx[0].mode != Mode::Dab {
+            return;
+        }
+        let unavailable = self.dab_unavailable();
+        if self.dab.is_none() {
+            // Nothing running on the DAB mode: say why, once, rather than on
+            // every block. That is the only way the panel can tell "wrong
+            // receiver" from "quiet band".
+            if self.dab_idle_sent.as_ref() != Some(&unavailable) {
+                self.dab_idle_sent = Some(unavailable.clone());
+                let st = sdroxide_types::DabStatus {
+                    unavailable,
+                    window_center_hz: self.dab_center_hz,
+                    window_rate_hz: self.state.sample_rate.min(sdroxide_dab::DAB_SAMPLE_RATE as f64),
+                    ..Default::default()
+                };
+                let _ = self.event_tx.send(RadioEvent::DabStatus(Box::new(st)));
+            }
+            return;
+        }
+        self.dab_idle_sent = None;
+        // Drain decoded audio to the speakers while a service is playing.
+        let pcm = self.dab.as_mut().map(|d| d.take_pcm()).unwrap_or_default();
+        self.play_dab_audio(&pcm);
+        let rx = self.dab.as_ref().expect("checked above");
+        let e = rx.ensemble();
+        let st = sdroxide_types::DabStatus {
+            ensemble: e.label,
+            services: e
+                .services
+                .into_iter()
+                .map(|s| sdroxide_types::DabService {
+                    service_id: s.service_id,
+                    label: s.label,
+                    subchannel: s.subchannel,
+                    bitrate: s.bitrate,
+                    protection: s.protection,
+                })
+                .collect(),
+            unavailable,
+            window_center_hz: self.dab_center_hz,
+            window_rate_hz: self.dab_ddc.as_ref().map_or(0.0, |d| d.out_rate()),
+            degraded: self.dab_degraded(),
+            ..Default::default()
+        };
+        let _ = self.event_tx.send(RadioEvent::DabStatus(Box::new(st)));
     }
 
     /// The main receiver's clean audio tap is shared: the digital-mode engine
@@ -13410,6 +13652,7 @@ impl Engine {
             self.sync_adsb();
             self.sync_vdl2();
             self.sync_ais();
+            self.sync_dab();
             self.emit_digi_status();
             // A wider channel needs a wider berth from the LO: switching a
             // narrow mode that was happily sitting 30 kHz off the LO into WFM
@@ -15094,6 +15337,7 @@ impl Engine {
         self.sync_adsb();
         self.sync_vdl2();
         self.sync_ais();
+        self.sync_dab();
         self.sync_qo100();
         self.sync_audio_tap();
         self.sync_tci_iq();
@@ -15467,6 +15711,7 @@ impl Engine {
             self.sync_adsb();
             self.sync_vdl2();
             self.sync_ais();
+            self.sync_dab();
             self.sync_qo100();
             self.sync_hfdl();
         }
@@ -16480,6 +16725,36 @@ impl Engine {
         let rec: Vec<f32> = if want_rec { mono.clone() } else { Vec::new() };
         if let Some(mixer) = self.mixer.as_mut() {
             mixer.push(&mono, None, &rec, None);
+        }
+    }
+
+    /// Play DAB's decoded PCM to the speakers.
+    ///
+    /// DAB is a listening receiver: the audio is the whole point, and there is
+    /// no demodulator in the receive chain producing it — the crate decodes it
+    /// from the ensemble. It goes out through the same speaker funnel every
+    /// other local monitor uses, scaled by the receiver's volume and mute so
+    /// one knob means one thing.
+    fn play_dab_audio(&mut self, pcm: &[f32]) {
+        if pcm.is_empty() {
+            return;
+        }
+        // The codec runs at 48 kHz; the speaker may not.
+        if (self.audio_out_rate - self.dab_monitor_rate).abs() > 0.01 {
+            self.dab_monitor_rate = self.audio_out_rate;
+            self.dab_monitor_rs = MonoResampler::new(TX_MONITOR_RATE, self.audio_out_rate);
+        }
+        let mut ready = Vec::new();
+        match self.dab_monitor_rs.as_mut() {
+            Some(rs) => rs.push(pcm, &mut ready),
+            None => ready.extend_from_slice(pcm),
+        }
+        let rx0 = &self.state.rx[0];
+        let vol = if rx0.muted { 0.0 } else { rx0.volume } * self.state.dab.volume;
+        let mono: Vec<f32> =
+            if vol != 1.0 { ready.iter().map(|s| s * vol).collect() } else { ready };
+        if let Some(mixer) = self.mixer.as_mut() {
+            mixer.push(&mono, None, &[], None);
         }
     }
 
@@ -17741,6 +18016,7 @@ fn rig_mode_class(m: Mode) -> u8 {
         | Mode::Adsb
         | Mode::Vdl2
         | Mode::Ais
+        | Mode::Dab
         | Mode::Hfdl
         | Mode::HdRadio => 5,
     }

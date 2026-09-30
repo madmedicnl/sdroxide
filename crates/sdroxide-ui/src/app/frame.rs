@@ -297,6 +297,10 @@ impl eframe::App for SdroxideApp {
         // Auto mode, on its own clock: an unattended run must not depend on
         // which pane or tab happens to be on screen.
         self.tick_auto_mode(&ctx, now, &mut cmds);
+        // A DAB channel scan, app-wide too: it must run whichever pane is on
+        // screen, and it is what fills the channel picker with the blocks that
+        // actually carry a transmission here rather than a hardcoded list.
+        self.tick_dab_scan(&ctx, now, &mut cmds);
         // A channel list chosen in the memories window: parsed here and sent
         // to the engine, which owns the list and the numbering in it.
         self.poll_chirp_import(&mut cmds);
@@ -547,6 +551,11 @@ impl eframe::App for SdroxideApp {
                 // is a view of nothing. The whole channel instead, which is
                 // also all there is on this band.
                 (dial - 1_500_000.0, dial + 1_500_000.0)
+            } else if mode == Mode::Dab {
+                // A DAB ensemble is ~1.5 MHz wide and the whole thing is
+                // decoded at once, so the panadapter frames the channel as
+                // ADS-B does — there is no sub-band to zoom to.
+                (dial - 900_000.0, dial + 900_000.0)
             } else if mode.is_hfdl() {
                 // The lane is a fixed 24 kHz channel, and entering the mode
                 // put the dial on the chosen HFDL frequency; frame the channel
@@ -1309,7 +1318,86 @@ impl eframe::App for SdroxideApp {
     }
 }
 
+/// A DAB channel scan in progress.
+///
+/// Which Band III blocks carry an ensemble is a fact about where the operator
+/// is — the same 12C is a multiplex here and silence in the next country — so
+/// the picker is filled by listening, not by a list that only fits one place.
+/// The scan walks the blocks, dwells on each long enough for the FIC to name a
+/// service, and keeps the ones that produced one.
+pub(in crate::app) struct DabScan {
+    /// Index into [`sdroxide_types::DAB_BAND_III`] of the block being listened
+    /// to.
+    pub at: usize,
+    /// When the scan arrived on that block, for the dwell. Stamped by the tick
+    /// itself, on egui's frame clock — the same clock the tick reads — rather
+    /// than by whoever started the scan, so the two cannot be different clocks
+    /// (a Unix stamp here against egui's uptime made the dwell ~never elapse).
+    pub since: Option<f64>,
+    /// Blocks found so far, in the order they were found.
+    pub found: Vec<String>,
+}
+
+/// How long the scan listens on one block before moving on. The FIC names an
+/// ensemble within a second or so of lock on any real signal; three is a
+/// comfortable margin that keeps a 38-block sweep under two minutes.
+const DAB_SCAN_DWELL_S: f64 = 3.0;
+
 impl SdroxideApp {
+    /// Advance a DAB scan, if one is running.
+    ///
+    /// A scan is an act of the operator's, so it lives in the app rather than
+    /// the engine: whichever pane is on screen, the loop runs, retunes the lane
+    /// block by block, and records what it heard. Selecting DAB is not required
+    /// — an operator may scan before switching to the mode — but the lane only
+    /// runs in the mode, so a scan started from elsewhere waits for it.
+    pub(in crate::app) fn tick_dab_scan(
+        &mut self,
+        ctx: &egui::Context,
+        now: f64,
+        cmds: &mut Vec<Command>,
+    ) {
+        let Some(scan) = self.dab_scan.as_mut() else { return };
+        // Ask for frames while it runs: a scan must reach its next block even
+        // if nothing on screen is moving.
+        crate::repaint::after_ms(ctx, 100);
+
+        // A block that yields an ensemble (the status names one) joins the list.
+        if let Some(st) = self.dab_status.as_ref()
+            && let Some(label) = &st.ensemble
+        {
+            let name = sdroxide_types::DAB_BAND_III[scan.at].0.to_string();
+            if !scan.found.contains(&name) {
+                scan.found.push(name);
+                let _ = label;
+            }
+        }
+
+        if now - scan.since.unwrap_or(now) < DAB_SCAN_DWELL_S {
+            if scan.since.is_none() {
+                scan.since = Some(now);
+            }
+            return;
+        }
+        // Move on. Past the last block the scan is over: keep what was found
+        // and hand it to the settings, which are remembered.
+        scan.at += 1;
+        scan.since = Some(now);
+        if scan.at >= sdroxide_types::DAB_BAND_III.len() {
+            let found = std::mem::take(&mut scan.found);
+            self.state.dab.found = found;
+            self.dab_scan = None;
+            cmds.push(Command::SetDabConfig(self.state.dab.clone()));
+            return;
+        }
+        let name = sdroxide_types::DAB_BAND_III[scan.at].0.to_string();
+        self.state.dab.channel = name.clone();
+        if let Some((_, hz)) = sdroxide_types::DAB_BAND_III[scan.at].into() {
+            cmds.push(Command::SetVfo { vfo: self.state.active_vfo, hz });
+        }
+        cmds.push(Command::SetDabConfig(self.state.dab.clone()));
+    }
+
     /// Drain everything this radio's engine sent since the last visit.
     ///
     /// Runs at the top of every drawn frame — and, in a multi-radio session,
@@ -1721,6 +1809,7 @@ impl SdroxideApp {
                 RadioEvent::AdsbStatus(st) => self.adsb_status = Some(st),
                 RadioEvent::Vdl2Status(st) => self.vdl2_status = Some(st),
                 RadioEvent::AisStatus(st) => self.ais_status = Some(st),
+                RadioEvent::DabStatus(st) => self.dab_status = Some(st),
                 RadioEvent::Qo100Status(st) => self.qo100_status = Some(st),
                 RadioEvent::HfdlStatus(st) => {
                     // Feed the map's plot table before the log scrolls anything
@@ -2171,6 +2260,8 @@ impl SdroxideApp {
             self.rf_paint_panel(ui, cmds, panel_h);
         } else if mode.is_adsb() {
             self.adsb_panel(ui, cmds, panel_h);
+        } else if mode == Mode::Dab {
+            self.dab_panel(ui, cmds, panel_h);
         } else if mode.is_vdl2() {
             self.vdl2_panel(ui, cmds, panel_h);
         } else if mode.is_ais() {

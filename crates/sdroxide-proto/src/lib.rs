@@ -1618,7 +1618,13 @@ use sdroxide_types::{
 /// `ClientMsg::SetClientSettings` and `ServerMsg::ClientSettings`, both
 /// **appended last**. Only the presentation half of `UiSettings` travels, and
 /// never the control bindings. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 186;
+///
+/// v187: the DAB / DAB+ receiver. `Mode::Dab` is appended to that enum,
+/// `RadioState` gains `dab` (`DabSettings`) on its tail, and there are new
+/// `Command::SetDabConfig` and `ServerMsg::DabStatus` — all appended last.
+/// `RadioState` rides whole, so a v186 peer reads the extra bytes as the start
+/// of the next field. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 187;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -2103,6 +2109,12 @@ pub enum ServerMsg {
     ///
     /// Appended last, for the usual reason.
     ClientSettings(ClientSettingsReply),
+
+    /// `RadioEvent::DabStatus`: the DAB ensemble, its services and the decode
+    /// counters — a snapshot, sent as the FIC fills in and on change.
+    ///
+    /// Appended last, for the usual reason.
+    DabStatus(Box<sdroxide_types::DabStatus>),
 }
 
 /// What [`ServerMsg::ClientSettings`] carries.

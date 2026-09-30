@@ -1641,6 +1641,7 @@ fn mode_to_flex(m: Mode) -> &'static str {
         | Mode::SstvFm
         | Mode::RttyFm
         | Mode::Adsb
+                | Mode::Dab
         | Mode::Vdl2
         | Mode::Ais
         | Mode::Hfdl

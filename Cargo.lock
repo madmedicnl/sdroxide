@@ -1318,6 +1318,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "dabradio"
+version = "0.5.0"
+source = "git+https://github.com/madmedicnl/desperado.git?branch=lib%2Fsplit-dabradio#9a79d6b6846bf7689b0b2bc213b7d2b81945606a"
+dependencies = [
+ "num-complex",
+ "oxideav-mp2",
+ "reed-solomon",
+ "rustfft",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "dasp_sample"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3868,6 +3881,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxideav-core"
+version = "0.1.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8de32b40e24dd0f22ec37a0cb723ad499c05b43aa391971b7621c9a1c96fb15"
+dependencies = [
+ "bytemuck",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "oxideav-mp2"
+version = "0.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d078671403ba6f7efd48d8580cad13a046812c420f63eacb140ee3a0966d374e"
+dependencies = [
+ "oxideav-core",
+]
+
+[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4487,6 +4520,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "reed-solomon"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13de68c877a77f35885442ac72c8beb7c2f0b09380c43b734b9d63d1db69ee54"
+
+[[package]]
 name = "regex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5086,6 +5125,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdroxide-dab"
+version = "1.9.10"
+dependencies = [
+ "cc",
+ "dabradio",
+ "num-complex",
+ "sdroxide-dsp",
+ "sdroxide-faad2",
+ "thiserror 2.0.20",
+ "tracing",
+]
+
+[[package]]
 name = "sdroxide-deepcw"
 version = "1.9.10"
 dependencies = [
@@ -5434,6 +5486,7 @@ dependencies = [
  "sdroxide-aprs",
  "sdroxide-ax25",
  "sdroxide-config",
+ "sdroxide-dab",
  "sdroxide-digi",
  "sdroxide-drm",
  "sdroxide-dsp",

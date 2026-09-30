@@ -353,6 +353,7 @@ fn mode_digit(m: Mode) -> (char, bool) {
         | Mode::Adsb
         | Mode::Vdl2
         | Mode::Ais
+        | Mode::Dab
         | Mode::Hfdl
         | Mode::HdRadio => ('4', false),
         // RIFP keys the carrier itself and VHF packet frequency-modulates it:

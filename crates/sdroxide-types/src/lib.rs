@@ -27,6 +27,7 @@ mod chirp;
 mod command;
 mod contacts;
 mod contest;
+mod dab;
 mod controller;
 mod digi;
 mod drm;
@@ -143,6 +144,7 @@ pub use cb_country::cb_callsign_in;
 pub use chirp::{chirp_csv_to_memories, memories_to_chirp_csv};
 pub use command::Command;
 pub use contacts::FsqContact;
+pub use dab::{DAB_BAND_III, DabService, DabSettings, DabStatus, dab_channel_at};
 pub use contest::{
     ContestId, ContestScore, ContestSession, ContestSpec, Exchange, Multiplier, cabrillo_contest,
     cabrillo_mode, rate, score, to_cabrillo, wpx_prefix,

@@ -801,6 +801,7 @@ pub struct SdroxideApp {
     /// estuary's table, each row carrying a trail, is far larger than anything
     /// else held here.
     ais_status: Option<Box<sdroxide_types::AisStatus>>,
+    dab_status: Option<Box<sdroxide_types::DabStatus>>,
     /// AIS: the chart's pan/zoom and which vessel is selected.
     ais_map: crate::ais_map::AisMapState,
     /// AIS: filter for the vessel list; matches a name, a call sign, a
@@ -859,6 +860,10 @@ pub struct SdroxideApp {
     // for.
     /// Whether auto mode is armed.
     auto_mode: bool,
+    /// A DAB channel scan in progress: which Band III block it is sitting on,
+    /// and when it arrived there. Session-only — a scan is an act, not a
+    /// setting; what it *finds* goes in `state.dab.found` and is remembered.
+    dab_scan: Option<crate::app::frame::DabScan>,
     /// Frame time of the last input event, for the inactivity stop.
     auto_last_activity: f64,
     /// Frame time before which the tick will not queue another command — the
@@ -1702,6 +1707,7 @@ impl SdroxideApp {
             adsb_sort: panels::adsb::AdsbSort::default(),
             adsb_sort_desc: true,
             ais_status: None,
+            dab_status: None,
             ais_map: crate::ais_map::AisMapState::default(),
             ais_filter: String::new(),
             show_ais_setup: false,
@@ -1745,6 +1751,7 @@ impl SdroxideApp {
             digi_tx_hz_edit: String::new(),
             digi_preview: None,
             auto_mode: false,
+            dab_scan: None,
             auto_last_activity: 0.0,
             auto_cooldown_until: 0.0,
             auto_resume_at: None,

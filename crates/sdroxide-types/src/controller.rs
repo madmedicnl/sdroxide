@@ -413,6 +413,9 @@ pub enum RadioEvent {
         profile: Option<String>,
         settings: crate::ClientScreen,
     },
+    /// The DAB receiver's ensemble, service list and decoding state — an
+    /// occasional snapshot, like [`RadioEvent::AdsbStatus`].
+    DabStatus(Box<crate::DabStatus>),
 }
 
 /// Snapshot of the frontend's switchable sound devices (native clients).

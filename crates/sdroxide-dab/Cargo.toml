@@ -1,0 +1,30 @@
+[package]
+name = "sdroxide-dab"
+version.workspace = true
+edition.workspace = true
+# `dabradio` is MIT and the faad2 this links is GPL-2.0-or-later, both covered
+# by the workspace's GPL-3.0-or-later. The fdk-aac feature is deliberately NOT
+# enabled: an AAC decoder under the FDK licence cannot be linked here at all,
+# which is the whole reason `dabradio`'s split makes it optional. DAB+ audio
+# comes from the stock faad2 the binary already carries, through
+# `sdroxide-faad2` — see the crate docs.
+license.workspace = true
+description = "DAB/DAB+ receiver, wrapping the `dabradio` decoder as a library."
+
+# Native-only: the wideband I/Q lane and a vendored C codec. Must never be a
+# dependency of a wasm-targeted crate.
+
+[dependencies]
+# The decoder, as a library. The git dependency is our fork's `lib/split-dabradio`
+# branch (upstream PR xoolive/desperado#52), because the published 0.5.0 is a
+# binary-only crate with no `lib.rs`. `default-features = false` drops the TUI
+# and the SDR device front ends, and with them fdk-aac — our AAC is faad2.
+dabradio = { git = "https://github.com/madmedicnl/desperado.git", branch = "lib/split-dabradio", default-features = false }
+sdroxide-dsp.workspace = true
+sdroxide-faad2.workspace = true
+num-complex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+cc = "1"

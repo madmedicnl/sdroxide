@@ -104,6 +104,7 @@ pub fn mode_to_civ(m: Mode) -> u8 {
         | Mode::Adsb
         | Mode::Vdl2
         | Mode::Ais
+        | Mode::Dab
         | Mode::Hfdl
         | Mode::HdRadio => 0x05,
         // Wide FM has a mode byte of its own on CI-V, and it is not the same

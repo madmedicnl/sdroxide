@@ -7691,7 +7691,7 @@ pub(in crate::app) fn band_mode_menu(
                 // signals all the same, and this is where an operator looks for
                 // one.
                 for m in
-                    Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
+                    Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Dab, Mode::Hfdl])
                 {
                     mode_band_chip(ui, mode, m, band, state, cmds);
                 }
@@ -7734,7 +7734,7 @@ pub(in crate::app) fn band_mode_menu(
             crate::chrome::menu_caption(ui, "Digital");
             ui.horizontal_wrapped(|ui| {
                 for m in
-                    Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Hfdl])
+                    Mode::DIGITAL.into_iter().chain([Mode::Adsb, Mode::Vdl2, Mode::Ais, Mode::Dab, Mode::Hfdl])
                 {
                     mode_listen_chip(ui, mode, m, state, cmds);
                 }

@@ -1183,4 +1183,7 @@ pub enum Command {
         rx: RxId,
         mode: Mode,
     },
+    /// How the DAB / DAB+ receiver behaves — the channel and the service to
+    /// play. Appended for the usual reason.
+    SetDabConfig(crate::DabSettings),
 }

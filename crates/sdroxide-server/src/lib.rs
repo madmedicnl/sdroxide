@@ -1122,6 +1122,7 @@ fn handle_event(shared: &Shared, ev: RadioEvent) {
                 latest.ais_status = Some(st.clone());
                 Some(ServerMsg::AisStatus(st))
             }
+            RadioEvent::DabStatus(st) => Some(ServerMsg::DabStatus(st)),
             // Native-only for now: every station this shipped for runs its
             // own hardware locally, so there is no `ServerMsg` variant for
             // this yet — see `RadioEvent::Qo100Status`'s own doc.

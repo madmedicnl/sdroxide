@@ -424,6 +424,12 @@ pub enum Mode {
     /// answers `None`; the controller keeps a rolling audio window and reports
     /// the words it hears. Appended for the same reason as [`Mode::Hell`].
     Ale,
+    /// DAB / DAB+ — Digital Audio Broadcasting: the OFDM digital radio band,
+    /// Band III (174–240 MHz) and L-band. A **wideband** service like ADS-B,
+    /// with a lane of its own rather than the 12 kHz tap. Receive only.
+    ///
+    /// Appended for the same reason as [`Mode::Hell`].
+    Dab,
 }
 
 /// The bands on which a mode that keeps phone practice rides the lower
@@ -653,7 +659,12 @@ impl Mode {
     /// questions are separate: this one decides whether the panadapter shares
     /// the window, and that one decides who is being handed audio.
     pub fn has_bottom_panel(self) -> bool {
-        self.is_digital() || self.is_adsb() || self.is_vdl2() || self.is_ais() || self.is_hfdl()
+        self.is_digital()
+            || self.is_adsb()
+            || self.is_vdl2()
+            || self.is_ais()
+            || self.is_hfdl()
+            || self == Mode::Dab
     }
 
     /// True for the modes decoded by a wideband engine lane off the raw I/Q
@@ -663,7 +674,7 @@ impl Mode {
     /// and they break: no audio, no transmitter, no receive filter, and a
     /// bandwidth set by the decoder rather than by the operator.
     pub fn is_wideband_lane(self) -> bool {
-        self.is_adsb() || self.is_vdl2() || self.is_ais()
+        self.is_adsb() || self.is_vdl2() || self.is_ais() || self == Mode::Dab
     }
 
     /// True for the modes whose transmit waveform is not single-sideband audio
@@ -1043,6 +1054,7 @@ impl Mode {
             Mode::Vdl2 => "VDL2",
             Mode::Isb => "ISB",
             Mode::Ais => "AIS",
+            Mode::Dab => "DAB",
             Mode::Hfdl => "HFDL",
             Mode::AtChat => "ATCHAT",
         }
@@ -1153,6 +1165,9 @@ impl Mode {
             // bandwidth, drawn on the panadapter so an operator can see that
             // the whole channel is being read rather than some slice of it.
             Mode::Adsb => (-1_000_000.0, 1_000_000.0),
+            // DAB Mode I is ~1.536 MHz occupied, centred on the ensemble's
+            // channel — a wideband lane, like ADS-B's.
+            Mode::Dab => (-768_000.0, 768_000.0),
             // Likewise not a receive filter: the decoder reads seven
             // channels spread over 325 kHz, and this is the whole plan
             // drawn on the panadapter so an operator can see that all of
@@ -1426,6 +1441,7 @@ impl Mode {
             | Mode::Adsb
             | Mode::Vdl2
             | Mode::Ais
+            | Mode::Dab
             | Mode::Hfdl
             | Mode::HdRadio => C::Fm,
             // Everything a rig would be put into DATA (or DIGI) for, on either
@@ -1664,6 +1680,9 @@ impl Mode {
             // made to match the window the receiver is actually delivering,
             // which is the only thing that limits the decode.
             Mode::Adsb => &[("2M", -1_000_000.0, 1_000_000.0), ("2.4M", -1_200_000.0, 1_200_000.0)],
+            // A DAB ensemble is ~1.536 MHz wide whatever a narrower window
+            // would show: the shading matches the lane, as ADS-B's does.
+            Mode::Dab => &[("1.5M", -768_000.0, 768_000.0)],
             // One channel, or the whole plan. A receiver too narrow for
             // the group can still take the Common Signalling Channel, and
             // this is how the shading says which of the two it is doing.
