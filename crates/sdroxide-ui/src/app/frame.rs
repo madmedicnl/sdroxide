@@ -1460,6 +1460,18 @@ impl SdroxideApp {
                         self.digi_cfg_seeded = false;
                     }
                 }
+                RadioEvent::ClientSettings { profile, settings } => {
+                    // Apply only when this client asked to keep its screen on
+                    // the server. The served set is presentation-only, so it
+                    // lays over the client's own settings without touching
+                    // anything the machine owns — see `presentation_only`.
+                    if self.ui_settings.client_save_scope == sdroxide_types::ClientSaveScope::Server
+                    {
+                        settings.apply_to(&mut self.ui_settings);
+                        // Remember which set we took, for the Settings label.
+                        self.client_settings_from = Some(profile);
+                    }
+                }
                 RadioEvent::ConnectionLost(e) => {
                     if self.focused {
                         self.speech.announcer.on_error(&e, now);
@@ -2189,6 +2201,22 @@ impl SdroxideApp {
         } else {
             self.digi_panel(ui, cmds);
         }
+    }
+
+    /// Send this client's screen settings to the server, when the operator has
+    /// asked to keep them there. A no-op for a local engine (which has no
+    /// server to tell) and when the scope is `Browser`. The profile sent is the
+    /// one already in use, so a save lands on the set the client is reading
+    /// rather than silently creating another.
+    pub(in crate::app) fn push_client_settings_if_server(&mut self) {
+        if self.ui_settings.client_save_scope != sdroxide_types::ClientSaveScope::Server {
+            return;
+        }
+        let profile = self.client_settings_from.clone().flatten();
+        self.ctrl.send_client_settings(
+            profile,
+            sdroxide_types::ClientScreen::from_settings(&self.ui_settings),
+        );
     }
 
     /// Dispatch keyboard and mouse-button bindings for this frame.

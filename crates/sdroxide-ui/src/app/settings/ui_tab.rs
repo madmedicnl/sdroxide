@@ -251,6 +251,34 @@ pub(in crate::app) fn settings_ui_tab(
         crate::chrome::checkbox(ui, &mut cfg.retro_radio, "draw the retro faceplate");
         ui.end_row();
 
+        ui.label("Screen settings on").on_hover_text(
+            "Where THIS screen's settings live when you are a remote client of \
+             `sdroxide --server` — the theme, layout, waterfall and spectrum \
+             look, fonts, Simple UI, Retro Radio, the map layers.\n\n\
+             **This browser** keeps them here, private to this browser and \
+             forgotten when its storage is cleared. **On the server** keeps \
+             them with the profile you signed in as, so they follow the login \
+             back from any machine — the fix for a stale screen after every \
+             new session.\n\n\
+             Only the look travels, never your control bindings: a shared \
+             station is a shared keyboard, and those stay with the machine. \
+             Nothing here matters for a local radio, which always keeps its \
+             settings in its own file.",
+        );
+        ui.horizontal(|ui| {
+            ui.selectable_value(
+                &mut cfg.client_save_scope,
+                sdroxide_types::ClientSaveScope::Browser,
+                "This browser",
+            );
+            ui.selectable_value(
+                &mut cfg.client_save_scope,
+                sdroxide_types::ClientSaveScope::Server,
+                "On the server",
+            );
+        });
+        ui.end_row();
+
         ui.label("Start in SWL mode").on_hover_text(
             "Open every session with SWL mode already on, so a listener's \
              screen is what the program comes up as — for every radio, this \

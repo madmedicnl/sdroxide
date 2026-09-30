@@ -348,6 +348,9 @@ impl RemoteController {
             ServerMsg::MemoryFolders(f) => self.pending.push_back(RadioEvent::MemoryFolders(f)),
             ServerMsg::Scanner(c) => self.pending.push_back(RadioEvent::Scanner(c)),
             ServerMsg::Profiles(p) => self.pending.push_back(RadioEvent::Profiles(p)),
+            ServerMsg::ClientSettings(r) => self
+                .pending
+                .push_back(RadioEvent::ClientSettings { profile: r.profile, settings: r.settings }),
             // Dropped rather than decoded while another tab holds the page's
             // single output: the work saved is the point on a browser tab
             // holding several radios.
@@ -624,6 +627,14 @@ impl RemoteController {
 }
 
 impl RadioController for RemoteController {
+    fn send_client_settings(
+        &mut self,
+        profile: Option<String>,
+        settings: sdroxide_types::ClientScreen,
+    ) {
+        self.send_msg(ClientMsg::SetClientSettings { profile, settings });
+    }
+
     fn send(&mut self, cmd: Command) {
         // The one command a gesture produces once a frame for as long as it
         // lasts, and the most expensive one to act on at the far end — held to

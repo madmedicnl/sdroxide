@@ -778,6 +778,30 @@ pub struct UiSettings {
     /// its own.
     #[serde(default)]
     pub solar3d_window: Option<Solar3dWindow>,
+    /// Where a **remote client** keeps its own screen settings: only in this
+    /// browser, or on the server against the profile it signed in as.
+    ///
+    /// Meaningful only for a client of `--server`; a native run always keeps
+    /// them in `config.toml` on the machine, and this is ignored. The point is
+    /// a shared station: browser-local storage gives each browser its own
+    /// screen but forgets it on a cache clear or a new machine, and
+    /// server-side gives each *login* its screen back wherever it signs in
+    /// from. Both answers are right for somebody, so it is a choice.
+    #[serde(default)]
+    pub client_save_scope: ClientSaveScope,
+}
+
+/// Where a remote client keeps its screen settings — see
+/// [`UiSettings::client_save_scope`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ClientSaveScope {
+    /// The browser's own storage, per browser (the default). The server is
+    /// never written to.
+    #[default]
+    Browser,
+    /// On the server, against the profile this client signed in as, so the
+    /// screen follows the login rather than the browser.
+    Server,
 }
 
 /// Default for [`UiSettings::spot_colors`] — every kind on its stock tint.
@@ -885,6 +909,7 @@ impl Default for UiSettings {
             retro_radio: false,
             start_swl: false,
             solar3d_window: None,
+            client_save_scope: ClientSaveScope::default(),
         }
     }
 }
@@ -996,6 +1021,162 @@ impl UiSettings {
             Speed::Medium => 0.1,
             Speed::Slow => 0.2,
         }
+    }
+}
+
+/// A remote client's **screen settings**, in the form that may cross the wire
+/// and be kept on the server (`UiSettings::client_save_scope`).
+///
+/// It is a type of its own rather than a [`UiSettings`] because that struct
+/// **cannot** be postcard-encoded: two of its fields (`spot_colors`,
+/// `bandplan_colors`) deserialize through custom functions that read a `Vec`
+/// where the serializer writes a fixed array — a mismatch self-describing TOML
+/// absorbs and postcard cannot. Sending the whole struct would have been a
+/// wire bug.
+///
+/// It is also deliberately narrow. Everything here is a look or a layout —
+/// nothing that points the program anywhere, and nothing that is a fact about
+/// the machine rather than the person:
+///
+/// - window geometry, display zoom, the decode-list views and the one-shot
+///   acknowledgements are all left behind, so adopting a login's screen never
+///   moves a window off a laptop or swallows a warning the operator has not
+///   seen.
+///
+/// So it is what an operator actually redoes each session — theme, layout,
+/// waterfall and spectrum look, fonts, Simple UI, Retro Radio, the map layers —
+/// and no more. (There was never an injection risk: `UiSettings` carries no
+/// URLs, paths or feeds, only scalars. This is a scope cut, not a guard.)
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClientScreen {
+    pub frame_rate_fps: u32,
+    pub waterfall_speed: Speed,
+    pub spectrum_speed: Speed,
+    pub spectrum_3d_speed: Speed,
+    pub waterfall_palette: usize,
+    pub waterfall_smooth: bool,
+    pub waterfall_freeze_on_tx: bool,
+    pub spectrum_detail: SpectrumDetail,
+    pub spectrum_gradient: bool,
+    pub gradient_top: [u8; 3],
+    pub gradient_bottom: [u8; 3],
+    pub spot_colors: [[u8; 3]; SpotKind::COUNT],
+    pub bandplan_colors: [[u8; 3]; BandplanKind::COUNT],
+    pub layout: LayoutMode,
+    pub theme: UiTheme,
+    pub button_style: ChromeStyle,
+    pub window_style: ChromeStyle,
+    pub skimmer_font_size: FontSize,
+    pub waterfall_font_size: FontSize,
+    pub menu_font_size: FontSize,
+    pub smeter_style: SmeterStyle,
+    pub map_cities: bool,
+    pub simple_ui: bool,
+    pub retro_radio: bool,
+}
+
+impl Default for ClientScreen {
+    fn default() -> Self {
+        Self::from_settings(&UiSettings::default())
+    }
+}
+
+impl ClientScreen {
+    /// Lift the screen fields out of a full [`UiSettings`].
+    pub fn from_settings(s: &UiSettings) -> Self {
+        ClientScreen {
+            frame_rate_fps: s.frame_rate_fps,
+            waterfall_speed: s.waterfall_speed,
+            spectrum_speed: s.spectrum_speed,
+            spectrum_3d_speed: s.spectrum_3d_speed,
+            waterfall_palette: s.waterfall_palette,
+            waterfall_smooth: s.waterfall_smooth,
+            waterfall_freeze_on_tx: s.waterfall_freeze_on_tx,
+            spectrum_detail: s.spectrum_detail,
+            spectrum_gradient: s.spectrum_gradient,
+            gradient_top: s.gradient_top,
+            gradient_bottom: s.gradient_bottom,
+            spot_colors: s.spot_colors,
+            bandplan_colors: s.bandplan_colors,
+            layout: s.layout,
+            theme: s.theme,
+            button_style: s.button_style,
+            window_style: s.window_style,
+            skimmer_font_size: s.skimmer_font_size,
+            waterfall_font_size: s.waterfall_font_size,
+            menu_font_size: s.menu_font_size,
+            smeter_style: s.smeter_style,
+            map_cities: s.map_cities,
+            simple_ui: s.simple_ui,
+            retro_radio: s.retro_radio,
+        }
+    }
+
+    /// Lay these screen settings back over a full [`UiSettings`], leaving every
+    /// field this does not carry — window geometry, zoom, list views, the
+    /// acknowledgements, the save scope — exactly as the client had it.
+    pub fn apply_to(&self, s: &mut UiSettings) {
+        s.frame_rate_fps = self.frame_rate_fps;
+        s.waterfall_speed = self.waterfall_speed;
+        s.spectrum_speed = self.spectrum_speed;
+        s.spectrum_3d_speed = self.spectrum_3d_speed;
+        s.waterfall_palette = self.waterfall_palette;
+        s.waterfall_smooth = self.waterfall_smooth;
+        s.waterfall_freeze_on_tx = self.waterfall_freeze_on_tx;
+        s.spectrum_detail = self.spectrum_detail;
+        s.spectrum_gradient = self.spectrum_gradient;
+        s.gradient_top = self.gradient_top;
+        s.gradient_bottom = self.gradient_bottom;
+        s.spot_colors = self.spot_colors;
+        s.bandplan_colors = self.bandplan_colors;
+        s.layout = self.layout;
+        s.theme = self.theme;
+        s.button_style = self.button_style;
+        s.window_style = self.window_style;
+        s.skimmer_font_size = self.skimmer_font_size;
+        s.waterfall_font_size = self.waterfall_font_size;
+        s.menu_font_size = self.menu_font_size;
+        s.smeter_style = self.smeter_style;
+        s.map_cities = self.map_cities;
+        s.simple_ui = self.simple_ui;
+        s.retro_radio = self.retro_radio;
+    }
+}
+
+#[cfg(test)]
+mod client_screen_tests {
+    use super::*;
+
+    /// The screen round-trips through postcard — the thing `UiSettings` itself
+    /// cannot do. This is the test that would fail first if a non-postcard-safe
+    /// field were ever added here.
+    #[test]
+    fn the_screen_survives_a_postcard_round_trip() {
+        let screen = ClientScreen::from_settings(&UiSettings::default());
+        let bytes = postcard::to_allocvec(&screen).expect("encodes");
+        let back: ClientScreen = postcard::from_bytes(&bytes).expect("decodes");
+        assert_eq!(back, screen);
+    }
+
+    /// Applying a served screen leaves every machine-specific field alone.
+    #[test]
+    fn applying_a_screen_keeps_the_machines_own_facts() {
+        let mut live = UiSettings::default();
+        live.ui_zoom = 1.7;
+        live.oob_tx_dismissed = true;
+        live.solar3d_window = Some(Solar3dWindow { size: [900.0, 600.0], pos: Some([10.0, 10.0]) });
+
+        let mut served = UiSettings::default();
+        served.theme = UiTheme::Dracula;
+        served.simple_ui = true;
+        ClientScreen::from_settings(&served).apply_to(&mut live);
+
+        assert_eq!(live.theme, UiTheme::Dracula, "the look was adopted");
+        assert!(live.simple_ui);
+        assert_eq!(live.ui_zoom, 1.7, "the client's zoom is its own");
+        assert!(live.oob_tx_dismissed, "and its acknowledgements");
+        assert!(live.solar3d_window.is_some(), "and its window place");
     }
 }
 

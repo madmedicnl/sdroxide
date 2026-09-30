@@ -2069,6 +2069,43 @@ autocorrelation) as a measured DSP feature to feed identification. It is an
 "isolate it" DSP change and has no home until something computes it from the
 receive chain, so keep it separate from the catalogue.
 
+## Client screen settings on the server (fork-only, 2026-09-30)
+
+A remote client of `--server` can keep its **screen** on the server, against the
+profile it signed in as, instead of only in the browser — the fix for a stale
+screen after every new session (fork discussion #4, kevin2008-01).
+
+- **`UiSettings` CANNOT go on the wire.** `spot_colors` / `bandplan_colors`
+  deserialize through `deserialize_with` functions that read a `Vec` where the
+  derived serializer writes a fixed array — TOML absorbs the mismatch, postcard
+  does not, so `UiSettings` fails a postcard round-trip (`the_screen_survives_a_
+  postcard_round_trip`). The wire type is therefore **`sdroxide_types::
+  ClientScreen`**, a dedicated, postcard-safe, **presentation-only** struct.
+  **Do not** put `UiSettings` itself on the wire. This is the trap to remember.
+- **Presentation-only is a scope cut, not a security guard.** `ClientScreen`
+  carries only the look — theme, layout, waterfall/spectrum, fonts, Simple UI,
+  Retro Radio, map layers. Window geometry, display zoom, the decode-list views
+  and the one-shot acknowledgements stay on the machine, so adopting a login's
+  screen never moves a window off a laptop or swallows a warning. (`UiSettings`
+  was never an injection risk: it carries no URLs, paths or feeds, only scalars
+  — an earlier note claiming otherwise was wrong.)
+- **Control bindings never travel.** A shared station is a shared keyboard.
+- **Wire:** `ClientMsg::SetClientSettings` + `ServerMsg::ClientSettings`, both
+  **appended last**; `PROTO_VERSION` 185 → 186.
+- **Store:** `sdroxide_config::ClientSettingsStore`, `clientsettings.json`,
+  **per profile + a station default**, written through the ordinary config
+  store. `sdroxide-config` had to move from the server's `[dev-dependencies]`
+  to `[dependencies]`.
+- **Server:** pushes the stored set on connect and stores on request, both
+  behind the existing sign-in. `handshake` now returns the signed-in username
+  (captured from the `Auth` frame), which is the profile key. **On a passwordless
+  server "signed in" means "anyone on the LAN"**, so a profile is a name and not
+  a secret — the manual and the reply said so.
+- **Client:** applies only when `UiSettings::client_save_scope` is `Server`
+  (`RadioEvent::ClientSettings` in `frame.rs`); pushes on save via
+  `RadioController::send_client_settings` (defaulted no-op for the local engine).
+  The picker is Settings → UI → "Screen settings on".
+
 ## The Retro Radio faceplate (fork-only, 2026-09-30)
 
 A listener's skin over the same engine: a wooden faceplate with one big tuning

@@ -402,6 +402,17 @@ pub enum RadioEvent {
     /// radio has not arrived yet, so the readout can admit it. Native-only, for
     /// the same reason [`RadioEvent::AtsMiniMemories`] is.
     AtsMiniTuning(bool),
+    /// A remote client's screen settings, sent by the server when it has any
+    /// stored for the profile this client signed in as (or as the station
+    /// default). `profile` names which set it is, `None` for the default; the
+    /// client applies it only if its own
+    /// [`crate::UiSettings::client_save_scope`] says to.
+    ///
+    /// Client-local: it rides `ServerMsg::ClientSettings`, not the engine.
+    ClientSettings {
+        profile: Option<String>,
+        settings: crate::ClientScreen,
+    },
 }
 
 /// Snapshot of the frontend's switchable sound devices (native clients).
@@ -418,6 +429,13 @@ pub struct AudioDevices {
 /// (native GUI) or a WebSocket session (WASM remote client).
 pub trait RadioController {
     fn send(&mut self, cmd: Command);
+
+    /// Hand a remote server this client's screen settings, when the operator
+    /// has asked to keep them there
+    /// ([`crate::UiSettings::client_save_scope`]). Defaulted to nothing: the
+    /// in-process engine has no server to tell, and the settings are already in
+    /// its own `config.toml`.
+    fn send_client_settings(&mut self, _profile: Option<String>, _settings: crate::ClientScreen) {}
 
     /// Non-blocking; the UI drains this each frame until `None`.
     fn poll_event(&mut self) -> Option<RadioEvent>;

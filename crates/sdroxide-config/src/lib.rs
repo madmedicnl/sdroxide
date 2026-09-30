@@ -1730,6 +1730,61 @@ pub fn save_bandstacks(stacks: &BandStacks) -> Result<(), ConfigError> {
     save_json("bandstacks.json", stacks)
 }
 
+/// A remote client's screen settings kept on the server — the "save on the
+/// server" half of [`sdroxide_types::UiSettings::client_save_scope`].
+///
+/// Two levels, because both a shared station and a single owner want this: each
+/// named **profile** has its own set, and there is one **station default** for a
+/// client whose profile has none. A client signing in as `madmedicnl` gets that
+/// profile's screen; one with no profile of its own gets the default.
+///
+/// Only [`sdroxide_types::UiSettings`] is stored, and only its **presentation**
+/// half (see [`sdroxide_types::ClientScreen`]); the control bindings are
+/// never stored, because a shared station's keyboard belongs to the machine.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ClientSettingsStore {
+    /// A station-wide default applied to a client whose profile has none.
+    pub default: Option<sdroxide_types::ClientScreen>,
+    /// Per-profile sets, keyed by the profile name the client signed in as.
+    pub profiles: std::collections::BTreeMap<String, sdroxide_types::ClientScreen>,
+}
+
+impl ClientSettingsStore {
+    /// The settings for `profile`: its own set, else the station default. The
+    /// name comes back so the client can say which one it is using.
+    pub fn for_profile(
+        &self,
+        profile: Option<&str>,
+    ) -> Option<(Option<String>, sdroxide_types::ClientScreen)> {
+        if let Some(name) = profile
+            && let Some(s) = self.profiles.get(name)
+        {
+            return Some((Some(name.to_string()), *s));
+        }
+        self.default.map(|s| (None, s))
+    }
+
+    /// Store `settings` against `profile`, or as the default when it is `None`.
+    /// Only the presentation half is kept.
+    pub fn set(&mut self, profile: Option<&str>, settings: sdroxide_types::ClientScreen) {
+        match profile {
+            Some(name) => {
+                self.profiles.insert(name.to_string(), settings);
+            }
+            None => self.default = Some(settings),
+        }
+    }
+}
+
+pub fn load_client_settings() -> ClientSettingsStore {
+    load_json("clientsettings.json")
+}
+
+pub fn save_client_settings(store: &ClientSettingsStore) -> Result<(), ConfigError> {
+    save_json("clientsettings.json", store)
+}
+
 pub fn load_memories() -> Vec<sdroxide_types::MemoryChannel> {
     load_json_list("memories.json")
 }
@@ -2303,6 +2358,29 @@ pub fn save_voice_names(names: &[String]) -> Result<(), ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The client-settings store answers for a profile with its own set, and
+    /// otherwise falls back to the station default — the two levels the shared
+    /// station and the single owner each need.
+    #[test]
+    fn the_client_settings_store_falls_back_to_the_default() {
+        let mut store = ClientSettingsStore::default();
+        let mut def = sdroxide_types::ClientScreen::default();
+        def.simple_ui = true;
+        store.set(None, def);
+        let mut mine = sdroxide_types::ClientScreen::default();
+        mine.retro_radio = true;
+        store.set(Some("Contest"), mine);
+
+        // A profile with its own set gets it.
+        let (from, s) = store.for_profile(Some("Contest")).expect("a stored set");
+        assert_eq!(from.as_deref(), Some("Contest"));
+        assert!(s.retro_radio && !s.simple_ui);
+        // An unknown profile falls back to the default.
+        let (from, s) = store.for_profile(Some("DX")).expect("the default");
+        assert!(from.is_none());
+        assert!(s.simple_ui && !s.retro_radio);
+    }
 
     #[test]
     fn digi_config_roundtrip_via_json() {

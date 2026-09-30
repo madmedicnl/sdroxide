@@ -1730,6 +1730,7 @@ impl SdroxideApp {
             // diff next frame; waterfall speed is read each frame. Persist too.
             self.ui_settings = ui_edit;
             persist_ui_settings(&self.ui_settings);
+            self.push_client_settings_if_server();
         }
         if &speech_edit != self.speech.settings() {
             // Live too: rate and volume reach the running worker, and only a
