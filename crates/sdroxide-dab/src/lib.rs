@@ -135,12 +135,22 @@ impl DabReceiver {
         if input_rate_hz < DAB_BANDWIDTH_HZ {
             return Err(DabError::LaneTooNarrow);
         }
-        let resampler = sdroxide_dsp::ComplexResampler::new(input_rate_hz, DAB_SAMPLE_RATE as f64)
-            .ok_or(DabError::Resample(input_rate_hz))?;
+        // A resampler is only needed — and only *constructible* — when the
+        // rates differ: `ComplexResampler::new` answers `None` for equal rates,
+        // which is not a failure. Treating it as one rejected exactly 2.048
+        // Msps, the one rate that needs no bridge at all.
+        let resampler = if (input_rate_hz - DAB_SAMPLE_RATE as f64).abs() < 0.01 {
+            None
+        } else {
+            Some(
+                sdroxide_dsp::ComplexResampler::new(input_rate_hz, DAB_SAMPLE_RATE as f64)
+                    .ok_or(DabError::Resample(input_rate_hz))?,
+            )
+        };
         Ok(DabReceiver {
             ofdm: dabradio::ofdm::processor::OfdmProcessor::new(),
             ensemble: dabradio::fic::fib::EnsembleInfo::new(),
-            resampler: (input_rate_hz != DAB_SAMPLE_RATE as f64).then_some(resampler),
+            resampler,
             resample_out: Vec::new(),
             audio: None,
             wanted: None,
