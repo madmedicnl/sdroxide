@@ -5,8 +5,9 @@
 > commands, the fixed RSP1 settings, and the next steps. Everything below is
 > the rest of the fork. Upstream ask is open: draft PR
 > [dividebysandwich/sdroxide#598](https://github.com/dividebysandwich/sdroxide/pull/598)
-> (proven RX core + TX primitive) and a comment on issue #262. Experimental
-> release **`v1.9.6_brown.experimental`** names ALE (pre-release).
+> (proven RX core + TX primitive) and a comment on issue #262. ALE ships in the
+> ALE-mode build; the experimental-release recipe below is still the one to use
+> when a build needs to name it (the older pre-release tag has been removed).
 
 ## What this repository is
 
@@ -1906,11 +1907,16 @@ note and were rendered from a separate HTML source; leave them alone.)
 
 ## Cutting a release
 
-> **Fresh tag history (2026-09-27).** After the Brown rename the tag list was
-> reset: every pre-rename tag (`v0.1.0` … `v1.9.3`, the whole `_CB`/`CBSWL`
-> lineage) and their releases were deleted, keeping **`v1.9.4_brown`** (the
-> first Brown release) and **`nightly`**. Tags below `v1.9.4_brown` no longer
-> exist, so do not reference them.
+> **Fresh tag history (2026-09-27, widened 2026-09-30).** After the Brown rename
+> the tag list was reset, and on 2026-09-30 **everything before `v1.9.9_brown`
+> was removed as well** — the older Brown releases (`v1.9.4` … `v1.9.8`,
+> including `v1.9.6_brown.experimental`) and every pre-rename tag (`v0.1.0` …
+> `v1.9.3`, the whole `_CB`/`CBSWL` lineage) are gone from **both** `origin` and
+> the local clone. The remote now carries exactly **`v1.9.9_brown`** (the only
+> release) and **`nightly`**, and the local clone was matched to it with
+> `git fetch --prune --prune-tags`. **Do not reference an older tag** — a
+> download link to one is a 404, and the README's `releases/latest` links point
+> at `v1.9.9_brown`.
 
 > **Version scheme (2026-09-30): step `Cargo.toml` for a real release.** The
 > operator wants to stay on 1.9.x until **DAB** is done, and never drift into

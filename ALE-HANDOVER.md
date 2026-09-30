@@ -154,22 +154,28 @@ none of this is worth wiring until a real off-air burst decodes.
 
 ## Experimental release naming ALE (recipe — not yet run)
 
-1. Bump `Cargo.toml` `[workspace.package] version` 1.9.6 → 1.9.7; refresh
-   `Cargo.lock` with `cargo metadata --format-version 1 >/dev/null`; commit.
+1. Bump `Cargo.toml` `[workspace.package] version` to the **next `1.9.x`**
+   (currently 1.9.9 → 1.9.10); refresh `Cargo.lock` with
+   `cargo metadata --format-version 1 >/dev/null`; commit. The version scheme is
+   in `AGENTS.md` ("Cutting a release"): a real release steps the crate version;
+   only a re-cut of the same `main` uses a tag point.
 2. Build the release notes (lead with the ALE experimental line), then
    **pre-create** it so the workflow only uploads assets into it:
    ```
-   gh release create v1.9.7_brown --repo madmedicnl/sdroxide-brown \
-     --title "SDR Oxide Brown v1.9.7_brown (experimental)" \
-     --notes-file /tmp/opencode/rel-1.9.7.md --prerelease --draft
+   gh release create v1.9.10_brown --repo madmedicnl/sdroxide-brown \
+     --title "SDR Oxide Brown v1.9.10_brown (experimental)" \
+     --notes-file /tmp/opencode/rel-1.9.10.md --prerelease --draft
    ```
    Notes should include, near the top:
    `**Experimental:** ALE (MIL-STD-188-141A 2G) receive — decode may be
    unreliable; not yet proven off the air.`
-3. `git tag -a v1.9.7_brown -m "SDR Oxide Brown v1.9.7" && git push origin v1.9.7_brown`
+3. `git tag -a v1.9.10_brown -m "SDR Oxide Brown v1.9.10" && git push origin v1.9.10_brown`
    (the tag triggers the release workflow).
-4. When the run is green: `gh release edit v1.9.7_brown --draft=false` (keeping
+4. When the run is green: `gh release edit v1.9.10_brown --draft=false` (keeping
    `--prerelease` leaves `/releases/latest` on a stable tag).
+
+(An earlier run of this recipe produced `v1.9.6_brown.experimental`, since
+removed with the rest of the pre-1.9.9 tags — see `AGENTS.md`.)
 
 Upstream feedback already asked: draft **PR #598** retitled "2G ALE receiver +
 TX primitive (experimental, draft)", body asks whether a 2G ALE RX is wanted and
