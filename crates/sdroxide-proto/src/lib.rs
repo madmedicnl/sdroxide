@@ -1598,7 +1598,14 @@ use sdroxide_types::{
 /// v182 peer reads the extra bytes as the start of the next field and fails to
 /// decode every digital status. No new wire type: ALE reports through the
 /// ordinary `DigiStatus` seam. A downstream (fork) addition for now.
-pub const PROTO_VERSION: u16 = 183;
+/// v184: selectable FT8 decode depth. `DigiConfig` gains `ft8_depth`
+/// (`Ft8Depth`) on its tail — `Fast` / `Normal` / `Deep`, how hard the decoder
+/// works for weak signals (no subtraction / flat multi-pass SIC / WSJT-X's
+/// checkpointed pass). `DigiConfig` rides `Command::SetDigiConfig` and
+/// `DigiStatus` whole, so a v183 peer reads the extra byte as the start of the
+/// next field and fails to decode every config — the same break as v183's
+/// appended ALE status. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 184;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

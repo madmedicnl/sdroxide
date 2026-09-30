@@ -718,6 +718,47 @@ impl SdroxideApp {
                         ui.label("Auto-sequence");
                         changed |= crate::chrome::checkbox(ui, &mut cfg.auto_seq, "").changed();
                         ui.end_row();
+                        if mode == sdroxide_types::Mode::Ft8 {
+                            ui.label("Decode depth");
+                            let row = ui.horizontal(|ui| {
+                                let mut c = false;
+                                c |= ui
+                                    .selectable_value(
+                                        &mut cfg.ft8_depth,
+                                        sdroxide_types::Ft8Depth::Fast,
+                                        "Fast",
+                                    )
+                                    .changed();
+                                c |= ui
+                                    .selectable_value(
+                                        &mut cfg.ft8_depth,
+                                        sdroxide_types::Ft8Depth::Normal,
+                                        "Normal",
+                                    )
+                                    .changed();
+                                c |= ui
+                                    .selectable_value(
+                                        &mut cfg.ft8_depth,
+                                        sdroxide_types::Ft8Depth::Deep,
+                                        "Deep",
+                                    )
+                                    .changed();
+                                c
+                            });
+                            changed |= row.inner;
+                            row.response.on_hover_text(
+                                "How hard the FT8 decoder works for weak signals.\n\n\
+                                 Fast — one pass, no signal subtraction: quickest, fewest \
+                                 decodes.\n\
+                                 Normal — flat multi-pass subtraction: ~0.4 s on a busy slot, a \
+                                 few decodes short of Deep.\n\
+                                 Deep — WSJT-X's checkpointed pass: ~1.2 s and the most decodes \
+                                 (the default).\n\n\
+                                 Only the second batch of decodes is governed; the plain pass is \
+                                 always emitted first, so a reply is never held up by it.",
+                            );
+                            ui.end_row();
+                        }
                         ui.label("Auto TX frequency");
                         changed |= ui
                             .checkbox(&mut cfg.auto_tx_freq, "")

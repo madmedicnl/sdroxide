@@ -179,6 +179,10 @@ pub struct Ft8Modem {
     /// ([`sdroxide_types::is_cb_callsign_wide`]) as well as WSJT-CB's. Off
     /// unless the operator opts in — see [`Ft8Modem::set_cb_wide`].
     cb_wide: bool,
+    /// How hard the FT8 decoder works for weak signals — see
+    /// [`sdroxide_types::Ft8Depth`]. Only the extra (post-quick) batch uses it;
+    /// the plain single pass that is emitted first is always run.
+    ft8_depth: sdroxide_types::Ft8Depth,
 }
 
 impl Ft8Modem {
@@ -188,6 +192,7 @@ impl Ft8Modem {
             hashes: CallsignHashTable::new(),
             eu_hashes: eu_vhf::Hashes::default(),
             cb_wide: false,
+            ft8_depth: sdroxide_types::Ft8Depth::default(),
         }
     }
 
@@ -201,6 +206,11 @@ impl Ft8Modem {
     /// all follow the operator's switch.
     pub fn set_cb_wide(&mut self, wide: bool) {
         self.cb_wide = wide;
+    }
+
+    /// How hard the FT8 decoder works — see [`sdroxide_types::Ft8Depth`].
+    pub fn set_ft8_depth(&mut self, depth: sdroxide_types::Ft8Depth) {
+        self.ft8_depth = depth;
     }
 
     /// Register callsigns we already know (ours, and the station we're
@@ -321,10 +331,10 @@ impl Ft8Modem {
                 // second attempt with our two callsigns' bits locked.
                 let hint = ap.ft8();
                 // Two stages, so an auto-sequenced reply can be decided inside
-                // the transmit offset: the plain single-pass decode is emitted
-                // first, and the SIC pass — the checkpointed multi-pass that is
-                // a recall superset, so it only adds — follows as `extras`.
-                let req = |sic: bool| {
+                // the transmit offset: the plain single-pass decode is always
+                // emitted first, and the operator's chosen depth — Fast adds
+                // nothing, Normal/Deep add subtraction — follows as `extras`.
+                let req = |depth: sdroxide_types::Ft8Depth| {
                     let r = DecodeRequest::<mfsk_core::Ft8>::new(
                         audio_12k,
                         AUDIO_MIN_HZ,
@@ -337,14 +347,18 @@ impl Ft8Modem {
                     // grammar (see is_cb_compatible_call) — upstream's FT8
                     // decoder has no allowlist entry for a CB-shaped call.
                     .also_accept(|m| m.callsigns().all(|c| is_cb_compatible_call(c, wide)));
-                    let r = if sic { r.sic_early() } else { r };
+                    let r = match depth {
+                        sdroxide_types::Ft8Depth::Fast => r,
+                        sdroxide_types::Ft8Depth::Normal => r.sic_rounds(2),
+                        sdroxide_types::Ft8Depth::Deep => r.sic_early(),
+                    };
                     match hint.as_ref() {
                         Some(h) => r.ap_hint(h),
                         None => r,
                     }
                 };
-                let run = |sic: bool| -> Vec<Decode> {
-                    req(sic)
+                let run = |depth: sdroxide_types::Ft8Depth| -> Vec<Decode> {
+                    req(depth)
                         .decode()
                         .results
                         .into_iter()
@@ -354,14 +368,19 @@ impl Ft8Modem {
                         })
                         .collect()
                 };
-                let quick = run(false);
-                // The SIC pass supersedes the quick one (a recall superset), so
-                // stash only what it adds and let the caller see the quick batch
-                // first. It rides the shared `extras` return below.
-                staged_extras = run(true)
-                    .into_iter()
-                    .filter(|d| !quick.iter().any(|q| same_signal(q, d)))
-                    .collect();
+                let quick = run(sdroxide_types::Ft8Depth::Fast);
+                // The deeper pass supersedes the quick one (a recall superset),
+                // so stash only what it adds and let the caller see the quick
+                // batch first. It rides the shared `extras` return below, and on
+                // `Fast` there is no second pass at all.
+                staged_extras = if self.ft8_depth == sdroxide_types::Ft8Depth::Fast {
+                    Vec::new()
+                } else {
+                    run(self.ft8_depth)
+                        .into_iter()
+                        .filter(|d| !quick.iter().any(|q| same_signal(q, d)))
+                        .collect()
+                };
                 quick
             }
         };

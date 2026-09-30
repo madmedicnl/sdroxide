@@ -166,6 +166,10 @@ struct DecodeJob {
     /// held on the worker's modem, which the job is the only thing that knows
     /// how to update.
     cb_wide: bool,
+    /// The FT8 decode depth in force for this slot — see
+    /// [`sdroxide_types::Ft8Depth`]. Read off the config for the same reason as
+    /// `cb_wide`.
+    ft8_depth: sdroxide_types::Ft8Depth,
 }
 
 pub struct DigiController {
@@ -318,6 +322,7 @@ impl DigiController {
                 let mut modem = Ft8Modem::new(worker_mode);
                 while let Ok(job) = job_rx.recv() {
                     modem.set_cb_wide(job.cb_wide);
+                    modem.set_ft8_depth(job.ft8_depth);
                     modem.seed_hashes(&job.ap.calls());
                     // Two stages for FT8: the quick result is sent as soon as it
                     // is ready, so an auto-sequenced reply can be decided inside
@@ -337,10 +342,12 @@ impl DigiController {
 
         let tx_even = cfg.tx_even;
         let cb_wide = cfg.cb_wide_callsigns;
+        let ft8_depth = cfg.ft8_depth;
         let qso = QsoMachine::new(params.mode, cfg);
 
         let mut modem = Ft8Modem::new(params.mode);
         modem.set_cb_wide(cb_wide);
+        modem.set_ft8_depth(ft8_depth);
 
         DigiController {
             params,
@@ -383,6 +390,7 @@ impl DigiController {
             self.tx_even = cfg.tx_even;
         }
         self.modem.set_cb_wide(cfg.cb_wide_callsigns);
+        self.modem.set_ft8_depth(cfg.ft8_depth);
         self.qso.set_config(cfg);
         self.status_dirty = true;
     }
@@ -919,6 +927,7 @@ impl DigiController {
                             ap,
                             audio_hz: self.audio_hz,
                             cb_wide: self.qso.status(false).config.cb_wide_callsigns,
+                            ft8_depth: self.qso.status(false).config.ft8_depth,
                         })
                         .is_ok()
                     {

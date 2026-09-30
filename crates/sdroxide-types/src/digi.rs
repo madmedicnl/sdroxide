@@ -1530,6 +1530,34 @@ pub enum CwKeyMode {
 
 /// echoed to clients in [`DigiStatus`]. `#[serde(default)]` so an older
 /// `digi.json` without the newer fields still loads.
+/// How hard the FT8 decoder works for weak signals, and what it costs.
+///
+/// FT8's recall comes from signal subtraction (WSJT-X's checkpointed
+/// `ndec_early`), and that pass is sequential: three fixed checkpoints, each
+/// decoding a larger audio prefix and subtracting the last. Measured on the
+/// WSJT-X busy slot (16 cores, `.osd(true)`):
+///
+/// - [`Fast`](Self::Fast) — no subtraction, one pass. ~30 ms, ~16 stations.
+/// - [`Normal`](Self::Normal) — flat multi-pass SIC (`.sic_rounds(2)`). ~0.4 s,
+///   ~19–20.
+/// - [`Deep`](Self::Deep) — the checkpointed pass (`.sic_early()`). ~1.2 s,
+///   ~22.
+///
+/// Shipped [`Deep`](Self::Deep), the recall this fork is for; `Normal` and
+/// `Fast` are there when the wait matters more than the last few decodes. The
+/// plain single-pass result is always emitted first whatever this says (see
+/// `Ft8Modem::decode_slot_staged`), so it governs only the *extra* batch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Ft8Depth {
+    /// One pass, no subtraction. Fastest, least sensitive.
+    Fast,
+    /// Flat multi-pass SIC: faster than `Deep`, a little less thorough.
+    Normal,
+    /// The checkpointed multi-pass. The default, and the most decodes.
+    #[default]
+    Deep,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DigiConfig {
@@ -2280,6 +2308,10 @@ pub struct DigiConfig {
     /// format is unchanged — see [`crate::is_cb_callsign_wide`].
     #[serde(default)]
     pub cb_wide_callsigns: bool,
+    /// How hard the FT8 decoder works — see [`Ft8Depth`]. Appended last, so this
+    /// is a wire change (`PROTO_VERSION` 183 → 184).
+    #[serde(default)]
+    pub ft8_depth: Ft8Depth,
 }
 
 fn cw_default_tx_idle_s() -> f32 {
@@ -2478,6 +2510,7 @@ impl Default for DigiConfig {
             cw_key_reverse: false,
             cw_key_tx: false,
             cb_wide_callsigns: false,
+            ft8_depth: Ft8Depth::default(),
         }
     }
 }
@@ -3231,6 +3264,14 @@ pub fn digi_decodes_to_adif<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shipped FT8 decode depth is `Deep`: the fork exists for the recall,
+    /// and the speed knob is opt-in. Pinned so a careless default change is
+    /// caught here rather than by the operator's decode count.
+    #[test]
+    fn ft8_decode_depth_defaults_to_deep() {
+        assert_eq!(DigiConfig::default().ft8_depth, Ft8Depth::Deep);
+    }
 
     /// Issue #433: an SWL's received reports export without a contact to hang
     /// them on — a CSV for a spreadsheet, and an ADIF whose records are honest
