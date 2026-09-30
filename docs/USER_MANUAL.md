@@ -14308,6 +14308,18 @@ typed and said no.
   in.
 - **A sign-in is asked for again after a reconnect.** Each socket is challenged
   on its own; *remember* is what makes that invisible.
+- **Where your screen settings live.** A remote client's own screen — the theme,
+  layout, waterfall and spectrum look, fonts, Simple UI, Retro Radio, the map
+  layers — is kept **in this browser** by default, private to the browser and
+  forgotten when its storage is cleared. **Settings → UI → Screen settings on**
+  can instead keep it **on the server**, against the profile you signed in as
+  (or the station default when that profile has none), so the screen follows the
+  login back from any machine and a new session does not come up stale.
+  Only the look travels: your **control bindings** stay with the browser, so one
+  login cannot rebind another's keys on a shared station. Nothing here affects a
+  local radio, which always keeps its settings in its own file. The per-profile
+  set and the station default are `clientsettings.json` in the server's config
+  directory.
 - **No encryption.** The server speaks plain `ws://` and binds to all interfaces
   by default. The sign-in ([8.3](#83-sign-in-who-may-operate-the-station))
   decides who may operate the radio, but nothing here is confidential in
