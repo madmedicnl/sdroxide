@@ -355,17 +355,19 @@ impl eframe::App for SdroxideApp {
             }
         }
 
-        egui::Panel::top(crate::layout::salted_id(&ctx, "topbar"))
-            .frame(
-                egui::Frame::new()
-                    .fill(crate::theme::BG_DEEP())
-                    .inner_margin(egui::Margin::symmetric(8, 6)),
-            )
-            .show(ui, |ui| {
-                crate::chrome::angled_frame(ui, crate::theme::PINK(), |ui| {
-                    self.top_bar(ui, &mut cmds);
+        if !self.ui_settings.retro_radio {
+            egui::Panel::top(crate::layout::salted_id(&ctx, "topbar"))
+                .frame(
+                    egui::Frame::new()
+                        .fill(crate::theme::BG_DEEP())
+                        .inner_margin(egui::Margin::symmetric(8, 6)),
+                )
+                .show(ui, |ui| {
+                    crate::chrome::angled_frame(ui, crate::theme::PINK(), |ui| {
+                        self.top_bar(ui, &mut cmds);
+                    });
                 });
-            });
+        }
         // A persistent radio-audio warning (input unavailable / mono-for-IQ)
         // rides above the panadapter with a dismiss button, so a silent RX
         // failure is explained rather than reading as "waiting for spectrum".
@@ -473,11 +475,15 @@ impl eframe::App for SdroxideApp {
         // panadapter before either draws. Shown here, after the top bar and the
         // notices, so the column sits beside the waterfall rather than under the
         // chrome.
-        if self.band_docked && self.band_dock_visible {
+        if !self.ui_settings.retro_radio && self.band_docked && self.band_dock_visible {
             self.band_dock_panel(ui, &mut cmds);
         }
-        // Remaining space: the panadapter (+ FT8/FT4 operating panel).
-        if let Some(err) = self.error.clone() {
+        // Remaining space: the panadapter (+ FT8/FT4 operating panel) — or, in
+        // Retro Radio, the faceplate. The dialogs below still run either way,
+        // so Settings, and turning this mode off, stay reachable.
+        if self.ui_settings.retro_radio {
+            self.retro_view(ui, &mut cmds);
+        } else if let Some(err) = self.error.clone() {
             let offer_retry = self.ctrl.can_reconnect();
             // Seconds until the redial that is already coming, so the screen
             // can say what is going to happen rather than only what went wrong.
@@ -613,7 +619,6 @@ impl eframe::App for SdroxideApp {
             // width from the dial, whichever side they are being worked on.
             let side = if mode.is_lower_sideband_at(dial) { -1.0 } else { 1.0 };
             let audio_hz = side * self.digi_status.as_ref().map(|s| s.audio_hz).unwrap_or(1500.0);
-            let is_text = mode.is_text_modem();
             // RTTY shows mark/space tuning lines; Olivia the tone-bank edges;
             // PSK just the centre marker.
             let markers: Vec<f32> = if mode == Mode::Rtty {
@@ -867,65 +872,7 @@ impl eframe::App for SdroxideApp {
                         .inner_margin(egui::Margin { left: 0, right: 0, top: 6, bottom: 0 })
                         .show(ui, |ui| {
                             crate::chrome::angled_frame(ui, crate::theme::PINK(), |ui| {
-                                if mode.is_rade() {
-                                    self.rade_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_atchat() {
-                                    self.atchat_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_wefax() {
-                                    self.wefax_panel(ui, &mut cmds, panel_h);
-                                } else if mode == Mode::Navtex {
-                                    self.navtex_panel(ui, &mut cmds, panel_h);
-                                } else if mode == Mode::Acars {
-                                    self.acars_panel(ui, &mut cmds, panel_h);
-                                } else if mode == Mode::Dsc {
-                                    self.dsc_panel(ui, &mut cmds, panel_h);
-                                } else if mode == Mode::UvPacket {
-                                    self.uvpacket_panel(ui, &mut cmds, panel_h);
-                                } else if mode == Mode::Jtty {
-                                    self.jtty_panel(ui, &mut cmds, panel_h);
-                                } else if mode == Mode::Ale {
-                                    self.ale_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_image() {
-                                    self.image_panel(ui, &mut cmds, mode);
-                                } else if mode.is_rf_paint() {
-                                    self.rf_paint_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_adsb() {
-                                    self.adsb_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_vdl2() {
-                                    self.vdl2_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_ais() {
-                                    self.ais_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_hfdl() {
-                                    self.hfdl_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_aprs() {
-                                    self.aprs_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_packet() {
-                                    self.packet_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_fsq() {
-                                    self.fsq_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_hell() {
-                                    self.hell_panel(ui, &mut cmds, panel_h);
-                                } else if is_text {
-                                    self.text_modem_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_js8() {
-                                    self.js8_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_wspr() {
-                                    self.wspr_panel(ui, &mut cmds, panel_h);
-                                } else if mode.is_pi4() {
-                                    self.pi4_panel(ui, &mut cmds, panel_h);
-                                } else if matches!(
-                                    mode,
-                                    Mode::Jt65
-                                        | Mode::Jt9
-                                        | Mode::Fst4
-                                        | Mode::Msk144
-                                        | Mode::Q65
-                                        | Mode::Fsk441
-                                ) {
-                                    self.jt_panel(ui, &mut cmds);
-                                } else {
-                                    self.digi_panel(ui, &mut cmds);
-                                }
+                                self.operating_panel(ui, &mut cmds, mode, panel_h);
                             });
                         });
                 });
@@ -2156,6 +2103,75 @@ impl SdroxideApp {
         }
     }
 
+    /// Draw whichever operating panel belongs to `mode`.
+    ///
+    /// One call for the normal workspace and for the Retro Radio decode window,
+    /// so the two can never drift apart. `panel_h` is the height the panel was
+    /// sized for; the modes that ignore it take no height at all.
+    pub(in crate::app) fn operating_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        cmds: &mut Vec<Command>,
+        mode: Mode,
+        panel_h: f32,
+    ) {
+        let is_text = mode.is_text_modem();
+        if mode.is_rade() {
+            self.rade_panel(ui, cmds, panel_h);
+        } else if mode.is_atchat() {
+            self.atchat_panel(ui, cmds, panel_h);
+        } else if mode.is_wefax() {
+            self.wefax_panel(ui, cmds, panel_h);
+        } else if mode == Mode::Navtex {
+            self.navtex_panel(ui, cmds, panel_h);
+        } else if mode == Mode::Acars {
+            self.acars_panel(ui, cmds, panel_h);
+        } else if mode == Mode::Dsc {
+            self.dsc_panel(ui, cmds, panel_h);
+        } else if mode == Mode::UvPacket {
+            self.uvpacket_panel(ui, cmds, panel_h);
+        } else if mode == Mode::Jtty {
+            self.jtty_panel(ui, cmds, panel_h);
+        } else if mode == Mode::Ale {
+            self.ale_panel(ui, cmds, panel_h);
+        } else if mode.is_image() {
+            self.image_panel(ui, cmds, mode);
+        } else if mode.is_rf_paint() {
+            self.rf_paint_panel(ui, cmds, panel_h);
+        } else if mode.is_adsb() {
+            self.adsb_panel(ui, cmds, panel_h);
+        } else if mode.is_vdl2() {
+            self.vdl2_panel(ui, cmds, panel_h);
+        } else if mode.is_ais() {
+            self.ais_panel(ui, cmds, panel_h);
+        } else if mode.is_hfdl() {
+            self.hfdl_panel(ui, cmds, panel_h);
+        } else if mode.is_aprs() {
+            self.aprs_panel(ui, cmds, panel_h);
+        } else if mode.is_packet() {
+            self.packet_panel(ui, cmds, panel_h);
+        } else if mode.is_fsq() {
+            self.fsq_panel(ui, cmds, panel_h);
+        } else if mode.is_hell() {
+            self.hell_panel(ui, cmds, panel_h);
+        } else if is_text {
+            self.text_modem_panel(ui, cmds, panel_h);
+        } else if mode.is_js8() {
+            self.js8_panel(ui, cmds, panel_h);
+        } else if mode.is_wspr() {
+            self.wspr_panel(ui, cmds, panel_h);
+        } else if mode.is_pi4() {
+            self.pi4_panel(ui, cmds, panel_h);
+        } else if matches!(
+            mode,
+            Mode::Jt65 | Mode::Jt9 | Mode::Fst4 | Mode::Msk144 | Mode::Q65 | Mode::Fsk441
+        ) {
+            self.jt_panel(ui, cmds);
+        } else {
+            self.digi_panel(ui, cmds);
+        }
+    }
+
     /// Dispatch keyboard and mouse-button bindings for this frame.
     ///
     /// The bindings themselves live in `input.json` (see
@@ -2179,6 +2195,7 @@ impl SdroxideApp {
             show_voice,
             caps,
             wide_frame,
+            ui_settings,
             ..
         } = self;
         // Read before the borrow below, which takes `self` apart.
@@ -2201,6 +2218,7 @@ impl SdroxideApp {
             spots: show_spots,
             memories: show_memories,
             voice: show_voice,
+            retro: &mut ui_settings.retro_radio,
             speech: &mut speech_acts,
             rig_squelch,
             zoom_out,
@@ -2254,6 +2272,7 @@ impl SdroxideApp {
             show_voice,
             caps,
             cw_key_down,
+            ui_settings,
             ..
         } = self;
         // The keyboard straight key is held by the operator's hand rather than
@@ -2274,6 +2293,7 @@ impl SdroxideApp {
             spots: show_spots,
             memories: show_memories,
             voice: show_voice,
+            retro: &mut ui_settings.retro_radio,
             speech: &mut Vec::new(),
             rig_squelch,
             // Releasing held keys never pans or zooms, so the passband will do.

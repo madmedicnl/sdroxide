@@ -760,6 +760,17 @@ pub struct UiSettings {
     /// parts of it missing until they ask.
     #[serde(default)]
     pub simple_ui: bool,
+    /// **Retro Radio** mode. When on, the whole workspace is replaced by a
+    /// listener's faceplate drawn over the same engine — one big tuning scale
+    /// and a needle, band and mode selectors, a volume knob, an S-meter and an
+    /// optional decode window. A skin, not a different radio: it holds no state
+    /// of its own and reaches the engine through the ordinary commands, so
+    /// leaving it puts the normal workspace back exactly as it was.
+    ///
+    /// A display preference like [`Self::simple_ui`], so each screen chooses.
+    /// Off by default.
+    #[serde(default)]
+    pub retro_radio: bool,
     /// Where the solar-system 3D window last was — see [`Solar3dWindow`].
     ///
     /// Here rather than in the operator's view state because window geometry is
@@ -871,6 +882,7 @@ impl Default for UiSettings {
             oob_tx_dismissed: false,
             cb_tx_warning_ack: false,
             simple_ui: false,
+            retro_radio: false,
             start_swl: false,
             solar3d_window: None,
         }

@@ -240,6 +240,17 @@ pub(in crate::app) fn settings_ui_tab(
         crate::chrome::checkbox(ui, &mut cfg.simple_ui, "hide advanced chips");
         ui.end_row();
 
+        ui.label("Retro Radio").on_hover_text(
+            "Replace the workspace with a listener's faceplate: one big tuning \
+             scale and a needle, band and mode selectors, a volume control, an \
+             S-meter and an optional decode window. A skin over the same radio \
+             — nothing is turned off, and the arrow keys, the wheel and the \
+             Ctrl+Alt+R shortcut all still work. Switch it off to get the \
+             normal workspace back exactly as it was.",
+        );
+        crate::chrome::checkbox(ui, &mut cfg.retro_radio, "draw the retro faceplate");
+        ui.end_row();
+
         ui.label("Start in SWL mode").on_hover_text(
             "Open every session with SWL mode already on, so a listener's \
              screen is what the program comes up as — for every radio, this \

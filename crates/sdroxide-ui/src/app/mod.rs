@@ -41,6 +41,7 @@ pub(in crate::app) mod publicsdr;
 pub(in crate::app) mod qo100;
 pub(in crate::app) mod rds;
 pub(in crate::app) mod recording_jobs;
+pub(in crate::app) mod retro;
 pub(in crate::app) mod sat;
 pub(in crate::app) mod save_text;
 pub(in crate::app) mod scanner;
@@ -188,6 +189,9 @@ pub struct SdroxideApp {
     /// receive-only radio the per-radio listening screen; an operator who has
     /// already said no must not be asked on every retune.
     rx_only_nudge_dismissed: bool,
+    /// Whether the Retro Radio faceplate's decode window is open. Session-only:
+    /// it is a view choice, not a station setting, so it is not persisted.
+    retro_decode_open: bool,
     sent_cfg: Option<SpectrumConfig>,
     desired_cfg: Option<SpectrumConfig>,
     desired_at: f64,
@@ -1490,6 +1494,7 @@ impl SdroxideApp {
             retry_backoff: RETRY_MIN_S,
             radio_notice: None,
             rx_only_nudge_dismissed: false,
+            retro_decode_open: false,
             sent_cfg: None,
             desired_cfg: None,
             desired_at: 0.0,
