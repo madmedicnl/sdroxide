@@ -23,6 +23,7 @@ pub(in crate::app) mod alerts;
 pub(in crate::app) mod auto_mode;
 pub(in crate::app) mod awards;
 pub(in crate::app) mod bands;
+pub(in crate::app) mod contest;
 #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
 pub(in crate::app) mod cw_key;
 pub(in crate::app) mod drm;
@@ -192,6 +193,14 @@ pub struct SdroxideApp {
     /// Whether the Retro Radio faceplate's decode window is open. Session-only:
     /// it is a view choice, not a station setting, so it is not persisted.
     retro_decode_open: bool,
+    /// The contest logger: whether its window is open, the running session
+    /// (`None` until START), the contest picked in setup, our own exchange and
+    /// the entry being typed. Session-only; the QSOs it logs go to `qso_log`.
+    show_contest: bool,
+    contest: Option<sdroxide_types::ContestSession>,
+    contest_pick: sdroxide_types::ContestId,
+    contest_my_exchange: String,
+    contest_entry: crate::app::contest::ContestEntry,
     sent_cfg: Option<SpectrumConfig>,
     desired_cfg: Option<SpectrumConfig>,
     desired_at: f64,
@@ -1495,6 +1504,11 @@ impl SdroxideApp {
             radio_notice: None,
             rx_only_nudge_dismissed: false,
             retro_decode_open: false,
+            show_contest: false,
+            contest: None,
+            contest_pick: sdroxide_types::ContestId::CqWpx,
+            contest_my_exchange: String::new(),
+            contest_entry: Default::default(),
             sent_cfg: None,
             desired_cfg: None,
             desired_at: 0.0,

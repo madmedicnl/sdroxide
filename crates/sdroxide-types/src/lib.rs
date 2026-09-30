@@ -26,6 +26,7 @@ mod cb_country;
 mod chirp;
 mod command;
 mod contacts;
+mod contest;
 mod controller;
 mod digi;
 mod drm;
@@ -142,6 +143,10 @@ pub use cb_country::cb_callsign_in;
 pub use chirp::{chirp_csv_to_memories, memories_to_chirp_csv};
 pub use command::Command;
 pub use contacts::FsqContact;
+pub use contest::{
+    ContestId, ContestScore, ContestSession, ContestSpec, Exchange, Multiplier, cabrillo_contest,
+    cabrillo_mode, rate, score, to_cabrillo, wpx_prefix,
+};
 pub use controller::{AudioDevices, PeerRadio, RadioController, RadioEvent};
 pub use digi::{
     ACARS_MESSAGE_MAX, AcarsMessage, AcarsStatus, CONTEST_SERIAL_MAX, ClockHealth, ContestMode,

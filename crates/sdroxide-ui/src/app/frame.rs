@@ -1091,6 +1091,7 @@ impl eframe::App for SdroxideApp {
         self.settings_window(&ctx, &mut cmds);
         self.digi_settings_window(&ctx, &mut cmds);
         self.logbook_window(&ctx, &mut cmds);
+        self.contest_window(&ctx, &mut cmds);
         self.swl_window(&ctx, &mut cmds);
         self.schedule_window(&ctx, &mut cmds);
         self.recordings_window(&ctx, &mut cmds);
