@@ -41,14 +41,22 @@ impl SdroxideApp {
 
         let body = rect.shrink(24.0);
         ui.scope_builder(egui::UiBuilder::new().max_rect(body), |ui| {
-            ui.vertical(|ui| {
-                self.retro_readout(ui, cmds);
-                ui.add_space(12.0);
-                self.retro_scale(ui, cmds);
-                ui.add_space(14.0);
-                self.retro_selectors(ui, cmds);
-                ui.add_space(14.0);
-                self.retro_bottom(ui, cmds);
+            // Scrollable so a short window can still reach the bottom rows
+            // rather than clipping them off the faceplate.
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                ui.vertical(|ui| {
+                    self.retro_readout(ui, cmds);
+                    ui.add_space(12.0);
+                    self.retro_scale(ui, cmds);
+                    ui.add_space(14.0);
+                    self.retro_selectors(ui, cmds);
+                    ui.add_space(14.0);
+                    self.retro_controls(ui, cmds);
+                    ui.add_space(10.0);
+                    self.retro_tone(ui, cmds);
+                    ui.add_space(10.0);
+                    self.retro_scan_presets(ui, cmds);
+                });
             });
         });
 
@@ -180,15 +188,15 @@ impl SdroxideApp {
         });
     }
 
-    /// VOLUME, the S-meter, and the decode-window toggle.
-    fn retro_bottom(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+    /// VOLUME, SQUELCH, the S-meter and the decode-window toggle.
+    fn retro_controls(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new("VOLUME").size(10.0).color(BRASS));
                 let mut v = self.state.rx[0].volume;
                 if ui
                     .add_sized(
-                        [200.0, 24.0],
+                        [180.0, 24.0],
                         egui::Slider::new(&mut v, 0.0..=1.0).show_value(false),
                     )
                     .changed()
@@ -196,24 +204,131 @@ impl SdroxideApp {
                     cmds.push(Command::SetVolume { rx: RxId::Main, v });
                 }
             });
-            ui.add_space(24.0);
+            ui.add_space(20.0);
+            ui.vertical(|ui| {
+                ui.label(egui::RichText::new("SQUELCH").size(10.0).color(BRASS));
+                self.retro_squelch(ui, cmds);
+            });
+            ui.add_space(20.0);
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new("S-METER").size(10.0).color(BRASS));
                 ui.allocate_ui_with_layout(
-                    egui::vec2(240.0, 60.0),
+                    egui::vec2(220.0, 60.0),
                     egui::Layout::top_down(egui::Align::Center),
                     |ui| {
                         crate::widgets::smeter::show(ui, self.meters.as_ref(), SmeterStyle::Needle);
                     },
                 );
             });
-            ui.add_space(24.0);
+            ui.add_space(20.0);
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new("DECODE").size(10.0).color(BRASS));
                 if crate::chrome::chip(ui, self.retro_decode_open, " DECODE ").clicked() {
                     self.retro_decode_open = !self.retro_decode_open;
                 }
             });
+        });
+    }
+
+    /// The squelch rail, on whichever scale this radio actually gates by — the
+    /// rig's own over the control link, else the engine's dBFS threshold. Same
+    /// split as the top strip's SQL control (issue #192).
+    fn retro_squelch(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+        if self.caps.as_ref().is_some_and(|c| c.commands_squelch) {
+            let mut sql = self.state.rig_squelch;
+            if ui
+                .add_sized([150.0, 22.0], egui::Slider::new(&mut sql, 0.0..=1.0).show_value(false))
+                .on_hover_text("The radio's own squelch, over the control link")
+                .changed()
+            {
+                self.state.rig_squelch = sql;
+                cmds.push(Command::SetRigSquelch { frac: sql });
+            }
+        } else {
+            let mut sql = self.state.rx[0].squelch_db;
+            if ui
+                .add_sized(
+                    [150.0, 22.0],
+                    egui::Slider::new(
+                        &mut sql,
+                        sdroxide_types::SQUELCH_OPEN_DB..=sdroxide_types::SQUELCH_CLOSED_DB,
+                    )
+                    .show_value(false),
+                )
+                .on_hover_text("Gate the audio below this level (left is open)")
+                .changed()
+            {
+                self.state.rx[0].squelch_db = sql;
+                cmds.push(Command::SetSquelch { rx: RxId::Main, db: sql });
+            }
+        }
+    }
+
+    /// The receive tone control — bass, mid and treble shelves on
+    /// `RadioState::rx_tone`, the same control the EQ chip and the SWL LOG
+    /// offer.
+    fn retro_tone(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+        let mut tone = self.state.rx_tone.clone();
+        let before = tone.clone();
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("TONE").size(10.0).color(BRASS));
+            if crate::chrome::chip(ui, tone.enabled, " ON ")
+                .on_hover_text("Switch the receive tone control in or out")
+                .clicked()
+            {
+                tone.enabled = !tone.enabled;
+            }
+            let band = |ui: &mut egui::Ui, name: &str, b: &mut sdroxide_types::TxEqBand| {
+                ui.label(egui::RichText::new(name).size(10.0).color(SCALE_TICK));
+                ui.add(
+                    egui::DragValue::new(&mut b.gain_db)
+                        .speed(0.2)
+                        .range(-12.0..=12.0)
+                        .suffix(" dB"),
+                );
+            };
+            band(ui, "BASS", &mut tone.low);
+            band(ui, "MID", &mut tone.mid);
+            band(ui, "TREBLE", &mut tone.high);
+        });
+        if tone != before {
+            self.state.rx_tone = tone.clone();
+            cmds.push(Command::SetRxTone(Box::new(tone)));
+        }
+    }
+
+    /// SCAN / SEEK and the operator's memories as preset buttons.
+    fn retro_scan_presets(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new("SCAN").size(10.0).color(BRASS));
+            let running = self.state.scan.running;
+            if crate::chrome::chip(ui, running, if running { " STOP " } else { " SCAN " })
+                .on_hover_text("Scan the memories (or the configured range) and stop on a signal")
+                .clicked()
+            {
+                cmds.push(Command::SetScanning(!running));
+            }
+            if crate::chrome::chip(ui, false, " SEEK ").on_hover_text("Next channel").clicked() {
+                cmds.push(Command::ScanNext);
+            }
+            ui.add_space(12.0);
+            ui.label(egui::RichText::new("PRESET").size(10.0).color(BRASS));
+            if self.memories.is_empty() {
+                ui.label(egui::RichText::new("no memories yet").size(10.0).color(SCALE_TICK));
+            }
+            for m in self.memories.iter().take(10) {
+                let label = if m.name.trim().is_empty() {
+                    format!("{:.3} MHz", m.freq_hz / 1e6)
+                } else {
+                    m.name.clone()
+                };
+                if crate::chrome::chip(ui, false, label)
+                    .on_hover_text(format!("{:.4} MHz · {}", m.freq_hz / 1e6, m.mode.label()))
+                    .clicked()
+                {
+                    cmds.push(Command::RecallMemory(m.id));
+                }
+            }
         });
     }
 
