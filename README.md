@@ -226,6 +226,9 @@ client — are in [`docs/images/`](docs/images).
 - **Retro Radio** — a listener's faceplate drawn over the same engine: one big
   tuning scale and a needle, band and mode selectors, volume, squelch, tone, an
   S-meter and an optional decode window. **Settings → UI**, or **Ctrl+Alt+R**.
+- **Contest logger** — a mode-agnostic single-operator logger with the common
+  contests built in, a dupe warning, a live score and rate, and **Cabrillo**
+  export. On FT8 an EU VHF or CQ WPX run logs itself.
 - **T/R switch** — drives an external relay that grounds the antenna while
   transmitting and sequences an amplifier with it; several USB/serial/GPIO
   relay kinds supported. A contact can take a **band-decoder** role instead,

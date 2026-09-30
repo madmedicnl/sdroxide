@@ -39,6 +39,7 @@ or connects to a remote sdroxide server.
 9. [Web operation](#9-web-operation)
 10. [Spotting, awards, and QSL upload](#10-spotting-awards-and-qsl-upload)
     - [10.7 Signal identification](#107-signal-identification)
+    - [10.8 Contest logging](#108-contest-logging)
 11. [Winlink radio email](#11-winlink-radio-email)
 12. [Command-line reference](#12-command-line-reference)
 13. [Configuration files](#13-configuration-files)
@@ -15066,6 +15067,54 @@ and satellite services the receiver knows. It carries no waterfall images or
 audio samples and nothing copied from another identification database — the
 **sigidwiki** link opens that content in your browser rather than redistributing
 it here.
+
+### 10.8 Contest logging
+
+**CONTEST**, beside **TXT**, **ADIF** and **IMPORT** in the LOGBOOK window,
+opens the contest logger. It is **mode-agnostic**: you type the exchange by hand
+for CW, SSB, RTTY or anything else, and on FT8 the exchange fills itself in
+where the contest has a message layout. Nothing about it is a separate log —
+what it records goes into the ordinary logbook, so **TXT**, **ADIF**, the QSL
+loop and every other tool work on it unchanged.
+
+**Starting a session.** Pick a contest and enter your own exchange, then
+**START**. The contests that ship are:
+
+| Contest | You send | They send |
+| --- | --- | --- |
+| CQ World Wide | RST + CQ zone | RST + CQ zone |
+| CQ WPX | RST + serial | RST + serial |
+| ARRL DX | RST + state (or their power) | RST + state (or power) |
+| EU VHF | RST + serial | RST + serial + 6-character locator |
+| CB / 11 m activity | RST + free text | RST + free text |
+| Serial (generic) | RST + serial | RST + serial |
+
+**The entry form.** Type the call and their exchange, press **LOG**. Your own
+serial number increases by itself as each contact is logged and is remembered
+between sessions. A call already worked on the band lights **DUPE** — the same
+check the logbook uses — so you can decide whether to log it again for the
+points. **CABRILLO** writes the whole session out as a Cabrillo v3 file
+(`sdroxide.cab`), which is what contests want back; the `CONTEST:` line and the
+CW/SSB/RTTY category are chosen from the modes in your log.
+
+**Score and rate.** The strip across the top counts QSOs, points, multipliers
+and the score, with the number of contacts in the last ten minutes and the
+hourly rate beside them. The score is an **estimate** and says so: points are
+one per QSO, because the sponsors' own band and continent weighting is theirs to
+adjudicate and a wrong guess is worse than an honest baseline. The multiplier
+count is real. The sponsor's adjudication is the one that counts.
+
+**On FT8 it logs itself.** For the contests with an FT8 message layout — EU VHF
+CQ WPX and the generic serial one — **START** also sets the digital-mode contest
+exchange, and every FT8 QSO that completes is written into the session with its
+sent serial, its received exchange and both calls, without you touching the
+entry form. A CQ WPX or EU VHF run over FT8 therefore needs no typing at all.
+The other contests (CQ WW's zone, the CB activity) have no FT8 layout and are
+typed by hand, as are all CW and SSB contacts.
+
+**Stopping.** **STOP** ends the session; the contacts stay in the logbook. Only
+the session's own state — which contest, the serial, your exchange — is
+forgotten, so a new session starts clean.
 
 ---
 
