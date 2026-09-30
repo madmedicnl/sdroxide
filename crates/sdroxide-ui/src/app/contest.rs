@@ -45,14 +45,14 @@ impl SdroxideApp {
 
     fn contest_body(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
         if self.contest.is_none() {
-            self.contest_setup(ui);
+            self.contest_setup(ui, cmds);
         } else {
             self.contest_run(ui, cmds);
         }
     }
 
     /// The pre-session setup: pick the contest and enter our own exchange.
-    fn contest_setup(&mut self, ui: &mut egui::Ui) {
+    fn contest_setup(&mut self, ui: &mut egui::Ui, cmds: &mut Vec<Command>) {
         ui.label(
             "Pick a contest and enter what you send. The logger works on any mode — \
              type the exchange for CW or SSB, and the FT8 side fills it in by itself \
@@ -93,6 +93,14 @@ impl SdroxideApp {
             self.contest =
                 Some(ContestSession::new(picked, self.contest_my_exchange.trim().into(), now));
             self.contest_entry = Default::default();
+            // Tell the digi engine which FT8 contest layout to send, when this
+            // contest has one. A hand-typed CW/SSB contest sets `None` — there
+            // is no message layout to choose — and the logger works regardless.
+            cmds.push(sdroxide_types::Command::SetDigiConfig({
+                let mut cfg = self.digi_cfg_edit.clone();
+                cfg.contest = digi_contest_for(picked);
+                cfg
+            }));
         }
     }
 
@@ -259,6 +267,18 @@ fn exchange_hint(fields: &[Exchange]) -> String {
         return "—".to_string();
     }
     fields.iter().map(|f| f.label()).collect::<Vec<_>>().join(" + ")
+}
+
+/// The FT8 message layout a contest logger session should put the digi engine
+/// into: EU VHF for an EU VHF contest, the serial layout for CQ WPX and the
+/// generic serial one, and `None` for a contest with no FT8 layout — a CQ WW
+/// zone exchange, or the CB activity, are typed by hand.
+fn digi_contest_for(c: ContestId) -> sdroxide_types::ContestMode {
+    match c {
+        ContestId::EuVhf => sdroxide_types::ContestMode::EuVhf,
+        ContestId::CqWpx | ContestId::Generic => sdroxide_types::ContestMode::RttyRoundup,
+        _ => sdroxide_types::ContestMode::None,
+    }
 }
 
 fn parse_serial(s: &str) -> Option<u32> {

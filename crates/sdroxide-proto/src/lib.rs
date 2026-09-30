@@ -1605,7 +1605,14 @@ use sdroxide_types::{
 /// `DigiStatus` whole, so a v183 peer reads the extra byte as the start of the
 /// next field and fails to decode every config — the same break as v183's
 /// appended ALE status. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 184;
+///
+/// v185: the serial FT8 contest. `ContestMode` gains `RttyRoundup` **appended
+/// last** — the ARRL RTTY Roundup / CQ WPX serial exchange, so a serial
+/// contest runs over FT8 as EU VHF already does. `ContestMode` rides
+/// `DigiConfig::contest`, which rides the config whole, so a v184 peer reads
+/// the new discriminant as an unknown value (postcard still decodes the enum
+/// by index) — the variant is appended so no existing discriminant moves.
+pub const PROTO_VERSION: u16 = 185;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]

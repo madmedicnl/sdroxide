@@ -810,6 +810,28 @@ fn pack_message(text: &str, wide: bool) -> Option<([u8; 77], String)> {
         }
     }
 
+    // 1b. The ARRL RTTY Roundup / generic serial exchange, `i3 = 3`:
+    //     "[TU; ]<to> <from> [R] <RST><state|serial>". Both calls must be
+    //     standard calls — this layout spells them with `pack28`, which a
+    //     non-standard CB call cannot ride — and the exchange is a serial or
+    //     a US state. Offered after EU VHF and before the everyday message so
+    //     a six-digit exchange does not read as a report plus a stray token.
+    if matches!(toks.len(), 3 | 4) && wsjt77::is_standard_callsign(c1) {
+        let rogered = toks.get(2) == Some(&"R");
+        let exch = toks.last().copied().unwrap_or("");
+        // "RST" tokens look like `5NN`/`59`; the exchange is what follows.
+        if let Some(rs) = exch
+            .get(..2)
+            .and_then(|r| r.parse::<u8>().ok())
+            .filter(|r| (52..=59).contains(r))
+            && let Some(code) = exch.get(2..)
+            && let Some(m) = roundup::pack(c1, c2, rogered, rs, code)
+        {
+            let r = if rogered { "R " } else { "" };
+            return Some((m, format!("{c1} {c2} {r}{exch}")));
+        }
+    }
+
     // 2. A directed CQ: "CQ EU AB1CD FN42". The modifier is not a fourth field
     //    — "CQ EU" packs as one token — so the message is still the everyday
     //    three, with the first of them two words long.
@@ -1277,6 +1299,82 @@ mod eu_vhf {
     }
 }
 
+/// The ARRL RTTY Roundup layout, `i3 = 3` (the serial-contest shape WSJT-X
+/// uses): `[tu1][h28 to][h28 from][r1 ack][s3 report][e13 exchange]`, then `i3`.
+/// The 13-bit exchange is **the state index** (`nexch = 8000 + index`) for a
+/// North-American station, or a **serial** (`1..=7999`) for everyone else —
+/// which is exactly the generic serial exchange a CQ WPX / generic contest
+/// wants, so this one layout drives both.
+///
+/// mfsk-core unpacks this type but packs no such message, so the pack is
+/// written here against its `unpack77` `i3 = 3` arm — the bit order has to
+/// match it exactly, and `a_roundup_message_round_trips_through_mfsk_core`
+/// pins that against mfsk-core's own unpacker rather than against our own.
+///
+/// Unlike EU VHF this layout spells the callsigns with `pack28`, which the
+/// resolver handles for a call it has not heard; only the rarer hashed form
+/// (`unpack28_h`) needs the heard table, and the pack never writes that one.
+mod roundup {
+    use mfsk_core::msg::wsjt77::pack28;
+
+    use super::eu_vhf::bare;
+
+    /// The `i3` of this layout.
+    pub const I3_RTTY_ROUNDUP: u8 = 3;
+
+    /// The exchange codes the state index starts at. `8000` cannot be a serial
+    /// (a serial is `1..=7999`), so the two ranges cannot collide.
+    const STATE_BASE: u32 = 8000;
+
+    /// The 50 US states and DC, in the order the 13-bit index numbers them —
+    /// mfsk-core's own `RTTY_STATES`, mirrored here because the pack needs the
+    /// index the unpack reads back. Kept in step by the round-trip test.
+    pub const RTTY_STATES: &[&str] = &[
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
+        "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
+        "VA", "WA", "WV", "WI", "WY", "DC",
+    ];
+
+    /// The exchange field for a token: a 1..=3 digit serial, or a US state.
+    /// Anything else cannot ride this layout.
+    fn exchange_code(tok: &str) -> Option<u32> {
+        let t = tok.trim().to_ascii_uppercase();
+        if let Ok(n) = t.parse::<u32>() {
+            return (1..=7999).contains(&n).then_some(n);
+        }
+        RTTY_STATES.iter().position(|s| *s == t).map(|i| STATE_BASE + i as u32 + 1)
+    }
+
+    /// Pack `<to> <from> [R] <RS exchange>` into 77 bits.
+    ///
+    /// `rs` is `52..=59` (the three-bit report field); `tu` opens with the
+    /// `TU;` sign-off the layout carries. The calls are taken bare — angle
+    /// brackets are a hash's rendering, not part of the call.
+    pub fn pack(to: &str, from: &str, ack: bool, rs: u8, exchange_tok: &str) -> Option<[u8; 77]> {
+        if !(52..=59).contains(&rs) {
+            return None;
+        }
+        let exch = exchange_code(exchange_tok)?;
+        let n_to = pack28(bare(to))?;
+        let n_from = pack28(bare(from))?;
+        let mut msg = [0u8; 77];
+        let mut write = |start: usize, len: usize, val: u32| {
+            for i in 0..len {
+                msg[start + i] = ((val >> (len - 1 - i)) & 1) as u8;
+            }
+        };
+        write(0, 1, 0); // tu = 0: the ordinary exchange, not the ";TU" opener
+        write(1, 28, n_to);
+        write(29, 28, n_from);
+        write(57, 1, u32::from(ack));
+        write(58, 3, u32::from(rs - 52));
+        write(61, 13, exch);
+        write(74, 3, u32::from(I3_RTTY_ROUNDUP));
+        Some(msg)
+    }
+}
+
 /// True when two decodes are the same transmission seen by two passes: same
 /// text from the same place in the passband. The tolerance is a few Hz, so two
 /// stations sending identical text at different offsets stay distinct.
@@ -1588,6 +1686,62 @@ mod eu_vhf_tests {
         assert_eq!(d.from.as_deref(), Some("G4ABC/P"));
         assert_eq!(d.grid.as_deref(), Some("JO22DB"));
         assert!(!d.is_cq && !d.free_text);
+    }
+
+    /// The Roundup pack, read back by **mfsk-core's own unpacker** — the one
+    /// check that proves the bit order, since our packer and our unpacker
+    /// agreeing with each other would prove nothing.
+    #[test]
+    fn a_roundup_message_round_trips_through_mfsk_core() {
+        let bits = roundup::pack("K1ABC", "W9XYZ", true, 59, "1234").expect("packs");
+        assert_eq!(msg_kind(&bits), MsgKind::RttyRu);
+        let text = wsjt77::unpack77(&bits).expect("mfsk-core reads it");
+        assert!(text.contains("K1ABC") && text.contains("W9XYZ"), "{text}");
+        assert!(text.contains("1234"), "the serial survives: {text}");
+    }
+
+    /// A US state rides the same 13-bit field as a state index, and comes back
+    /// as the state.
+    #[test]
+    fn a_roundup_state_exchange_round_trips() {
+        let bits = roundup::pack("W1AW", "K5ABC", false, 59, "TX").expect("packs");
+        let text = wsjt77::unpack77(&bits).expect("mfsk-core reads it");
+        assert!(text.contains("TX"), "{text}");
+    }
+
+    /// A serial past the field, and an exchange that is neither a serial nor a
+    /// state, are refused rather than packed into something else.
+    #[test]
+    fn a_roundup_exchange_out_of_range_is_refused() {
+        assert!(roundup::pack("K1ABC", "W9XYZ", false, 59, "8000").is_none());
+        assert!(roundup::pack("K1ABC", "W9XYZ", false, 59, "ZZ").is_none());
+        assert!(roundup::pack("K1ABC", "W9XYZ", false, 59, "0").is_none());
+    }
+
+    /// The whole path a serial contest actually takes: encode a
+    /// `CALL CALL 591234` line, decode the slot, and read it back as the same
+    /// text through `build_decode` — the Roundup layout reached from the
+    /// ordinary encode ladder.
+    #[test]
+    fn a_serial_contest_line_encodes_and_decodes_as_roundup() {
+        let mut modem = Ft8Modem::new(Mode::Ft8);
+        let (burst, sent) =
+            modem.encode_burst_12k("K1ABC W9XYZ 591234", 1500.0, 0.5).expect("encode");
+        assert!(sent.contains("591234"), "the exchange went out: {sent}");
+        let mut slot = vec![0.0f32; (0.5 * 12_000.0) as usize];
+        slot.extend_from_slice(&burst);
+        slot.resize((15.0 * 12_000.0) as usize, 0.0);
+        let i16buf: Vec<i16> = slot.iter().map(|&s| (s * 20_000.0) as i16).collect();
+        let decodes = modem.decode_slot(&i16buf, 0, &ApHints::default(), 1500.0);
+        assert!(
+            decodes.iter().any(|d| d.message.contains("1234") && d.message.contains("K1ABC")),
+            "a serial exchange decodes: {:?}",
+            decodes.iter().map(|d| &d.message).collect::<Vec<_>>(),
+        );
+        // The callsigns and the serial both parse out of the decoded row.
+        let d = decodes.iter().find(|d| d.message.contains("1234")).expect("the row");
+        assert_eq!(d.to.as_deref(), Some("K1ABC"));
+        assert_eq!(d.from.as_deref(), Some("W9XYZ"));
     }
 }
 

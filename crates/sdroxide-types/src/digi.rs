@@ -239,15 +239,24 @@ pub enum ContestMode {
     /// European VHF contests: a signal report, a serial number and a
     /// **6-character** locator, exchanged in the `i3 = 5` layout.
     EuVhf,
+    /// ARRL RTTY Roundup, and the generic serial contest with it: a signal
+    /// report and a serial number (or a US state), in the `i3 = 3` layout.
+    ///
+    /// Appended after [`Self::EuVhf`] rather than placed with it, because this
+    /// enum rides the wire (`DigiConfig::contest`); a variant inserted mid-enum
+    /// would shift every discriminant below it.
+    RttyRoundup,
 }
 
 impl ContestMode {
-    pub const ALL: [ContestMode; 2] = [ContestMode::None, ContestMode::EuVhf];
+    pub const ALL: [ContestMode; 3] =
+        [ContestMode::None, ContestMode::EuVhf, ContestMode::RttyRoundup];
 
     pub fn label(self) -> &'static str {
         match self {
             ContestMode::None => "None",
             ContestMode::EuVhf => "EU VHF Contest",
+            ContestMode::RttyRoundup => "RTTY Roundup (serial)",
         }
     }
 
@@ -258,6 +267,7 @@ impl ContestMode {
         match self {
             ContestMode::None => "",
             ContestMode::EuVhf => "TEST",
+            ContestMode::RttyRoundup => "RU",
         }
     }
 }

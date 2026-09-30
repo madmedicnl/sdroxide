@@ -829,12 +829,18 @@ impl SdroxideApp {
                                              the message layout WSJT-X calls EU VHF Contest. \
                                              CQ goes out as CQ TEST."
                                         }
+                                        sdroxide_types::ContestMode::RttyRoundup => {
+                                            "Serial contests — ARRL RTTY Roundup and CQ WPX \
+                                             over FT8: a signal report and a serial number \
+                                             (or a US state), with no locator. CQ goes out \
+                                             as CQ RU."
+                                        }
                                     })
                                     .changed();
                             }
                         });
                         ui.end_row();
-                        if cfg.contest == sdroxide_types::ContestMode::EuVhf {
+                        if cfg.contest != sdroxide_types::ContestMode::None {
                             ui.label("Serial");
                             ui.horizontal(|ui| {
                                 // Straight out as its own command, never

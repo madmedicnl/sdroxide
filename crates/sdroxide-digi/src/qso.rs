@@ -40,6 +40,13 @@ pub(crate) enum Payload {
         grid6: String,
         rogered: bool,
     },
+    /// A serial contest exchange (`i3 = 3`): an RS report and a serial number,
+    /// or a US state, with no locator. The generic CQ WPX / RTTY Roundup shape.
+    Serial {
+        rs: u8,
+        exchange: String,
+        rogered: bool,
+    },
     Other,
 }
 
@@ -54,6 +61,25 @@ fn parse_exchange(tok: &str) -> Option<(u8, u32)> {
     let rs: u8 = tok[..2].parse().ok()?;
     let serial: u32 = tok[2..].parse().ok()?;
     (52..=59).contains(&rs).then_some((rs, serial))
+}
+
+/// Split a serial-contest exchange token — `591234` or `59TX` — into
+/// `(rs, exchange)`. The RS is the two-digit report the three-bit field reads
+/// back as `52 + n`; the exchange is the rest, a serial or a state.
+fn parse_serial_exchange(tok: &str) -> Option<(u8, String)> {
+    if tok.len() < 3 || !tok.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let rs: u8 = tok[..2].parse().ok()?;
+    if !(52..=59).contains(&rs) {
+        return None;
+    }
+    let ex = &tok[2..];
+    // A serial (digits) or a two-letter state — anything else is not this
+    // layout's exchange, so the everyday message keeps it.
+    let ok = ex.bytes().all(|b| b.is_ascii_digit())
+        || (ex.len() == 2 && ex.bytes().all(|b| b.is_ascii_uppercase()));
+    ok.then(|| (rs, ex.to_ascii_uppercase()))
 }
 
 /// A six-character locator in the alphabet the contest layout allows (the
@@ -82,6 +108,14 @@ pub(crate) fn classify_payload(text: &str) -> Payload {
         && is_grid6(grid6)
     {
         return Payload::Exchange { rs, serial, grid6: (*grid6).to_string(), rogered };
+    }
+    // A serial contest exchange: an RS and one exchange token (a serial or a
+    // state), no locator. Read after the EU-VHF pair above so a six-digit
+    // exchange plus a grid is not mistaken for it.
+    if let [exch] = rest
+        && let Some((rs, ex)) = parse_serial_exchange(exch)
+    {
+        return Payload::Serial { rs, exchange: ex, rogered };
     }
     match *p {
         "RR73" => Payload::Rr73,
@@ -142,6 +176,9 @@ fn reply_step(payload: &Payload) -> Option<QsoStep> {
         // for ours rogered, theirs rogered says the exchange is complete.
         Payload::Exchange { rogered: false, .. } => Some(QsoStep::TxRReport),
         Payload::Exchange { rogered: true, .. } => Some(QsoStep::TxRr73),
+        // A serial exchange answers the same way.
+        Payload::Serial { rogered: false, .. } => Some(QsoStep::TxRReport),
+        Payload::Serial { rogered: true, .. } => Some(QsoStep::TxRr73),
         Payload::Rrr | Payload::Rr73 => Some(QsoStep::Tx73),
         Payload::B73 => None,
     }
@@ -185,6 +222,10 @@ struct Dx {
     /// whole because all three of them go in the log, and the serial is the
     /// only part of a contest QSO that cannot be worked out again afterwards.
     exch_rcvd: Option<(u8, u32, String)>,
+    /// A serial contest's received exchange *string* — the token as it came
+    /// (`1234`, or a state), which is what the log records. Empty outside a
+    /// serial contest.
+    serial_rcvd: String,
     /// The serial we sent them. Read off `DigiConfig::contest_serial` when the
     /// exchange first goes out rather than at log time, so a contact that
     /// straddles the engine advancing the counter is logged with the number
@@ -524,6 +565,7 @@ impl QsoMachine {
             rpt_sent: Some(snr),
             rpt_rcvd,
             exch_rcvd,
+            serial_rcvd: String::new(),
             serial_sent: None,
             started_utc: now_utc,
             last_utc: now_utc,
@@ -708,6 +750,7 @@ impl QsoMachine {
                     rpt_sent: Some(d.snr_db),
                     rpt_rcvd: None,
                     exch_rcvd: None,
+                    serial_rcvd: String::new(),
                     serial_sent: None,
                     started_utc: now_utc,
                     last_utc: now_utc,
@@ -871,6 +914,7 @@ impl QsoMachine {
                     rpt_sent: Some(d.snr_db),
                     rpt_rcvd: None,
                     exch_rcvd: None,
+                    serial_rcvd: String::new(),
                     serial_sent: None,
                     started_utc: now_utc,
                     last_utc: now_utc,
@@ -1057,10 +1101,23 @@ impl QsoMachine {
     /// simply a better answer to the same question than the four-character grid
     /// the opening messages carried.
     fn set_exch_rcvd(&mut self, payload: &Payload) {
-        let Payload::Exchange { rs, serial, grid6, .. } = payload else { return };
-        if let Some(dx) = self.dx.as_mut() {
-            dx.exch_rcvd = Some((*rs, *serial, grid6.clone()));
-            dx.grid = Some(grid6.clone());
+        match payload {
+            Payload::Exchange { rs, serial, grid6, .. } => {
+                if let Some(dx) = self.dx.as_mut() {
+                    dx.exch_rcvd = Some((*rs, *serial, grid6.clone()));
+                    dx.grid = Some(grid6.clone());
+                }
+            }
+            // A serial contest's exchange: keep the serial as the number and the
+            // whole token as the received string. A state has no serial.
+            Payload::Serial { rs, exchange, .. } => {
+                let serial = exchange.parse::<u32>().unwrap_or(0);
+                if let Some(dx) = self.dx.as_mut() {
+                    dx.exch_rcvd = Some((*rs, serial, String::new()));
+                    dx.serial_rcvd = exchange.clone();
+                }
+            }
+            _ => {}
         }
     }
 
@@ -1097,6 +1154,21 @@ impl QsoMachine {
                     rst_rcvd = Some(i16::from(*rs));
                     srx = Some(*ser);
                     srx_string = format!("{rs:02}{ser:04} {grid6}");
+                }
+            } else if self.contest() == ContestMode::RttyRoundup {
+                let rs_sent = sdroxide_types::eu_vhf_rs(dx.rpt_sent.unwrap_or(0));
+                let serial = self.serial_for_this_qso();
+                rst_sent = Some(i16::from(rs_sent));
+                stx = Some(serial);
+                stx_string = format!("{rs_sent:02}{serial:04}");
+                if let Some((rs, ser, _)) = &dx.exch_rcvd {
+                    rst_rcvd = Some(i16::from(*rs));
+                    srx = Some(*ser);
+                    srx_string = if dx.serial_rcvd.trim().is_empty() {
+                        format!("{rs:02}{ser:04}")
+                    } else {
+                        format!("{rs:02}{}", dx.serial_rcvd)
+                    };
                 }
             }
             self.completed.push_back(QsoRecord {
@@ -1195,6 +1267,9 @@ impl QsoMachine {
         if self.contest() == ContestMode::EuVhf {
             return self.plan_eu_vhf(dx_call, &mg, rpt_sent);
         }
+        if self.contest() == ContestMode::RttyRoundup {
+            return self.plan_roundup(dx_call, rpt_sent);
+        }
         let fill = |tmpl: &str, rpt: Option<i16>| DigiConfig::fill(tmpl, mc, &mg, dx_call, rpt);
         // On 11 m the exchange follows WSJT-CB's message sequence (issue
         // #396). The *identity* slot — the message that answers a CQ — is
@@ -1251,7 +1326,7 @@ impl QsoMachine {
     /// sitting in the middle of a contest and still wants to read what is going
     /// on around it.
     pub(crate) fn contest_selected(&self) -> bool {
-        self.cfg.contest == ContestMode::EuVhf
+        matches!(self.cfg.contest, ContestMode::EuVhf | ContestMode::RttyRoundup)
     }
 
     pub(crate) fn contest(&self) -> ContestMode {
@@ -1261,6 +1336,11 @@ impl QsoMachine {
                     && is_grid6(&self.cfg.my_grid.to_ascii_uppercase()) =>
             {
                 ContestMode::EuVhf
+            }
+            // The serial layout needs no grid — it carries none — so it is on
+            // whenever the operator picked it and the mode is in the FT8 family.
+            ContestMode::RttyRoundup if matches!(self.mode, Mode::Ft8 | Mode::Ft4 | Mode::Ft2) => {
+                ContestMode::RttyRoundup
             }
             _ => ContestMode::None,
         }
@@ -1311,6 +1391,30 @@ impl QsoMachine {
             .clamp(1, sdroxide_types::CONTEST_SERIAL_MAX)
     }
 
+    /// This slot's message in a serial contest — CQ WPX, or the ARRL RTTY
+    /// Roundup with it (the `i3 = 3` layout).
+    ///
+    /// The opening messages are ordinary — CQ, then `<dx> <mc>` — and the two
+    /// exchange messages carry the `i3 = 3` layout: an RS report and the
+    /// serial, spelled `591234`. There is no locator, so this is simpler than
+    /// [`Self::plan_eu_vhf`].
+    fn plan_roundup(&self, dx_call: &str, rpt_sent: Option<i16>) -> Option<String> {
+        let mc = self.cfg.my_call.trim();
+        let serial = self.serial_for_this_qso();
+        let rs = sdroxide_types::eu_vhf_rs(rpt_sent.unwrap_or(0));
+        let exch = format!("{rs:02}{serial:04}");
+        match self.step {
+            QsoStep::CallingCq => Some(format!("CQ RU {mc}")),
+            QsoStep::TxGrid => Some(format!("{dx_call} {mc}")),
+            QsoStep::TxReport => Some(format!("{dx_call} {mc} {exch}")),
+            QsoStep::TxRReport => Some(format!("{dx_call} {mc} R {exch}")),
+            QsoStep::TxRr73 => Some(format!("{dx_call} {mc} RR73")),
+            QsoStep::Tx73 => Some(format!("{dx_call} {mc} 73")),
+            QsoStep::Confirming => self.resend.then(|| self.final_msg.clone()).flatten(),
+            QsoStep::Idle | QsoStep::WaitCq => None,
+        }
+    }
+
     /// The controller calls this after each burst finishes. When the final
     /// message (73 as answerer, RR73 as CQ caller) has gone out, log the QSO and
     /// move to `Confirming`; while confirming, a queued re-send has now left.
@@ -1335,7 +1439,7 @@ impl QsoMachine {
         self.tx_since_progress += 1;
         // The serial belongs to this contact from the first exchange that goes
         // out on the air. See [`Self::serial_for_this_qso`].
-        if self.contest() == ContestMode::EuVhf
+        if matches!(self.contest(), ContestMode::EuVhf | ContestMode::RttyRoundup)
             && matches!(self.step, QsoStep::TxReport | QsoStep::TxRReport)
         {
             let serial = self.serial_for_this_qso();
@@ -1509,6 +1613,70 @@ mod tests {
         assert!(q.on_rx(&[decode("<G4ABC/P> <PA9XYZ> 590003 JO22DB")], 115));
         assert_eq!(q.step(), QsoStep::TxRReport);
         assert_eq!(q.plan_tx().as_deref(), Some("<PA9XYZ> <G4ABC/P> R 540003 IO91NP"));
+    }
+
+    /// A serial contest runs its own exchange, `i3 = 3`: an RS and a serial,
+    /// no locator. `CQ RU`, then the exchange both ways, then RR73.
+    #[test]
+    fn a_serial_contest_runs_without_a_locator() {
+        let cfg = DigiConfig {
+            my_call: "K1ABC".into(),
+            my_grid: "FN42".into(),
+            contest: ContestMode::RttyRoundup,
+            contest_serial: 7,
+            ..Default::default()
+        };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        q.call_cq();
+        assert_eq!(q.plan_tx().as_deref(), Some("CQ RU K1ABC"));
+
+        // W9XYZ answers; we send the exchange, RS 54 (their -10 dB), serial 7.
+        assert!(q.on_rx(&[decode("K1ABC W9XYZ EN61")], 115));
+        assert_eq!(q.plan_tx().as_deref(), Some("W9XYZ K1ABC 540007"));
+
+        // Their exchange comes back rogered: 59, serial 1234.
+        q.note_tx_sent(130);
+        assert!(q.on_rx(&[decode("K1ABC W9XYZ R 591234")], 145));
+        assert_eq!(q.step(), QsoStep::TxRr73);
+        assert_eq!(q.plan_tx().as_deref(), Some("W9XYZ K1ABC RR73"));
+
+        q.note_tx_sent(160);
+        let rec = q.take_completed().expect("logged");
+        assert_eq!(rec.call, "W9XYZ");
+        assert_eq!(rec.stx, Some(7));
+        assert_eq!(rec.srx, Some(1234));
+        assert_eq!(rec.stx_string, "540007");
+        assert_eq!(rec.srx_string, "591234");
+    }
+
+    /// A state exchange rides the same layout — `59TX` — and the log keeps the
+    /// state as the received string rather than a serial.
+    #[test]
+    fn a_serial_contest_records_a_state_exchange() {
+        let cfg = DigiConfig {
+            my_call: "K1ABC".into(),
+            my_grid: "FN42".into(),
+            contest: ContestMode::RttyRoundup,
+            contest_serial: 1,
+            ..Default::default()
+        };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        // A `59TX` exchange classifies as a serial exchange, with the state
+        // kept as the received string and no serial number.
+        assert!(matches!(
+            classify_payload("K1ABC W1AW 59TX"),
+            Payload::Serial { rs: 59, ref exchange, rogered: false } if exchange == "TX"
+        ));
+        assert!(matches!(
+            classify_payload("K1ABC W1AW R 59TX"),
+            Payload::Serial { rogered: true, .. }
+        ));
+        q.start_qso("W1AW".into(), None, -8, true, 100);
+        q.set_exch_rcvd(&Payload::Serial { rs: 59, exchange: "TX".into(), rogered: false });
+        // The received string is the state, and there is no serial number.
+        let dx = q.dx.as_ref().expect("working W1AW");
+        assert_eq!(dx.serial_rcvd, "TX");
+        assert_eq!(dx.exch_rcvd.as_ref().map(|(rs, _, _)| *rs), Some(59));
     }
 
     /// 11 m: a station answers our CQ from its own fixed tone — WSJT-CB
