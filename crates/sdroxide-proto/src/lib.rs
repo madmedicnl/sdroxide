@@ -1738,7 +1738,7 @@ pub enum ClientMsg {
         /// The profile to store against, or `None` for the station default
         /// every client with no profile settings of its own falls back to.
         profile: Option<String>,
-        settings: Box<sdroxide_types::UiSettings>,
+        settings: sdroxide_types::ClientScreen,
     },
 }
 
@@ -2110,7 +2110,7 @@ pub enum ServerMsg {
 pub struct ClientSettingsReply {
     /// The profile these came from, or `None` when this is the station default.
     pub profile: Option<String>,
-    pub settings: Box<sdroxide_types::UiSettings>,
+    pub settings: sdroxide_types::ClientScreen,
 }
 
 /// One radio in a station's roster, as a client sees it.
@@ -2186,6 +2186,17 @@ mod tests {
         let m = ServerMsg::Profiles(vec!["Contest".into(), "DX".into()]);
         let back: ServerMsg = decode(&encode(&m).unwrap()).unwrap();
         assert_eq!(back, m);
+
+        // A remote client's screen settings, both directions. Appended
+        // variants, so a discriminant slip here would show as a decode error.
+        let settings = sdroxide_types::ClientScreen::default();
+        let ask = ClientMsg::SetClientSettings { profile: Some("Contest".into()), settings: settings.clone() };
+        assert_eq!(decode::<ClientMsg>(&encode(&ask).unwrap()).unwrap(), ask);
+        let answered = ServerMsg::ClientSettings(ClientSettingsReply {
+            profile: Some("Contest".into()),
+            settings,
+        });
+        assert_eq!(decode::<ServerMsg>(&encode(&answered).unwrap()).unwrap(), answered);
 
         // The station-roster edits, and the announcement that answers them.
         // Appended variants, so this is also where a discriminant slip in the

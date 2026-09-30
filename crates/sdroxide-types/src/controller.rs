@@ -411,7 +411,7 @@ pub enum RadioEvent {
     /// Client-local: it rides `ServerMsg::ClientSettings`, not the engine.
     ClientSettings {
         profile: Option<String>,
-        settings: Box<crate::UiSettings>,
+        settings: crate::ClientScreen,
     },
 }
 
@@ -429,6 +429,13 @@ pub struct AudioDevices {
 /// (native GUI) or a WebSocket session (WASM remote client).
 pub trait RadioController {
     fn send(&mut self, cmd: Command);
+
+    /// Hand a remote server this client's screen settings, when the operator
+    /// has asked to keep them there
+    /// ([`crate::UiSettings::client_save_scope`]). Defaulted to nothing: the
+    /// in-process engine has no server to tell, and the settings are already in
+    /// its own `config.toml`.
+    fn send_client_settings(&mut self, _profile: Option<String>, _settings: crate::ClientScreen) {}
 
     /// Non-blocking; the UI drains this each frame until `None`.
     fn poll_event(&mut self) -> Option<RadioEvent>;

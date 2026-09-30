@@ -260,7 +260,7 @@ async fn run_session(
             let _ = socket
                 .send(msg(&ServerMsg::ClientSettings(ClientSettingsReply {
                     profile: from,
-                    settings: Box::new(settings),
+                    settings,
                 })))
                 .await;
         }
@@ -498,7 +498,7 @@ async fn run_session(
                 Ok(ClientMsg::SetClientSettings { profile, settings }) => {
                     let done = tokio::task::spawn_blocking(move || {
                         let mut store = config::load_client_settings();
-                        store.set(profile.as_deref(), *settings);
+                        store.set(profile.as_deref(), settings);
                         config::save_client_settings(&store).map_err(|e| e.to_string())
                     })
                     .await;
@@ -513,7 +513,7 @@ async fn run_session(
                             && let Some(s) = shared.session.lock().unwrap().as_ref()
                         {
                             let _ = s.reliable.try_send(ServerMsg::ClientSettings(
-                                ClientSettingsReply { profile: from, settings: Box::new(stored) },
+                                ClientSettingsReply { profile: from, settings: stored },
                             ));
                         }
                     }

@@ -1024,115 +1024,159 @@ impl UiSettings {
     }
 }
 
-/// The **presentation** subset of [`UiSettings`]: what a remote client may keep
-/// on the server (`UiSettings::client_save_scope`).
+/// A remote client's **screen settings**, in the form that may cross the wire
+/// and be kept on the server (`UiSettings::client_save_scope`).
 ///
-/// Everything here is a look or a layout — nothing that points the program
-/// anywhere, and nothing that is a fact about the machine rather than the
-/// person. It is deliberately not the whole struct:
+/// It is a type of its own rather than a [`UiSettings`] because that struct
+/// **cannot** be postcard-encoded: two of its fields (`spot_colors`,
+/// `bandplan_colors`) deserialize through custom functions that read a `Vec`
+/// where the serializer writes a fixed array — a mismatch self-describing TOML
+/// absorbs and postcard cannot. Sending the whole struct would have been a
+/// wire bug.
 ///
-/// - **Window geometry and display zoom** (`solar3d_window`, `ui_zoom`) are
-///   facts about *this screen*; pushing a shared box's geometry onto a login
-///   that later signs in from a laptop would put the window off the edge.
-/// - **The per-view decode-list prefs** (`decode_*`, `memory_sort*`) are about
-///   the lists a client is looking at; they travel with the browser today and
-///   there is no reason to make them a login's.
-/// - **The one-shot acknowledgements** (`oob_tx_dismissed`, `cb_tx_warning_ack`)
-///   record that *this operator* has already been told something. Adopting
-///   someone else's would swallow a warning they have not seen.
+/// It is also deliberately narrow. Everything here is a look or a layout —
+/// nothing that points the program anywhere, and nothing that is a fact about
+/// the machine rather than the person:
 ///
-/// What is left is the screen: theme, fonts, speed, layout, palette, the band
-/// plan's shading style, Simple UI, Retro Radio, and whether the maps carry
-/// cities. That is what an operator actually redoes each session.
+/// - window geometry, display zoom, the decode-list views and the one-shot
+///   acknowledgements are all left behind, so adopting a login's screen never
+///   moves a window off a laptop or swallows a warning the operator has not
+///   seen.
 ///
-/// (The struct was never a security hole — it carries no URLs, paths or feeds,
-/// only scalars — so this is a *scope* cut, not an injection guard. It is still
-/// true that a stored blob should be no bigger than it needs to be.)
-pub fn presentation_only(s: &UiSettings) -> UiSettings {
-    let base = UiSettings::default();
-    UiSettings {
-        // ── Presentation: taken from `s` ─────────────────────────────────
-        frame_rate_fps: s.frame_rate_fps,
-        waterfall_speed: s.waterfall_speed,
-        spectrum_speed: s.spectrum_speed,
-        spectrum_3d_speed: s.spectrum_3d_speed,
-        waterfall_palette: s.waterfall_palette,
-        waterfall_smooth: s.waterfall_smooth,
-        waterfall_freeze_on_tx: s.waterfall_freeze_on_tx,
-        spectrum_detail: s.spectrum_detail,
-        spectrum_gradient: s.spectrum_gradient,
-        gradient_top: s.gradient_top,
-        gradient_bottom: s.gradient_bottom,
-        spot_colors: s.spot_colors,
-        bandplan_colors: s.bandplan_colors,
-        layout: s.layout,
-        theme: s.theme,
-        button_style: s.button_style,
-        window_style: s.window_style,
-        skimmer_font_size: s.skimmer_font_size,
-        waterfall_font_size: s.waterfall_font_size,
-        menu_font_size: s.menu_font_size,
-        smeter_style: s.smeter_style,
-        map_cities: s.map_cities,
-        simple_ui: s.simple_ui,
-        retro_radio: s.retro_radio,
-        // ── Machine- or view-specific: left at their defaults ────────────
-        tune_step_buttons: base.tune_step_buttons,
-        tune_step_hz: base.tune_step_hz,
-        tune_step_round_first: base.tune_step_round_first,
-        ui_zoom: base.ui_zoom,
-        update_check: base.update_check,
-        memory_sort: base.memory_sort,
-        memory_sort_desc: base.memory_sort_desc,
-        decode_sort: base.decode_sort,
-        decode_sort_desc: base.decode_sort_desc,
-        decode_single_list: base.decode_single_list,
-        decode_cq_only: base.decode_cq_only,
-        decode_new_only: base.decode_new_only,
-        cw_qrg: base.cw_qrg,
-        swl: base.swl,
-        start_swl: base.start_swl,
-        oob_tx_dismissed: base.oob_tx_dismissed,
-        cb_tx_warning_ack: base.cb_tx_warning_ack,
-        solar3d_window: base.solar3d_window,
-        // Not a screen choice: the scope stays the client's own.
-        client_save_scope: base.client_save_scope,
+/// So it is what an operator actually redoes each session — theme, layout,
+/// waterfall and spectrum look, fonts, Simple UI, Retro Radio, the map layers —
+/// and no more. (There was never an injection risk: `UiSettings` carries no
+/// URLs, paths or feeds, only scalars. This is a scope cut, not a guard.)
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClientScreen {
+    pub frame_rate_fps: u32,
+    pub waterfall_speed: Speed,
+    pub spectrum_speed: Speed,
+    pub spectrum_3d_speed: Speed,
+    pub waterfall_palette: usize,
+    pub waterfall_smooth: bool,
+    pub waterfall_freeze_on_tx: bool,
+    pub spectrum_detail: SpectrumDetail,
+    pub spectrum_gradient: bool,
+    pub gradient_top: [u8; 3],
+    pub gradient_bottom: [u8; 3],
+    pub spot_colors: [[u8; 3]; SpotKind::COUNT],
+    pub bandplan_colors: [[u8; 3]; BandplanKind::COUNT],
+    pub layout: LayoutMode,
+    pub theme: UiTheme,
+    pub button_style: ChromeStyle,
+    pub window_style: ChromeStyle,
+    pub skimmer_font_size: FontSize,
+    pub waterfall_font_size: FontSize,
+    pub menu_font_size: FontSize,
+    pub smeter_style: SmeterStyle,
+    pub map_cities: bool,
+    pub simple_ui: bool,
+    pub retro_radio: bool,
+}
+
+impl Default for ClientScreen {
+    fn default() -> Self {
+        Self::from_settings(&UiSettings::default())
     }
 }
 
-impl UiSettings {
-    /// Lay the **presentation** fields of `served` over `self`, leaving every
-    /// machine- or view-specific field alone. This is what a client does with a
-    /// set fetched from the server: adopt the look, keep its own window
-    /// geometry, zoom, list views and acknowledgements. See
-    /// [`presentation_only`] for the split.
-    pub fn merge_presentation_from(&mut self, served: &UiSettings) {
-        let curated = presentation_only(served);
-        // Take exactly the fields `presentation_only` kept.
-        self.frame_rate_fps = curated.frame_rate_fps;
-        self.waterfall_speed = curated.waterfall_speed;
-        self.spectrum_speed = curated.spectrum_speed;
-        self.spectrum_3d_speed = curated.spectrum_3d_speed;
-        self.waterfall_palette = curated.waterfall_palette;
-        self.waterfall_smooth = curated.waterfall_smooth;
-        self.waterfall_freeze_on_tx = curated.waterfall_freeze_on_tx;
-        self.spectrum_detail = curated.spectrum_detail;
-        self.spectrum_gradient = curated.spectrum_gradient;
-        self.gradient_top = curated.gradient_top;
-        self.gradient_bottom = curated.gradient_bottom;
-        self.spot_colors = curated.spot_colors;
-        self.bandplan_colors = curated.bandplan_colors;
-        self.layout = curated.layout;
-        self.theme = curated.theme;
-        self.button_style = curated.button_style;
-        self.window_style = curated.window_style;
-        self.skimmer_font_size = curated.skimmer_font_size;
-        self.waterfall_font_size = curated.waterfall_font_size;
-        self.menu_font_size = curated.menu_font_size;
-        self.smeter_style = curated.smeter_style;
-        self.map_cities = curated.map_cities;
-        self.simple_ui = curated.simple_ui;
-        self.retro_radio = curated.retro_radio;
+impl ClientScreen {
+    /// Lift the screen fields out of a full [`UiSettings`].
+    pub fn from_settings(s: &UiSettings) -> Self {
+        ClientScreen {
+            frame_rate_fps: s.frame_rate_fps,
+            waterfall_speed: s.waterfall_speed,
+            spectrum_speed: s.spectrum_speed,
+            spectrum_3d_speed: s.spectrum_3d_speed,
+            waterfall_palette: s.waterfall_palette,
+            waterfall_smooth: s.waterfall_smooth,
+            waterfall_freeze_on_tx: s.waterfall_freeze_on_tx,
+            spectrum_detail: s.spectrum_detail,
+            spectrum_gradient: s.spectrum_gradient,
+            gradient_top: s.gradient_top,
+            gradient_bottom: s.gradient_bottom,
+            spot_colors: s.spot_colors,
+            bandplan_colors: s.bandplan_colors,
+            layout: s.layout,
+            theme: s.theme,
+            button_style: s.button_style,
+            window_style: s.window_style,
+            skimmer_font_size: s.skimmer_font_size,
+            waterfall_font_size: s.waterfall_font_size,
+            menu_font_size: s.menu_font_size,
+            smeter_style: s.smeter_style,
+            map_cities: s.map_cities,
+            simple_ui: s.simple_ui,
+            retro_radio: s.retro_radio,
+        }
+    }
+
+    /// Lay these screen settings back over a full [`UiSettings`], leaving every
+    /// field this does not carry — window geometry, zoom, list views, the
+    /// acknowledgements, the save scope — exactly as the client had it.
+    pub fn apply_to(&self, s: &mut UiSettings) {
+        s.frame_rate_fps = self.frame_rate_fps;
+        s.waterfall_speed = self.waterfall_speed;
+        s.spectrum_speed = self.spectrum_speed;
+        s.spectrum_3d_speed = self.spectrum_3d_speed;
+        s.waterfall_palette = self.waterfall_palette;
+        s.waterfall_smooth = self.waterfall_smooth;
+        s.waterfall_freeze_on_tx = self.waterfall_freeze_on_tx;
+        s.spectrum_detail = self.spectrum_detail;
+        s.spectrum_gradient = self.spectrum_gradient;
+        s.gradient_top = self.gradient_top;
+        s.gradient_bottom = self.gradient_bottom;
+        s.spot_colors = self.spot_colors;
+        s.bandplan_colors = self.bandplan_colors;
+        s.layout = self.layout;
+        s.theme = self.theme;
+        s.button_style = self.button_style;
+        s.window_style = self.window_style;
+        s.skimmer_font_size = self.skimmer_font_size;
+        s.waterfall_font_size = self.waterfall_font_size;
+        s.menu_font_size = self.menu_font_size;
+        s.smeter_style = self.smeter_style;
+        s.map_cities = self.map_cities;
+        s.simple_ui = self.simple_ui;
+        s.retro_radio = self.retro_radio;
+    }
+}
+
+#[cfg(test)]
+mod client_screen_tests {
+    use super::*;
+
+    /// The screen round-trips through postcard — the thing `UiSettings` itself
+    /// cannot do. This is the test that would fail first if a non-postcard-safe
+    /// field were ever added here.
+    #[test]
+    fn the_screen_survives_a_postcard_round_trip() {
+        let screen = ClientScreen::from_settings(&UiSettings::default());
+        let bytes = postcard::to_allocvec(&screen).expect("encodes");
+        let back: ClientScreen = postcard::from_bytes(&bytes).expect("decodes");
+        assert_eq!(back, screen);
+    }
+
+    /// Applying a served screen leaves every machine-specific field alone.
+    #[test]
+    fn applying_a_screen_keeps_the_machines_own_facts() {
+        let mut live = UiSettings::default();
+        live.ui_zoom = 1.7;
+        live.oob_tx_dismissed = true;
+        live.solar3d_window = Some(Solar3dWindow { size: [900.0, 600.0], pos: Some([10.0, 10.0]) });
+
+        let mut served = UiSettings::default();
+        served.theme = UiTheme::Dracula;
+        served.simple_ui = true;
+        ClientScreen::from_settings(&served).apply_to(&mut live);
+
+        assert_eq!(live.theme, UiTheme::Dracula, "the look was adopted");
+        assert!(live.simple_ui);
+        assert_eq!(live.ui_zoom, 1.7, "the client's zoom is its own");
+        assert!(live.oob_tx_dismissed, "and its acknowledgements");
+        assert!(live.solar3d_window.is_some(), "and its window place");
     }
 }
 
@@ -1202,26 +1246,6 @@ pub fn set_force_swl(on: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The server-stored screen carries the look and leaves the machine's own
-    /// facts behind: changing the theme survives, but window geometry, display
-    /// zoom and the one-shot acknowledgements do not travel.
-    #[test]
-    fn presentation_only_keeps_the_look_and_drops_the_machine() {
-        let mut s = UiSettings::default();
-        s.theme = UiTheme::Dracula;
-        s.simple_ui = true;
-        s.retro_radio = true;
-        s.ui_zoom = 1.7;
-        s.oob_tx_dismissed = true;
-        s.solar3d_window = Some(Solar3dWindow { size: [1180.0, 760.0], pos: Some([-900.0, 40.0]) });
-        let p = presentation_only(&s);
-        assert_eq!(p.theme, UiTheme::Dracula, "the theme is the screen");
-        assert!(p.simple_ui && p.retro_radio);
-        assert_eq!(p.ui_zoom, UiSettings::default().ui_zoom, "zoom is the machine's");
-        assert!(!p.oob_tx_dismissed, "a dismissal is this operator's");
-        assert_eq!(p.solar3d_window, None, "a window position is this screen's");
-    }
 
     /// A layout value this build has never heard of costs that field, not the
     /// whole `config.toml`. `Settings::load` quarantines the entire file on a

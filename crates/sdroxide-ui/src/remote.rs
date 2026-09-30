@@ -627,6 +627,14 @@ impl RemoteController {
 }
 
 impl RadioController for RemoteController {
+    fn send_client_settings(
+        &mut self,
+        profile: Option<String>,
+        settings: sdroxide_types::ClientScreen,
+    ) {
+        self.send_msg(ClientMsg::SetClientSettings { profile, settings });
+    }
+
     fn send(&mut self, cmd: Command) {
         // The one command a gesture produces once a frame for as long as it
         // lasts, and the most expensive one to act on at the far end — held to
