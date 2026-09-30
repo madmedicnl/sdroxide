@@ -778,6 +778,30 @@ pub struct UiSettings {
     /// its own.
     #[serde(default)]
     pub solar3d_window: Option<Solar3dWindow>,
+    /// Where a **remote client** keeps its own screen settings: only in this
+    /// browser, or on the server against the profile it signed in as.
+    ///
+    /// Meaningful only for a client of `--server`; a native run always keeps
+    /// them in `config.toml` on the machine, and this is ignored. The point is
+    /// a shared station: browser-local storage gives each browser its own
+    /// screen but forgets it on a cache clear or a new machine, and
+    /// server-side gives each *login* its screen back wherever it signs in
+    /// from. Both answers are right for somebody, so it is a choice.
+    #[serde(default)]
+    pub client_save_scope: ClientSaveScope,
+}
+
+/// Where a remote client keeps its screen settings — see
+/// [`UiSettings::client_save_scope`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ClientSaveScope {
+    /// The browser's own storage, per browser (the default). The server is
+    /// never written to.
+    #[default]
+    Browser,
+    /// On the server, against the profile this client signed in as, so the
+    /// screen follows the login rather than the browser.
+    Server,
 }
 
 /// Default for [`UiSettings::spot_colors`] — every kind on its stock tint.
@@ -885,6 +909,7 @@ impl Default for UiSettings {
             retro_radio: false,
             start_swl: false,
             solar3d_window: None,
+            client_save_scope: ClientSaveScope::default(),
         }
     }
 }
