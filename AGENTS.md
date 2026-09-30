@@ -1912,6 +1912,18 @@ note and were rendered from a separate HTML source; leave them alone.)
 > first Brown release) and **`nightly`**. Tags below `v1.9.4_brown` no longer
 > exist, so do not reference them.
 
+> **Version scheme (2026-09-30): step `Cargo.toml` for a real release.** The
+> operator wants to stay on 1.9.x until **DAB** is done, and never drift into
+> 2.0. `Cargo.toml` takes **only three numbers** — cargo rejects `1.9.8.1` — so
+> the two roles are split: **a real release bumps the crate version** (1.9.8 →
+> **1.9.9**; the Windows MSI and the macOS bundle take their version from
+> `Cargo.toml`, so an upgrade has to step it), and **only a quick re-cut of the
+> same feature set** uses a fourth point on the *tag* (`v1.9.8.1_brown`), which
+> the workflow accepts and carries into the asset names while `Cargo.toml` stays
+> put. So: a release with new features → bump to the next `1.9.x`; a rebuild of
+> the same `main` → same crate version, a new tag point. Never reach 2.0 by
+> accident; the point is the escape hatch, the crate bump is the norm.
+
 1. Bump the workspace version in `Cargo.toml` **first** and let `cargo` refresh
    `Cargo.lock`; commit it. The Windows `.msi` and the macOS bundle take their
    version from `Cargo.toml`, so a re-tag on the same version installs as the
