@@ -610,6 +610,22 @@ merged code still calls everything `sdroxide`.
     sits after `cw_macros` (the PR's own placement, so the merge is clean). The
     fork's only delta is the version number — **when it lands, the fork's copy
     drops out; do not re-add the feature.**
+  - `dividebysandwich/sdroxide#603` — **the contest logger**, opened 2026-09-30
+    from `upstream/main` (branch `upstream-pr/contest-logger`, one commit). The
+    logger model + window from the fork, **stripped of the CB bits**: the
+    `CbActivity` variant becomes a generic `Text` exchange so nothing fork-only
+    rides it. No `PROTO_VERSION` change — a session is session-only and the
+    QSOs are ordinary `QsoRecord`s. Points are 1 per QSO and the score says
+    "estimate" on screen (the PR body flags this as a deliberate choice).
+  - `dividebysandwich/sdroxide#604` — **selectable FT8 decode depth**, opened
+    2026-09-30 from `upstream/main` (branch `upstream-pr/ft8-depth`, one
+    commit). `Ft8Depth` (`Fast` / `Normal` / `Deep`) on `DigiConfig`, default
+    Deep; the three measured strategies and times are in the PR body. **Builds
+    on the staging in #586** (the plain single pass is split off there, so a
+    reply is not held up) — this governs only the extra batch, so if #586 lands
+    in a different shape it is a small rebase. Appended field, so upstream's
+    `PROTO_VERSION` 170 → 171. The fork's own `main` already carries both, with
+    its CB additions intact; the fork's copies drop out when these land.
   - `dividebysandwich/sdroxide#597` — **JTTY, the WSJT-X 3.2 asynchronous text
     mode** (issue #584), opened 2026-09-29 from `upstream/main` (branch
     `upstream-pr/jtty`, **one squashed commit**, 46 files, ~2,700 lines). A
