@@ -1220,4 +1220,34 @@ impl SdroxideApp {
         cmds.push(Command::SetSatLock(Some(Box::new(cfg.clone()))));
         self.sat_win.sent = Some(cfg);
     }
+
+    /// Tune the radio to one published link of a satellite, without taking the
+    /// lock — the pass window's TUNE action, reached from the 3D window's
+    /// frequency table, which has no command path of its own. `link_idx` is the
+    /// index into the same usable-links list the table drew.
+    pub(in crate::app) fn sat_tune_request(
+        &mut self,
+        norad_id: u64,
+        link_idx: usize,
+        cmds: &mut Vec<Command>,
+    ) {
+        let freqs = match self.sat_cfg.freqs_for(norad_id) {
+            Some(f) => Some(f.clone()),
+            None => sdroxide_solar::satfreq::builtin_for(norad_id).cloned(),
+        };
+        let links: Vec<sdroxide_types::SatLink> =
+            freqs.as_ref().map(|f| f.usable_links().cloned().collect()).unwrap_or_default();
+        let Some(link) = links.get(link_idx) else { return };
+        if link.downlink.is_none() {
+            return;
+        }
+        self.show_sat = true;
+        self.sat_win.selected = Some(norad_id);
+        self.sat_win.link_idx = link_idx;
+        cmds.push(Command::SetMode { rx: sdroxide_types::RxId::Main, mode: mode_for_link(link) });
+        cmds.push(Command::SetVfo {
+            vfo: self.state.active_vfo,
+            hz: lock_downlink_hz(link, self.state.active_freq_hz()),
+        });
+    }
 }

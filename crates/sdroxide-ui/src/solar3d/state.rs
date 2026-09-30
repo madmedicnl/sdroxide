@@ -187,6 +187,11 @@ pub struct SolarUi {
     /// The matching UNLOCK, same contract.
     #[cfg(not(target_arch = "wasm32"))]
     pub unlock_requested: bool,
+    /// Set by the pass window's frequency table when a published downlink is
+    /// clicked — `(NORAD id, link index)`. Drained by the root pass alongside
+    /// `lock_requested`, which owns the command path. Native only, like it.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub tune_requested: Option<(u64, usize)>,
     /// Operator QTH as configured (Maidenhead) and its decoded (lat, lon).
     pub qth_grid: String,
     pub qth: Option<(f64, f64)>,
@@ -419,6 +424,8 @@ impl SolarUi {
             lock_requested: None,
             #[cfg(not(target_arch = "wasm32"))]
             unlock_requested: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            tune_requested: None,
             qth_grid: String::new(),
             qth: None,
             corner_w: 0.0,

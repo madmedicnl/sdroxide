@@ -1209,6 +1209,9 @@ impl eframe::App for SdroxideApp {
                     cmds.push(Command::SetSatLock(None));
                     self.sat_win.sent = None;
                 }
+                Some(crate::solar3d::LockChange::Tune(id, link_idx)) => {
+                    self.sat_tune_request(id, link_idx, &mut cmds);
+                }
                 None => {}
             }
         }

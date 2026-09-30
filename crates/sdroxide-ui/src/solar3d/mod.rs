@@ -147,6 +147,9 @@ pub fn max_body_scale(moon_orbit_scale: f32) -> f32 {
 pub enum LockChange {
     Lock(u64),
     Unlock,
+    /// A published downlink was clicked in the pass window's frequency table:
+    /// `(NORAD id, link index)`. Tune to it, without taking the lock.
+    Tune(u64, usize),
 }
 
 /// App-side handle to the solar-system window.
@@ -319,7 +322,7 @@ impl Solar3d {
 
         // egui tears the window down when we stop emitting the viewport — do
         // *not* send `ViewportCommand::Close` as well.
-        let (close, refresh, lock_req, unlock_req) = self.drain();
+        let (close, refresh, lock_req, unlock_req, tune_req) = self.drain();
         if close {
             self.open = false;
         }
@@ -328,6 +331,9 @@ impl Solar3d {
         }
         if unlock_req {
             return Some(LockChange::Unlock);
+        }
+        if let Some((id, idx)) = tune_req {
+            return Some(LockChange::Tune(id, idx));
         }
         lock_req.map(LockChange::Lock)
     }
@@ -387,14 +393,15 @@ impl Solar3d {
         });
     }
 
-    /// Drain the window's own requests: `(close, refresh, lock, unlock)`.
-    fn drain(&self) -> (bool, bool, Option<u64>, bool) {
+    /// Drain the window's own requests: `(close, refresh, lock, unlock, tune)`.
+    fn drain(&self) -> (bool, bool, Option<u64>, bool, Option<(u64, usize)>) {
         let mut st = self.lock();
         (
             std::mem::take(&mut st.close_requested),
             std::mem::take(&mut st.refresh_requested),
             std::mem::take(&mut st.lock_requested),
             std::mem::take(&mut st.unlock_requested),
+            std::mem::take(&mut st.tune_requested),
         )
     }
 
@@ -419,7 +426,7 @@ impl Solar3d {
         }
         self.ensure_feed(ctx);
         self.emit(ctx);
-        let (close, refresh, _lock, _unlock) = self.drain();
+        let (close, refresh, _lock, _unlock, _tune) = self.drain();
         if close {
             self.open = false;
         }

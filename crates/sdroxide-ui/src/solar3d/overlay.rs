@@ -1511,11 +1511,21 @@ fn pass_window(ui: &egui::Ui, st: &mut SolarUi, data: Option<&SolarData>, sim_no
 
             // The operator's own entry wins over the built-in table: they have
             // either corrected it or added a satellite it never knew about.
-            let (freqs, mine) = match st.sat_cfg.freqs_for(id) {
-                Some(f) => (Some(f), true),
-                None => (sdroxide_solar::satfreq::builtin_for(id), false),
+            // `tunable` is false in the browser: its relay carries no commands,
+            // so a clickable value there would be a lie — same rule as LOCK.
+            let clicked = {
+                let (freqs, mine) = match st.sat_cfg.freqs_for(id) {
+                    Some(f) => (Some(f), true),
+                    None => (sdroxide_solar::satfreq::builtin_for(id), false),
+                };
+                freq_table(ui, freqs, mine, &cache.name, cfg!(not(target_arch = "wasm32")))
             };
-            freq_table(ui, freqs, mine, &cache.name);
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(idx) = clicked {
+                st.tune_requested = Some((id, idx));
+            }
+            #[cfg(target_arch = "wasm32")]
+            let _ = clicked;
         });
     if !open {
         st.selected_sat = None;
@@ -1532,7 +1542,8 @@ fn freq_table(
     freqs: Option<&sdroxide_solar::SatFreqs>,
     mine: bool,
     tracked_name: &str,
-) {
+    tunable: bool,
+) -> Option<usize> {
     let Some(freqs) = freqs.filter(|f| f.usable_links().next().is_some()) else {
         ui.add_space(6.0);
         ui.label(
@@ -1540,7 +1551,7 @@ fn freq_table(
                 .color(theme::LINE_LIT())
                 .size(10.0),
         );
-        return;
+        return None;
     };
 
     ui.add_space(8.0);
@@ -1560,12 +1571,13 @@ fn freq_table(
     }
     ui.add_space(2.0);
 
+    let mut tune: Option<usize> = None;
     egui::Grid::new("solar-freq-grid").num_columns(4).spacing([14.0, 3.0]).show(ui, |ui| {
         for h in ["LINK", "DOWNLINK (MHz)", "UPLINK (MHz)", "MODE"] {
             ui.label(RichText::new(h).color(theme::CYAN_DIM()).size(9.5).strong());
         }
         ui.end_row();
-        for l in freqs.links.iter().filter(|l| !l.is_empty()) {
+        for (i, l) in freqs.usable_links().enumerate() {
             let mut label = RichText::new(&l.label).color(theme::TEXT());
             if !l.note.is_empty() {
                 label = label.color(theme::TEXT_STRONG());
@@ -1574,11 +1586,30 @@ fn freq_table(
             if !l.note.is_empty() {
                 resp.on_hover_text(&l.note);
             }
-            // The downlink is what gets tuned first, so it leads.
-            ui.label(
-                RichText::new(l.downlink.map_or_else(|| "—".into(), |b| b.to_string()))
-                    .color(theme::GREEN()),
-            );
+            // The downlink is what gets tuned first, so it leads — and clicking
+            // it tunes the radio to that link. The uplink is where you
+            // transmit; tuning the receiver there would hear nothing, so it
+            // stays a plain value. The lock (above) is what maps the uplink.
+            match l.downlink {
+                Some(b) if tunable => {
+                    let r = ui
+                        .add(
+                            egui::Label::new(RichText::new(b.to_string()).color(theme::GREEN()))
+                                .sense(egui::Sense::click()),
+                        )
+                        .on_hover_cursor(egui::CursorIcon::PointingHand)
+                        .on_hover_text("Tune the radio to this downlink");
+                    if r.clicked() {
+                        tune = Some(i);
+                    }
+                }
+                Some(b) => {
+                    ui.label(RichText::new(b.to_string()).color(theme::GREEN()));
+                }
+                None => {
+                    ui.label(RichText::new("—").color(theme::GREEN()));
+                }
+            }
             ui.label(
                 RichText::new(l.uplink.map_or_else(|| "—".into(), |b| b.to_string()))
                     .color(theme::YELLOW()),
@@ -1601,6 +1632,7 @@ fn freq_table(
             .color(theme::LINE_LIT())
             .size(10.0),
     );
+    tune
 }
 
 /// `HH:MM` — the date is already on the start column.
