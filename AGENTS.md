@@ -2083,6 +2083,36 @@ nothing is on the wire.
 - **Not done yet:** the manual and the README have no Retro Radio entry (the
   operator deferred the manual pass), and the faceplate is look-and-feel only.
 
+## The contest logger (fork-only, 2026-09-30)
+
+A single-operator contest logger, **mode-agnostic**: the operator types the
+exchange for CW, SSB or anything else, and the FT8 side is meant to auto-fill
+the same entry where the contest has an FT8 layout. The N1MM-shaped thing the
+fork's logbook was missing.
+
+- **Model:** `crates/sdroxide-types/src/contest.rs` — `ContestId`
+  (`CqWw` / `CqWpx` / `ArrlDx` / `EuVhf` / `CbActivity` / `Generic` / `None`), an
+  `Exchange` field list per contest, a `Multiplier` kind, `score` / `rate`
+  estimates, and `to_cabrillo`. **Points are deliberately 1 per QSO** — the
+  sponsor's band/continent weighting is theirs to adjudicate and a wrong guess
+  is worse than an honest baseline; the multiplier count is real. The Cabrillo
+  `CONTEST:` line picks CW/SSB/RTTY from the log's own modes.
+- **Window:** `crates/sdroxide-ui/src/app/contest.rs`, opened from
+  **LOGBOOK → CONTEST**. Session setup (contest picker, our exchange), the
+  entry form with a **dupe warning** from `worked_before`, a score/rate strip,
+  the session's log and the Cabrillo export.
+- **State:** a `ContestSession` is the operator's own — **session-only, never on
+  the wire** — and the QSOs it logs are ordinary `QsoRecord`s tagged with
+  `contest_id`, carrying `stx`/`srx` and `stx_string`/`srx_string`, so scoring
+  and the export read the same rows the logbook does. **No `PROTO_VERSION`
+  change.**
+- **The CB format** is `CbActivity`: a report and a **free-text** exchange, so
+  it fits whatever an 11 m activity settles on. Tighten it once the exact
+  exchange is known.
+- **Not done yet:** the FT8/digi **auto-fill** of an entry (a completed FT8
+  contest QSO should populate the same record), and the manual/README have no
+  contest entry.
+
 ### The 3D window in the multi-radio shell (2026-09-26)
 
 The solar-system view is a **native child viewport**, and the multi-radio shell
