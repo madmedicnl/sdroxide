@@ -2112,12 +2112,20 @@ fork's logbook was missing.
 - **Auto-fill:** a completed digital QSO is tagged with the running session and
   gets its sent serial and our own exchange from the session, so FT8 logs itself
   (`frame.rs`, `RadioEvent::Ft8QsoLogged`). The station's **received** exchange
-  comes from the digi exchange, which carries only the **EU VHF** layout today —
-  extending `DigiConfig::contest` (`ContestMode`, a wire enum, so append-last +
-  `PROTO_VERSION` bump) to the serial layout is what lets CQ WPX / Generic run
-  over FT8 too; the app side is already ready for it.
-- **Not done yet:** that digi contest-mode extension, and the manual/README have
-  no contest entry.
+  comes from the digi exchange.
+- **The two FT8 layouts (2026-09-30).** `ContestMode` carries **EU VHF**
+  (`i3 = 5`, RST + serial + grid) and **RttyRoundup** (`i3 = 3`, RST + serial /
+  state, the CQ WPX shape). `RttyRoundup` is **appended last** — it rides the
+  wire, so a mid-enum insert would shift every discriminant; `PROTO_VERSION`
+  184 → 185. The pack is in `modem.rs`'s `roundup` module against mfsk-core's
+  own `i3 = 3` unpack order (`[tu1][h28 to][h28 from][r1 ack][s3 rpt][e13
+  exch][i3]`; the exchange is a serial `1..=7999` or `8000 + state index`),
+  pinned by a round trip through **mfsk-core's unpacker** — a self-consistent
+  packer proves nothing. `qso.rs` runs the exchange (CQ RU → the exchange both
+  ways → RR73) and logs `stx`/`srx` and the received string.
+  The contest logger's **START** sets the layout: EU VHF → `EuVhf`, CQ WPX /
+  Generic → `RttyRoundup`, CQ WW and the CB activity → `None` (typed by hand).
+- **Not done yet:** the manual/README have no contest entry.
 
 ### The 3D window in the multi-radio shell (2026-09-26)
 
