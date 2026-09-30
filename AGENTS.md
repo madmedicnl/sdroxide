@@ -2109,9 +2109,15 @@ fork's logbook was missing.
 - **The CB format** is `CbActivity`: a report and a **free-text** exchange, so
   it fits whatever an 11 m activity settles on. Tighten it once the exact
   exchange is known.
-- **Not done yet:** the FT8/digi **auto-fill** of an entry (a completed FT8
-  contest QSO should populate the same record), and the manual/README have no
-  contest entry.
+- **Auto-fill:** a completed digital QSO is tagged with the running session and
+  gets its sent serial and our own exchange from the session, so FT8 logs itself
+  (`frame.rs`, `RadioEvent::Ft8QsoLogged`). The station's **received** exchange
+  comes from the digi exchange, which carries only the **EU VHF** layout today —
+  extending `DigiConfig::contest` (`ContestMode`, a wire enum, so append-last +
+  `PROTO_VERSION` bump) to the serial layout is what lets CQ WPX / Generic run
+  over FT8 too; the app side is already ready for it.
+- **Not done yet:** that digi contest-mode extension, and the manual/README have
+  no contest entry.
 
 ### The 3D window in the multi-radio shell (2026-09-26)
 
