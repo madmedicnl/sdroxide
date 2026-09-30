@@ -1612,7 +1612,13 @@ use sdroxide_types::{
 /// `DigiConfig::contest`, which rides the config whole, so a v184 peer reads
 /// the new discriminant as an unknown value (postcard still decodes the enum
 /// by index) — the variant is appended so no existing discriminant moves.
-pub const PROTO_VERSION: u16 = 185;
+///
+/// v186: a client of `--server` can keep its screen settings on the server,
+/// against the profile it signed in as (`UiSettings::client_save_scope`). New
+/// `ClientMsg::SetClientSettings` and `ServerMsg::ClientSettings`, both
+/// **appended last**. Only the presentation half of `UiSettings` travels, and
+/// never the control bindings. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 186;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -1718,6 +1724,21 @@ pub enum ClientMsg {
     SetRadioEnabled {
         id: u32,
         on: bool,
+    },
+    /// Store this client's **screen settings** on the server, against the
+    /// profile it signed in as — the "save on the server" half of
+    /// [`sdroxide_types::UiSettings::client_save_scope`].
+    ///
+    /// Only the **presentation** half of the settings travels (see
+    /// [`sdroxide_types::presentation_only`]), and never the control bindings:
+    /// a shared station's keyboard belongs to the machine, and sending
+    /// bindings would let one login rebind another's keys. Appended last, as
+    /// ever — postcard encodes the variant positionally.
+    SetClientSettings {
+        /// The profile to store against, or `None` for the station default
+        /// every client with no profile settings of its own falls back to.
+        profile: Option<String>,
+        settings: Box<sdroxide_types::UiSettings>,
     },
 }
 
@@ -2074,6 +2095,22 @@ pub enum ServerMsg {
     ///
     /// Appended last, for the usual reason.
     Pi4Spots(Vec<sdroxide_types::Pi4Spot>),
+
+    /// A client's stored screen settings, replayed on connect when it has any
+    /// on the server — the profile's own set, or the station default when the
+    /// profile has none (then `profile` is `None`). Also sent back after a
+    /// [`ClientMsg::SetClientSettings`], so the client knows what was stored.
+    ///
+    /// Appended last, for the usual reason.
+    ClientSettings(ClientSettingsReply),
+}
+
+/// What [`ServerMsg::ClientSettings`] carries.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClientSettingsReply {
+    /// The profile these came from, or `None` when this is the station default.
+    pub profile: Option<String>,
+    pub settings: Box<sdroxide_types::UiSettings>,
 }
 
 /// One radio in a station's roster, as a client sees it.

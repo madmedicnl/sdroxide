@@ -322,7 +322,7 @@ pub use tciserver::TciServerConfig;
 pub use tone::{CTCSS_TONES, SubTone};
 pub use ui::{
     BandplanKind, ChromeStyle, ClientSaveScope, FontSize, LayoutMode, SmeterStyle, Solar3dWindow,
-    SpectrumDetail, Speed, UiSettings, UiTheme,
+    SpectrumDetail, Speed, UiSettings, UiTheme, presentation_only,
 };
 pub use ui::{force_swl, set_force_swl};
 pub use jtty::{JTTY_MESSAGE_MAX, JttyMessage, JttyStatus};

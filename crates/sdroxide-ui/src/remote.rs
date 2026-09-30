@@ -348,6 +348,9 @@ impl RemoteController {
             ServerMsg::MemoryFolders(f) => self.pending.push_back(RadioEvent::MemoryFolders(f)),
             ServerMsg::Scanner(c) => self.pending.push_back(RadioEvent::Scanner(c)),
             ServerMsg::Profiles(p) => self.pending.push_back(RadioEvent::Profiles(p)),
+            ServerMsg::ClientSettings(r) => self
+                .pending
+                .push_back(RadioEvent::ClientSettings { profile: r.profile, settings: r.settings }),
             // Dropped rather than decoded while another tab holds the page's
             // single output: the work saved is the point on a browser tab
             // holding several radios.

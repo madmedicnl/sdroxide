@@ -1730,6 +1730,62 @@ pub fn save_bandstacks(stacks: &BandStacks) -> Result<(), ConfigError> {
     save_json("bandstacks.json", stacks)
 }
 
+/// A remote client's screen settings kept on the server — the "save on the
+/// server" half of [`sdroxide_types::UiSettings::client_save_scope`].
+///
+/// Two levels, because both a shared station and a single owner want this: each
+/// named **profile** has its own set, and there is one **station default** for a
+/// client whose profile has none. A client signing in as `madmedicnl` gets that
+/// profile's screen; one with no profile of its own gets the default.
+///
+/// Only [`sdroxide_types::UiSettings`] is stored, and only its **presentation**
+/// half (see [`sdroxide_types::presentation_only`]); the control bindings are
+/// never stored, because a shared station's keyboard belongs to the machine.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ClientSettingsStore {
+    /// A station-wide default applied to a client whose profile has none.
+    pub default: Option<sdroxide_types::UiSettings>,
+    /// Per-profile sets, keyed by the profile name the client signed in as.
+    pub profiles: std::collections::BTreeMap<String, sdroxide_types::UiSettings>,
+}
+
+impl ClientSettingsStore {
+    /// The settings for `profile`: its own set, else the station default. The
+    /// name comes back so the client can say which one it is using.
+    pub fn for_profile(
+        &self,
+        profile: Option<&str>,
+    ) -> Option<(Option<String>, sdroxide_types::UiSettings)> {
+        if let Some(name) = profile
+            && let Some(s) = self.profiles.get(name)
+        {
+            return Some((Some(name.to_string()), *s));
+        }
+        self.default.map(|s| (None, s))
+    }
+
+    /// Store `settings` against `profile`, or as the default when it is `None`.
+    /// Only the presentation half is kept.
+    pub fn set(&mut self, profile: Option<&str>, settings: sdroxide_types::UiSettings) {
+        let settings = sdroxide_types::presentation_only(&settings);
+        match profile {
+            Some(name) => {
+                self.profiles.insert(name.to_string(), settings);
+            }
+            None => self.default = Some(settings),
+        }
+    }
+}
+
+pub fn load_client_settings() -> ClientSettingsStore {
+    load_json("clientsettings.json")
+}
+
+pub fn save_client_settings(store: &ClientSettingsStore) -> Result<(), ConfigError> {
+    save_json("clientsettings.json", store)
+}
+
 pub fn load_memories() -> Vec<sdroxide_types::MemoryChannel> {
     load_json_list("memories.json")
 }

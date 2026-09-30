@@ -402,6 +402,17 @@ pub enum RadioEvent {
     /// radio has not arrived yet, so the readout can admit it. Native-only, for
     /// the same reason [`RadioEvent::AtsMiniMemories`] is.
     AtsMiniTuning(bool),
+    /// A remote client's screen settings, sent by the server when it has any
+    /// stored for the profile this client signed in as (or as the station
+    /// default). `profile` names which set it is, `None` for the default; the
+    /// client applies it only if its own
+    /// [`crate::UiSettings::client_save_scope`] says to.
+    ///
+    /// Client-local: it rides `ServerMsg::ClientSettings`, not the engine.
+    ClientSettings {
+        profile: Option<String>,
+        settings: Box<crate::UiSettings>,
+    },
 }
 
 /// Snapshot of the frontend's switchable sound devices (native clients).

@@ -1460,6 +1460,18 @@ impl SdroxideApp {
                         self.digi_cfg_seeded = false;
                     }
                 }
+                RadioEvent::ClientSettings { profile, settings } => {
+                    // Apply only when this client asked to keep its screen on
+                    // the server. The served set is presentation-only, so it
+                    // lays over the client's own settings without touching
+                    // anything the machine owns — see `presentation_only`.
+                    if self.ui_settings.client_save_scope == sdroxide_types::ClientSaveScope::Server
+                    {
+                        self.ui_settings.merge_presentation_from(&settings);
+                        // Remember which set we took, for the Settings label.
+                        self.client_settings_from = Some(profile);
+                    }
+                }
                 RadioEvent::ConnectionLost(e) => {
                     if self.focused {
                         self.speech.announcer.on_error(&e, now);

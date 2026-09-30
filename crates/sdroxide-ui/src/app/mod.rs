@@ -945,6 +945,10 @@ pub struct SdroxideApp {
     flags: crate::flags::Flags,
     /// Logbook overlay open state, and the in-progress new/edit entry (if any).
     show_logbook: bool,
+    /// Which stored set the last `RadioEvent::ClientSettings` came from —
+    /// a profile name, or `None` for the station default. `None` also before
+    /// any has arrived, which the Settings label reads as "not using any".
+    client_settings_from: Option<Option<String>>,
     /// The Morse trainer window and its persisted progress.
     morse: morse::MorseState,
     /// The signal-identification guide window.
@@ -1769,6 +1773,7 @@ impl SdroxideApp {
             digi_free_text: String::new(),
             flags: Default::default(),
             show_logbook: false,
+            client_settings_from: None,
             morse: morse::MorseState::new(load_morse_progress(storage)),
             signal_id: signal_id::SignalIdState::default(),
             mail: winlink::MailUi::default(),

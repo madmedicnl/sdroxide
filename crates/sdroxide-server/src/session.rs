@@ -12,12 +12,14 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
-use sdroxide_proto::{AudioCaps, AudioCodec, ClientMsg, PROTO_VERSION, ServerMsg, decode, encode};
+use sdroxide_config as config;
+use sdroxide_proto::{
+    AudioCaps, AudioCodec, ClientMsg, ClientSettingsReply, PROTO_VERSION, ServerMsg, decode, encode,
+};
 use sdroxide_types::Command;
 
 use crate::auth;
 use crate::{SessionTx, Shared, Station};
-
 /// `/ws` — the station's first radio, which is the whole of what a station
 /// with one radio has. Every client that predates the roster arrives here, so
 /// this address must never mean anything else.
@@ -56,7 +58,7 @@ async fn session(mut socket: WebSocket, shared: Arc<Shared>, station: Arc<Statio
     // order matters: claiming the slot before knowing who this is would let
     // anyone who can open a socket lock the operator out of their own radio
     // without ever proving they may touch it.
-    let Some(audio_caps) = handshake(&mut socket, &shared).await else {
+    let Some((audio_caps, login)) = handshake(&mut socket, &shared).await else {
         let _ = socket.close().await;
         return;
     };
@@ -67,7 +69,7 @@ async fn session(mut socket: WebSocket, shared: Arc<Shared>, station: Arc<Statio
         let _ = socket.close().await;
         return;
     }
-    run_session(&mut socket, &shared, &station, audio_caps).await;
+    run_session(&mut socket, &shared, &station, audio_caps, &login).await;
 
     // Cleanup — whatever happened, release the slot and drop the key.
     *shared.session.lock().unwrap() = None;
@@ -88,7 +90,7 @@ async fn session(mut socket: WebSocket, shared: Arc<Shared>, station: Arc<Statio
 /// The version check comes first so a client on the wrong protocol is told
 /// exactly that, rather than being asked to sign in to a server it could not
 /// have talked to anyway.
-async fn handshake(socket: &mut WebSocket, shared: &Arc<Shared>) -> Option<AudioCaps> {
+async fn handshake(socket: &mut WebSocket, shared: &Arc<Shared>) -> Option<(AudioCaps, String)> {
     // --- Hello (5 s budget) -------------------------------------------
     let hello = tokio::time::timeout(Duration::from_secs(5), socket.recv()).await;
     let audio_caps = match hello {
@@ -111,6 +113,11 @@ async fn handshake(socket: &mut WebSocket, shared: &Arc<Shared>) -> Option<Audio
     };
 
     // --- Sign-in ------------------------------------------------------
+    // The name is captured here rather than returned by `auth::challenge`,
+    // whose `bool` answers only "may this client in": it is the profile a
+    // client's server-side screen settings are keyed by.
+    let login = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let capture = login.clone();
     let signed_in = auth::challenge(
         socket,
         &shared.auth,
@@ -119,13 +126,17 @@ async fn handshake(socket: &mut WebSocket, shared: &Arc<Shared>) -> Option<Audio
             required: encode(&ServerMsg::AuthRequired).expect("encode"),
             rejected: &|why| encode(&ServerMsg::AuthRejected(why.into())).expect("encode"),
             credentials: &|bytes| match decode::<ClientMsg>(bytes) {
-                Ok(ClientMsg::Auth { username, password }) => Some((username, password)),
+                Ok(ClientMsg::Auth { username, password }) => {
+                    *capture.lock().unwrap() = username.clone();
+                    Some((username, password))
+                }
                 _ => None,
             },
         },
     )
     .await;
-    signed_in.then_some(audio_caps)
+    let username = login.lock().unwrap().clone();
+    signed_in.then(|| (audio_caps, username))
 }
 
 /// Tell the client that asked why a roster edit did not happen.
@@ -160,6 +171,7 @@ async fn run_session(
     // apart from the `station` below, which is the *config* of the station.
     roster: &Arc<Station>,
     audio_caps: AudioCaps,
+    login: &str,
 ) {
     let rx_codec =
         if audio_caps.opus_decode { AudioCodec::Opus48kMono } else { AudioCodec::Pcm16_48k };
@@ -237,6 +249,22 @@ async fn run_session(
     let _ = socket.send(msg(&ServerMsg::MemoryFolders(mem_folders))).await;
     let _ = socket.send(msg(&ServerMsg::Scanner(scanner))).await;
     let _ = socket.send(msg(&ServerMsg::Profiles(profiles))).await;
+    // The screen settings this client asked to keep on the server, keyed by the
+    // profile it signed in as (its own set, else the station default). Offered
+    // unconditionally — the client decides from its own `client_save_scope`
+    // whether to apply them, and reading a small JSON here costs nothing.
+    {
+        let store = config::load_client_settings();
+        let profile = (!login.is_empty()).then_some(login);
+        if let Some((from, settings)) = store.for_profile(profile) {
+            let _ = socket
+                .send(msg(&ServerMsg::ClientSettings(ClientSettingsReply {
+                    profile: from,
+                    settings: Box::new(settings),
+                })))
+                .await;
+        }
+    }
     // The operator config, which the engine announced once at startup. Without
     // this replay the client's callsign and grid come up empty and greyed out.
     if let Some(d) = digi {
@@ -462,6 +490,33 @@ async fn run_session(
                     let done =
                         tokio::task::spawn_blocking(move || station.set_radio_power(id, on)).await;
                     report(shared, done, "switching a radio");
+                }
+                // This client's screen settings, kept on the server against the
+                // profile it signed in as (`UiSettings::client_save_scope`).
+                // Blocking — it reads and writes a JSON — and only the
+                // presentation half is stored, the rest dropped by the store.
+                Ok(ClientMsg::SetClientSettings { profile, settings }) => {
+                    let done = tokio::task::spawn_blocking(move || {
+                        let mut store = config::load_client_settings();
+                        store.set(profile.as_deref(), *settings);
+                        config::save_client_settings(&store).map_err(|e| e.to_string())
+                    })
+                    .await;
+                    let ok = matches!(done, Ok(Ok(())));
+                    report(shared, done, "saving the screen settings");
+                    // Echo back what is now stored, so the client knows which
+                    // set it is using and that it landed.
+                    if ok {
+                        let store = config::load_client_settings();
+                        let profile = (!login.is_empty()).then_some(login);
+                        if let Some((from, stored)) = store.for_profile(profile)
+                            && let Some(s) = shared.session.lock().unwrap().as_ref()
+                        {
+                            let _ = s.reliable.try_send(ServerMsg::ClientSettings(
+                                ClientSettingsReply { profile: from, settings: Box::new(stored) },
+                            ));
+                        }
+                    }
                 }
                 Ok(ClientMsg::Ping(t)) => {
                     if let Some(s) = shared.session.lock().unwrap().as_ref() {
