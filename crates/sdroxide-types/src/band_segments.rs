@@ -722,8 +722,13 @@ pub struct DigiChannel {
     /// analog SSTV on 80 m and 40 m, where the passband is below the dial.
     pub dial_hz: f64,
     /// What distinguishes it from the band's other entries — "DXpedition",
-    /// "secondary", "DX calling". Empty for the plain calling frequency, which
-    /// is the first entry in a band.
+    /// "secondary", "DX calling". Empty for the plain calling frequency.
+    ///
+    /// Usually also the first entry in a band, but not always: 11 m's SSTV
+    /// works pictures on 27.700, which is freeband and therefore the *highest*
+    /// of the three, and it is the primary. So every rule that wants "the one
+    /// true frequency" looks for the empty note anywhere in the band rather
+    /// than taking the lowest — see `CB11_DIALS`.
     pub note: &'static str,
     /// True for one of the operator's own [`DigiPreset`]s rather than a
     /// published convention.
@@ -815,7 +820,15 @@ const CB11_DIALS: &[(crate::Mode, f64, &str)] = &[
     (crate::Mode::Ft8, 27_265_000.0, "ch 26"),
     (crate::Mode::Packet, 27_365_000.0, "ch 36, 1200 baud"),
     (crate::Mode::Sstv, 27_375_000.0, "ch 37"),
-    (crate::Mode::Sstv, 27_700_000.0, "freeband, primary SSTV"),
+    // The **unannotated** one, so it is the frequency a band button and the
+    // mode's own convention rule both land on. 27.700 is where the community
+    // actually works pictures — it is freeband, above the forty-channel grid —
+    // so it is the primary even though it is the *highest* of the three, and
+    // the two grid channels are the alternates. That inverts the usual order,
+    // where the plain calling frequency is the first entry in a band, so the
+    // rule that picks it looks for the empty note anywhere in the band rather
+    // than taking the lowest.
+    (crate::Mode::Sstv, 27_700_000.0, ""),
 ];
 
 /// The conventional dial frequencies for `mode` in the station's configured

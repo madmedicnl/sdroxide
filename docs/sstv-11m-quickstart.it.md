@@ -31,6 +31,10 @@ menu.
   arriva a 27,860 proprio perché quel canale ci stia dentro).
 - I canali immagine dentro la banda sono **27,255 (canale 23)** e **27,375
   (canale 37)**.
+- **Non devi digitare nulla a mano.** Scegliere una banda e poi **SSTV** porta la
+  frequenza su quella SSTV per quella banda — 27,700 sugli 11 m — e il tasto
+  **⇵ FREQ** c'è se ne vuoi un'altra, o se vuoi salvare la tua. La Parte C.2
+  spiega entrambe.
 - Scegli il modo **SSTV** — non **SSTV-FM**, che è per VHF/UHF. La SSTV segue la
   pratica della fonia e non l'USB fisso dei modi digitali: **LSB su 80 e 40 m,
   USB su 20 m e oltre**, e gli 11 m sono oltre, quindi la radio va in **USB**.
@@ -98,7 +102,7 @@ Vai alla scheda **General**:
 ### 3. Solo per trasmettere: abilita gli 11 m
 
 La trasmissione sugli 11 m è disattivata per impostazione predefinita — vedi
-*Trasmettere*. Per inviare un'immagine attiva **Allow transmit on 11 m (CB)**
+la Parte C. Per inviare un'immagine attiva **Allow transmit on 11 m (CB)**
 nella scheda General e conferma l'avviso una volta. La ricezione non ha bisogno
 di interruttori.
 
@@ -130,25 +134,111 @@ di interruttori.
 
 ## Parte C — Trasmettere un'immagine
 
-1. **Serve un transceiver** (VOX o CAT) — un dongle in sola ricezione non può
-   trasmettere. Attiva prima **Allow transmit on 11 m (CB)** (Parte A.3).
-2. Sul lato **TRANSMIT** i cinque slot funzionano come schede. **Load image…**
-   (o doppio clic su uno slot) sceglie un'immagine; viene ritagliata e scalata
-   alle dimensioni del modo e salvata in `~/.config/sdroxide-brown/sstv_tx/`.
-3. Digita un **messaggio** per lo slot attivo — la **prima riga è disegnata a
-   doppia dimensione come titolo**, e un'anteprima dal vivo mostra esattamente
-   cosa parte. La **bandierina** porta il tuo indicativo.
-4. Scegli un modo, o lascia **Auto** (che trasmette in **Martin 1** finché non ne
-   ha rilevato uno). **PD120** e **PD180** danno un'immagine 640×496 per più o
-   meno lo stesso tempo d'aria dei modi più piccoli — da usare per un'immagine
-   migliore.
-5. Premi **TX** per trasmettere; **ABORT TX** ferma un'immagine in corso.
-   **FSK ID** è attivo per default e invia il tuo indicativo come toni dopo ogni
-   immagine; **TX lead** copre il ritardo di commutazione della radio (alzalo se
-   un WebSDR ti sente ma non mostra alcuna immagine); **TX slant** corregge
-   l'orologio di trasmissione in ppm.
-6. **Ascolta prima di trasmettere**, e sulla frequenza di chiamata sii breve poi
-   spostati per chiacchierare — un'immagine è una lunga trasmissione.
+Trasmettere è la metà della SSTV che quasi nessuno prova, perché serve un
+trasmettitore. Questa Parte è tutto: che cosa deve essere vero prima, dove
+trasmettere, che cosa trasmettere, e quali sono le regole.
+
+### C1. Che cosa deve essere vero prima
+
+Quattro cose, e il programma le verifica tutte per te:
+
+- **Un transceiver, manipolato via VOX o CAT.** Un dongle in sola ricezione — la
+  maggior parte delle installazioni RTL-SDR, RX-888 e Airspy HF+ — decodifica le
+  immagini benissimo ma non può trasmetterle. In quel caso **TX** è grigio e lo
+  dice: *« This radio can only receive — it has no transmitter to key. »* Tutto il
+  resto continua a funzionare, così puoi caricare e comporre un'immagine e
+  trasmetterla più tardi.
+- **Modalità SWL disattivata.** In modalità SWL metà **TRANSMIT** non viene
+  disegnata.
+- **Allow transmit on 11 m (CB)** attivato (Parte A.3). Gli 11 m non sono una
+  banda amatoriale, e il blocco delle bande amatoriali del programma è generico,
+  quindi la CB viene attivata invece che data per scontata. La prima volta che lo
+  attivi, un avviso ti chiede di confermare che sai cosa il tuo paese consente
+  sui 27 MHz; poi viene ricordato, quindi non viene richiesto a ogni sessione.
+- **Una frequenza dentro la banda.** Vedi C2 — questa parte si risolve da sola.
+
+Il tuo **indicativo non è obbligatorio** per trasmettere. Senza di esso il **FSK
+ID** semplicemente non viene inviato e il `{call}` nella bandierina resta
+vuoto. Mettilo comunque in **Settings > General > Station** — è così che un'altra
+stazione, o un ripetitore, sa chi sta trasmettendo.
+
+### C2. Dove trasmettere — il tasto FREQ
+
+Il tasto **⇵ FREQ** è in alto a sinistra nel pannello SSTV, ed è l'unico
+comando che dice dove ti trovi.
+
+- **Scegliere una banda e poi SSTV ti porta automaticamente sulla frequenza SSTV
+  di quella banda.** Sugli 11 m è **27,700 MHz**, la frequenza immagine della
+  comunità. Anche i tasti SSTV della banda 11M ci portano, quindi di solito non
+  c'è nulla da fare.
+- Se stavi **già in ascolto su una delle frequenze SSTV, ci resti esattamente.**
+  Una frequenza che hai messo tu non viene mai spostata; questo recupera solo
+  una frequenza che non serve a nulla.
+- Premi **⇵ FREQ** per vedere l'elenco. Mostra la frequenza di chiamata più le
+  alternative, e **sceglierne una accorda la frequenza**. Sugli 11 m sono
+  **27,700** (la primaria), **27,255** (canale 23) e **27,375** (canale 37).
+- Il tasto serve anche da indicatore: mostra `⇵ 27,700` quando la frequenza è su
+  una di esse e semplicemente **⇵ FREQ** quando non lo è, così vedi subito se sei
+  dove la SSTV è aspettata.
+- Puoi **salvare la tua frequenza** nello stesso elenco e poi eliminarla — è così
+  che si tiene una frequenza su cui un gruppo locale ha messo d'accordo.
+
+### C3. Che cosa trasmettere
+
+- Il lato **TRANSMIT** ha **cinque slot** che funzionano come schede. **Load
+  image…**, o doppio clic su uno slot, sceglie una **PNG o JPEG** (limite 16 MB).
+  Viene ritagliata al centro e scalata alle dimensioni del modo — non c'è alcuna
+  regolazione dell'inquadratura — e salvata in
+  `~/.config/sdroxide-brown/sstv_tx/`. **Clear** svuota l'immagine di uno slot ma
+  ne conserva il messaggio.
+- Digita un **messaggio** per lo slot attivo. La **prima riga è disegnata a
+  doppia dimensione come titolo**, e un'anteprima dal vivo mostra esattamente
+  cosa parte.
+- **Banner…** imposta la fascia in alto a ogni immagine che invii. Comprende
+  `{call}`, `{grid}` e `{version}`, e puoi darle uno stile: colori, sfumatura,
+  contorno del testo, sostituzione arcobaleno, e la sua altezza.
+- Scegli un modo, o lascia **Auto** (che trasmette in **Martin 1** finché non ne
+  ha rilevato uno). Sono 16, da 320×256 a 800×616. **PD120** e **PD180** danno
+  un'immagine 640×496 per più o meno lo stesso tempo d'aria dei modi più piccoli
+  — da usare per un'immagine migliore.
+
+### C4. Premere TX
+
+**TX** compone l'immagine e manipola la radio. **ABORT TX** ferma un'immagine in
+corso. Tre regolazioni stanno dal lato ricezione, e tutte e tre si meritano:
+
+- **FSK ID** (attivo per default) invia il tuo indicativo come toni dopo
+  l'immagine, come fa MMSSTV. È così che vieni identificato, e costa circa
+  **due secondi e mezzo** oltre a una trasmissione che è già durata un minuto.
+- **TX lead** (0–3000 ms) copre il ritardo di commutazione della radio.
+  Un'immagine comincia con circa un secondo di leader e codice VIS, e **un
+  decoder che ne perde una parte non mostra alcuna immagine** — quindi se un
+  WebSDR ti sente ma non mostra nulla, alza prima questo.
+- **TX slant** (±5000 ppm) corregge l'orologio di trasmissione. Pochi Hz di errore
+  su un'immagine di due minuti danno un'inclinazione visibile, e questa è la
+  correzione.
+
+**Un'immagine è lenta e il canale è condiviso.** Circa un minuto per Robot 36,
+due per Martin 1 o PD120, quattro e mezzo per Scottie DX — e occupa circa
+**2,7 kHz** della banda laterale. Una stazione occupa la frequenza per tutto quel
+tempo. **Ascolta prima di trasmettere**, e sulla frequenza di chiamata sii breve
+poi spostati, così gli altri possono chiamare.
+
+Le protezioni di trasmissione valgono come per ogni modo: un rifiuto nomina il
+motivo — ROS, la portata di trasmissione propria della radio, un'altra radio già
+in aria, o la radio già manipolata dal suo stesso PTT.
+
+### C5. Le regole
+
+- **La CB serve a trasmettere *e* a ricevere, e nella maggior parte dei paesi non
+  richiede licenza** — i canali CEPT liberi, a potenza limitata. Questo fork
+  tratta gli 11 m come una banda vera.
+- L'interruttore **Allow transmit on 11 m (CB)** apre **solo gli 11 m** — le
+  bande di diffusione restano in sola ricezione.
+- Attieniti ai canali, alla potenza e ai modi del tuo paese — la normale cortesia
+  CB. **Controlla la normativa vigente dove ti trovi.**
+- Questo fork è per tutta la CB — voce e modi digitali — accanto all'ascolto SWL
+  e alla decodifica. La CB e il radioamatore sono vicini sullo stesso spettro.
 
 ---
 
@@ -162,31 +252,6 @@ di interruttori.
   un nome.
 - Il pannello SSTV è identico nel **client browser**; decodifica e codifica
   girano nel motore del server.
-
----
-
-## Trasmettere
-
-- **La CB serve a trasmettere *e* a ricevere, e nella maggior parte dei paesi
-  non richiede licenza** — i canali CEPT liberi, a potenza limitata. Questo fork
-  tratta gli 11 m come una banda vera.
-- **Per trasmettere la SSTV serve un transceiver**, manipolato via **VOX** (una
-  radio con scheda audio — il programma manda l'audio al suo ingresso microfono
-  e la radio si manipola da sola) oppure via **CAT**. Un dongle in sola
-  ricezione — la maggior parte delle installazioni RTL-SDR, RX-888 e Airspy HF+
-  — decodifica le immagini benissimo ma non può trasmetterle.
-- **Per trasmettere attiva Allow transmit on 11 m (CB)** nella scheda General e
-  conferma l'avviso una volta. È un interruttore solo perché il blocco delle
-  bande amatoriali del programma è generico e rifiuta ogni allocazione non
-  amatoriale; la CB è un servizio radio separato, quindi si abilita invece di
-  darla per scontata.
-- L'interruttore apre **solo gli 11 m** — le bande di diffusione restano in sola
-  ricezione.
-- Attieniti ai canali, alla potenza e ai modi del tuo paese — la normale
-  cortesia CB. **Controlla la normativa vigente dove ti trovi.**
-- Questo fork è per tutta la CB — voce e modi digitali — accanto all'ascolto
-  SWL e alla decodifica. La CB e il radioamatore sono vicini sullo stesso
-  spettro.
 
 ---
 

@@ -13,7 +13,40 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **A KNOWN window lists the callsigns your hashes can currently resolve** — a new
+  **KNOWN** chip in the general decode's filter row opens a window showing every
+  callsign a hashed `<...>` on this receiver can name, newest first and with its
+  country. An FT8 message carries a one-way hash of the station it addresses, so
+  `<...>` cannot be read backwards by any program; the only way to name a station
+  is to have heard it spelled out, and that set was previously invisible. On 11 m
+  the country is the point: `19DC797` reads Netherlands and `4CB04` Argentina,
+  resolved through WSJT-CB's own numbering. A **Find** box filters on callsign,
+  country or prefix, **REFRESH** re-asks, and the header says "newest 200 of 340"
+  when the decoder knows more than one reply carries. If the list is empty the
+  window says which half is missing, because "nobody yet" and "this mode keeps no
+  callsign table" are different facts.
+
+### Changed
+
+- **Choosing SSTV now lands on that band's SSTV frequency** — pick the band, pick
+  SSTV, and the dial goes where the pictures are, instead of leaving you where the
+  last mode left it and sending you to the **⇵ FREQ** chip for a manual pick. On
+  11 m that is **27.700 MHz**, the community's picture frequency. This is the
+  existing rule that already moves the dial for FT8, FT4, FT2, JS8 and WSPR,
+  extended to SSTV and SSTV-FM; it only ever rescues a dial that is nowhere
+  useful, because **a dial already on one of the mode's own frequencies is never
+  moved**. A memory, a band-stack entry or a frequency you set yourself is
+  untouched.
+
+### Fixed
+
+- **11 m's SSTV band buttons now reach 27.700** rather than 27.255 (channel 23).
+  All three of the band's SSTV entries carried a note, so the "the plain calling
+  frequency" rule found none and fell back to the lowest of the three. 27.700 is
+  the unannotated primary now — the highest of the three, which is the point of it
+  being freeband.
 
 ## [1.9.12_brown] - 2026-10-01
 

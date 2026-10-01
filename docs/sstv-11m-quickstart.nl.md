@@ -30,6 +30,10 @@ zoals ze op het scherm staan. `Settings > Radio` is een menupad.
   band loopt tot 27,860, zodat dat kanaal erbinnen valt).
 - De beeldkanalen ín de band zijn **27,255 (kanaal 23)** en **27,375
   (kanaal 37)**.
+- **Je hoeft hier niets van met de hand in te typen.** Kies een band en daarna
+  **SSTV**, en de frequentie gaat vanzelf naar de SSTV-frequentie van die band —
+  27,700 op de 11 m. De **⇵ FREQ**-knop staat er voor als je een andere wilt, of
+  je eigen wilt bewaren. Deel C.2 legt beide uit.
 - Kies de mode **SSTV** — niet **SSTV-FM**, dat is voor VHF/UHF. SSTV volgt de
   spraakpraktijk en niet de vaste USB van de digitale modes: **LSB op 80 en
   40 m, USB op 20 m en hoger**, en de 11 m is hoger, dus de radio gaat in
@@ -98,7 +102,7 @@ Ga naar het tabblad **General**:
 
 ### 3. Alleen om te zenden: 11 m toestaan
 
-Zenden op 11 m staat standaard uit — zie *Zenden*. Om een foto te zenden zet je
+Zenden op 11 m staat standaard uit — zie Deel C. Om een foto te zenden zet je
 **Allow transmit on 11 m (CB)** aan op het tabblad General en bevestig je de
 mededeling één keer. Ontvangen heeft geen schakelaar nodig.
 
@@ -128,25 +132,111 @@ mededeling één keer. Ontvangen heeft geen schakelaar nodig.
 
 ## Deel C — Een foto zenden
 
-1. **Je hebt een transceiver nodig** (VOX of CAT) — een dongle die alleen
-   ontvangt kan niet zenden. Zet eerst **Allow transmit on 11 m (CB)** aan
-   (Deel A.3).
-2. Aan de **TRANSMIT**-kant werken de vijf slots als tabbladen. **Load image…**
-   (of dubbelklik op een slot) kiest een foto; die wordt bijgesneden en geschaald
-   naar de afmeting van de mode en bewaard onder `~/.config/sdroxide-brown/sstv_tx/`.
-3. Typ een **bericht** voor het actieve slot — de **eerste regel wordt op
-   dubbel formaat als titel getekend**, en een live voorbeeld toont precies wat
-   eruit gaat. De **banner** draagt je roepnaam.
-4. Kies een mode, of laat **Auto** staan (die zendt **Martin 1** tot er een mode
-   is gedetecteerd). **PD120** en **PD180** geven een foto van 640×496 voor
-   ongeveer dezelfde zendtijd als de kleinere modes — de moeite waard.
-5. Druk **TX** om te zenden; **ABORT TX** stopt een foto die bezig is.
-   **FSK ID** staat standaard aan en stuurt na elke foto je roepnaam als tonen;
-   **TX lead** dekt de key-up-vertraging van de radio (hoog genoeg zetten als
-   een WebSDR je wel hoort maar geen beeld toont); **TX slant** trimt de
-   zendklok in ppm.
-6. **Luister voordat je zendt**, en houd het op de oproepfrequentie kort en ga
-   opzij voor een gesprek — een foto is één lange zending.
+Zenden is de helft van SSTV die de meeste mensen nooit proberen, omdat er een
+zender voor nodig is. Dit Deel is het hele verhaal: wat eerst waar moet zijn,
+waar je zendt, wat je zendt, en wat de regels zijn.
+
+### C1. Wat eerst waar moet zijn
+
+Vier dingen, en het programma controleert ze alle vier voor je:
+
+- **Een transceiver, getast via VOX of CAT.** Een dongle die alleen ontvangt —
+  de meeste RTL-SDR-, RX-888- en Airspy HF+-opstellingen — decodeert foto's
+  prachtig maar kan ze niet zenden. Met zo'n opstelling is **TX** grijs en zegt
+  het waarom: *"This radio can only receive — it has no transmitter to key."* Al
+  het andere blijft werken, dus je kunt een foto laden en samenstellen en later
+  zenden.
+- **SWL-modus uit.** In SWL-modus wordt de hele **TRANSMIT**-helft niet getekend.
+- **Allow transmit on 11 m (CB)** aangezet (Deel A.3). De 11 m is geen
+  amateurband, en de amateurband-lockout van het programma is generiek, dus CB
+  wordt aangezet in plaats van aangenomen. De eerste keer dat je het aanzet,
+  vraagt een mededeling je te bevestigen dat je weet wat jouw land op 27 MHz
+  toestaat; daarna wordt het onthouden, dus het wordt niet elke sessie gevraagd.
+- **Een frequentie binnen de band.** Zie C2 — dat deel regelt zichzelf.
+
+Je **roepnaam is niet verplicht** om te zenden. Zonder roepnaam wordt de **FSK
+ID** simpelweg niet uitgezonden en komt de `{call}` in de banner leeg uit. Stel
+hem toch in **Settings > General > Station** in — zo leest een ander station, of
+een repeater, wie er zendt.
+
+### C2. Waar zenden — de FREQ-knop
+
+De **⇵ FREQ**-knop staat linksboven in het SSTV-paneel, en hij is het ene
+besturingselement dat zegt waar je bent.
+
+- **Kies een band en daarna SSTV en je komt automatisch op de
+  SSTV-frequentie van die band.** Op de 11 m is dat **27,700 MHz**, de
+  beeldfrequentie van de community. De SSTV-knoppen van de 11M-band brengen je
+  daar ook, dus meestal hoef je niets te doen.
+- Als je **al op een van de SSTV-frequenties luisterde, blijf je precies daar.**
+  Er wordt nooit een frequentie verplaatst die je zelf hebt gezet — dit redden
+  alleen een frequentie die nergens toe dienst is.
+- Druk op **⇵ FREQ** om de lijst te zien. Die toont de oproepfrequentie plus de
+  alternatieven, en **een keuze stemt de frequentie af**. Op de 11 m zijn dat
+  **27,700** (de primaire), **27,255** (kanaal 23) en **27,375** (kanaal 37).
+- De knop is ook een aflezing: hij toont `⇵ 27.700` als de frequentie op een van
+  die staat en gewoon **⇵ FREQ** als dat niet zo is, zodat je in één oogopslag
+  ziet of je bent waar SSTV hoort.
+- Je kunt **je eigen frequentie** in dezelfde lijst bewaren en die weer
+  verwijderen — zo bewaar je een frequentie die een lokale groep heeft
+  afgesproken.
+
+### C3. Wat zenden
+
+- De **TRANSMIT**-kant heeft **vijf slots** die werken als tabbladen. **Load
+  image…**, of dubbelklik op een slot, kiest een **PNG of JPEG** (grens 16 MB).
+  Die wordt in het midden bijgesneden en geschaald naar de afmeting van je mode
+  — er is geen knop voor de kadtering — en bewaard onder
+  `~/.config/sdroxide-brown/sstv_tx/`. **Clear** maakt de foto van een slot
+  leeg maar behoudt het bericht.
+- Typ een **bericht** voor het actieve slot. De **eerste regel wordt op dubbel
+  formaat als titel getekend**, en een live voorbeeld toont precies wat eruit
+  gaat.
+- **Banner…** stelt de strook boven aan elke foto in die je zendt. Die begrijpt
+  `{call}`, `{grid}` en `{version}`, en je kunt hem opmaken: kleuren, een
+  kleurverloop, een contour rond de tekst, een regenboogweergave, en de hoogte.
+- Kies een mode, of laat **Auto** staan (die zendt **Martin 1** tot er een mode
+  is gedetecteerd). Er zijn er 16, van 320×256 tot 800×616. **PD120** en **PD180**
+  geven een foto van 640×496 voor ongeveer dezelfde zendtijd als de kleinere
+  modes — de moeite waard.
+
+### C4. Op TX drukken
+
+**TX** stelt de foto samen en tast de radio. **ABORT TX** stopt er een die bezig
+is. Drie instellingen staan aan de ontvangstkant, en alle drie verdienen hun
+plaats:
+
+- **FSK ID** (standaard aan) stuurt na de foto je roepnaam als tonen, zoals
+  MMSSTV doet. Zo word je herkend, en het kost ongeveer **twee en een halve
+  seconde** bovenop een zending die al een minuut duurde.
+- **TX lead** (0–3000 ms) dekt de key-up-vertraging van je radio. Een beeld
+  begint met ongeveer een seconde leader en VIS-code, en **een decoder die daar
+  iets van mist toont helemaal geen beeld** — dus als een WebSDR je wel hoort maar
+  niets toont, verhoog dit eerst.
+- **TX slant** (±5000 ppm) trimt de zendklok. Enkele Hz fout over een foto van
+  twee minuten is een zichtbare schuine stand, en dit is de correctie.
+
+**Een foto duurt lang en de kanaal is gedeeld.** Ongeveer een minuut voor Robot
+36, twee voor Martin 1 of PD120, vier en een half voor Scottie DX — en het neemt
+ongeveer **2,7 kHz** van de zijband in. Eén station bezet de frequentie al die
+tijd. **Luister voordat je zendt**, en houd het op de oproepfrequentie kort en
+ga opzij, zodat anderen kunnen roepen.
+
+De zendbeveiligingen gelden gewoon, net als bij elke mode: een weigering noemt
+de reden — SWR, het eigen zendbereik van de radio, een andere radio die in de
+lucht is, of de radio die al op zijn eigen PTT staat.
+
+### C5. De regels
+
+- **CB is bedoeld om te zenden *en* te ontvangen, en in de meeste landen heb je
+  geen vergunning nodig** — de vergunningvrije CEPT-kanalen, met beperkt
+  vermogen. Deze fork behandelt de 11 m als een volwaardige band.
+- De schakelaar **Allow transmit on 11 m (CB)** opent **alleen 11 m** — de
+  omroepbanden blijven alleen ontvangen.
+- Houd je aan de kanalen, het vermogen en de modes van jouw land — gewone
+  CB-beleefdheid. **Controleer de actuele regelgeving waar je bent.**
+- Deze fork is voor het hele CB-gebruik — spraak en de digitale modes — naast
+  SWL en decoderen. CB en amateurradio zijn buren op hetzelfde spectrum.
 
 ---
 
@@ -160,30 +250,6 @@ mededeling één keer. Ontvangen heeft geen schakelaar nodig.
   onder een naam.
 - Het SSTV-paneel is hetzelfde in de **browserclient**; decoderen en coderen
   gebeuren in de server-engine.
-
----
-
-## Zenden
-
-- **CB is bedoeld om te zenden *en* te ontvangen, en in de meeste landen heb je
-  geen vergunning nodig** — de vergunningvrije CEPT-kanalen, met beperkt
-  vermogen. Deze fork behandelt de 11 m als een volwaardige band.
-- **Om SSTV te zenden heb je een transceiver nodig**, getast via **VOX** (een
-  radio met geluidskaart — het programma speelt de audio naar de microfooningang
-  en de radio tast zichzelf) of via **CAT**. Een dongle die alleen ontvangt —
-  de meeste RTL-SDR-, RX-888- en Airspy HF+-opstellingen — decodeert foto's
-  prachtig maar kan ze niet zenden.
-- **Om te zenden zet je Allow transmit on 11 m (CB)** aan op het tabblad
-  General en bevestig je de mededeling één keer. Het is alleen maar een
-  schakelaar omdat de amateurband-lockout van het programma generiek is en elke
-  niet-amateurallocatie weigert; CB is een aparte radiodienst en wordt daarom
-  aangezet in plaats van aangenomen.
-- De schakelaar opent **alleen 11 m** — de omroepbanden blijven alleen
-  ontvangen.
-- Houd je aan de kanalen, het vermogen en de modes van jouw land — gewone
-  CB-beleefdheid. **Controleer de actuele regelgeving waar je bent.**
-- Deze fork is voor het hele CB-gebruik — spraak en de digitale modes — naast
-  SWL en decoderen. CB en amateurradio zijn buren op hetzelfde spectrum.
 
 ---
 

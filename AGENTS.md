@@ -426,11 +426,11 @@ merged code still calls everything `sdroxide`.
     that talk about the review, the fork, or a "first version"** — upstream code
     should read as if it were always there.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at **170**, the fork's `main` at **188**. The fork's extras are
+  upstream is at **170**, the fork's `main` at **189**. The fork's extras are
   the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
   additions — **the register's full story is in `crates/sdroxide-proto/src/lib.rs`,
-  which is the only place it is kept current**; the run of v171–v188 is
+  which is the only place it is kept current**; the run of v171–v189 is
   documented there, one entry per bump. Upstream's v157/158 (SSTV styling and
   the (tr)uSDX family), **v159 (NR2's three `NrLevel` variants)**, **v160
   (`CwStatus::rig_keys_itself`)** and **v165** (the band-decoder relay outputs,
@@ -441,7 +441,10 @@ merged code still calls everything `sdroxide`.
   `auto_idle_stop_min`, `SpotKind::HeardMe`, the (tr)uSDX nG family,
   `ServerMsg::BandOpenings`, DSC, UVPacket and the ATS Mini, with **v178**
   (`DigiStatus::tx_refused`, the FSK441 transmit review fix ported to `main`)
-  and **v179** (the CW key's five appended `DigiConfig` fields) on top. When
+  **v179** (the CW key's five appended `DigiConfig` fields) and **v180–v189**
+  (the wide CB grammar, the contest layouts, the decode depth, the per-radio
+  state, the ALC/gain switch, the client screen, the client bindings opt-in and
+  the KNOWN window's question-and-answer pair) on top. When
   merging, keep the number ahead of upstream's and fold its new entries in
   rather than dropping them — the 2026-09-25 merge (upstream v166–v170 inserted
   under the fork's register, everything above renumbered) is the latest worked
@@ -2098,6 +2101,89 @@ cross-platform but cannot take the device exclusively, so the contacts would
 also arrive as clicks. The branch's `cw_key.rs` is trimmed to `key_down` +
 `error` (the trainer's `take_text`/`contacts`/`marks` belong to #568's pane and
 are not in this PR).
+
+## The KNOWN window — who your hashes can name (fork-only, 2026-10-01)
+
+An FT8 message carries a **hash** of the callsign it addresses, not the callsign,
+and a hash is one-way: there is no arithmetic that inverts it. So `<...>` is all
+that will ever be recoverable from that message, and every FT8 program on the
+band behaves the same. The only route to a callsign is to have **heard it spelled
+out**, and the set of those was invisible — you could watch a message resolve and
+had no way to see why, or to browse who you currently know. That is the feature:
+a **KNOWN** chip in the general decode's filter row, and a window listing the set
+**newest first, with each station's country**.
+
+- **The list is a shadow, not a read.** mfsk-core's `CallsignHashTable` is
+  lookup-only — `len22`, `capacity22`, and nothing that enumerates — so it cannot
+  be asked what it knows. `remember_heard` and `seed_hashes` are the *only* two
+  feeders of that table and both see each callsign in plain text on the way in,
+  so `Ft8Modem` keeps a `known_calls: VecDeque<String>` fed from exactly those
+  two places. Same cap (`MAX_KNOWN_CALLS`, matching `MAXHASH`) and the same
+  newest-wins-a-collision order, so the two evict together.
+  **`the_known_call_list_holds_exactly_what_the_table_can_resolve` asserts that
+  per callsign** — a stale entry would promise a resolution the decoder can no
+  longer deliver, and that is the one way this list could lie. Do not let the two
+  drift into a second implementation of "who do we know".
+- **The worker owns the table**, deliberately (LDPC stays off the RT thread), so
+  `DecodeJob` became an **enum** carrying a question as well as a slot, and the
+  answer comes back on its **own channel** so a caller cannot read a slot's
+  decodes instead of a list. `DigiEngine::known_calls` **defaults to `None`** —
+  a mode with no table is not a station that has heard nobody.
+- **`RadioEvent::KnownCalls` carries an `Option`, and the engine sends it either
+  way.** This was a real bug in the first cut: sending nothing on failure made
+  the window claim an empty band for a mode that simply has no table, which is
+  exactly the "control that silently does nothing" the house rules forbid. The
+  window now says which half is missing.
+- **The read blocks up to 500 ms**, so it is a message the operator sends by
+  opening a window — never a per-frame call.
+- `Command::GetKnownCalls` + `ServerMsg::KnownCalls`, both **appended last**;
+  `PROTO_VERSION` 188 → **189**. Capped at 200 with a `total`, so the header can
+  say "newest 200 of 340" instead of implying a truncated list is complete.
+  **Fork-only**, not offered upstream — there is no upstream audience for an
+  operator wanting to see his hash table.
+- On 11 m the country is the point: `resolve_callsign` resolves WSJT-CB's own
+  numbering **ahead of** the amateur table, so `19DC797` reads Netherlands and
+  `4CB04` Argentina. Same flag machinery the decode rows already draw.
+- **Not tested on air** — each end of the round trip is unit-tested, but nobody
+  has watched a `<...>` resolve into the list on a live band.
+
+## SSTV now lands on its own band's frequency (fork-only, 2026-10-01)
+
+The operator's report was the obvious one: choose a band, choose SSTV, and be
+somewhere useless, with the only way out being the **⇵ FREQ** chip in the panel
+and a manual pick.
+
+- **The machinery already existed.** `conventional_dial_for` is the rule that
+  moves the dial onto a mode's published frequency, and it has done so for the
+  slotted modes and WSPR for years. Its gate was
+  `mode.is_slotted() || mode.is_wspr()` — and **SSTV is neither**, so it returned
+  `None`. The fix is the predicate: `|| mode.is_sstv()`, covering **both** SSTV
+  modes because both are one-frequency-per-band and both tables exist
+  (`SSTV_DIALS` region-tagged, `SSTV_FM_DIALS` for 6 m / 2 m / 70 cm).
+- **What makes it safe to do unasked** is the check already inside the rule: a
+  dial **already on one of the mode's own frequencies is never moved**. So the
+  only case this rescues is a dial that is nowhere useful — a deliberately tuned
+  FT8 Fox window survives, and so does anything you set yourself.
+- **The 11 m table had to change with it.** SSTV on 11 m has three entries —
+  27.255 (ch 23), 27.375 (ch 37) and 27.700 (freeband) — and all three carried
+  a note, so the "the plain calling frequency" rule (`note.is_empty()`) found
+  none and fell back to the **lowest**, landing on ch 23. **27.700 is now the
+  unannotated one**, which is both what the community works and what the band
+  buttons should reach.
+  **This inverts the usual order** — the plain frequency is normally the *first*
+  entry in a band, and here it is the highest — so every rule that wants "the one
+  true frequency" looks for the empty note **anywhere** in the band rather than
+  taking the lowest. `DigiChannel::note`'s doc now says so, and points at
+  `CB11_DIALS`. Do not "fix" a future lowest-wins assumption without reading it.
+- Tests: `crates/sdroxide-radio/tests/conventional_dial.rs` pins all five
+  edges — it lands on 27.700 on 11 m and 14.230 on 20 m; a dial already on an
+  SSTV frequency is untouched; re-selecting the mode in force does not move; the
+  **LISTEN** path (`SetModeListen`) does the same; and a band with no SSTV
+  convention (**6 m**) is left alone rather than dragged across the world.
+  - A trap worth remembering from writing it: the first version used 6 cm
+    (5 GHz) for the last case and it failed for an unrelated reason — the mock
+    radio only tunes 0–1 GHz, so the `SetVfo` was **refused** and the test was
+    measuring the initial dial, not the rule. 6 m is inside the range.
 
 ## The signal-identification guide (fork-only, 2026-09-25)
 

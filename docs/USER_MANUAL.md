@@ -1941,7 +1941,7 @@ is audible.
   station spotted across the band is one click from being copied.
 - **The MHz figure after the pitch is the frequency you are working** — the
   dial plus that pitch — and it is what to log and what to give on the air. The
-  logbook's **+ NEW ENTRY** ([3.2.7](#327-logging-and-the-logbook)) fills itself
+  logbook's **+ NEW ENTRY** ([3.2.8](#328-logging-and-the-logbook)) fills itself
   in from the same figure, not from the dial.
 - **QRG** in the panel header puts the big readout on that figure too. Left off
   — which is what every other radio does, and the default — the big readout at
@@ -3400,7 +3400,7 @@ is a list of paths rather than contacts (3.11).
 On 11 m, where the family is worked on the citizens' band rather than an
 amateur allocation, the FT8/FT4/FT2 (and JS8) exchange follows **WSJT-CB's**
 conventions instead — grid-less, one call at a time, its own hashed pairs and
-free-text reports — see [3.2.8](#328-11-m-and-the-citizens-band-wsjt-cb).
+free-text reports — see [3.2.9](#329-11-m-and-the-citizens-band-wsjt-cb).
 
 Every digital mode is entered the same way: open the Band/Mode popup and choose
 the mode from the **DIGITAL** row. The panadapter locks to the digital sub-band
@@ -3455,6 +3455,11 @@ and AIS already do ([3.12](#312-aprs), [3.13](#313-ads-b-aircraft-on-1090-mhz),
 [3.15](#315-vdl2-what-the-aircraft-are-saying),
 [3.16](#316-ais-ships-on-162-mhz)).
 
+**SSTV and SSTV-FM are in this group too.** They are worked on one agreed
+frequency per band for the same reason, and each keeps its own: 14.230 on 20 m,
+and on 11 m the community's 27.700. So choosing SSTV moves the dial just as
+choosing FT8 does ([3.6](#36-sstv)).
+
 It moves the dial only when it has to, and only inside the band you are already
 on:
 
@@ -3468,11 +3473,13 @@ on:
 - **recalling a memory or a band-stack entry?** Left alone. Those carry a
   frequency of their own and it wins, so a memory stored on an off-plan FT8 net
   comes back on the frequency you stored it with.
+- **already in the mode, and you pick it again?** Not a change, so nothing moves.
+  Standing in SSTV and pressing the chip again does not retune under you.
 
 Every other mode leaves the dial exactly where you put it. PSK31, RTTY, Olivia,
-THOR, SSTV and the rest are worked across a sub-band rather than on one spot, so
-a frequency you chose inside it is a frequency you meant. The button below is
-how those reach a convention — by asking.
+THOR and the rest are worked across a sub-band rather than on one spot, so a
+frequency you chose inside it is a frequency you meant. The button below is how
+those reach a convention — by asking.
 
 #### The agreed frequencies for a mode, and your own
 
@@ -4035,7 +4042,48 @@ line is shown on your station's page. The **Collector** host and port are there
 for testing: port 14739 is the project's test collector, which accepts reports
 without publishing them.
 
-#### 3.2.7 Logging and the logbook
+#### 3.2.7 Who your hashes can name — the KNOWN window
+
+An FT8 message does not spell out the station it addresses. It carries a **hash**
+of the callsign — a number derived from it — and a receiver that has not heard
+that station spell its name cannot turn the number back into a callsign. There
+is no arithmetic that inverts it: `<...>` is all that will ever be recoverable
+from that message, and the same is true of WSJT-X and of every other FT8 program
+on the band.
+
+The only way a `<...>` becomes a callsign is for the station to have been **heard
+spelling it out** at some point, in any message. The receiver remembers those
+callsigns, and that set is what resolves the hashes afterwards. On 11 m this is
+deliberate protocol: a station answers a CQ with its bare call — `26AT715`, free
+text, addressing nobody — *precisely so* that everyone listening can resolve its
+hash in the exchange messages that follow, which are hashed. A station that never
+spells its call out stays `<...>` for good, and nothing can be done about that.
+
+That set was invisible. You could watch a message resolve and had no way to see
+why, or to browse who you currently know. The **KNOWN** chip sits in the general
+decode's filter row, beside **New only**, and opens a window listing every
+callsign a hash on this receiver can currently name — newest first, with its
+country:
+
+- **Find** filters on callsign, country or DXCC prefix, so on 11 m you can ask
+  for "Netherlands" and see who is on the air with you.
+- The country comes from the same machinery the decode rows use, and for an 11 m
+  callsign it is resolved through **WSJT-CB's own numbering ahead of the amateur
+  table** — so `19DC797` reads as Netherlands and `4CB04` as Argentina, not as a
+  DXCC prefix guess.
+- **REFRESH** asks the engine again. The list is a snapshot, not a live tail.
+- The header says *"newest 200 of 340"* when the decoder knows more stations
+  than one reply carries, so a truncated list never reads as a complete one.
+- If the list is empty the window says **which** half is missing, because
+  "nobody yet" and "this mode keeps no callsign table" are different facts: a
+  **CQ**, a report with both calls in the clear, or a bare 11 m call each add a
+  station, and a mode that is not FT8/FT4 has no table to ask at all.
+
+The chip is on the general decode's row because that is where the `<...>` is that
+gives you a reason to open it. It needs a receiver running a digital mode; on a
+phone it is one of the panes rather than a window.
+
+#### 3.2.8 Logging and the logbook
 
 Completed FT8/FT4/FT2 QSOs are logged automatically. Open the full logbook with the
 **LOG** button (System module).
@@ -4091,7 +4139,7 @@ one-click upload buttons and award tracking.
 
 The log is stored in `qso_log.json`.
 
-#### 3.2.8 11 m and the citizens' band (WSJT-CB)
+#### 3.2.9 11 m and the citizens' band (WSJT-CB)
 
 On **11 m** the whole exchange follows the conventions of the community's
 [WSJT-CB](https://github.com/vash909/WSJT-CB) client rather than the amateur
@@ -4487,6 +4535,23 @@ over; 80 m and 40 m split by region and follow the **IARU region** setting
 ([6.1](#61-general-station-audio-and-remote-access)) — 3.730 and 7.165 in
 Region 1, 3.845 and 7.171 in Regions 2 and 3. Above HF, 144.500 on 2 m and
 432.500 on 70 cm, the narrow-band SSTV activity centre.
+
+**Choosing the SSTV mode does the same thing.** Selecting SSTV while already on a
+band moves the dial to that band's SSTV frequency, so "pick the band, pick the
+mode" lands you on the pictures rather than wherever the last mode left you. On
+11 m that is **27.700 MHz**, the community's picture frequency, with 27.255
+(channel 23) and 27.375 (channel 37) as the in-band alternatives. This is the
+same rule the slotted digital modes and WSPR have always used, extended to SSTV
+and SSTV-FM; it only ever rescues a dial that is nowhere useful, because **a dial
+already sitting on one of the mode's own frequencies is never moved**. If you had
+deliberately tuned somewhere, you stay there.
+
+The **⇵ FREQ** chip at the top left of the panel is where that frequency list
+lives: it shows the calling frequency and the alternates, tuning the dial when
+you pick one, and letting you **save a frequency of your own** — which is how you
+keep one a local group has settled on. The chip doubles as a readout, showing
+`⇵ 27.700` when the dial is on one of the listed frequencies and plain **⇵ FREQ**
+when it is not.
 
 **Which sideband:** SSTV is a phone emission and follows phone practice rather
 than the other digital modes' fixed USB — **LSB on 160, 80 and 40 m, USB on
@@ -7241,7 +7306,7 @@ decides every band plan sdroxide draws and enforces:
   convention, and pressing **11M** in a digital mode lands on the mode's
   channel. The exchange itself follows WSJT-CB — grid-less, one call at a time,
   with country flags on every decode; see
-  [§3.2.8](#328-11-m-and-the-citizens-band-wsjt-cb). What does not follow is
+  [§3.2.9](#329-11-m-and-the-citizens-band-wsjt-cb). What does not follow is
   permission to transmit: with `tx_ham_only`
   set (the default) sdroxide refuses to key up there, because an amateur
   licence does not grant the citizens' band and this end cannot check what

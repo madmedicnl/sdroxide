@@ -13082,7 +13082,23 @@ impl Engine {
         // docs). WSPR is slotted too and is kept out of that predicate for
         // reasons of its own, but it is a one-frequency-per-band mode by
         // exactly the same argument.
-        if !(mode.is_slotted() || mode.is_wspr()) {
+        //
+        // **SSTV joins them here**, which it had not: it is not slotted and not
+        // WSPR, so selecting it left the dial wherever the last mode put it —
+        // and the operator's own report was that choosing a band and SSTV did
+        // not take them to that band's SSTV frequency, so they had to find the
+        // **FREQ** chip in the panel and pick it by hand. SSTV is a
+        // one-frequency-per-band mode by the *same* argument as everything
+        // above, and the tables it needs are already published
+        // (`SSTV_DIALS`, region-tagged, with 27.700 on 11 m).
+        //
+        // Both SSTV modes, because both are one-frequency-per-band:
+        // `SSTV_FM_DIALS` carries the 6 m / 2 m / 70 cm practice entries.
+        // Everything after this line is unchanged, and in particular the check
+        // below it means a dial **already** on one of the mode's frequencies is
+        // never moved — so an operator listening where they chose is left
+        // alone, and this only ever rescues a dial that is nowhere useful.
+        if !(mode.is_slotted() || mode.is_wspr() || mode.is_sstv()) {
             return None;
         }
         let dial = self.state.active_freq_hz();
