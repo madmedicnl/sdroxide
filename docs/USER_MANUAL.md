@@ -14804,13 +14804,20 @@ back. A key in the bottom-right corner gives the counts. It follows the same ban
 filter as this window, so switching to `20m` here repaints the globe as "what is
 missing on twenty".
 
-**The grid tracker** — the **GRID** button (System box) opens the worked squares on their
-own map: each 4-character Maidenhead square in the log is filled on the flat world map,
-**amber** where worked and **green** where a QSL has come back, with your own locator marked
-on top. Drag to pan and wheel to zoom; the square under the pointer is named. The **HEARD**
-layer shades, in cyan, the squares on the live decode list rather than the log — what is on
-the air right now — which is what makes the window useful to a shortwave listener with no
-log of their own. A square that is both heard and worked reads as worked.
+**The grid tracker** — the **GRID** button (System box) opens the log's worked squares on
+their own map: each 4-character Maidenhead square is filled on the flat world map, **amber**
+where worked and **green** where a QSL has come back, with your own locator marked on top.
+Drag to pan and wheel to zoom; the square under the pointer is named. The **HEARD** layer
+shades, in cyan, the squares on the live decode list rather than the log — what is on the air
+right now — which is what makes the window useful to a shortwave listener with no log of their
+own. A square that is both heard and worked reads as worked.
+
+An 11 m exchange carries no locator, so a CB log has no squares to draw. The tracker has a
+**COUNTRY** mode for that: each worked DXCC entity is marked at its nominal centre instead,
+resolved from the callsign exactly as the awards tally does (the leading digits of a CB call
+are its country). **GRID** and **COUNTRY** toggle between the two, and the window opens on
+whichever the log actually holds — a CB log opens on countries rather than on an empty grid
+map. The heard layer follows the mode.
 
 ### 10.5 FreeDV Reporter (qso.freedv.org)
 
