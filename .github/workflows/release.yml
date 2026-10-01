@@ -161,6 +161,18 @@ jobs:
     name: ${{ matrix.label }} (${{ matrix.variant }})
     needs: [web, targets]
     runs-on: ${{ matrix.os }}
+    # A build that hangs must **fail**, not wait forever: the release is only
+    # created once every job here is done, so one stuck job wedges the whole
+    # release and `gh run rerun --failed` — which is the recovery, since only a
+    # *failed* job is re-runnable — has nothing to act on. This was learned the
+    # hard way on 2026-10-01: all six aarch64 jobs stalled silently at the
+    # final binary link for over four hours across 1.9.11 and 1.9.12, with
+    # nothing shipping and no way to see why.
+    #
+    # Generous, because the slow cases are real: the slowest job on a good run
+    # is ~20 minutes (the ARM links), and a busy queue or a cold cache can
+    # double that. 90 still fails four times faster than the wedge it replaces.
+    timeout-minutes: 90
     # Empty for every non-compat entry, which means "no container".
     container: ${{ matrix.container }}
     env:
