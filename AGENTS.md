@@ -2156,7 +2156,12 @@ screen after every new session (fork discussion #4, kevin2008-01).
   screen never moves a window off a laptop or swallows a warning. (`UiSettings`
   was never an injection risk: it carries no URLs, paths or feeds, only scalars
   — an earlier note claiming otherwise was wrong.)
-- **Control bindings never travel.** A shared station is a shared keyboard.
+- **Control bindings never travel by default.** A shared station is a shared
+  keyboard. An opt-in is *decided* (operator, 2026-10-01): a profile may carry
+  the bindings, but only behind a mandatory acknowledgement — the operator is
+  told the shared-keyboard risk and that other surprises may follow — and the
+  control is marked **not recommended**. Default stays off, so a shared station
+  keeps them local; the fork asks, it does not assume. Not built yet.
 - **Wire:** `ClientMsg::SetClientSettings` + `ServerMsg::ClientSettings`, both
   **appended last**; `PROTO_VERSION` 185 → 186.
 - **Store:** `sdroxide_config::ClientSettingsStore`, `clientsettings.json`,
