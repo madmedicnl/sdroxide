@@ -23,7 +23,12 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
   on 11 m: a station answered a CQ four times over ninety seconds, from +2 dB to
   +12 dB, with the operator's callsign resolved in the clear, and no contact was
   ever made. Said once per station rather than once per repeat, and never for a
-  bare 73/RR73 — somebody finishing is not somebody calling.
+  bare 73/RR73 — somebody finishing is not somebody calling. The commonest cause
+  is now named in the notice: the **transmit watchdog** fires mid-CQ-run and
+  forces the sequencer back to idle, and a station answering after that is
+  discarded *by design* — an unattended station must stop transmitting, and one
+  that resumed the instant somebody called would be unattended and transmitting.
+  It was only ever indistinguishable from "nobody answered".
 
 ### Added
 

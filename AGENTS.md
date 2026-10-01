@@ -2133,6 +2133,28 @@ Two changes, both pure observation:
   that decides whether an answer can be adopted. It was invisible, which is what
   made this undiagnosable from the artefacts.
 
+**The cause, which the operator worked out and the code confirms.** The **transmit
+watchdog** fires *during* a CQ run — `wants_tx()` is true in `CallingCq`, only
+`Idle` and `WaitCq` opt out — and `tick` then forces `step = Idle`
+(`qso.rs:646`). The adopt arm needs `CallingCq`, so from that instant no answer
+can be taken however well formed it is, and `progress` deliberately does not
+clear the watchdog (only `operator_acted` does), so the answer cannot revive it
+either. **The operator's own hypothesis was that 19AT168 replied on the last call
+before the watchdog tripped; that is exactly it.**
+
+This is **by design, and must not be "fixed"**: an unattended station has to stop
+transmitting, and one that resumed the moment somebody called would be unattended
+*and* transmitting. WSJT-CB cuts TX the same way. The defect was only that this
+was indistinguishable from "nobody answered", so the notice now names the
+watchdog outright rather than reporting a caller we are somehow ignoring. Pinned
+by `a_station_answering_after_the_watchdog_is_named_as_such`, which also asserts
+that **nothing is sent** on the answerer's account.
+
+A station that sits on its own tone and answers on his own clock makes this
+likely rather than rare: his replies arrive regardless of where our CQ went, so
+the timing between his reply and the watchdog is coincidence — but it is the
+kind that recurs.
+
 **`WaitCq` is load-bearing and must not be "fixed".** The obvious suggestion —
 let an addressed answer be adopted in `WaitCq` too — is **wrong**, and the
 operator's own objection is the reason to record it: `WaitCq` *is* the queue.

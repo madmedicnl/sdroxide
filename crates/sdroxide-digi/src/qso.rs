@@ -996,12 +996,28 @@ impl QsoMachine {
                 && self.unanswered.as_deref() != Some(from)
             {
                 self.unanswered = Some(from.to_string());
-                self.transcript.push(TranscriptLine::note(format!(
-                    "{from} is calling you and we are not answering \
-                     ({:?}, {}) — press REPLY to take it",
-                    self.step,
-                    self.dx.as_ref().map_or("nobody".to_string(), |d| d.call.clone())
-                )));
+                // The watchdog case is named rather than left to be inferred.
+                // It is the one that looks most like a fault and is not: the
+                // watchdog stops an unattended station transmitting, and
+                // `progress` deliberately does not clear it, so a station that
+                // answers our CQ *after* it has fired is discarded by design —
+                // the contact stays on screen and picking a message resumes.
+                // Say which, because "we did nothing" and "we were stopped
+                // doing it" call for entirely different reactions.
+                let why = if self.watchdog {
+                    format!(
+                        "{from} answered your CQ after the transmit watchdog stopped \
+                         the sequencer — nothing was sent. Press REPLY to answer                          (or call CQ to start a new run)"
+                    )
+                } else {
+                    format!(
+                        "{from} is calling you and we are not answering \
+                         ({:?}, {}) — press REPLY to take it",
+                        self.step,
+                        self.dx.as_ref().map_or("nobody".to_string(), |d| d.call.clone())
+                    )
+                };
+                self.transcript.push(TranscriptLine::note(why));
                 changed = true;
             } else if self.dx.as_ref().map(|d| d.call.as_str()) == Some(from) {
                 self.unanswered = None;
@@ -3013,6 +3029,56 @@ mod tests {
             1,
             "an unanswered station repeats; the transcript should say so once"
         );
+    }
+
+    /// The failure as it actually happened on 11 m: the **transmit watchdog**
+    /// fires in the middle of a CQ run, and a station answers *after* it.
+    ///
+    /// The watchdog runs while `CallingCq` — `wants_tx` is true there, only
+    /// `Idle` and `WaitCq` opt out — and when it trips it forces the step to
+    /// `Idle` (`tick`). The adopt arm needs `CallingCq`, so from that moment an
+    /// answer cannot be taken however well-formed it is. And `progress` does not
+    /// clear the watchdog (only an operator action does), so the answer cannot
+    /// revive it either. Seen as `19AT168` answering a CQ four times over ninety
+    /// seconds, +2 dB to +12 dB, `<19DC373> 19AT168`, and nothing sent.
+    ///
+    /// This is **by design** — an unattended station must stop transmitting, and
+    /// one that resumed the instant somebody called would be unattended and
+    /// transmitting. What was wrong is only that it was indistinguishable from
+    /// "nobody answered", so the transcript now names the watchdog outright.
+    #[test]
+    fn a_station_answering_after_the_watchdog_is_named_as_such() {
+        let cfg = DigiConfig { my_call: "19DC373".into(), tx_watchdog_min: 5, ..cb_cfg() };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        q.set_cb(true);
+        q.call_cq();
+        assert_eq!(q.step(), QsoStep::CallingCq);
+
+        // `progress_utc` is stamped by the first tick, so that is the baseline
+        // the span is measured from — the operator's CQ is progress.
+        q.tick(100);
+        // Five minutes on, with nothing back and nothing but a CQ to send: the
+        // watchdog trips and the run is over.
+        assert!(q.tick(100 + 6 * 60));
+        assert!(q.tx_watchdog(), "the watchdog should have stopped the sequencer");
+        assert_eq!(q.step(), QsoStep::Idle);
+
+        // Now the answer arrives, and it is a good one: our callsign resolved in
+        // the addressee field, their sender resolved, nothing owed either way.
+        q.on_rx(&[decode("19DC373 19AT168")], 100 + 6 * 60 + 30);
+        let said = q
+            .transcript
+            .iter()
+            .find(|l| l.text.contains("19AT168"))
+            .expect("the station must be reported");
+        assert!(
+            said.text.contains("watchdog"),
+            "the notice must name the watchdog, not blame an absent caller: {}",
+            said.text
+        );
+        // And nothing was sent on their account: the watchdog's whole purpose.
+        assert_eq!(q.step(), QsoStep::Idle, "the watchdog still stands");
+        assert_eq!(q.dx_call(), None, "no contact was started behind its back");
     }
 
     /// The pair opener while we are *waiting* for a picked station — their
