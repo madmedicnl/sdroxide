@@ -13,6 +13,52 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+## [1.9.13_brown] - 2026-10-01
+
+### Added
+
+- **A KNOWN window lists the callsigns your hashes can currently resolve** — a new
+  **KNOWN** chip in the general decode's filter row opens a window showing every
+  callsign a hashed `<...>` on this receiver can name, newest first and with its
+  country. An FT8 message carries a one-way hash of the station it addresses, so
+  `<...>` cannot be read backwards by any program; the only way to name a station
+  is to have heard it spelled out, and that set was previously invisible. On 11 m
+  the country is the point: `19DC797` reads Netherlands and `4CB04` Argentina,
+  resolved through WSJT-CB's own numbering. A **Find** box filters on callsign,
+  country or prefix, **REFRESH** re-asks, and the header says "newest 200 of 340"
+  when the decoder knows more than one reply carries. If the list is empty the
+  window says which half is missing, because "nobody yet" and "this mode keeps no
+  callsign table" are different facts.
+
+### Changed
+
+- **On 11 m, a CQ run is now bounded by the unanswered-call count and not by the
+  transmit watchdog.** The watchdog runs off "time since the operator acted",
+  and a station answering a CQ is expected inside about 30 seconds — so during a
+  CQ run, where no reply is the *expected* state, it was a clock cutting a run
+  that was working normally. It was measured cutting a run in which a station
+  then answered four times over ninety seconds, from +2 dB to +12 dB, its
+  callsign resolved in the clear; the answer was discarded because the watchdog
+  had already stepped the sequencer back to idle, and the adopt path needs the
+  calling state. **11 m only** — every other band, and the station queue, behave
+  exactly as before. A **stalled exchange is still cut on 11 m**, deliberately:
+  propagation can drop mid-QSO, and because 11 m transmissions are free text,
+  nothing but another station's 73 on that frequency can end it. The "Give up
+  after" hover now says what the count comes to at the current mode's own slot
+  length, so 10 reads as about 5 minutes on FT8 and about 1 on FT2.
+- **The AUTO chip's hover now shows the engine's current step.** It is the one
+  fact that decides whether a station answering a CQ can be taken, and it was
+  invisible.
+- **Choosing SSTV now lands on that band's SSTV frequency** — pick the band, pick
+  SSTV, and the dial goes where the pictures are, instead of leaving you where the
+  last mode left it and sending you to the **⇵ FREQ** chip for a manual pick. On
+  11 m that is **27.700 MHz**, the community's picture frequency. This is the
+  existing rule that already moves the dial for FT8, FT4, FT2, JS8 and WSPR,
+  extended to SSTV and SSTV-FM; it only ever rescues a dial that is nowhere
+  useful, because **a dial already on one of the mode's own frequencies is never
+  moved**. A memory, a band-stack entry or a frequency you set yourself is
+  untouched.
+
 ### Fixed
 
 - **A station calling you is no longer discarded in silence.** An FT8 reply is
@@ -29,53 +75,6 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
   discarded *by design* — an unattended station must stop transmitting, and one
   that resumed the instant somebody called would be unattended and transmitting.
   It was only ever indistinguishable from "nobody answered".
-
-### Added
-
-- **On 11 m, a CQ run is now bounded by the unanswered-call count and not by the
-  transmit watchdog.** The watchdog runs off "time since the operator acted",
-  and a station answering a CQ is expected inside about 30 seconds — so during a
-  CQ run, where no reply is the *expected* state, it was a clock cutting a run
-  that was working normally. It was measured cutting a run in which a station
-  then answered four times over ninety seconds, from +2 dB to +12 dB, its
-  callsign resolved in the clear; the answer was discarded because the watchdog
-  had already stepped the sequencer back to idle, and the adopt path needs the
-  calling state. **11 m only** — every other band, and the station queue, behave
-  exactly as before. A **stalled exchange is still cut on 11 m**, deliberately:
-  propagation can drop mid-QSO, and because 11 m transmissions are free text,
-  nothing but another station's 73 on that frequency can end it. The "Give up
-  after" hover now says what the count comes to at the current mode's own slot
-  length, so 10 reads as about 5 minutes on FT8 and about 1 on FT2.
-- **A KNOWN window lists the callsigns your hashes can currently resolve** — a new
-  **KNOWN** chip in the general decode's filter row opens a window showing every
-  callsign a hashed `<...>` on this receiver can name, newest first and with its
-  country. An FT8 message carries a one-way hash of the station it addresses, so
-  `<...>` cannot be read backwards by any program; the only way to name a station
-  is to have heard it spelled out, and that set was previously invisible. On 11 m
-  the country is the point: `19DC797` reads Netherlands and `4CB04` Argentina,
-  resolved through WSJT-CB's own numbering. A **Find** box filters on callsign,
-  country or prefix, **REFRESH** re-asks, and the header says "newest 200 of 340"
-  when the decoder knows more than one reply carries. If the list is empty the
-  window says which half is missing, because "nobody yet" and "this mode keeps no
-  callsign table" are different facts.
-
-### Changed
-
-- **The AUTO chip's hover now shows the engine's current step.** It is the one
-  fact that decides whether a station answering a CQ can be taken, and it was
-  invisible.
-- **Choosing SSTV now lands on that band's SSTV frequency** — pick the band, pick
-  SSTV, and the dial goes where the pictures are, instead of leaving you where the
-  last mode left it and sending you to the **⇵ FREQ** chip for a manual pick. On
-  11 m that is **27.700 MHz**, the community's picture frequency. This is the
-  existing rule that already moves the dial for FT8, FT4, FT2, JS8 and WSPR,
-  extended to SSTV and SSTV-FM; it only ever rescues a dial that is nowhere
-  useful, because **a dial already on one of the mode's own frequencies is never
-  moved**. A memory, a band-stack entry or a frequency you set yourself is
-  untouched.
-
-### Fixed
-
 - **11 m's SSTV band buttons now reach 27.700** rather than 27.255 (channel 23).
   All three of the band's SSTV entries carried a note, so the "the plain calling
   frequency" rule found none and fell back to the lowest of the three. 27.700 is
