@@ -1069,12 +1069,29 @@ jobs:
             } > notes.tmp && mv notes.tmp notes.md
           else
             # A tagged release leads with the Brown overview, then the install
-            # notes; `--generate-notes` appends the commit list below both.
+            # notes. Below those goes the curated entry for this tag from
+            # CHANGELOG.md, if one exists; GitHub's raw commit list
+            # (`--generate-notes`) is the fallback for a tag the changelog has
+            # not been given an entry for.
             cat brown.md notes.md > notes.tmp && mv notes.tmp notes.md
+            tag="${GITHUB_REF_NAME#v}"
+            entry=$(awk -v want="## [${tag}]" '
+              index($0, want) == 1 { grab = 1; next }
+              grab && /^## \[/ { grab = 0 }
+              grab { print }
+            ' CHANGELOG.md)
+            if [ -n "$entry" ]; then
+              {
+                printf '\n## What changed in %s\n\n' "$GITHUB_REF_NAME"
+                printf '%s\n' "$entry"
+              } >> notes.md
+            else
+              extra+=(--generate-notes)
+            fi
           fi
           if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-              --title "$title" --notes-file notes.md --generate-notes "${extra[@]}"
+              --title "$title" --notes-file notes.md "${extra[@]}"
           elif [ "$nightly" = "1" ]; then
             # A nightly keeps the *same* asset names every night, so the
             # already-present skip below would leave yesterday's binaries in

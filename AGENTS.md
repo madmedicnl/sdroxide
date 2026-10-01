@@ -1954,11 +1954,11 @@ note and were rendered from a separate HTML source; leave them alone.)
 > was removed as well** — the older Brown releases (`v1.9.4` … `v1.9.8`,
 > including `v1.9.6_brown.experimental`) and every pre-rename tag (`v0.1.0` …
 > `v1.9.3`, the whole `_CB`/`CBSWL` lineage) are gone from **both** `origin` and
-> the local clone. The remote now carries exactly **`v1.9.9_brown`** (the only
-> release) and **`nightly`**, and the local clone was matched to it with
-> `git fetch --prune --prune-tags`. **Do not reference an older tag** — a
+> the local clone. The remote now carries **`v1.9.9_brown`** and
+> **`v1.9.10_brown`** plus **`nightly`**; the local clone was matched to it with
+> `git fetch --prune --prune-tags`. **Do not reference a removed tag** — a
 > download link to one is a 404, and the README's `releases/latest` links point
-> at `v1.9.9_brown`.
+> at the newest release.
 
 > **Version scheme (2026-09-30): step `Cargo.toml` for a real release.** The
 > operator wants to stay on 1.9.x until **DAB** is done, and never drift into
@@ -1978,6 +1978,13 @@ note and were rendered from a separate HTML source; leave them alone.)
    same version rather than an upgrade. **The Windows `UpgradeCode` is
    fixed** (see "The Windows installer is its own product"), so a new version
    is what an upgrade keys on — re-tagging the same version does not.
+1b. **Write the changelog entry** — in `CHANGELOG.md`, rename `## [Unreleased]`
+   to `## [X.Y.Z_brown] - <date>` (the date the tag will carry) and add a fresh
+   empty `## [Unreleased]` above it; commit. `release.yml` uses that section as
+   the release's "What changed" (it matches `## [<tag without the v>]` and
+   falls back to `--generate-notes` only when there is no entry). A re-cut of the
+   same version is a fourth-point tag (`v1.9.10.1_brown`), which has no
+   `CHANGELOG.md` entry of its own — leave it, the fallback covers it.
 2. Tag `vX.Y.Z_brown` and push it — `release.yml` runs on the tag push
    (`on: push: tags: ['v*']`) and publishes the platform builds and the GitHub
    Release itself, titled `SDR Oxide Brown <tag>`, so no dispatch is needed. Do
