@@ -13,6 +13,10 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.9.11_brown] - 2026-10-01
+
 ### Added
 
 - **Grid tracker** — a GRID window that draws the log's worked Maidenhead
@@ -112,7 +116,8 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
   upstream install.
 - The RX reset chip is drawn once, not twice.
 
-[Unreleased]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.10_brown...main
+[Unreleased]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.11_brown...main
+[1.9.11_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.10_brown...v1.9.11_brown
 [1.9.10_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.9_brown...v1.9.10_brown
 [1.9.9_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/9cf31d2ef5198ef98d04a11c0d2ec984f22f8a1f...v1.9.9_brown
 [1.9.8_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/2af23541384b98c735eaadcb8727486f914ae73a...9cf31d2ef5198ef98d04a11c0d2ec984f22f8a1f
