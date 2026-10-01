@@ -13,6 +13,10 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.9.12_brown] - 2026-10-01
+
 ### Added
 
 - **Control bindings can be kept on the server, behind an opt-in** — a remote
@@ -124,7 +128,8 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
   upstream install.
 - The RX reset chip is drawn once, not twice.
 
-[Unreleased]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.11_brown...main
+[Unreleased]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.12_brown...main
+[1.9.12_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.11_brown...v1.9.12_brown
 [1.9.11_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.10_brown...v1.9.11_brown
 [1.9.10_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/v1.9.9_brown...v1.9.10_brown
 [1.9.9_brown]: https://github.com/madmedicnl/sdroxide-brown/compare/9cf31d2ef5198ef98d04a11c0d2ec984f22f8a1f...v1.9.9_brown
