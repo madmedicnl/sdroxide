@@ -1,16 +1,23 @@
-//! The grid tracker: the Maidenhead squares in the log, drawn on a map.
+//! The grid tracker: the worked Maidenhead squares — or DXCC countries — on a map.
 //!
-//! The awards dashboard already tallies grids, and the 3D view already places
-//! DXCC entities on a globe — but neither says *where* a worked square is. This
-//! draws every 4-character square in the log as a filled cell on the flat map,
+//! The awards dashboard already tallies both grids and countries, and the 3D
+//! view places entities on a globe, but neither says *where* a worked square is
+//! on a flat map. This draws the log's 4-character squares as filled cells,
 //! green where a QSL has come back and amber where it has not, so a gap in a
 //! continent reads at a glance.
 //!
+//! A CB log carries no squares at all: an 11 m exchange is a country call and a
+//! report, and the country is the leading digits of the callsign. So the map has
+//! a **COUNTRY** mode as well, marking each worked DXCC entity at its nominal
+//! centre — the same resolver the awards tally uses turns a CB call into its
+//! country, so a CB operator and a ham see the same map in the form their band
+//! uses. Which one it opens on is decided from the log.
+//!
 //! It is the listener's tool as much as a ham's, which is why the chip is not
-//! hidden in SWL mode. A listener is not working anyone, so the live decode
-//! list is offered as a second layer — the squares *heard* rather than worked —
-//! behind a HEARD toggle. The two are told apart by colour, and the heard layer
-//! is drawn under the worked one so a square that is both reads as worked.
+//! hidden in SWL mode. A listener is not working anyone, so the live decode list
+//! is offered as a second layer — heard rather than worked — behind a HEARD
+//! toggle. The heard layer is drawn under the worked one so a square or country
+//! that is both reads as worked.
 
 use eframe::egui::{self, Rect, Sense, Ui, pos2, vec2};
 use std::collections::HashSet;
@@ -23,31 +30,71 @@ use crate::app::SdroxideApp;
 /// Below this size the map is not worth drawing and the grid unreadable.
 pub const MIN_HEIGHT: f32 = 200.0;
 
-/// A heard square is drawn this alpha; the worked layers are solid enough to
+/// A heard mark is drawn this alpha; the worked layers are solid enough to
 /// out-read it, so a heard-and-worked square never looks merely heard.
 const HEARD_ALPHA: f32 = 88.0;
-/// Worked and confirmed cells are opaque. A frame of "not worked" would be the
+/// Worked and confirmed marks are opaque. A frame of "not worked" would be the
 /// whole world, and drawing that is drawing the sea.
 const WORKED_ALPHA: f32 = 205.0;
+/// A country has no extent on this map — only a nominal centre — so it is a
+/// marker, not a filled cell. Held at a fixed size rather than scaled with the
+/// zoom, because the centre is coarse and a marker that grows implies an
+/// accuracy the position does not have.
+const COUNTRY_R: f32 = 5.0;
+
+/// Which shape the tracker draws.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum TrackerMode {
+    /// 4-character Maidenhead squares, which is what a ham log carries.
+    #[default]
+    Grid,
+    /// DXCC countries, which is what a CB log carries — an 11 m exchange is a
+    /// country call and a report, with no locator in it at all.
+    Country,
+}
 
 /// The tracker's own state, owned by the app so the pan/zoom survives a close.
 #[derive(Default)]
 pub struct GridTracker {
     pub view: MapView,
-    /// Shade the squares heard but not worked, from the live decode list.
+    /// Shade the marks heard but not worked, from the live decode list.
     pub show_heard: bool,
+    /// Squares or countries.
+    pub mode: TrackerMode,
+    /// Whether the opening default has been chosen. Set once, so a later log
+    /// change never drags the operator off the mode they picked.
+    picked: bool,
 }
 
-/// Draw the map into `rect`. Returns the grid square under the pointer, for a
-/// hover label.
+/// Everything the map draws, whichever shape is selected. Built by the caller
+/// so the drawing stays a free function.
+pub struct TrackerData<'a> {
+    /// `(grid, confirmed)`.
+    pub worked_grids: &'a [(String, bool)],
+    /// 4-character squares heard on the live decode list.
+    pub heard_grids: &'a HashSet<String>,
+    /// `(lat, lon, confirmed, country name)`.
+    pub worked_countries: &'a [(f64, f64, bool, &'static str)],
+    /// `(lat, lon, country name)` heard on the live decode list.
+    pub heard_countries: &'a [(f64, f64, &'static str)],
+}
+
+/// Which mode to open on.
 ///
-/// A free function so the projection and the cell fill are testable without an
-/// app: `worked` is `(grid, confirmed)` and `heard` is the live squares.
+/// A log with countries but no squares is a CB log, and showing it a grid map
+/// is showing it nothing — the silent-empty-window failure this fork treats as
+/// a bug. Any square at all keeps the grid view, because a log with squares is
+/// a ham's even if it also has CB contacts.
+pub fn default_mode(worked_grids: usize, worked_countries: usize) -> TrackerMode {
+    if worked_grids == 0 && worked_countries > 0 { TrackerMode::Country } else { TrackerMode::Grid }
+}
+
+/// Draw the map. Returns the square or country under the pointer, for a hover
+/// label.
 pub fn draw(
     ui: &mut Ui,
     state: &mut GridTracker,
-    worked: &[(String, bool)],
-    heard: &HashSet<String>,
+    data: &TrackerData,
     home: Option<(f64, f64)>,
     max_h: f32,
 ) -> Option<String> {
@@ -65,8 +112,8 @@ pub fn draw(
     p.rect_filled(rect, 0.0, map.sea);
 
     let aspect = (rect.height() / rect.width()) as f64;
-    // A grid tracker has no natural autofit — the squares span continents — so
-    // it opens on the whole world and stays where the operator puts it.
+    // A tracker has no natural autofit — the marks span continents — so it
+    // opens on the whole world and stays where the operator puts it.
     if !state.view.initialized {
         state.view.clat = 0.0;
         state.view.clon = 0.0;
@@ -90,35 +137,88 @@ pub fn draw(
         )
     };
 
-    // One 4-character square is 2° of longitude by 1° of latitude, so its
-    // on-screen size is the same for every cell at a given zoom.
-    let cell =
-        |lat: f64, lon: f64| -> Rect { cell_rect(rect, clat, clon, lon_span, lat_span, lat, lon) };
-
     let heard_col = alpha(theme::CYAN(), HEARD_ALPHA);
     let worked_col = alpha(theme::YELLOW(), WORKED_ALPHA);
     let confirmed_col = alpha(theme::GREEN(), WORKED_ALPHA);
 
-    // Heard first, under the worked squares: a square in both lists is worked,
-    // and must not read as merely heard.
-    for g in heard {
-        if let Some((lat, lon)) = sdroxide_types::grid_to_latlon(g) {
-            let r = cell(lat, lon);
-            if rect.intersects(r) {
-                p.rect_filled(r, 0.0, heard_col);
+    // The mark under the pointer, as (label, lat, lon). Decided after drawing
+    // so the label paints on top; worked marks win over heard ones.
+    let mut hovered: Option<(String, f64, f64)> = None;
+    let pointer = resp.hover_pos();
+
+    match state.mode {
+        TrackerMode::Grid => {
+            let cell = |lat: f64, lon: f64| -> Rect {
+                cell_rect(rect, clat, clon, lon_span, lat_span, lat, lon)
+            };
+            // Heard first, under the worked squares: a square in both lists is
+            // worked, and must not read as merely heard.
+            for g in data.heard_grids {
+                if let Some((lat, lon)) = sdroxide_types::grid_to_latlon(g) {
+                    let r = cell(lat, lon);
+                    if rect.intersects(r) {
+                        p.rect_filled(r, 0.0, heard_col);
+                    }
+                }
+            }
+            for (g, confirmed) in data.worked_grids {
+                if let Some((lat, lon)) = sdroxide_types::grid_to_latlon(g) {
+                    let r = cell(lat, lon);
+                    if rect.intersects(r) {
+                        p.rect_filled(r, 0.0, if *confirmed { confirmed_col } else { worked_col });
+                    }
+                }
+            }
+            if let Some(m) = pointer {
+                let mut best = f32::MAX;
+                for g in data.worked_grids.iter().map(|(g, _)| g).chain(data.heard_grids.iter()) {
+                    let Some((lat, lon)) = sdroxide_types::grid_to_latlon(g) else { continue };
+                    let r = cell(lat, lon);
+                    if r.contains(m) {
+                        let d = r.center().distance(m);
+                        if d <= best {
+                            best = d;
+                            hovered = Some((g.clone(), lat, lon));
+                        }
+                    }
+                }
             }
         }
-    }
-    for (g, confirmed) in worked {
-        if let Some((lat, lon)) = sdroxide_types::grid_to_latlon(g) {
-            let r = cell(lat, lon);
-            if rect.intersects(r) {
-                p.rect_filled(r, 0.0, if *confirmed { confirmed_col } else { worked_col });
+        TrackerMode::Country => {
+            // Heard as open rings, under the worked markers.
+            for (lat, lon, _) in data.heard_countries {
+                let c = project(*lat, *lon);
+                if rect.contains(c) {
+                    p.circle_stroke(c, COUNTRY_R, (1.4, heard_col));
+                }
+            }
+            for (lat, lon, confirmed, _) in data.worked_countries {
+                let c = project(*lat, *lon);
+                if rect.contains(c) {
+                    // A sea-coloured halo, so a marker over the stippled land
+                    // stays readable.
+                    p.circle_filled(c, COUNTRY_R + 1.5, alpha(map.sea, 180.0));
+                    p.circle_filled(
+                        c,
+                        COUNTRY_R,
+                        if *confirmed { confirmed_col } else { worked_col },
+                    );
+                }
+            }
+            if let Some(m) = pointer {
+                let mut best = COUNTRY_R * 1.8;
+                for (lat, lon, _, name) in data.worked_countries {
+                    let d = project(*lat, *lon).distance(m);
+                    if d <= best {
+                        best = d;
+                        hovered = Some((name.to_string(), *lat, *lon));
+                    }
+                }
             }
         }
     }
 
-    // Home last, over the grid, so the operator can find themselves.
+    // Home last, over the marks, so the operator can find themselves.
     if let Some((lat, lon)) = home {
         let c = project(lat, lon);
         if rect.contains(c) {
@@ -127,36 +227,17 @@ pub fn draw(
         }
     }
 
-    // Which square the pointer is over, decided after drawing so the label can
-    // be painted on top. Worked squares win over heard ones.
-    let mut hovered: Option<String> = None;
-    if let Some(m) = resp.hover_pos() {
-        let mut best = f32::MAX;
-        for g in worked.iter().map(|(g, _)| g).chain(heard.iter()) {
-            let Some((lat, lon)) = sdroxide_types::grid_to_latlon(g) else { continue };
-            let r = cell(lat, lon);
-            if r.contains(m) {
-                let d = r.center().distance(m);
-                if d <= best {
-                    best = d;
-                    hovered = Some(g.clone());
-                }
-            }
-        }
-        if let Some(g) = &hovered
-            && let Some((lat, lon)) = sdroxide_types::grid_to_latlon(g)
-        {
-            let r = cell(lat, lon);
-            p.text(
-                r.center() + vec2(0.0, -(r.height() * 0.5).max(6.0)),
-                egui::Align2::CENTER_BOTTOM,
-                g,
-                egui::FontId::monospace(11.0),
-                alpha(map.hover, 235.0),
-            );
-        }
+    if let Some((label, lat, lon)) = &hovered {
+        let c = project(*lat, *lon);
+        p.text(
+            c + vec2(0.0, -COUNTRY_R - 3.0),
+            egui::Align2::CENTER_BOTTOM,
+            label,
+            egui::FontId::monospace(11.0),
+            alpha(map.hover, 235.0),
+        );
     }
-    hovered
+    hovered.map(|(label, _, _)| label)
 }
 
 /// The screen rectangle a 4-character square covers, centred on its
@@ -186,18 +267,66 @@ fn cell_rect(
 }
 
 impl SdroxideApp {
+    /// The worked countries placed on the map, cached by log length.
+    ///
+    /// Resolved from the log's calls rather than from the awards tally's names,
+    /// because the tally is keyed by name and a CB call's name does not always
+    /// match the country file's — the resolver places both, so this does too.
+    /// Confirmation comes from the same tally so the two cannot disagree.
+    fn ensure_grid_countries(&mut self) {
+        let len = self.qso_log.len();
+        if self.grid_countries.as_ref().map(|(l, _)| *l) == Some(len) {
+            return;
+        }
+        self.ensure_awards();
+        let conf: std::collections::HashMap<&str, bool> = self
+            .awards_cache
+            .as_ref()
+            .map(|(_, _, a)| a.dxcc.iter().map(|(n, s)| (n.as_str(), s.confirmed)).collect())
+            .unwrap_or_default();
+        let mut seen = HashSet::new();
+        let mut pts = Vec::new();
+        for q in &self.qso_log {
+            if q.call.trim().is_empty() {
+                continue;
+            }
+            if let Some(place) = sdroxide_types::resolve_place(&q.call)
+                && seen.insert(place.name)
+            {
+                pts.push((
+                    place.lat,
+                    place.lon,
+                    conf.get(place.name).copied().unwrap_or(false),
+                    place.name,
+                ));
+            }
+        }
+        self.grid_countries = Some((len, pts));
+    }
+
     pub(in crate::app) fn grid_tracker_window(&mut self, ctx: &egui::Context) {
         if !self.show_grid {
             return;
         }
-        self.ensure_awards();
-        let worked: Vec<(String, bool)> = self
+        self.ensure_grid_countries();
+
+        let worked_grids: Vec<(String, bool)> = self
             .awards_cache
             .as_ref()
             .map(|(_, _, a)| a.grids.iter().map(|(g, s)| (g.clone(), s.confirmed)).collect())
             .unwrap_or_default();
-        let confirmed = worked.iter().filter(|(_, c)| *c).count();
-        let heard: HashSet<String> = if self.grid_tracker.show_heard {
+        let worked_countries: Vec<(f64, f64, bool, &'static str)> =
+            self.grid_countries.as_ref().map(|(_, v)| v.clone()).unwrap_or_default();
+
+        // Choose the opening mode once, from what the log actually holds.
+        if !self.grid_tracker.picked {
+            self.grid_tracker.mode = default_mode(worked_grids.len(), worked_countries.len());
+            self.grid_tracker.picked = true;
+        }
+        let mode = self.grid_tracker.mode;
+        let show_heard = self.grid_tracker.show_heard;
+
+        let heard_grids: HashSet<String> = if mode == TrackerMode::Grid && show_heard {
             self.digi_decodes
                 .iter()
                 .filter_map(|d| d.grid.as_deref().and_then(sdroxide_types::grid4))
@@ -205,9 +334,42 @@ impl SdroxideApp {
         } else {
             HashSet::new()
         };
+        let heard_countries: Vec<(f64, f64, &'static str)> =
+            if mode == TrackerMode::Country && show_heard {
+                let mut seen = HashSet::new();
+                self.digi_decodes
+                    .iter()
+                    .filter_map(|d| d.from.as_deref())
+                    .filter_map(sdroxide_types::resolve_place)
+                    .filter(|p| seen.insert(p.name))
+                    .map(|p| (p.lat, p.lon, p.name))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
         let home = {
             let g = self.my_grid();
             sdroxide_types::grid_to_latlon(&g)
+        };
+
+        let data = TrackerData {
+            worked_grids: &worked_grids,
+            heard_grids: &heard_grids,
+            worked_countries: &worked_countries,
+            heard_countries: &heard_countries,
+        };
+        let (worked_n, confirmed, heard_n) = match mode {
+            TrackerMode::Grid => (
+                worked_grids.len(),
+                worked_grids.iter().filter(|(_, c)| *c).count(),
+                heard_grids.len(),
+            ),
+            TrackerMode::Country => (
+                worked_countries.len(),
+                worked_countries.iter().filter(|(_, _, c, _)| *c).count(),
+                heard_countries.len(),
+            ),
         };
 
         let mut open = self.show_grid;
@@ -222,8 +384,29 @@ impl SdroxideApp {
             .show(ctx, |ui| {
                 crate::chrome::window_body_bg(ui);
                 ui.horizontal(|ui| {
+                    // Which shape the log is read in. A CB operator wants
+                    // countries, a ham wants squares, and a mixed log can look
+                    // at either.
+                    if ui
+                        .selectable_label(tracker.mode == TrackerMode::Grid, "GRID")
+                        .on_hover_text("Maidenhead squares — what a ham log carries")
+                        .clicked()
+                    {
+                        tracker.mode = TrackerMode::Grid;
+                    }
+                    if ui
+                        .selectable_label(tracker.mode == TrackerMode::Country, "COUNTRY")
+                        .on_hover_text(
+                            "DXCC countries at their nominal centre — what a CB log carries, \
+                             since an 11 m exchange has no locator in it",
+                        )
+                        .clicked()
+                    {
+                        tracker.mode = TrackerMode::Country;
+                    }
+                    ui.separator();
                     ui.label(
-                        egui::RichText::new(format!("{} worked", worked.len()))
+                        egui::RichText::new(format!("{worked_n} worked"))
                             .color(theme::YELLOW())
                             .monospace(),
                     );
@@ -235,14 +418,14 @@ impl SdroxideApp {
                     if ui
                         .selectable_label(
                             tracker.show_heard,
-                            egui::RichText::new(format!("{} heard", heard.len()))
+                            egui::RichText::new(format!("{heard_n} heard"))
                                 .color(theme::CYAN())
                                 .monospace(),
                         )
                         .on_hover_text(
-                            "Shade the squares heard on the live decode list, not only the \
-                             ones in the log. A listener's version of the map: what is on the \
-                             air now, in cyan under the worked squares.",
+                            "Shade what is heard on the live decode list, not only what is in \
+                             the log. A listener's version of the map: what is on the air now, \
+                             in cyan under the worked marks.",
                         )
                         .clicked()
                     {
@@ -251,7 +434,7 @@ impl SdroxideApp {
                 });
                 ui.separator();
                 let h = ui.available_height();
-                draw(ui, tracker, &worked, &heard, home, h);
+                draw(ui, tracker, &data, home, h);
                 ui.separator();
                 ui.label(
                     egui::RichText::new(
@@ -269,7 +452,6 @@ impl SdroxideApp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use eframe::egui::vec2;
 
     #[test]
     fn a_grid_cell_covers_its_own_two_by_one_square() {
@@ -294,5 +476,16 @@ mod tests {
         let a = cell_rect(rect, 0.0, 179.0, 360.0, 180.0, 0.0, 179.0);
         let b = cell_rect(rect, 0.0, 179.0, 360.0, 180.0, 0.0, -179.0);
         assert!((b.center().x - a.center().x - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn a_cb_log_opens_on_countries() {
+        // The point of the mode: a CB log has no squares, and a grid map of it
+        // is an empty window with no explanation.
+        assert_eq!(default_mode(0, 0), TrackerMode::Grid);
+        assert_eq!(default_mode(0, 12), TrackerMode::Country);
+        // Any square at all is a ham's log, even with CB contacts beside it.
+        assert_eq!(default_mode(1, 12), TrackerMode::Grid);
+        assert_eq!(default_mode(40, 0), TrackerMode::Grid);
     }
 }

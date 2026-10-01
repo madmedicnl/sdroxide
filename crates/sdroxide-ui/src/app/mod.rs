@@ -1087,6 +1087,10 @@ pub struct SdroxideApp {
     awards_band: String,
     /// Cached award tally, keyed by (log length, band filter).
     awards_cache: Option<(usize, String, sdroxide_types::Awards)>,
+    /// Worked countries placed for the grid tracker's country mode, keyed by
+    /// log length: `(lat, lon, confirmed, name)`. Resolved from the log's calls
+    /// so CB countries place correctly.
+    grid_countries: Option<(usize, Vec<(f64, f64, bool, &'static str)>)>,
     /// The same tally placed on the globe for the 3D view's award layer, keyed
     /// the same way. Shared rather than copied: it is three hundred entities
     /// and the window republishes it every frame.
@@ -1833,6 +1837,7 @@ impl SdroxideApp {
             grid_tracker: crate::app::grid_tracker::GridTracker::default(),
             awards_band: String::new(),
             awards_cache: None,
+            grid_countries: None,
             awards_heat: None,
             worked_entities_cache: None,
             log_index_cache: None,

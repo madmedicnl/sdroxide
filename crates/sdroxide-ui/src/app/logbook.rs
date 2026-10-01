@@ -391,6 +391,7 @@ impl SdroxideApp {
     pub(in crate::app) fn log_content_changed(&mut self) {
         self.awards_cache = None;
         self.awards_heat = None;
+        self.grid_countries = None;
         self.worked_entities_cache = None;
         self.log_index_cache = None;
     }
