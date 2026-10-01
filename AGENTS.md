@@ -9,6 +9,48 @@
 > ALE-mode build; the experimental-release recipe below is still the one to use
 > when a build needs to name it (the older pre-release tag has been removed).
 
+## The standing queue and how to check it (updated 2026-10-01)
+
+**Our open upstream PRs are the whole queue.** Track only these. Everything
+else on the upstream tracker belongs to the maintainer — do not triage or reply
+to new upstream issues we have no PR for.
+
+Nineteen open at this writing, all `CLEAN` and mergeable:
+
+- **#613** grid tracker — worked Maidenhead squares on a map. Upstream gets the
+  grid tracker only; the CB country mode stays on the fork.
+- **#612** LimeSDR Mini lower TX rates (issue #609).
+- **#611** NAVTEX AFC tracking (issue #608).
+- The rest of the queue: **#604** FT8 decode depth · **#603** contest logger ·
+  **#598** 2G ALE (draft) · **#597** JTTY · **#596** digi message buttons ·
+  **#586** FT8 signal subtraction · **#573** CW key · **#572** CW key as audio ·
+  **#569** CW keyer (draft) · **#568** Morse trainer · **#561** FSK441 TX ·
+  **#559** band-menu captions · **#557** recording silence split · **#554**
+  UVPacket (draft) · **#545** (tr)uSDX nG (draft) · **#537** band openings.
+
+**Upstream issues to read** are only those we have a PR for: #608→#611,
+#609→#612, #585→#613. Older mappings are in "Keeping up with upstream". We are
+also engaged with, but have no PR yet: **#577** K3 I.F. panadapter (diagnosis
+posted, awaiting the reporter), **#576** IC-7851 RTTY (awaiting rig details),
+**#595** Perseus SDR (needs a scope decision), **#592** Windows (blocked on a
+failing DLL name or a Windows/Radeon repro).
+
+**Each session, in order:**
+
+1. `git fetch upstream`; merge if it moved.
+2. Read the maintainer's comments on the open PRs above. Reply only where he
+   asked something — silence is not a prompt to re-ping.
+3. Check the **fork's Discussions** (`madmedicnl/sdroxide-brown`, issues are
+   disabled there). That is now the support channel: downloads are growing, so
+   expect new threads and answer them rather than opening an upstream issue.
+4. New upstream issues: look only at ones we have not seen, or ones we already
+   have a PR connected to. Skip the rest without comment.
+
+**Fork Discussions to watch:** **#4** "Settings saved to the saved profile"
+(kevin2008-01) — the client-screen feature; active, watch for follow-ups.
+**#3** "Over heating" — resolved (another program's SoapySDR, not us), no
+action. **#2** welcome thread.
+
 ## What this repository is
 
 A fork of [sdroxide](https://github.com/dividebysandwich/sdroxide) tuned for the
