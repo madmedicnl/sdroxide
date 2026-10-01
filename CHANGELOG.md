@@ -32,6 +32,20 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ### Added
 
+- **On 11 m, a CQ run is now bounded by the unanswered-call count and not by the
+  transmit watchdog.** The watchdog runs off "time since the operator acted",
+  and a station answering a CQ is expected inside about 30 seconds — so during a
+  CQ run, where no reply is the *expected* state, it was a clock cutting a run
+  that was working normally. It was measured cutting a run in which a station
+  then answered four times over ninety seconds, from +2 dB to +12 dB, its
+  callsign resolved in the clear; the answer was discarded because the watchdog
+  had already stepped the sequencer back to idle, and the adopt path needs the
+  calling state. **11 m only** — every other band, and the station queue, behave
+  exactly as before. A **stalled exchange is still cut on 11 m**, deliberately:
+  propagation can drop mid-QSO, and because 11 m transmissions are free text,
+  nothing but another station's 73 on that frequency can end it. The "Give up
+  after" hover now says what the count comes to at the current mode's own slot
+  length, so 10 reads as about 5 minutes on FT8 and about 1 on FT2.
 - **A KNOWN window lists the callsigns your hashes can currently resolve** — a new
   **KNOWN** chip in the general decode's filter row opens a window showing every
   callsign a hashed `<...>` on this receiver can name, newest first and with its

@@ -642,16 +642,57 @@ impl QsoMachine {
         // Transmit watchdog: nothing has come back and nobody has touched the
         // controls for the configured span, so stop calling. The contact stays
         // on screen — picking a message or calling CQ resumes.
+        //
+        // **A CQ run on 11 m is exempt**, and the reason is that the watchdog is
+        // the wrong instrument for it. It runs off `progress_utc`, which only
+        // `progress()` (a reply arrived) and `operator_acted()` stamp — so
+        // during a CQ run, where no reply is the *expected* state, the clock
+        // measures nothing but "time since the operator pressed CQ" and fires
+        // on schedule regardless of how young the run is.
+        //
+        // It also fired in units that mean nothing here: a station answering a
+        // CQ is expected inside about 30 seconds, and this cut the run at 6
+        // minutes whether or not anything had come back. Observed as a station
+        // answering four times over ninety seconds, +2 dB to +12 dB, its
+        // callsign resolved in the clear — and the adopt arm needs `CallingCq`,
+        // which the watchdog had already left, so the answer was discarded by
+        // design. The run is bounded instead by `max_tx_repeats`, which counts
+        // real calls, is the unit the operator sets, and defaults to 10 — about
+        // 5 minutes at FT8's one call per two slots, so the two limits were
+        // within a call or two of each other and the watchdog was adding no
+        // protection the count did not already give.
+        //
+        // **Every other band is untouched**, and so is every other state here —
+        // `WaitCq` (the operator's queue, bounded by its own deadline) and
+        // above all a **stalled exchange**, where the watchdog is exactly right:
+        // propagation can drop mid-QSO and leave us reporting into a dead
+        // channel indefinitely. On 11 m that is worse than it sounds, because
+        // our transmissions there are free text with no addressing, so nothing
+        // but another station's 73 on that frequency can end it.
         let limit = self.cfg.tx_watchdog_min as i64 * 60;
-        if limit > 0 && !self.watchdog && self.wants_tx() && now_utc - self.progress_utc >= limit {
+        if limit > 0
+            && !self.watchdog
+            && self.wants_tx()
+            && !matches!(self.step, QsoStep::CallingCq if self.cb)
+            && now_utc - self.progress_utc >= limit
+        {
             self.watchdog = true;
             self.manual = None;
             self.manual_signoff = None;
+            let calling_cq = self.step == QsoStep::CallingCq;
             self.step = QsoStep::Idle;
             self.transcript.push(TranscriptLine::note(format!(
                 "transmit watchdog: {} minutes with no progress",
                 self.cfg.tx_watchdog_min
             )));
+            // Say what it cut short, because on a CQ run the run is over and
+            // the operator is otherwise left wondering why it stopped.
+            if calling_cq {
+                self.transcript.push(TranscriptLine::note(
+                    "a station answering after this point is not picked up — press REPLY, or \
+                     call CQ to start a new run",
+                ));
+            }
             return true;
         }
         match self.step {
@@ -2276,8 +2317,13 @@ mod tests {
         assert!(!q.wants_tx());
         assert!(q.tx_watchdog());
         assert_eq!(q.step(), QsoStep::Idle);
-        let note = q.status(false).transcript.pop().expect("a note");
-        assert!(note.overheard && note.text.contains("watchdog"), "{}", note.text);
+        let note = q
+            .status(false)
+            .transcript
+            .into_iter()
+            .find(|l| l.text.contains("watchdog"))
+            .expect("a note saying the watchdog stopped it");
+        assert!(note.overheard, "{}", note.text);
 
         // Calling CQ again clears it and restarts the clock.
         q.call_cq();
@@ -3031,45 +3077,46 @@ mod tests {
         );
     }
 
-    /// The failure as it actually happened on 11 m: the **transmit watchdog**
-    /// fires in the middle of a CQ run, and a station answers *after* it.
+    /// The notice's watchdog wording, on the path where the watchdog still
+    /// applies and there is **no contact in hand** to absorb the answer.
     ///
-    /// The watchdog runs while `CallingCq` — `wants_tx` is true there, only
-    /// `Idle` and `WaitCq` opt out — and when it trips it forces the step to
-    /// `Idle` (`tick`). The adopt arm needs `CallingCq`, so from that moment an
-    /// answer cannot be taken however well-formed it is. And `progress` does not
-    /// clear the watchdog (only an operator action does), so the answer cannot
-    /// revive it either. Seen as `19AT168` answering a CQ four times over ninety
-    /// seconds, +2 dB to +12 dB, `<19DC373> 19AT168`, and nothing sent.
+    /// This began as the 11 m CQ-run case — the watchdog firing mid-CQ and
+    /// discarding a station that answered, which is the bug the operator
+    /// reported. That path is gone on 11 m now (see
+    /// `a_cq_run_on_11m_is_bounded_by_repeats_not_by_the_watchdog`), so the
+    /// wording is pinned here, off 11 m, where the watchdog still cuts a CQ run
+    /// and `dx` is `None` — which is what the discard needed.
     ///
-    /// This is **by design** — an unattended station must stop transmitting, and
-    /// one that resumed the instant somebody called would be unattended and
-    /// transmitting. What was wrong is only that it was indistinguishable from
-    /// "nobody answered", so the transcript now names the watchdog outright.
+    /// Note what is *not* being pinned: a **stalled exchange** does not produce
+    /// this notice, and must not. The watchdog cuts it but leaves `dx` standing,
+    /// so a station calling us again is the station we were already working, and
+    /// that message advances their exchange — the correct handling, and the
+    /// reason the exemption above is narrow. On 11 m that is the case the
+    /// operator has had to end by hand, because our transmissions there are free
+    /// text and nothing but another station's 73 on that frequency closes it.
     #[test]
     fn a_station_answering_after_the_watchdog_is_named_as_such() {
         let cfg = DigiConfig { my_call: "19DC373".into(), tx_watchdog_min: 5, ..cb_cfg() };
         let mut q = QsoMachine::new(Mode::Ft8, cfg);
-        q.set_cb(true);
+        // Off 11 m, so the watchdog still bounds a CQ run and `dx` is none.
+        q.set_cb(false);
         q.call_cq();
-        assert_eq!(q.step(), QsoStep::CallingCq);
-
-        // `progress_utc` is stamped by the first tick, so that is the baseline
-        // the span is measured from — the operator's CQ is progress.
         q.tick(100);
-        // Five minutes on, with nothing back and nothing but a CQ to send: the
-        // watchdog trips and the run is over.
-        assert!(q.tick(100 + 6 * 60));
-        assert!(q.tx_watchdog(), "the watchdog should have stopped the sequencer");
+        assert!(q.tick(100 + 6 * 60), "off 11 m a CQ run is still watchdogged");
+        assert!(q.tx_watchdog());
         assert_eq!(q.step(), QsoStep::Idle);
+        assert_eq!(q.dx_call(), None, "no contact was in hand");
 
         // Now the answer arrives, and it is a good one: our callsign resolved in
         // the addressee field, their sender resolved, nothing owed either way.
         q.on_rx(&[decode("19DC373 19AT168")], 100 + 6 * 60 + 30);
+        // `overheard` is what separates a **note** from a received message: the
+        // decode itself reads "19DC373 19AT168", so matching on the callsign
+        // alone finds the echo rather than what we said about it.
         let said = q
             .transcript
             .iter()
-            .find(|l| l.text.contains("19AT168"))
+            .find(|l| l.overheard && l.text.contains("19AT168"))
             .expect("the station must be reported");
         assert!(
             said.text.contains("watchdog"),

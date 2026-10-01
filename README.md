@@ -449,6 +449,35 @@ interoperate:**
   This build flags a too-long 11 m call as you type it, in **Settings → General
   → Callsign**. Amateur callsigns are not affected.
 
+### How a CQ run ends on 11 m, and why that is different
+
+An unattended station must stop transmitting eventually, and two separate limits
+do that job. They are not interchangeable, and on 11 m they are deliberately not
+the same:
+
+- **A stalled exchange is bounded by the transmit watchdog**, in minutes. This
+  is the one that matters most on 11 m: propagation can drop mid-QSO and leave
+  the station reporting into a dead channel indefinitely. On the CB band that
+  is worse than it sounds, because 11 m transmissions are free text with no
+  addressing — nothing but another station's 73 on that frequency can end it.
+  WSJT-CB cuts transmit for the same reason.
+- **A CQ run on 11 m is bounded by "Give up after" — the unanswered-call
+  count** — and the watchdog does not cut one. The reason is that a clock cannot
+  measure the thing that matters here. A station answering a CQ is expected
+  inside about 30 seconds, so "no reply yet" is the *expected* state of a CQ run,
+  not evidence of a dead one; and a wall clock started when the operator pressed
+  CQ fires on schedule whether the run is young or stale. It was measured cutting
+  a run in which a station then answered four times over ninety seconds, from
+  +2 dB to +12 dB, its callsign resolved in the clear. The call count is the
+  right unit: it counts real attempts, and the settings hover says what the
+  number comes to at the current mode's slot length.
+
+**This is 11 m only.** On every other band, and in every other state, the
+watchdog behaves exactly as it always has — including the station queue, where
+**REPLY** on a busy station holds this one for that station until they call CQ.
+If a station answers after a run has ended, the QSO transcript says so by name
+and **REPLY** takes them; nothing is transmitted without the operator.
+
 **Not borrowed — this fork's own work:** the decoder is the shared `mfsk-core`
 crate, the DSP is this fork's, and the decoder, packer, QSO sequencer and
 interoperability glue are written here. WSJT-CB was never a dependency — it is a

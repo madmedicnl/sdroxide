@@ -5,6 +5,7 @@
 //! store the Settings dialog's General tab edits.
 
 use eframe::egui::{self, RichText};
+use sdroxide_types::Band;
 use sdroxide_types::Command;
 
 use crate::app::SdroxideApp;
@@ -804,10 +805,11 @@ impl SdroxideApp {
                                     .range(0..=30)
                                     .suffix(" calls"),
                             )
-                            .on_hover_text(
-                                "Unanswered calls to one station before moving on. Calling CQ is \
-                             exempt. 0 disables it.",
-                            )
+                            .on_hover_text(repeats_hover_text(
+                                mode,
+                                cfg.max_tx_repeats,
+                                Band::containing(self.state.rx_freq_hz()) == Band::M11,
+                            ))
                             .changed();
                         ui.end_row();
                         // Special operating activity (issue #223). Above the
@@ -1050,3 +1052,63 @@ const APRS_COMMON_SYMBOLS: &[(char, char, &str)] = &[
     ('/', 'h', "Hospital"),
     ('/', ';', "Portable / campsite"),
 ];
+
+/// The hover for the "give up after" field: what the number counts, and what it
+/// comes to in minutes at *this* mode's own slot length.
+///
+/// The duration is computed rather than written down, because it differs by mode
+/// and a hardcoded "about 5 minutes" would be wrong the moment the operator
+/// switched between FT8, FT4 and FT2 — FT2's slots are a quarter of FT8's.
+///
+/// A call goes out every **other** slot: transmitting in the slot straight after
+/// your own doubles with the echo of it, so the interval is two slots.
+fn repeats_hover_text(mode: sdroxide_types::Mode, repeats: u32, on_11m: bool) -> String {
+    let mut s =
+        String::from("Unanswered calls to one station before moving on. Calling CQ is exempt.");
+    if repeats > 0 {
+        if let Some(t) = mode.slot_timing() {
+            let mins = repeats as f64 * t.slot_s * 2.0 / 60.0;
+            s.push_str(&format!(
+                " At {}'s slot length ({} s) that is about {mins:.0} min.",
+                mode.label(),
+                t.slot_s
+            ));
+        }
+    }
+    s.push_str(" 0 disables it.");
+    if on_11m {
+        s.push_str(
+            " On 11 m this is also what ends a CQ run: the transmit watchdog does not cut \
+             one, because a station answering a CQ is expected inside about 30 s and a clock \
+             cannot tell a young run from a stale one.",
+        );
+    }
+    s
+}
+
+#[cfg(test)]
+mod repeats_hover_tests {
+    use super::repeats_hover_text;
+    use sdroxide_types::Mode;
+
+    #[test]
+    fn the_repeat_count_is_given_in_minutes_at_each_modes_own_slot_length() {
+        // FT8: 15 s slots, one call per two, so 10 calls is 300 s = 5 minutes.
+        assert!(repeats_hover_text(Mode::Ft8, 10, true).contains("about 5 min"));
+        // FT2's slots are a quarter of FT8's, so the same count is a quarter of
+        // the time — which is exactly why the number is computed, not written.
+        assert!(repeats_hover_text(Mode::Ft2, 10, true).contains("about 1 min"));
+    }
+
+    #[test]
+    fn the_11m_exemption_is_only_mentioned_on_11m() {
+        assert!(repeats_hover_text(Mode::Ft8, 10, true).contains("does not cut"));
+        assert!(!repeats_hover_text(Mode::Ft8, 10, false).contains("does not cut"));
+        // And a disabled count says so without inventing a duration. Checked on
+        // the duration's own shape, since the 11 m sentence carries an "about"
+        // of its own (the 30 s an answer is expected in).
+        let off = repeats_hover_text(Mode::Ft8, 0, true);
+        assert!(off.contains("0 disables it"));
+        assert!(!off.contains("min."), "no duration for a disabled count: {off}");
+    }
+}

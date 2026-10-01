@@ -2165,6 +2165,44 @@ operator queued for to chase whoever spoke last. On an unattended run that means
 keying at people who are not answering it — on a shared band, that is harm to
 third parties, not a bug in this program.
 
+**The fix: the run is bounded by the count, not the clock (11 m only).** The
+watchdog runs off `progress_utc`, stamped only by `progress()` (a reply arrived)
+or `operator_acted()`. During a CQ run **no reply is the expected state**, so the
+clock measures nothing but time since the operator pressed CQ and fires on
+schedule regardless of how young the run is. It also fires in units that mean
+nothing: a station answering a CQ is expected inside ~30 s, and a 6-minute
+watchdog cut the run at 12 calls while `max_tx_repeats` (default 10, ~5 min at
+FT8's one call per two slots) was within a call or two of the same bound. The
+call count is the right unit — it counts real attempts, and it is what
+`max_tx_repeats`' own comment already claimed: *"Repeating a CQ is exempt — that
+is the operation; the watchdog above bounds it instead."*
+
+So `tick` skips the watchdog when `step == CallingCq && self.cb`
+(`matches!(self.step, QsoStep::CallingCq if self.cb)`). **Everything else is
+untouched**: every other band, and `WaitCq`, which the operator was explicit
+about keeping — it is the station queue, bounded by its own deadline, and one of
+the program's best features.
+
+**A stalled exchange on 11 m is still cut, and that is the point.** The watchdog
+leaves `dx` standing when it trips, so a station calling us again is the one we
+were working and their message advances the exchange. Propagation dropping
+mid-QSO and leaving us reporting into a dead channel is the failure it exists
+for, and on 11 m it is worse than it sounds: our transmissions there are **free
+text with no addressing**, so nothing but another station's 73 on that frequency
+can end it. The operator has ended exactly that by hand more than once.
+
+**What was rejected, and why it is worth recording.** The operator's own first
+idea was to let the transmit through when our callsign appears within ~45 s of
+the watchdog — a grace window. Right instinct, wrong mechanism, for two reasons
+worth keeping: (1) it needs `watchdog = false`, and that flag exists so **only
+an operator** restarts the sequencer, so any decode-triggered clearing means **a
+station on the band can key the transmitter by naming us** — on a band with no
+authentication and stations auto-answering each other, a remote transmit trigger;
+(2) `d.to` is a 12-bit hash, so a message addressed to somebody else can resolve
+to us, and wiring that to a transmit decision is a different risk class from
+wiring it to a display. Exempting the run changes when a timer fires, not who may
+key the radio.
+
 **The bisect result worth keeping:** `qso.rs`, `auto_mode.rs`, `decodes.rs`,
 `digi.rs` and `contest.rs` are all **byte-identical between 1.9.8 and
 1.9.12**, so bisecting those two tags cannot find this and both would fail
