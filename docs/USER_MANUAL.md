@@ -5655,6 +5655,13 @@ assigned one — the centre of the two tones — and a receiver in upper sideban
 has to sit below it to put them at 1615 and 1785 Hz. That arithmetic is done
 for you, and the readout still says where the signal is.
 
+**A dial that is a little off still decodes.** The receiver tracks the tones
+itself, so a readout a few hundred hertz out — a rig that will not set exactly,
+or one of the tuning figures that rounds differently in different publications —
+is pulled in over the first second or so instead of returning nothing. It is not
+a reason to be careless: a mistuned signal still carries more errors than a
+clean one, and past about ±350 Hz the pull-in gives up.
+
 **What you see.** Two panes:
 
 - **MESSAGES** — one entry per message, newest first, headed by the four
@@ -11372,7 +11379,10 @@ where the library is absent.
   is on. Takes effect on **Apply**: a LimeSuite stream is bound to its channel
   when it is created.
 - **Sample rate** — 1 to 40 Msps. The board's real limits are read from it when
-  it opens; this list is the useful subset.
+  it opens; this list is the useful subset. A **LimeSDR Mini** is offered its own
+  lower list, down to 100 ksps, because its USB link cannot sustain 1 Msps on
+  *transmit* — it underruns, and the lower rates are what clear it. Receive is
+  unaffected at any rate.
 - **Receive gain** — one combined figure, 0–73 dB, which LimeSuite distributes
   across the LNA, the TIA and the PGA itself. It takes whole decibels, so a
   slider left between two of them is a radio at the lower one, and the panel
