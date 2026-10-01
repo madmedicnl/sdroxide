@@ -106,6 +106,21 @@ pub trait DigiEngine: Send {
     fn tx_burst_active(&self) -> bool;
     fn fill_tx_block(&mut self, out: &mut [f32]) -> bool;
 
+    /// The callsigns this decoder's hash table can currently resolve, newest
+    /// first — `None` for a mode that keeps no such table.
+    ///
+    /// The default is `None` rather than an empty list on purpose: a mode with
+    /// no table is not a station that has heard nobody, and a caller showing
+    /// "no stations known" for a mode that never had the concept would be
+    /// wrong rather than empty.
+    ///
+    /// **Blocks briefly** where it is implemented, because the table lives on a
+    /// decode worker: it is a question an operator asks by opening a window,
+    /// never something the per-frame path calls.
+    fn known_calls(&self) -> Option<sdroxide_types::KnownCallsReply> {
+        None
+    }
+
     /// The rate [`fill_tx_block`](Self::fill_tx_block) hands samples back at.
     ///
     /// Not the receive tap's rate, and not always 48 kHz. Nearly every modem

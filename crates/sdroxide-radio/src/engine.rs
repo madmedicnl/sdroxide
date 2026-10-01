@@ -9460,6 +9460,19 @@ impl Engine {
                 // Persisted through the session, which the periodic save writes.
             }
 
+            GetKnownCalls => {
+                // A question, not a setting, so it answers once and stops. The
+                // table lives on the decode worker, so this waits a bounded
+                // time for it.
+                //
+                // Sent **whether or not there is an answer**: `None` is a fact
+                // the window has to be able to say out loud, because a mode that
+                // keeps no callsign table and a band nobody is on look
+                // identical if the empty case is the only one that arrives.
+                let reply = self.digi.as_ref().and_then(|digi| digi.known_calls());
+                let _ = self.event_tx.send(RadioEvent::KnownCalls(reply));
+            }
+
             SetQo100Config(cfg) => {
                 self.state.qo100 = cfg;
                 // Held in step with the live setting for symmetry with the

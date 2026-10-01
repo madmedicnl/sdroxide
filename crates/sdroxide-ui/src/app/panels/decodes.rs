@@ -236,6 +236,25 @@ impl SdroxideApp {
             {
                 new_only = !new_only;
             }
+            // Who the decoder can currently *name*. Beside the filters because a
+            // `<...>` in this same list is the reason to open it: a hashed
+            // callsign cannot be read backwards, and this is the set of
+            // stations heard spelling their call out that makes it resolve.
+            if crate::chrome::chip(ui, self.known_calls.show, "KNOWN")
+                .on_hover_text(
+                    "Every callsign a hashed <...> here can currently resolve, with its country. \
+                     A hash cannot be read backwards — a station appears only once it has been \
+                     heard spelling its call out, which is what a bare 11 m call is for.",
+                )
+                .clicked()
+            {
+                self.known_calls.show = !self.known_calls.show;
+                if !self.known_calls.show {
+                    // Closing drops the list, so reopening asks the engine again
+                    // rather than showing a snapshot from last time.
+                    self.known_calls.request();
+                }
+            }
             // The session ignore list, with the one-click way back out of it.
             // Beside the other filters because that is exactly what it is — a
             // fourth way of reading the list — and drawn only when something is

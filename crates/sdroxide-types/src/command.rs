@@ -1187,4 +1187,33 @@ pub enum Command {
     /// for the usual reason. The stored table lives in the session; this is the
     /// switch that decides whether a band change recalls from it.
     SetGainByBand(bool),
+
+    /// Ask which callsigns the decoder's hash table can currently resolve, so a
+    /// client can show the operator who is on the air with them.
+    ///
+    /// A **question, not a setting**, and deliberately a message of its own
+    /// rather than a field on a status: the answer is a list of up to a thousand
+    /// callsigns, which must not ride every status frame, and the table lives on
+    /// the decode worker thread, so it is asked for when a window opens and
+    /// answered once. The answer is [`KnownCallsReply`].
+    ///
+    /// Appended for the usual reason — postcard numbers variants by position.
+    GetKnownCalls,
 }
+
+/// What a [`Command::GetKnownCalls`] was answered with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnownCallsReply {
+    /// The callsigns, newest first, capped by the sender at
+    /// [`KNOWN_CALLS_REPLY_MAX`].
+    pub calls: Vec<String>,
+    /// How many the decoder's table holds in total, which is more than `calls`
+    /// when the cap bit — so a window can say "200 of 340" instead of implying
+    /// the list is everything there is.
+    pub total: usize,
+}
+
+/// How many callsigns one [`KnownCallsReply`] carries. A kilobyte of postcard on
+/// a window that is opened by hand, rather than a list long enough to be a
+/// scrollbar nobody reads.
+pub const KNOWN_CALLS_REPLY_MAX: usize = 200;

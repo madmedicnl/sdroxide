@@ -354,6 +354,7 @@ impl RemoteController {
             ServerMsg::ClientBindings(r) => self
                 .pending
                 .push_back(RadioEvent::ClientBindings { profile: r.profile, bindings: r.bindings }),
+            ServerMsg::KnownCalls(r) => self.pending.push_back(RadioEvent::KnownCalls(r)),
             // Dropped rather than decoded while another tab holds the page's
             // single output: the work saved is the point on a browser tab
             // holding several radios.

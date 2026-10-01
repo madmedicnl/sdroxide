@@ -423,6 +423,25 @@ pub enum RadioEvent {
         profile: Option<String>,
         bindings: crate::InputSettings,
     },
+    /// The answer to a [`crate::Command::GetKnownCalls`]: the callsigns the
+    /// digital decoder's hash table can currently resolve, newest first — or
+    /// `None` when there is no such table to ask, or the worker did not answer
+    /// in time.
+    ///
+    /// The `None` is carried rather than swallowed, because "no answer" and "an
+    /// answer that was empty" are different facts and the operator needs to be
+    /// told which: the first means the mode keeps no callsign table at all, the
+    /// second that nobody has been heard yet. Sending nothing for the first
+    /// would leave the window claiming an empty band.
+    ///
+    /// A one-off, asked for when a window opens — an FT8 message addresses a
+    /// station by a one-way hash, so `<...>` cannot be resolved by arithmetic
+    /// and the only way to name a station is to have heard it spelled out. The
+    /// operator cannot see that set anywhere else.
+    ///
+    /// The engine's, so a remote client gets it too: it rides
+    /// `ServerMsg::KnownCalls`, unlike the two above.
+    KnownCalls(Option<crate::KnownCallsReply>),
 }
 
 /// Snapshot of the frontend's switchable sound devices (native clients).

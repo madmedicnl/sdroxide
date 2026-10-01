@@ -143,33 +143,49 @@ pub enum DigiAction {
     Pi4Spots(Vec<sdroxide_types::Pi4Spot>),
 }
 
-struct DecodeJob {
-    audio: Vec<i16>,
-    /// Which slot this audio was captured in, as the scheduler's own index.
+/// One unit of work for the decode worker.
+///
+/// An enum rather than a struct because it now carries a *question* as well as
+/// a slot: the hash table that resolves a `<...>` lives on the worker, so
+/// [`DecodeJob::KnownCalls`] is the only way to read it from out here. The
+/// alternative — a second channel the worker had to select on — would have put
+/// a second wakeup in the middle of the decode loop.
+enum DecodeJob {
+    /// Decode one slot's audio.
+    Slot {
+        audio: Vec<i16>,
+        /// Which slot this audio was captured in, as the scheduler's own index.
+        ///
+        /// The index rather than the Unix start time: only FT8's slots begin on
+        /// a whole second. FT4's odd slots start on a half second and FT2's on
+        /// a quarter, so a start time carried as whole seconds reads back as the
+        /// slot *before* it — which inverted the parity of every reply and put
+        /// it on top of the station being answered (issue #191).
+        slot_idx: i64,
+        /// The same slot as a Unix time, which is what stamps each [`Decode`].
+        slot_utc: i64,
+        /// Our callsign and the DX's. They seed the worker's hash table, so a
+        /// hashed `<...>` naming either resolves on first sight, and they bias
+        /// the decoder towards the message we are actually waiting for (see
+        /// [`ApHints`]).
+        ap: ApHints,
+        /// Where we are listening, for FT4's targeted a-priori pass.
+        audio_hz: f32,
+        /// The 11 m grammar in force at the moment the slot completed: WSJT-CB's
+        /// own, or the experimental wider one. Read off the config here rather
+        /// than held on the worker's modem, which the job is the only thing that
+        /// knows how to update.
+        cb_wide: bool,
+        /// The FT8 decode depth in force for this slot — see
+        /// [`sdroxide_types::Ft8Depth`]. Read off the config for the same reason
+        /// as `cb_wide`.
+        ft8_depth: sdroxide_types::Ft8Depth,
+    },
+    /// Report the callsigns the worker's hash table can currently resolve.
     ///
-    /// The index rather than the Unix start time: only FT8's slots begin on a
-    /// whole second. FT4's odd slots start on a half second and FT2's on a
-    /// quarter, so a start time carried as whole seconds reads back as the slot
-    /// *before* it — which inverted the parity of every reply and put it on top
-    /// of the station being answered (issue #191).
-    slot_idx: i64,
-    /// The same slot as a Unix time, which is what stamps each [`Decode`].
-    slot_utc: i64,
-    /// Our callsign and the DX's. They seed the worker's hash table, so a hashed
-    /// `<...>` naming either resolves on first sight, and they bias the decoder
-    /// towards the message we are actually waiting for (see [`ApHints`]).
-    ap: ApHints,
-    /// Where we are listening, for FT4's targeted a-priori pass.
-    audio_hz: f32,
-    /// The 11 m grammar in force at the moment the slot completed: WSJT-CB's
-    /// own, or the experimental wider one. Read off the config here rather than
-    /// held on the worker's modem, which the job is the only thing that knows
-    /// how to update.
-    cb_wide: bool,
-    /// The FT8 decode depth in force for this slot — see
-    /// [`sdroxide_types::Ft8Depth`]. Read off the config for the same reason as
-    /// `cb_wide`.
-    ft8_depth: sdroxide_types::Ft8Depth,
+    /// Answered on its own channel rather than the decode-result one, so a
+    /// window polling for it can never mistake a list for a slot's decodes.
+    KnownCalls,
 }
 
 pub struct DigiController {
@@ -242,6 +258,9 @@ pub struct DigiController {
     /// slot — the quick single-pass result, then the SIC extras — and only the
     /// second has `final = true`, which marks the slot finished.
     res_rx: Receiver<(i64, Vec<Decode>, bool)>,
+    /// The answer to a [`DecodeJob::KnownCalls`], on its own channel so a
+    /// caller polling for the list cannot read a slot's decodes instead.
+    known_rx: Receiver<sdroxide_types::KnownCallsReply>,
     _worker: std::thread::JoinHandle<()>,
     // TX burst playback.
     burst: Option<BurstPlayer>,
@@ -276,6 +295,14 @@ const ACTIVITY_SLOTS: i64 = 8;
 /// Answering one of those from a record of when they last transmitted is right;
 /// guessing at it is a coin toss that lands on top of them half the time.
 const HEARD_SLOTS: i64 = 40;
+
+/// How long [`DigiController::known_calls`] waits for the decode worker to
+/// answer before giving up.
+///
+/// Generous against a slow slot — the worker may be mid-LDPC, which on a busy
+/// band is the best part of a second — and short enough that a window opened on
+/// a mode with no decode worker does not hang the engine's loop.
+const KNOWN_CALLS_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(500);
 
 /// Separation past which a spot counts as simply clear. An FT8 signal is about
 /// 50 Hz wide, so a couple of signal-widths either side is all the room there
@@ -315,25 +342,52 @@ impl DigiController {
         // Decode worker: owns its own modem, runs LDPC off the RT thread.
         let (job_tx, job_rx) = std::sync::mpsc::channel::<DecodeJob>();
         let (res_tx, res_rx) = std::sync::mpsc::channel::<(i64, Vec<Decode>, bool)>();
+        let (known_tx, known_rx) = std::sync::mpsc::channel::<sdroxide_types::KnownCallsReply>();
         let worker_mode = params.mode;
         let worker = std::thread::Builder::new()
             .name("sdroxide-ft8-decode".into())
             .spawn(move || {
                 let mut modem = Ft8Modem::new(worker_mode);
                 while let Ok(job) = job_rx.recv() {
-                    modem.set_cb_wide(job.cb_wide);
-                    modem.set_ft8_depth(job.ft8_depth);
-                    modem.seed_hashes(&job.ap.calls());
+                    let DecodeJob::Slot {
+                        audio,
+                        slot_idx,
+                        slot_utc,
+                        ap,
+                        audio_hz,
+                        cb_wide,
+                        ft8_depth,
+                    } = job
+                    else {
+                        // The hash table is the worker's, so the list is read
+                        // here and nowhere else — one source of truth, not a
+                        // second copy the controller keeps in step by hand.
+                        let calls = modem.known_calls();
+                        let total = calls.len();
+                        let reply = sdroxide_types::KnownCallsReply {
+                            calls: calls
+                                .into_iter()
+                                .take(sdroxide_types::KNOWN_CALLS_REPLY_MAX)
+                                .collect(),
+                            total,
+                        };
+                        if known_tx.send(reply).is_err() {
+                            break;
+                        }
+                        continue;
+                    };
+                    modem.set_cb_wide(cb_wide);
+                    modem.set_ft8_depth(ft8_depth);
+                    modem.seed_hashes(&ap.calls());
                     // Two stages for FT8: the quick result is sent as soon as it
                     // is ready, so an auto-sequenced reply can be decided inside
                     // the transmit offset; the SIC extras follow. Only the
                     // second batch is `final`, which is what marks the slot done.
-                    let (quick, extras) =
-                        modem.decode_slot_staged(&job.audio, job.slot_utc, &job.ap, job.audio_hz);
-                    if res_tx.send((job.slot_idx, quick, false)).is_err() {
+                    let (quick, extras) = modem.decode_slot_staged(&audio, slot_utc, &ap, audio_hz);
+                    if res_tx.send((slot_idx, quick, false)).is_err() {
                         break;
                     }
-                    if res_tx.send((job.slot_idx, extras, true)).is_err() {
+                    if res_tx.send((slot_idx, extras, true)).is_err() {
                         break;
                     }
                 }
@@ -372,6 +426,7 @@ impl DigiController {
             recent_activity: Vec::new(),
             job_tx,
             res_rx,
+            known_rx,
             _worker: worker,
             burst: None,
             status_dirty: true,
@@ -920,7 +975,7 @@ impl DigiController {
                     };
                     if self
                         .job_tx
-                        .send(DecodeJob {
+                        .send(DecodeJob::Slot {
                             audio,
                             slot_idx,
                             slot_utc,
@@ -1003,6 +1058,22 @@ impl DigiController {
         actions
     }
 
+    /// Ask the decode worker which callsigns its hash table can currently
+    /// resolve, and wait a bounded time for the answer.
+    ///
+    /// This **blocks briefly**, which is why it is a message the operator sends
+    /// by opening a window rather than something the per-frame path calls: the
+    /// worker is usually mid-LDPC on a slot, and the engine's loop is the
+    /// decode scheduler's, so a stall here would cost a slot. `None` means the
+    /// worker did not answer in time — a closed window, a mode with no worker,
+    /// or a slot that took longer than [`KNOWN_CALLS_TIMEOUT`] — and the caller
+    /// shows nothing rather than an empty list, which would read as "you know
+    /// nobody".
+    pub fn known_calls(&self) -> Option<sdroxide_types::KnownCallsReply> {
+        self.job_tx.send(DecodeJob::KnownCalls).ok()?;
+        self.known_rx.recv_timeout(KNOWN_CALLS_TIMEOUT).ok()
+    }
+
     pub fn status(&self) -> DigiStatus {
         let mut s = self.qso.status(self.tx_burst_active());
         s.audio_hz = self.audio_hz;
@@ -1038,6 +1109,11 @@ impl crate::DigiEngine for DigiController {
     }
     fn fill_tx_block(&mut self, out: &mut [f32]) -> bool {
         DigiController::fill_tx_block(self, out)
+    }
+    /// Only this controller has a callsign hash table; the keyboard modes and
+    /// the fox keep the trait's `None`.
+    fn known_calls(&self) -> Option<sdroxide_types::KnownCallsReply> {
+        DigiController::known_calls(self)
     }
     fn on_burst_done(&mut self) {
         DigiController::on_burst_done(self)

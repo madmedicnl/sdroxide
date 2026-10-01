@@ -33,6 +33,7 @@ pub(in crate::app) mod hd;
 pub(in crate::app) mod hfdl;
 pub(in crate::app) mod ignore;
 pub(in crate::app) mod ism;
+pub(in crate::app) mod known_calls;
 pub(in crate::app) mod konami;
 pub(in crate::app) mod logbook;
 pub(in crate::app) mod morse;
@@ -950,6 +951,8 @@ pub struct SdroxideApp {
     /// a profile name, or `None` for the station default. `None` also before
     /// any has arrived, which the Settings label reads as "not using any".
     client_settings_from: Option<Option<String>>,
+    /// The KNOWN window's state — see [`known_calls::KnownCallsState`].
+    pub(in crate::app) known_calls: known_calls::KnownCallsState,
     /// The Morse trainer window and its persisted progress.
     morse: morse::MorseState,
     /// The signal-identification guide window.
@@ -1782,6 +1785,7 @@ impl SdroxideApp {
             flags: Default::default(),
             show_logbook: false,
             client_settings_from: None,
+            known_calls: known_calls::KnownCallsState::default(),
             morse: morse::MorseState::new(load_morse_progress(storage)),
             signal_id: signal_id::SignalIdState::default(),
             mail: winlink::MailUi::default(),

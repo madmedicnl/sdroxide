@@ -141,7 +141,7 @@ pub use cb_callsign::{
 /// reporters (see [`cb_country::cb_callsign_in`]).
 pub use cb_country::cb_callsign_in;
 pub use chirp::{chirp_csv_to_memories, memories_to_chirp_csv};
-pub use command::Command;
+pub use command::{Command, KNOWN_CALLS_REPLY_MAX, KnownCallsReply};
 pub use contacts::FsqContact;
 pub use contest::{
     ContestId, ContestScore, ContestSession, ContestSpec, Exchange, Multiplier, cabrillo_contest,

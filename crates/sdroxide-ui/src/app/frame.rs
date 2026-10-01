@@ -1106,6 +1106,8 @@ impl eframe::App for SdroxideApp {
         self.sat_window(&ctx, &mut cmds);
         self.morse_window(&ctx);
         self.signal_id_window(&ctx);
+        self.poll_known_calls(&mut cmds);
+        self.known_calls_window(&ctx);
         self.help.ui(&ctx);
         // Last, so it lands on top of everything else that opened this frame.
         self.oob_tx_window(&ctx);
@@ -1460,6 +1462,13 @@ impl SdroxideApp {
                     if std::mem::take(&mut self.profile_apply_pending) {
                         self.digi_cfg_seeded = false;
                     }
+                }
+                RadioEvent::KnownCalls(reply) => {
+                    // The engine's own answer, about its own hash table — so it
+                    // is taken whichever client asked, with no scope check: this
+                    // is a fact about the station's decoding, not a preference
+                    // the client is borrowing.
+                    self.known_calls.accept(reply);
                 }
                 RadioEvent::ClientSettings { profile, settings } => {
                     // Apply only when this client asked to keep its screen on

@@ -3,6 +3,8 @@
 //! decode-result fields** — if the crate's field names change, only
 //! `decode_slot` needs updating.
 
+use std::collections::VecDeque;
+
 use mfsk_core::msg::decode_request::DecodeRequest;
 use mfsk_core::msg::hash_table::CallsignHashTable;
 use mfsk_core::msg::wsjt77;
@@ -166,6 +168,10 @@ impl ApHints {
     }
 }
 
+/// How many callsigns [`Ft8Modem::known_calls`] keeps, matching the hash
+/// table's own cap (WSJT-X's `MAXHASH`) so the two evict together.
+const MAX_KNOWN_CALLS: usize = 1000;
+
 /// Encode/decode engine for one digital mode.
 pub struct Ft8Modem {
     mode: Mode,
@@ -183,6 +189,22 @@ pub struct Ft8Modem {
     /// [`sdroxide_types::Ft8Depth`]. Only the extra (post-quick) batch uses it;
     /// the plain single pass that is emitted first is always run.
     ft8_depth: sdroxide_types::Ft8Depth,
+    /// The same callsigns `hashes` holds, **in the clear and newest-first**, so
+    /// an operator can be shown who their hashes currently resolve to.
+    ///
+    /// A shadow rather than a read of `hashes`, because mfsk-core's
+    /// `CallsignHashTable` is lookup-only: it offers `len22`/`capacity22` and
+    /// nothing that enumerates the calls, so there is no way to ask it what it
+    /// knows. Both [`Ft8Modem::remember_heard`] and [`Ft8Modem::seed_hashes`]
+    /// are the *only* feeders of that table, and both see each callsign in
+    /// plain text on the way in — so mirroring them here keeps the two in step
+    /// by construction rather than by reverse-engineering the table.
+    ///
+    /// The cap and the newest-wins-a-collision order match the table's, so a
+    /// callsign this list still shows is one the table can still resolve, and
+    /// one it has forgotten is dropped here too. That is the whole point: a
+    /// stale entry would promise a resolution the decoder can no longer make.
+    known_calls: VecDeque<String>,
 }
 
 impl Ft8Modem {
@@ -193,6 +215,7 @@ impl Ft8Modem {
             eu_hashes: eu_vhf::Hashes::default(),
             cb_wide: false,
             ft8_depth: sdroxide_types::Ft8Depth::default(),
+            known_calls: VecDeque::new(),
         }
     }
 
@@ -220,7 +243,43 @@ impl Ft8Modem {
         for c in calls.iter().filter(|c| !c.is_empty()) {
             self.hashes.insert(c);
             self.eu_hashes.insert(c);
+            self.remember_call(c);
         }
+    }
+
+    /// The callsigns a `<...>` in a decoded message can currently name, newest
+    /// first — our own, the one being worked, and everyone heard spelled out.
+    ///
+    /// A **copy**, and capped by the caller: this crosses a thread boundary to
+    /// a client, and the list behind it is a live ring on the decode worker.
+    pub fn known_calls(&self) -> Vec<String> {
+        self.known_calls.iter().cloned().collect()
+    }
+
+    /// How many callsigns the table holds, which is more than a capped reply
+    /// shows — so a window can say "200 of 340" rather than imply it is all.
+    pub fn known_calls_len(&self) -> usize {
+        self.known_calls.len()
+    }
+
+    /// Mirror one callsign into [`Ft8Modem::known_calls`], newest first.
+    ///
+    /// The same normalisation and the same drops the hash tables apply, so the
+    /// shadow never promises a resolution the tables cannot deliver: a token too
+    /// short to be a call, a `...` placeholder and a `CQ` are all callers, not
+    /// stations, and a re-heard station moves to the front rather than appearing
+    /// twice. A portabled callsign is kept **whole** — `/P` and `/R` are part of
+    /// the identity here, and the table hashes them whole.
+    fn remember_call(&mut self, call: &str) {
+        let call = eu_vhf::bare(call.trim()).to_ascii_uppercase();
+        if call.len() < 3 || call == "..." || call.starts_with("CQ") {
+            return;
+        }
+        if let Some(i) = self.known_calls.iter().position(|c| *c == call) {
+            self.known_calls.remove(i);
+        }
+        self.known_calls.push_front(call);
+        self.known_calls.truncate(MAX_KNOWN_CALLS);
     }
 
     /// Decode one full receive slot of 12 kHz mono i16 audio.
@@ -443,6 +502,7 @@ impl Ft8Modem {
             for call in [d.to.as_deref(), d.from.as_deref()].into_iter().flatten() {
                 self.hashes.insert(call);
                 self.eu_hashes.insert(call);
+                self.remember_call(call);
             }
             if d.free_text
                 && !d.is_cq
@@ -451,6 +511,7 @@ impl Ft8Modem {
             {
                 self.hashes.insert(&d.message);
                 self.eu_hashes.insert(&d.message);
+                self.remember_call(&d.message);
             }
         }
     }
@@ -3096,5 +3157,73 @@ mod tests {
         let pair = decodes.iter().find(|d| d.from.is_some()).expect("the pair resolves");
         assert_eq!(pair.to.as_deref(), Some("25TT304"));
         assert_eq!(pair.from.as_deref(), Some("26AT715"));
+    }
+
+    /// The shadow list an operator is shown must be exactly what the hash table
+    /// can resolve — never more. A callsign that outlived the table's cap would
+    /// be promised a resolution the decoder can no longer deliver, which is the
+    /// one way this list could lie.
+    #[test]
+    fn the_known_call_list_holds_exactly_what_the_table_can_resolve() {
+        let mut rx = Ft8Modem::new(Mode::Ft8);
+        rx.seed_hashes(&["19DC373".to_string()]);
+        let d = |message: &str, from: Option<&str>, to: Option<&str>, free_text: bool| Decode {
+            slot_utc: 0,
+            snr_db: -5,
+            dt: 0.1,
+            audio_hz: 1500.0,
+            message: message.into(),
+            to: to.map(String::from),
+            from: from.map(String::from),
+            grid: None,
+            is_cq: message.starts_with("CQ"),
+            cq_to: None,
+            free_text,
+            rr73_to: None,
+        };
+        // A spelled-out pair, a CQ, and a bare CB call (the 1.9.10 seed).
+        let heard = [
+            d("19RF410 19AT208 -08", Some("19AT208"), Some("19RF410"), false),
+            d("CQ 4CB04", Some("4CB04"), None, false),
+            d("109HU333", None, None, true),
+        ];
+        rx.remember_heard(heard.iter());
+
+        // Newest first, our own call included, the bare CB call present.
+        assert_eq!(rx.known_calls(), vec!["109HU333", "4CB04", "19AT208", "19RF410", "19DC373"]);
+        assert_eq!(rx.known_calls_len(), 5);
+
+        // A re-heard station moves to the front rather than appearing twice.
+        let again = [d("CQ 4CB04", Some("4CB04"), None, false)];
+        rx.remember_heard(again.iter());
+        assert_eq!(rx.known_calls().first().map(String::as_str), Some("4CB04"));
+        assert_eq!(rx.known_calls_len(), 5);
+
+        // Whatever the list shows, the table really resolves it — this is the
+        // invariant that stops the list promising a stale callsign.
+        for call in rx.known_calls() {
+            assert!(
+                rx.hashes.lookup22(mfsk_core::msg::hash_table::ihashcall(&call, 22)).is_some(),
+                "{call} is listed but the table cannot resolve it"
+            );
+        }
+    }
+
+    /// A station whose name is never spelled out is not a station the list can
+    /// show, and a `CQ`/placeholder must not become one. The list is for
+    /// callers, so it must not fill with the words a message happens to contain.
+    #[test]
+    fn the_known_call_list_never_lists_a_cq_or_a_placeholder() {
+        let mut rx = Ft8Modem::new(Mode::Ft8);
+        rx.remember_call("CQ");
+        rx.remember_call("...");
+        rx.remember_call("AB");
+        rx.remember_call("<...>");
+        assert!(rx.known_calls().is_empty(), "got {:?}", rx.known_calls());
+
+        // A portabled call is kept whole: `/P` is part of who they are here,
+        // and the table hashes it whole, so a stripped base would not resolve.
+        rx.remember_call("r7kjg/qrp");
+        assert_eq!(rx.known_calls(), vec!["R7KJG/QRP"]);
     }
 }

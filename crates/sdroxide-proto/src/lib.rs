@@ -1646,7 +1646,20 @@ use sdroxide_types::{
 /// variant inserted mid-enum now shifts what the other end reads, so **append
 /// `Action` variants only**, and treat one as a wire change like any other. The
 /// same struct travels in `RadioEvent`, which never leaves the process.
-pub const PROTO_VERSION: u16 = 188;
+///
+/// v189: a client can ask **which callsigns the decoder's hash table can
+/// currently resolve**. New `Command::GetKnownCalls` and `ServerMsg::KnownCalls`,
+/// both **appended last**. An FT8 message addresses a station by a one-way hash,
+/// so a `<...>` is unresolvable by arithmetic and the only way to name the
+/// station is to have heard it spelled out; this shows the operator the set they
+/// have accumulated, which is otherwise invisible.
+///
+/// Its own message pair rather than a field on a status, because the answer is
+/// up to a thousand callsigns and must not ride every status frame. The list is
+/// a **shadow** of mfsk-core's `CallsignHashTable`, which is lookup-only and
+/// cannot be enumerated, kept in step by the two places that feed it. A
+/// downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 189;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -2154,6 +2167,15 @@ pub enum ServerMsg {
     ///
     /// Appended last, for the usual reason.
     ClientBindings(ClientBindingsReply),
+
+    /// The answer to a [`Command::GetKnownCalls`](sdroxide_types::Command::GetKnownCalls):
+    /// the callsigns the decoder's hash table can currently resolve, newest
+    /// first — or `None` when there is no table to ask. Sent once, when a client
+    /// asks and the window is open — never on a status frame, since the list is
+    /// up to a thousand callsigns long.
+    ///
+    /// Appended last, for the usual reason.
+    KnownCalls(Option<sdroxide_types::KnownCallsReply>),
 }
 
 /// What [`ServerMsg::ClientSettings`] carries.
@@ -2273,6 +2295,20 @@ mod tests {
             bindings,
         });
         assert_eq!(decode::<ServerMsg>(&encode(&answered).unwrap()).unwrap(), answered);
+
+        // The known-calls question and its answer. Appended last on both sides,
+        // so this is also where a discriminant slip in either would show.
+        let ask_known = Command::GetKnownCalls;
+        assert_eq!(decode::<Command>(&encode(&ask_known).unwrap()).unwrap(), ask_known);
+        let known = ServerMsg::KnownCalls(Some(sdroxide_types::KnownCallsReply {
+            calls: vec!["19DC373".into(), "19RF410".into()],
+            total: 340,
+        }));
+        assert_eq!(decode::<ServerMsg>(&encode(&known).unwrap()).unwrap(), known);
+        // The `None` half matters as much: it is how a client learns the mode
+        // keeps no table, rather than an empty band.
+        let no_table = ServerMsg::KnownCalls(None);
+        assert_eq!(decode::<ServerMsg>(&encode(&no_table).unwrap()).unwrap(), no_table);
 
         // The station-roster edits, and the announcement that answers them.
         // Appended variants, so this is also where a discriminant slip in the
