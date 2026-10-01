@@ -28,6 +28,7 @@ pub(in crate::app) mod contest;
 pub(in crate::app) mod cw_key;
 pub(in crate::app) mod drm;
 pub(in crate::app) mod frame;
+pub(in crate::app) mod grid_tracker;
 pub(in crate::app) mod hd;
 pub(in crate::app) mod hfdl;
 pub(in crate::app) mod ignore;
@@ -1080,6 +1081,9 @@ pub struct SdroxideApp {
     last_logged_qso_id: Option<u64>,
     /// Awards dashboard open state + band filter ("" = all bands).
     show_awards: bool,
+    /// Grid tracker window open state, and its pan/zoom + heard-layer toggle.
+    show_grid: bool,
+    grid_tracker: crate::app::grid_tracker::GridTracker,
     awards_band: String,
     /// Cached award tally, keyed by (log length, band filter).
     awards_cache: Option<(usize, String, sdroxide_types::Awards)>,
@@ -1825,6 +1829,8 @@ impl SdroxideApp {
             qso_upload_status: std::collections::HashMap::new(),
             last_logged_qso_id: None,
             show_awards: false,
+            show_grid: false,
+            grid_tracker: crate::app::grid_tracker::GridTracker::default(),
             awards_band: String::new(),
             awards_cache: None,
             awards_heat: None,

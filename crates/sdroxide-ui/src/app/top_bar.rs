@@ -5883,7 +5883,7 @@ impl SdroxideApp {
 
     /// The remaining window chips — the condensed System box's bottom row.
     fn system_chips_bottom(&mut self, ui: &mut egui::Ui, extra: f32, cmds: &mut Vec<Command>) {
-        let [mail, mem, scan_label, hfdl_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
+        let [mail, mem, scan_label, hfdl_label, grid_label, settings, help] = SYSTEM_CHIPS_BOTTOM;
         let simple = self.ui_settings.simple_ui;
         // The MAIL slot. SWL mode offers the signal-identification guide there
         // instead — the same guide the SWL LOG window's SIG ID chip opens —
@@ -5979,6 +5979,15 @@ impl SdroxideApp {
                 vfo: self.state.active_vfo,
                 hz: self.state.hfdl.frequency_hz,
             });
+        }
+        // Grid tracker: the worked squares on a map. A listener's tool too —
+        // the HEARD layer shades what is on the air now — so it stays in both
+        // interfaces and in SWL mode.
+        if chip_stretched(ui, self.show_grid, grid_label, extra)
+            .on_hover_text("Grid tracker — worked Maidenhead squares on a map, with what is heard")
+            .clicked()
+        {
+            self.show_grid = !self.show_grid;
         }
         if chip_stretched(ui, self.show_settings, settings, extra)
             .on_hover_text("Settings — device gains, antennas, audio devices")
@@ -6124,7 +6133,8 @@ impl PttPress {
 const SYSTEM_CHIPS_TOP: [&str; 7] = ["LOG", "SPOTS", "AWARDS", "BANDS", "SAT", "ISM", "PUBLIC SDR"];
 
 /// The rest of them. See [`SYSTEM_CHIPS_TOP`].
-const SYSTEM_CHIPS_BOTTOM: [&str; 6] = ["MAIL", "MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"];
+const SYSTEM_CHIPS_BOTTOM: [&str; 7] =
+    ["MAIL", "MEM", "SCAN", "HFDL", "GRID", "⚙ SETTINGS", "? HELP"];
 
 /// Which log the main-screen LOG chip opens: the listener's reception log in
 /// SWL mode, the QSO logbook otherwise.
@@ -8603,17 +8613,18 @@ mod tests {
         // row — where the simple interface keeps it, unlike radio email.
         assert_eq!(
             system_bottom_row(true, false),
-            vec!["MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]
+            vec!["MEM", "SCAN", "HFDL", "GRID", "⚙ SETTINGS", "? HELP"]
         );
         // SWL mode puts the signal guide in the MAIL slot, and keeps it even
-        // when the simple interface would have dropped radio email.
+        // when the simple interface would have dropped radio email. GRID stays:
+        // a map of worked squares with a heard layer is a listener's tool too.
         assert_eq!(
             system_bottom_row(false, true),
-            vec!["SIG ID", "MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]
+            vec!["SIG ID", "MEM", "SCAN", "HFDL", "GRID", "⚙ SETTINGS", "? HELP"]
         );
         assert_eq!(
             system_bottom_row(true, true),
-            vec!["SIG ID", "MEM", "SCAN", "HFDL", "⚙ SETTINGS", "? HELP"]
+            vec!["SIG ID", "MEM", "SCAN", "HFDL", "GRID", "⚙ SETTINGS", "? HELP"]
         );
     }
 
