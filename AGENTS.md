@@ -426,11 +426,12 @@ merged code still calls everything `sdroxide`.
     that talk about the review, the fork, or a "first version"** — upstream code
     should read as if it were always there.
 - `PROTO_VERSION` in `crates/sdroxide-proto` is a fork superset of upstream's:
-  upstream is at **170**, the fork's `main` at **179**. The fork's extras are
+  upstream is at **170**, the fork's `main` at **188**. The fork's extras are
   the listener identity (`NetworkConfig::swl_id`, `RadioConfig::callsign`,
   `RadioConfig::hide_tx`), `Command::ResetModeDefaults`, and the per-radio
-  additions — the register's full story is documented in
-  `crates/sdroxide-proto/src/lib.rs`. Upstream's v157/158 (SSTV styling and
+  additions — **the register's full story is in `crates/sdroxide-proto/src/lib.rs`,
+  which is the only place it is kept current**; the run of v171–v188 is
+  documented there, one entry per bump. Upstream's v157/158 (SSTV styling and
   the (tr)uSDX family), **v159 (NR2's three `NrLevel` variants)**, **v160
   (`CwStatus::rig_keys_itself`)** and **v165** (the band-decoder relay outputs,
   #442) were folded in by earlier merges. On the **2026-09-25 merge**
@@ -2156,18 +2157,47 @@ screen after every new session (fork discussion #4, kevin2008-01).
   screen never moves a window off a laptop or swallows a warning. (`UiSettings`
   was never an injection risk: it carries no URLs, paths or feeds, only scalars
   — an earlier note claiming otherwise was wrong.)
-- **Control bindings never travel by default.** A shared station is a shared
-  keyboard. An opt-in is *decided* (operator, 2026-10-01): a profile may carry
-  the bindings, but only behind a mandatory acknowledgement — the operator is
-  told the shared-keyboard risk and that other surprises may follow — and the
-  control is marked **not recommended**. Default stays off, so a shared station
-  keeps them local; the fork asks, it does not assume. Not built yet.
-- **Wire:** `ClientMsg::SetClientSettings` + `ServerMsg::ClientSettings`, both
-  **appended last**; `PROTO_VERSION` 185 → 186.
+- **Control bindings travel only behind an opt-in, and it is *gated*.** A shared
+  station is a shared keyboard. The decision (operator, 2026-10-01) was that a
+  profile *may* carry the bindings, but only behind a mandatory acknowledgement —
+  the operator is told the shared-keyboard risk and that other surprises may
+  follow — and the control is marked **not recommended**. Default stays off, so a
+  shared station keeps them local; the fork asks, it does not assume.
+  **Built on fork `main` (2026-10-01).** `UiSettings::client_share_bindings`
+  (default `false`) is the flag; the Settings → UI row is a checkbox that is
+  **not** a plain toggle: clicking it on only sets an `egui::Id` temp flag and
+  opens `egui::Modal`, and the flag itself is set from *after* the modal closes,
+  on the confirming button. Turning it **off** is immediate. The row is also
+  `add_enabled_ui(false)` unless the scope is `Server`, so the operator cannot
+  arm something that does nothing.
+  **Two things deliberately not done.** The flag is *not* in `ClientScreen`, so
+  opting in on one machine does not silently opt in another — it is a decision
+  made on a machine, not a property a profile carries. And a client that has not
+  opted in **ignores** stored bindings outright (`frame.rs`), rather than
+  adopting what a profile happens to hold.
+- **Wire, bindings:** a **separate** `ClientMsg::SetClientBindings` +
+  `ServerMsg::ClientBindings` pair, not a field on the screen messages, so the
+  default-off path cannot put a binding on the wire even by accident; both
+  **appended last**; `PROTO_VERSION` 187 → **188**. `InputSettings` rides it
+  whole and *is* postcard-safe (all `Vec`/`String`/enum/scalar, no custom
+  `deserialize_with` — unlike `UiSettings`), pinned by
+  `the_bindings_survive_a_postcard_round_trip` in `input.rs`. That test is the
+  trap to remember for the next wire field: a `deserialize_with` is what makes a
+  type postcard-unsafe, and only `UiSettings` has one.
+  **One consequence to keep in mind:** `InputSettings` rides whole, so an
+  **`Action` discriminant is on the wire for the first time**. Both ends must
+  already agree on `PROTO_VERSION`, so the bump covers it — but an `Action`
+  variant inserted mid-enum now shifts what the far end reads, so **append
+  `Action` variants only** and treat one as a wire change.
+- **Wire, screen:** `ClientMsg::SetClientSettings` + `ServerMsg::ClientSettings`,
+  both **appended last**; `PROTO_VERSION` 185 → 186.
 - **Store:** `sdroxide_config::ClientSettingsStore`, `clientsettings.json`,
   **per profile + a station default**, written through the ordinary config
   store. `sdroxide-config` had to move from the server's `[dev-dependencies]`
-  to `[dependencies]`.
+  to `[dependencies]`. The bindings ride the same file as two more `#[serde(
+  default)]` fields — `bindings_default: Option<InputSettings>` and `bindings:
+  BTreeMap<String, InputSettings>` — so a file written before this change still
+  loads, and one written with no bindings still loads in an older fork.
 - **Server:** pushes the stored set on connect and stores on request, both
   behind the existing sign-in. `handshake` now returns the signed-in username
   (captured from the `Auth` frame), which is the profile key. **On a passwordless
@@ -2176,7 +2206,10 @@ screen after every new session (fork discussion #4, kevin2008-01).
 - **Client:** applies only when `UiSettings::client_save_scope` is `Server`
   (`RadioEvent::ClientSettings` in `frame.rs`); pushes on save via
   `RadioController::send_client_settings` (defaulted no-op for the local engine).
-  The picker is Settings → UI → "Screen settings on".
+  The picker is Settings → UI → "Screen settings on". The bindings mirror all of
+  it: `push_client_bindings_if_server` gates on scope **and** the opt-in, and is
+  called both from the screen save (so *enabling* the opt-in seeds the server with
+  the keys in force) and from the Controls commit (so a rebind travels too).
 
 ## The Retro Radio faceplate (fork-only, 2026-09-30)
 

@@ -413,6 +413,16 @@ pub enum RadioEvent {
         profile: Option<String>,
         settings: crate::ClientScreen,
     },
+    /// A remote client's **control bindings**, sent by the server when it has
+    /// any stored for this client's profile. Applied only when the operator has
+    /// opted in ([`crate::UiSettings::client_share_bindings`]) — the default is
+    /// off, because a shared station's keyboard is shared.
+    ///
+    /// Client-local: it rides `ServerMsg::ClientBindings`, not the engine.
+    ClientBindings {
+        profile: Option<String>,
+        bindings: crate::InputSettings,
+    },
 }
 
 /// Snapshot of the frontend's switchable sound devices (native clients).
@@ -436,6 +446,13 @@ pub trait RadioController {
     /// in-process engine has no server to tell, and the settings are already in
     /// its own `config.toml`.
     fn send_client_settings(&mut self, _profile: Option<String>, _settings: crate::ClientScreen) {}
+
+    /// Hand a remote server this client's **control bindings**, when the
+    /// operator has opted in to carrying them there
+    /// ([`crate::UiSettings::client_share_bindings`]). Defaulted to nothing: the
+    /// in-process engine has no server, and the bindings are already in its own
+    /// `input.json`.
+    fn send_client_bindings(&mut self, _profile: Option<String>, _bindings: crate::InputSettings) {}
 
     /// Non-blocking; the UI drains this each frame until `None`.
     fn poll_event(&mut self) -> Option<RadioEvent>;

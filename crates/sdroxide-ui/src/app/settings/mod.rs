@@ -1376,6 +1376,8 @@ impl SdroxideApp {
             // will make again after the next restart.
             self.input.cfg = input_edit;
             self.input.persist();
+            // And, if the operator opted in, to the server profile too.
+            self.push_client_bindings_if_server();
         }
         self.tci_srv_edit = tci_srv_edit;
         if tci_srv_apply {

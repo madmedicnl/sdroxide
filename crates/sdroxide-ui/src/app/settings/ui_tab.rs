@@ -260,10 +260,10 @@ pub(in crate::app) fn settings_ui_tab(
              them with the profile you signed in as, so they follow the login \
              back from any machine — the fix for a stale screen after every \
              new session.\n\n\
-             Only the look travels, never your control bindings: a shared \
-             station is a shared keyboard, and those stay with the machine. \
-             Nothing here matters for a local radio, which always keeps its \
-             settings in its own file.",
+             Only the look travels by default. Your control bindings can be \
+             carried too, but that is a separate switch just below and it is \
+             not recommended — read its hover first. Nothing here matters for \
+             a local radio, which always keeps its settings in its own file.",
         );
         ui.horizontal(|ui| {
             ui.selectable_value(
@@ -277,6 +277,108 @@ pub(in crate::app) fn settings_ui_tab(
                 "On the server",
             );
         });
+        ui.end_row();
+
+        ui.label("Carry control bindings").on_hover_text(
+            "Also keep your keyboard and mouse bindings with the profile on the \
+             server, so they follow the login between browsers and devices — \
+             the same idea as the screen above, for the keys.\n\n\
+             **NOT RECOMMENDED, and off by default.** On a station several \
+             people share, the keyboard is shared with it: a profile that \
+             carries bindings can rebind another operator's PTT, Space or \
+             tuning keys the moment it signs in, and turning this on may have \
+             other effects that are not obvious now. Turn it on only where the \
+             server is yours alone and you reach it from several devices of \
+             your own.\n\n\
+             Does nothing unless the screen is also set **On the server** \
+             above. Fork-only: this is not an upstream feature.",
+        );
+        {
+            let server = cfg.client_save_scope == sdroxide_types::ClientSaveScope::Server;
+            // The opt-in is not a plain checkbox: turning it ON must be
+            // acknowledged, so the click opens a modal and the flag stays off
+            // until the operator confirms. Turning it OFF is immediate.
+            let confirm_id = egui::Id::new("client-share-bindings-confirm");
+            ui.horizontal(|ui| {
+                ui.add_enabled_ui(server, |ui| {
+                    let was = cfg.client_share_bindings;
+                    let mut shown = was;
+                    let resp = crate::chrome::checkbox(
+                        ui,
+                        &mut shown,
+                        if was {
+                            "on — NOT RECOMMENDED"
+                        } else {
+                            "carry them (not recommended)"
+                        },
+                    );
+                    if resp.clicked() {
+                        if shown && !was {
+                            ui.data_mut(|d| d.insert_temp(confirm_id, true));
+                        } else {
+                            cfg.client_share_bindings = shown;
+                        }
+                    }
+                });
+                // A greyed control that says nothing is the "does nothing and
+                // tells you no reason" bug this fork does not ship: name the
+                // switch that has to move first.
+                if !server {
+                    ui.label(
+                        RichText::new("— set the screen to On the server above")
+                            .weak()
+                            .small(),
+                    );
+                }
+            });
+            let confirming: bool = ui.data(|d| d.get_temp(confirm_id)).unwrap_or(false);
+            if confirming {
+                let mut enable = false;
+                let mut cancel = false;
+                egui::Modal::new(egui::Id::new("client-share-bindings-modal")).show(
+                    ui.ctx(),
+                    |ui| {
+                        ui.set_max_width(470.0);
+                        ui.heading(
+                            RichText::new("Carry control bindings on the server?")
+                                .color(crate::theme::ALERT()),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(
+                            "This stores your keyboard and mouse bindings with your profile on \
+                             the server, so they follow your login between browsers and devices.\n\n\
+                             On a station other people use, the keyboard is shared with it. A \
+                             profile that carries bindings can rebind another operator's PTT, \
+                             Space or tuning keys simply by signing in — and enabling this may \
+                             have other effects that are not obvious now.\n\n\
+                             That is why it is not recommended. Turn it on only if the server \
+                             is yours alone.",
+                        );
+                        ui.add_space(10.0);
+                        ui.horizontal(|ui| {
+                            if ui
+                                .button(
+                                    RichText::new("I understand — carry them anyway")
+                                        .color(crate::theme::ALERT()),
+                                )
+                                .clicked()
+                            {
+                                enable = true;
+                            }
+                            if ui.button("Cancel").clicked() {
+                                cancel = true;
+                            }
+                        });
+                    },
+                );
+                if enable {
+                    cfg.client_share_bindings = true;
+                }
+                if enable || cancel {
+                    ui.data_mut(|d| d.remove_temp::<bool>(confirm_id));
+                }
+            }
+        }
         ui.end_row();
 
         ui.label("Start in SWL mode").on_hover_text(

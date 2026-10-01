@@ -1473,6 +1473,21 @@ impl SdroxideApp {
                         self.client_settings_from = Some(profile);
                     }
                 }
+                RadioEvent::ClientBindings { profile, bindings } => {
+                    // Apply only when this client opted in to carrying its
+                    // bindings in the server profile — off by default, because
+                    // on a shared station the keyboard is shared. Applied and
+                    // written out at once, so the restored keys survive a
+                    // reload the same way a rebind does.
+                    if self.ui_settings.client_save_scope == sdroxide_types::ClientSaveScope::Server
+                        && self.ui_settings.client_share_bindings
+                    {
+                        self.input.cfg = bindings;
+                        self.input.cfg.migrate();
+                        self.input.persist();
+                        self.client_settings_from = Some(profile);
+                    }
+                }
                 RadioEvent::ConnectionLost(e) => {
                     if self.focused {
                         self.speech.announcer.on_error(&e, now);
@@ -2215,9 +2230,25 @@ impl SdroxideApp {
         }
         let profile = self.client_settings_from.clone().flatten();
         self.ctrl.send_client_settings(
-            profile,
+            profile.clone(),
             sdroxide_types::ClientScreen::from_settings(&self.ui_settings),
         );
+        // Turning the bindings opt-in on is a `UiSettings` change, so enabling
+        // it seeds the server with the bindings now in force.
+        self.push_client_bindings_if_server();
+    }
+
+    /// Send this client's control bindings to the server, when the operator has
+    /// opted in *and* asked to keep the screen there. A no-op otherwise, so the
+    /// default-off path can never put a binding on the wire.
+    pub(in crate::app) fn push_client_bindings_if_server(&mut self) {
+        if self.ui_settings.client_save_scope != sdroxide_types::ClientSaveScope::Server
+            || !self.ui_settings.client_share_bindings
+        {
+            return;
+        }
+        let profile = self.client_settings_from.clone().flatten();
+        self.ctrl.send_client_bindings(profile, self.input.cfg.clone());
     }
 
     /// Dispatch keyboard and mouse-button bindings for this frame.

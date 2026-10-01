@@ -13,7 +13,15 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Control bindings can be kept on the server, behind an opt-in** — a remote
+  client may store its keyboard and mouse bindings with the profile it signed in
+  as, so they follow the login between browsers and devices, as the screen
+  settings already do. **Off by default and marked not recommended**, because on a
+  station other people use the keyboard is shared: turning it **on** asks for an
+  explicit acknowledgement first, and a client that has not opted in ignores
+  stored bindings entirely. Settings → UI, under "Screen settings on".
 
 ## [1.9.11_brown] - 2026-10-01
 

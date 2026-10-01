@@ -14325,11 +14325,27 @@ typed and said no.
   can instead keep it **on the server**, against the profile you signed in as
   (or the station default when that profile has none), so the screen follows the
   login back from any machine and a new session does not come up stale.
-  Only the look travels: your **control bindings** stay with the browser, so one
-  login cannot rebind another's keys on a shared station. Nothing here affects a
-  local radio, which always keeps its settings in its own file. The per-profile
-  set and the station default are `clientsettings.json` in the server's config
-  directory.
+  Only the look travels by default: your **control bindings** stay with the
+  browser, so one login cannot rebind another's keys on a shared station.
+  Nothing here affects a local radio, which always keeps its settings in its own
+  file. The per-profile set and the station default are `clientsettings.json` in
+  the server's config directory.
+- **Carrying your control bindings too — off by default, and not recommended.**
+  The row just under **Screen settings on** will keep your keyboard and mouse
+  bindings with the profile on the server as well, so they follow your login
+  between browsers and devices. It is **off** unless you turn it on, and it only
+  does anything when the screen is also set **On the server**.
+  Turning it **on** is not a plain tick: a box asks you to confirm first, and
+  nothing is enabled until you do. The reason is that on a station other people
+  use, the keyboard is shared with the station. A profile that carries bindings
+  can rebind another operator's PTT, Space or tuning keys simply by signing in —
+  and enabling it may have other effects that are not obvious now. **Turn it on
+  only where the server is yours alone** and you reach it from several devices
+  of your own. Turning it **off** is immediate and takes effect at once.
+  A client that has not opted in ignores stored bindings entirely, and the
+  opt-in itself stays local to that client: it is a decision you make on a
+  machine, not something a profile carries to another one. (A fork-only feature
+  — it is not in upstream SDR Oxide.)
 - **No encryption.** The server speaks plain `ws://` and binds to all interfaces
   by default. The sign-in ([8.3](#83-sign-in-who-may-operate-the-station))
   decides who may operate the radio, but nothing here is confidential in

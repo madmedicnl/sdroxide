@@ -789,6 +789,17 @@ pub struct UiSettings {
     /// from. Both answers are right for somebody, so it is a choice.
     #[serde(default)]
     pub client_save_scope: ClientSaveScope,
+    /// Also carry this remote client's **control bindings** in that server
+    /// profile, not only its screen.
+    ///
+    /// Off by default, and **not recommended**. On a station several people
+    /// share, the keyboard is shared too: a profile that carries bindings would
+    /// rebind another operator's PTT, Space or tuning keys merely by signing
+    /// in. The setting is for a one-person server reached from several devices,
+    /// where the bindings hurt nobody — and turning it on asks for an
+    /// acknowledgement of the risk first. Fork-only.
+    #[serde(default)]
+    pub client_share_bindings: bool,
 }
 
 /// Where a remote client keeps its screen settings — see
@@ -910,6 +921,7 @@ impl Default for UiSettings {
             start_swl: false,
             solar3d_window: None,
             client_save_scope: ClientSaveScope::default(),
+            client_share_bindings: false,
         }
     }
 }

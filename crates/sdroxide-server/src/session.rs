@@ -14,7 +14,8 @@ use tracing::{info, warn};
 
 use sdroxide_config as config;
 use sdroxide_proto::{
-    AudioCaps, AudioCodec, ClientMsg, ClientSettingsReply, PROTO_VERSION, ServerMsg, decode, encode,
+    AudioCaps, AudioCodec, ClientBindingsReply, ClientMsg, ClientSettingsReply, PROTO_VERSION,
+    ServerMsg, decode, encode,
 };
 use sdroxide_types::Command;
 
@@ -253,6 +254,9 @@ async fn run_session(
     // profile it signed in as (its own set, else the station default). Offered
     // unconditionally — the client decides from its own `client_save_scope`
     // whether to apply them, and reading a small JSON here costs nothing.
+    //
+    // Beside them, the opt-in control bindings, on the same terms: offered, and
+    // applied only by a client whose operator enabled them.
     {
         let store = config::load_client_settings();
         let profile = (!login.is_empty()).then_some(login);
@@ -261,6 +265,14 @@ async fn run_session(
                 .send(msg(&ServerMsg::ClientSettings(ClientSettingsReply {
                     profile: from,
                     settings,
+                })))
+                .await;
+        }
+        if let Some((from, bindings)) = store.bindings_for_profile(profile) {
+            let _ = socket
+                .send(msg(&ServerMsg::ClientBindings(ClientBindingsReply {
+                    profile: from,
+                    bindings,
                 })))
                 .await;
         }
@@ -514,6 +526,33 @@ async fn run_session(
                         {
                             let _ = s.reliable.try_send(ServerMsg::ClientSettings(
                                 ClientSettingsReply { profile: from, settings: stored },
+                            ));
+                        }
+                    }
+                }
+                // This client's opt-in control bindings, kept beside its screen.
+                // The server stores whatever it is given, per profile: whether
+                // the operator actually acknowledged the risk is a question only
+                // the sending client can answer, and it is the *applying* client
+                // that re-checks its own opt-in. So a binding cannot reach an
+                // operator who did not ask for one.
+                Ok(ClientMsg::SetClientBindings { profile, bindings }) => {
+                    let done = tokio::task::spawn_blocking(move || {
+                        let mut store = config::load_client_settings();
+                        store.set_bindings(profile.as_deref(), bindings);
+                        config::save_client_settings(&store).map_err(|e| e.to_string())
+                    })
+                    .await;
+                    let ok = matches!(done, Ok(Ok(())));
+                    report(shared, done, "saving the control bindings");
+                    if ok {
+                        let store = config::load_client_settings();
+                        let profile = (!login.is_empty()).then_some(login);
+                        if let Some((from, stored)) = store.bindings_for_profile(profile)
+                            && let Some(s) = shared.session.lock().unwrap().as_ref()
+                        {
+                            let _ = s.reliable.try_send(ServerMsg::ClientBindings(
+                                ClientBindingsReply { profile: from, bindings: stored },
                             ));
                         }
                     }

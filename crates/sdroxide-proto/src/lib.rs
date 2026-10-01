@@ -1617,7 +1617,8 @@ use sdroxide_types::{
 /// against the profile it signed in as (`UiSettings::client_save_scope`). New
 /// `ClientMsg::SetClientSettings` and `ServerMsg::ClientSettings`, both
 /// **appended last**. Only the presentation half of `UiSettings` travels, and
-/// never the control bindings. A downstream (fork) addition.
+/// never the control bindings — which v188 later makes an opt-in of its own. A
+/// downstream (fork) addition.
 ///
 /// v187: the ALC reading is optional, and the per-band gain switch. Two
 /// changes, either of which forces the bump. `TxMeters::alc` became
@@ -1630,7 +1631,22 @@ use sdroxide_types::{
 /// `RadioState::gain_by_band` and `Command::SetGainByBand` (issue #605), the
 /// opt-in per-band front-end gain memory. Same reasoning as v68, which bumped
 /// for this very struct. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 187;
+///
+/// v188: a remote client may **opt in** to carrying its **control bindings** in
+/// the server profile, beside its screen. New `ClientMsg::SetClientBindings`
+/// and `ServerMsg::ClientBindings`, both **appended last**. Fork-only, and
+/// deliberately gated: a shared station's keyboard is shared, so a client sends
+/// nothing and applies nothing unless its operator enabled it and acknowledged
+/// the risk. Kept as its own message pair rather than a field on the screen
+/// messages so the default-off path cannot send a binding by accident.
+///
+/// The payload is `InputSettings` **whole**, and that puts an `Action`
+/// discriminant on the wire for the first time. Both ends already have to agree
+/// on `PROTO_VERSION` to get this far, so the bump covers it — but an `Action`
+/// variant inserted mid-enum now shifts what the other end reads, so **append
+/// `Action` variants only**, and treat one as a wire change like any other. The
+/// same struct travels in `RadioEvent`, which never leaves the process.
+pub const PROTO_VERSION: u16 = 188;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -1742,15 +1758,30 @@ pub enum ClientMsg {
     /// [`sdroxide_types::UiSettings::client_save_scope`].
     ///
     /// Only the **presentation** half of the settings travels (see
-    /// [`sdroxide_types::presentation_only`]), and never the control bindings:
-    /// a shared station's keyboard belongs to the machine, and sending
-    /// bindings would let one login rebind another's keys. Appended last, as
-    /// ever — postcard encodes the variant positionally.
+    /// [`sdroxide_types::presentation_only`]). Control bindings are *not* here:
+    /// a shared station's keyboard belongs to the machine, and sending bindings
+    /// would let one login rebind another's keys. They travel only through
+    /// [`ClientMsg::SetClientBindings`], which the client sends only when its
+    /// operator has opted in. Appended last, as ever — postcard encodes the
+    /// variant positionally.
     SetClientSettings {
         /// The profile to store against, or `None` for the station default
         /// every client with no profile settings of its own falls back to.
         profile: Option<String>,
         settings: sdroxide_types::ClientScreen,
+    },
+    /// Store this client's **control bindings** on the server, against the
+    /// profile it signed in as, so they follow the operator between browsers
+    /// and devices.
+    ///
+    /// **Sent only when the operator has enabled it** (`UiSettings::
+    /// client_share_bindings`), and only after acknowledging the risk. A shared
+    /// station's keyboard is a shared radio: one login carrying its bindings
+    /// would rebind another operator's PTT or Space. Appended last, as ever.
+    SetClientBindings {
+        /// The profile to store against, or `None` for the station default.
+        profile: Option<String>,
+        bindings: sdroxide_types::InputSettings,
     },
 }
 
@@ -2115,6 +2146,14 @@ pub enum ServerMsg {
     ///
     /// Appended last, for the usual reason.
     ClientSettings(ClientSettingsReply),
+
+    /// A client's stored **control bindings**, replayed on connect when it has
+    /// any on the server. The client applies them only when its operator opted
+    /// in; a client that did not ignores them. Also sent back after a
+    /// [`ClientMsg::SetClientBindings`].
+    ///
+    /// Appended last, for the usual reason.
+    ClientBindings(ClientBindingsReply),
 }
 
 /// What [`ServerMsg::ClientSettings`] carries.
@@ -2123,6 +2162,14 @@ pub struct ClientSettingsReply {
     /// The profile these came from, or `None` when this is the station default.
     pub profile: Option<String>,
     pub settings: sdroxide_types::ClientScreen,
+}
+
+/// What [`ServerMsg::ClientBindings`] carries.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClientBindingsReply {
+    /// The profile these came from, or `None` when this is the station default.
+    pub profile: Option<String>,
+    pub bindings: sdroxide_types::InputSettings,
 }
 
 /// One radio in a station's roster, as a client sees it.
@@ -2210,6 +2257,20 @@ mod tests {
         let answered = ServerMsg::ClientSettings(ClientSettingsReply {
             profile: Some("Contest".into()),
             settings,
+        });
+        assert_eq!(decode::<ServerMsg>(&encode(&answered).unwrap()).unwrap(), answered);
+
+        // The opt-in control bindings, both directions — also appended, so a
+        // discriminant slip in either would show here too.
+        let bindings = sdroxide_types::InputSettings::default();
+        let ask = ClientMsg::SetClientBindings {
+            profile: Some("Contest".into()),
+            bindings: bindings.clone(),
+        };
+        assert_eq!(decode::<ClientMsg>(&encode(&ask).unwrap()).unwrap(), ask);
+        let answered = ServerMsg::ClientBindings(ClientBindingsReply {
+            profile: Some("Contest".into()),
+            bindings,
         });
         assert_eq!(decode::<ServerMsg>(&encode(&answered).unwrap()).unwrap(), answered);
 

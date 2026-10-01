@@ -1765,8 +1765,11 @@ pub fn save_bandstacks(stacks: &BandStacks) -> Result<(), ConfigError> {
 /// profile's screen; one with no profile of its own gets the default.
 ///
 /// Only [`sdroxide_types::UiSettings`] is stored, and only its **presentation**
-/// half (see [`sdroxide_types::ClientScreen`]); the control bindings are
-/// never stored, because a shared station's keyboard belongs to the machine.
+/// half (see [`sdroxide_types::ClientScreen`]) — plus, in the `bindings` maps,
+/// the control bindings of a client that opted in to carrying them. The screen
+/// is stored for every client; the bindings only when one sends them, which a
+/// client does only behind its operator's acknowledgement, because a shared
+/// station's keyboard belongs to the machine.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct ClientSettingsStore {
@@ -1774,6 +1777,10 @@ pub struct ClientSettingsStore {
     pub default: Option<sdroxide_types::ClientScreen>,
     /// Per-profile sets, keyed by the profile name the client signed in as.
     pub profiles: std::collections::BTreeMap<String, sdroxide_types::ClientScreen>,
+    /// Control bindings for a client that opted in, station-wide.
+    pub bindings_default: Option<sdroxide_types::InputSettings>,
+    /// Control bindings per profile, for clients that opted in.
+    pub bindings: std::collections::BTreeMap<String, sdroxide_types::InputSettings>,
 }
 
 impl ClientSettingsStore {
@@ -1799,6 +1806,30 @@ impl ClientSettingsStore {
                 self.profiles.insert(name.to_string(), settings);
             }
             None => self.default = Some(settings),
+        }
+    }
+
+    /// The control bindings for `profile`, its own set else the default, with
+    /// the name they came from. `None` when the store holds none for it.
+    pub fn bindings_for_profile(
+        &self,
+        profile: Option<&str>,
+    ) -> Option<(Option<String>, sdroxide_types::InputSettings)> {
+        if let Some(name) = profile
+            && let Some(b) = self.bindings.get(name)
+        {
+            return Some((Some(name.to_string()), b.clone()));
+        }
+        self.bindings_default.clone().map(|b| (None, b))
+    }
+
+    /// Store `bindings` against `profile`, or as the default when it is `None`.
+    pub fn set_bindings(&mut self, profile: Option<&str>, bindings: sdroxide_types::InputSettings) {
+        match profile {
+            Some(name) => {
+                self.bindings.insert(name.to_string(), bindings);
+            }
+            None => self.bindings_default = Some(bindings),
         }
     }
 }
@@ -2406,6 +2437,31 @@ mod tests {
         let (from, s) = store.for_profile(Some("DX")).expect("the default");
         assert!(from.is_none());
         assert!(s.simple_ui && !s.retro_radio);
+    }
+
+    /// The opt-in bindings sit beside the screen, with the same profile/default
+    /// fallback, and are absent until a client actually sends some — an older
+    /// `clientsettings.json` has neither key and still loads.
+    #[test]
+    fn the_client_settings_store_holds_bindings_only_when_given() {
+        let mut store = ClientSettingsStore::default();
+        assert!(store.bindings_for_profile(Some("Contest")).is_none());
+        assert!(store.bindings_for_profile(None).is_none());
+
+        store.set_bindings(Some("Contest"), sdroxide_types::InputSettings::default());
+        let (from, _) = store.bindings_for_profile(Some("Contest")).expect("its own");
+        assert_eq!(from.as_deref(), Some("Contest"));
+        // A profile with none of its own falls back only when there is a
+        // default; here there is not.
+        assert!(store.bindings_for_profile(Some("DX")).is_none());
+
+        store.set_bindings(None, sdroxide_types::InputSettings::default());
+        assert!(store.bindings_for_profile(Some("DX")).is_some(), "the default now");
+
+        // The old shape (screen only) deserialises with the new keys defaulted.
+        let old = r#"{"default":null,"profiles":{}}"#;
+        let loaded: ClientSettingsStore = serde_json::from_str(old).unwrap();
+        assert!(loaded.bindings_for_profile(None).is_none());
     }
 
     #[test]

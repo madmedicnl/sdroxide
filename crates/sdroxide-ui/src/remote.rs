@@ -351,6 +351,9 @@ impl RemoteController {
             ServerMsg::ClientSettings(r) => self
                 .pending
                 .push_back(RadioEvent::ClientSettings { profile: r.profile, settings: r.settings }),
+            ServerMsg::ClientBindings(r) => self
+                .pending
+                .push_back(RadioEvent::ClientBindings { profile: r.profile, bindings: r.bindings }),
             // Dropped rather than decoded while another tab holds the page's
             // single output: the work saved is the point on a browser tab
             // holding several radios.
@@ -633,6 +636,14 @@ impl RadioController for RemoteController {
         settings: sdroxide_types::ClientScreen,
     ) {
         self.send_msg(ClientMsg::SetClientSettings { profile, settings });
+    }
+
+    fn send_client_bindings(
+        &mut self,
+        profile: Option<String>,
+        bindings: sdroxide_types::InputSettings,
+    ) {
+        self.send_msg(ClientMsg::SetClientBindings { profile, bindings });
     }
 
     fn send(&mut self, cmd: Command) {

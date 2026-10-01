@@ -1173,4 +1173,23 @@ mod tests {
         let inv = BindingTuning { invert: true, ..t };
         assert_eq!(inv.effective_step(0.0), -10.0);
     }
+
+    /// The bindings ride postcard when a remote client opts in to keeping them
+    /// on the server (`ClientMsg::SetClientBindings`), so they have to survive
+    /// it — unlike `UiSettings`, which cannot. `InputSettings` is all `Vec`s,
+    /// `String`s, enums and scalars with no custom deserializer, which is what
+    /// makes it safe; this is the test that would fail first if that changed.
+    #[test]
+    fn the_bindings_survive_a_postcard_round_trip() {
+        let mut settings = InputSettings::default();
+        settings.ptt_hold_timeout_s = 1.25;
+        settings.keys.push(KeyBinding {
+            chord: KeyChord { key: "F13".into(), ctrl: true, ..KeyChord::default() },
+            action: Action::Ptt,
+            ..KeyBinding::default()
+        });
+        let bytes = postcard::to_allocvec(&settings).expect("encodes");
+        let back: InputSettings = postcard::from_bytes(&bytes).expect("decodes");
+        assert_eq!(back, settings);
+    }
 }

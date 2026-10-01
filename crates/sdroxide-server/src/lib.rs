@@ -1257,6 +1257,8 @@ fn handle_event(shared: &Shared, ev: RadioEvent) {
             // Client-local, and never from the engine: a stored screen is sent
             // by the session itself when a client connects, not relayed here.
             RadioEvent::ClientSettings { .. } => None,
+            // Likewise the opt-in control bindings.
+            RadioEvent::ClientBindings { .. } => None,
         }
     };
     // The satellite half of the station config also drives this machine's own
