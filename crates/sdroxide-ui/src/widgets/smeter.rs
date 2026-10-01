@@ -683,9 +683,17 @@ struct Reading {
 
 fn reading(meters: Option<&Meters>) -> Reading {
     if let Some(tx) = meters.and_then(|m| m.tx.as_ref()) {
+        // The rig's ALC, or a dash when it has not reported one. A false "0%"
+        // for a rig that simply never answered is the bug in issue #600: the
+        // operator cannot tell a barely-moving transmitter from one sdroxide
+        // is not reading.
+        let alc_text = match tx.alc {
+            Some(a) => format!("ALC {:.0}%", a.clamp(0.0, 1.0) * 100.0),
+            None => "ALC —".to_string(),
+        };
         let power = match tx.fwd_w {
             Some(w) => format!("{w:.1} W"),
-            None => format!("ALC {:.0}%", tx.alc.clamp(0.0, 1.0) * 100.0),
+            None => alc_text,
         };
         return match tx.swr {
             Some(swr) => Reading {
@@ -701,7 +709,7 @@ fn reading(meters: Option<&Meters>) -> Reading {
             // level, which is the only TX quantity every backend reports.
             None => Reading {
                 scale: alc_scale(),
-                frac: tx.alc.clamp(0.0, 1.0),
+                frac: tx.alc.unwrap_or(0.0).clamp(0.0, 1.0),
                 chip: "TX".to_string(),
                 accent: RED(),
                 right: power,
@@ -1115,7 +1123,7 @@ fn show_bar(ui: &mut Ui, meters: Option<&Meters>, size: Vec2) -> Response {
             );
         };
         row_label(drive_rect, "ALC");
-        bar_row(&p, drive_rect, &alc, tx.alc.clamp(0.0, 1.0), None);
+        bar_row(&p, drive_rect, &alc, tx.alc.unwrap_or(0.0).clamp(0.0, 1.0), None);
         match (lower, lower_rect) {
             (Some((label, scale, frac, hold)), Some(lower_rect)) => {
                 row_label(lower_rect, label);
@@ -1424,7 +1432,31 @@ fn show_trace(ui: &mut Ui, meters: Option<&Meters>, size: Vec2) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::SmeterStyle;
+    use super::{SmeterStyle, reading};
+    use sdroxide_types::{Meters, TxMeters};
+
+    /// A rig that has not answered an ALC read must read as *not reported*, not
+    /// as a confident `0%`. The two were the same string before issue #600, and
+    /// the operator could not tell a barely-moving transmitter from one this
+    /// program was not reading at all.
+    #[test]
+    fn an_unreported_alc_says_so_rather_than_reading_zero() {
+        let keyed = |alc: Option<f32>| Meters {
+            s_dbm: -100.0,
+            pa_temp_c: None,
+            adc_overload: None,
+            adc_peak_dbfs: -30.0,
+            adc_clip: 0.0,
+            tx: Some(TxMeters { fwd_w: None, swr: None, alc, po: None }),
+            stereo: false,
+            tone: None,
+            passband_dbfs: f32::NEG_INFINITY,
+            puresignal: None,
+        };
+        assert_eq!(reading(Some(&keyed(None))).right, "ALC —", "a missing reading must say so");
+        assert_eq!(reading(Some(&keyed(Some(0.0)))).right, "ALC 0%", "a real zero is a zero");
+        assert_eq!(reading(Some(&keyed(Some(0.5)))).right, "ALC 50%");
+    }
 
     #[test]
     fn the_compact_cycle_visits_every_face_it_can_show_and_no_others() {

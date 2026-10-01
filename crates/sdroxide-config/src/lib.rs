@@ -1258,8 +1258,8 @@ pub fn recordings_dir_path() -> Result<PathBuf, ConfigError> {
     if std::env::var_os("SDROXIDE_CONFIG_DIR").is_some() {
         return Ok(config_dir()?.join("recordings"));
     }
-    let music = directories::UserDirs::new()
-        .and_then(|u| u.audio_dir().map(std::path::Path::to_path_buf));
+    let music =
+        directories::UserDirs::new().and_then(|u| u.audio_dir().map(std::path::Path::to_path_buf));
     pick_recordings_dir(Settings::load().recordings_dir.as_deref(), music)
 }
 
@@ -1472,6 +1472,29 @@ pub struct Session {
     /// assertion, the same rule the two memories above follow.
     #[serde(default)]
     pub vfo_antennas: Option<[(Option<String>, Option<String>); 2]>,
+    /// Remember a separate front-end gain per band, and recall it on a band
+    /// change. **Off by default** — see [`Self::band_gains`].
+    ///
+    /// Opt-in because moving the gain on every band change is a surprise an
+    /// operator who never asked for it would meet as a radio that suddenly
+    /// hears differently; the switch is the operator choosing that behaviour,
+    /// not this code choosing it for them.
+    #[serde(default)]
+    pub gain_by_band: bool,
+    /// The gain stages remembered for each band — `(element, dB)` pairs with
+    /// the same shape [`Self::gains`] holds, but keyed by band.
+    ///
+    /// A receiver's right gain is a property of where the dial is: an RTL-SDR
+    /// that needs 10 dB on 40 m to stay out of its own noise will overload on
+    /// 10 dB at 70 cm and wants 40 there. One number for the whole front end
+    /// cannot serve both, and the operator was setting it by hand on every QSY.
+    /// The 11 m band is a band like any other, so a CB operator's 11 m set keeps
+    /// its own entry beside the ham bands'.
+    ///
+    /// Empty, and unread, unless [`Self::gain_by_band`] is on. Absent in a
+    /// session written before this existed.
+    #[serde(default)]
+    pub band_gains: std::collections::HashMap<sdroxide_types::Band, Vec<(String, f64)>>,
 }
 
 /// Which antenna socket was last chosen on each band — see
@@ -1524,6 +1547,9 @@ impl Default for Session {
             // chosen on it — nothing moves a relay before the operator has
             // said what belongs where.
             vfo_antennas: None,
+            // No per-band gain memory until the operator turns it on.
+            gain_by_band: false,
+            band_gains: std::collections::HashMap::new(),
         }
     }
 }
@@ -2495,6 +2521,11 @@ mod tests {
                 (Some("ANT1".into()), None),
                 (Some("ANT2".into()), Some("ANT2".into())),
             ]),
+            gain_by_band: true,
+            band_gains: std::collections::HashMap::from([(
+                sdroxide_types::Band::M11,
+                vec![("LNA".to_string(), 40.0)],
+            )]),
         };
         let back: Session = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(back, s);
@@ -3147,9 +3178,13 @@ mod tests {
     fn the_brown_dir_appends_to_the_whole_name() {
         let base = std::path::Path::new("/home/u/.config/sdroxide");
         let name = base.file_name().map(|n| format!("{}-brown", n.to_string_lossy())).unwrap();
-        assert_eq!(base.with_file_name(name), std::path::Path::new("/home/u/.config/sdroxide-brown"));
+        assert_eq!(
+            base.with_file_name(name),
+            std::path::Path::new("/home/u/.config/sdroxide-brown")
+        );
 
-        let mac = std::path::Path::new("/Users/u/Library/Application Support/org.sdroxide.sdroxide");
+        let mac =
+            std::path::Path::new("/Users/u/Library/Application Support/org.sdroxide.sdroxide");
         let name = mac.file_name().map(|n| format!("{}-brown", n.to_string_lossy())).unwrap();
         assert_eq!(
             mac.with_file_name(name),

@@ -588,6 +588,12 @@ pub struct RadioState {
     /// postcard numbers fields by position.
     #[serde(default)]
     pub hfdl: crate::HfdlSettings,
+    /// Whether the front-end gain is remembered per band and recalled on a band
+    /// change (issue #605). The table itself lives in the session; this travels
+    /// so a remote client's Settings tab shows the switch's real state rather
+    /// than a local guess. Appended last: postcard numbers fields by position.
+    #[serde(default)]
+    pub gain_by_band: bool,
 }
 
 impl Default for RadioState {
@@ -640,6 +646,7 @@ impl Default for RadioState {
             // knows, and it says so in the first state it sends.
             hd_radio_unavailable: None,
             hfdl: crate::HfdlSettings::default(),
+            gain_by_band: false,
         }
     }
 }

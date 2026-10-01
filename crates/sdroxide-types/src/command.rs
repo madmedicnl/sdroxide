@@ -1183,4 +1183,8 @@ pub enum Command {
         rx: RxId,
         mode: Mode,
     },
+    /// Turn the per-band front-end gain memory on or off (issue #605). Appended
+    /// for the usual reason. The stored table lives in the session; this is the
+    /// switch that decides whether a band change recalls from it.
+    SetGainByBand(bool),
 }

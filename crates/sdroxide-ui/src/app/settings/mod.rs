@@ -1967,6 +1967,31 @@ impl SdroxideApp {
                     );
                 }
                 ui.add_space(6.0);
+                // Per-band front-end gain memory (issue #605). Opt-in, and it
+                // lives on the station tab rather than a backend tab because it
+                // is station behaviour, not a property of any one driver: the
+                // switch reads back through `RadioState`, so a remote client
+                // shows the real state rather than a local guess.
+                {
+                    let mut on = self.state.gain_by_band;
+                    if ui
+                        .checkbox(
+                            &mut on,
+                            RichText::new("Remember the front-end gain per band").size(12.0),
+                        )
+                        .on_hover_text(
+                            "Keep a separate receiver gain for each band and restore it when the \
+                             dial crosses into that band. Set your HF gain once and your 11 m or \
+                             VHF gain once; the radio follows the band.\n\n\
+                             Off by default. While off, one gain applies everywhere, exactly as \
+                             before. Turning it on records the band you are on now, so no band is \
+                             left without one; a band you have never set keeps the current gain.",
+                        )
+                        .changed()
+                    {
+                        cmds.push(Command::SetGainByBand(on));
+                    }
+                }
                 ui.label(
                     RichText::new(
                         "Your callsign and grid, shared across FT8/FT4/FT2, SSTV image headers, \

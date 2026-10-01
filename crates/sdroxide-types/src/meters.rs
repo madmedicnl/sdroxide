@@ -21,8 +21,17 @@ pub struct TxMeters {
     /// Forward power in watts, if the device exposes a sensor for it.
     pub fwd_w: Option<f32>,
     pub swr: Option<f32>,
-    /// 0.0..=1.0 modulation drive level.
-    pub alc: f32,
+    /// ALC as `0.0..=1.0`, or `None` when the rig has not reported one.
+    ///
+    /// [`Option`] rather than the engine's own drive level, because the two are
+    /// different claims and only the rig's is the answer to "am I overdriving
+    /// it". A rig that never answers an ALC read must read as **not reported**,
+    /// not as a confident `0%`: the two look identical on the meter otherwise,
+    /// and the operator cannot tell a transmitter that is genuinely barely
+    /// moving from one whose meter sdroxide is not reading at all (issue #600,
+    /// three Icom LAN users). When nothing reported one this falls back to the
+    /// engine's own drive level, which is what that field used to be.
+    pub alc: Option<f32>,
     /// The rig's own power-output meter as a `0.0..=1.0` fraction of full
     /// scale, if it has one. Deliberately not watts: see [`TxTelemetry::po`].
     pub po: Option<f32>,

@@ -17,13 +17,12 @@ use sdroxide_adsb::{AdsbAction, AdsbController};
 use sdroxide_ais::{AisAction, AisController};
 use sdroxide_config::BandStacks;
 use sdroxide_digi::{
-    AcarsController, AleController, AprsController, AtChatController, CwController, DigiAction, DigiController,
-    DigiEngine, DscController, Fsk441Controller, FsqController, Fst4Controller, HellController,
-    Js8Controller,
-    JtController, NavtexController, PacketController, Pi4Controller, Q65Controller, RadeController,
-    JttyController, RfPaintController, RifpController, SstvController, TextModemController,
-    UvPacketController,
-    WefaxController, WsprController,
+    AcarsController, AleController, AprsController, AtChatController, CwController, DigiAction,
+    DigiController, DigiEngine, DscController, Fsk441Controller, FsqController, Fst4Controller,
+    HellController, Js8Controller, JtController, JttyController, NavtexController,
+    PacketController, Pi4Controller, Q65Controller, RadeController, RfPaintController,
+    RifpController, SstvController, TextModemController, UvPacketController, WefaxController,
+    WsprController,
 };
 use sdroxide_drm::DrmDemod;
 use sdroxide_dsp::{
@@ -1934,7 +1933,10 @@ fn unix_now_f64() -> f64 {
 /// The other side of every such path is the operator, wherever they are; the
 /// station side is whatever the decode names. Unresolved callsigns name no
 /// continent and are skipped.
-fn cb_paths(decodes: &[sdroxide_types::Decode], to_continent: &'static str) -> Vec<sdroxide_types::BandPath> {
+fn cb_paths(
+    decodes: &[sdroxide_types::Decode],
+    to_continent: &'static str,
+) -> Vec<sdroxide_types::BandPath> {
     let mut out: Vec<sdroxide_types::BandPath> = Vec::new();
     for d in decodes {
         let Some(from_c) = d.from.as_deref().filter(|c| !c.is_empty()) else { continue };
@@ -3106,6 +3108,14 @@ struct Engine {
     /// not offer are held rather than dropped, so swapping back to the front
     /// end they belong to brings them back.
     want_gains: (GainSet, GainSet),
+    /// Remember a separate front-end gain per band and recall it on a band
+    /// change. Opt-in, held here so a band change can act on it — see
+    /// [`sdroxide_config::Session::gain_by_band`] and
+    /// [`Engine::recall_band_gain`].
+    gain_by_band: bool,
+    /// The gain stages remembered per band, RX only — the band-keyed companion
+    /// to [`Self::want_gains`]. See [`sdroxide_config::Session::band_gains`].
+    band_gains: std::collections::HashMap<Band, GainSet>,
     /// How far the operator wants the raw IQ decimated, held for the same
     /// reason [`Self::want_gains`] is and re-asked of every front end that is
     /// opened.
@@ -4033,6 +4043,12 @@ fn engine_thread(
     let want_gains =
         session.as_ref().map(|s| (s.gains.clone(), s.tx_gains.clone())).unwrap_or_default();
     let band_antenna = session.as_ref().map(|s| s.band_antenna.clone()).unwrap_or_default();
+    // Per-band gain memory: the switch and the table, both off/empty until the
+    // operator asks for it.
+    let gain_by_band = session.as_ref().is_some_and(|s| s.gain_by_band);
+    let band_gains: std::collections::HashMap<Band, GainSet> =
+        session.as_ref().map(|s| s.band_gains.clone()).unwrap_or_default();
+    state.gain_by_band = gain_by_band;
     // Taken before the state is moved into the engine. Both VFOs open on the
     // mode the receiver came up in — the command line's, the session's, or the
     // default — and the *inactive* one is then given back the mode it was
@@ -4300,6 +4316,8 @@ fn engine_thread(
         session,
         want_antenna,
         band_antenna,
+        gain_by_band,
+        band_gains,
         want_gains,
         want_decimation,
         store: engine_cfg.store,
@@ -4847,10 +4865,11 @@ fn engine_thread(
                 // the one that answers the operator's question: `alc_peak` is
                 // what SDRoxide SENDS, and ALC is what the rig does about it.
                 // On a CAT rig driving an external radio our figure says
-                // nothing useful about whether the audio is too hot for it.
-                let alc = tele
-                    .alc
-                    .unwrap_or_else(|| engine.tx.as_ref().map(|t| t.alc_peak).unwrap_or(0.0));
+                // nothing useful about whether the audio is too hot for it —
+                // which is why the rig's reading, when it has not answered,
+                // is carried through as `None` rather than shown as a false
+                // zero (issue #600).
+                let alc = tele.alc.or_else(|| engine.tx.as_ref().map(|t| t.alc_peak));
                 // Clients that asked for `tx_sensors` get the same figures.
                 if let Some(srv) = engine.tci_srv.as_ref() {
                     srv.push_telemetry(tele);
@@ -5420,11 +5439,8 @@ impl Engine {
             let n = self.main_play.len();
             self.replay.read_into(&mut self.replay_buf, n);
         }
-        let (speaker, speaker_right): (&[f32], Option<&[f32]>) = if self.replay.on() {
-            (&self.replay_buf, None)
-        } else {
-            (&self.main_play, right)
-        };
+        let (speaker, speaker_right): (&[f32], Option<&[f32]>) =
+            if self.replay.on() { (&self.replay_buf, None) } else { (&self.main_play, right) };
         if let Some(mixer) = self.mixer.as_mut() {
             mixer.push(speaker, speaker_right, &self.main_play_rec, rec_right);
         }
@@ -5693,11 +5709,8 @@ impl Engine {
             let n = self.audio_play.len();
             self.replay.read_into(&mut self.replay_buf, n);
         }
-        let (speaker, speaker_right): (&[f32], Option<&[f32]>) = if self.replay.on() {
-            (&self.replay_buf, None)
-        } else {
-            (&self.audio_play, right)
-        };
+        let (speaker, speaker_right): (&[f32], Option<&[f32]>) =
+            if self.replay.on() { (&self.replay_buf, None) } else { (&self.audio_play, right) };
         if let Some(mixer) = self.mixer.as_mut() {
             mixer.push(speaker, speaker_right, &self.audio_play_rec, None);
         }
@@ -6341,8 +6354,7 @@ impl Engine {
         if sdroxide_types::Band::containing(dial_hz) != sdroxide_types::Band::M11 {
             return;
         }
-        let mode =
-            self.digi.as_ref().map(|d| d.mode().label().to_string()).unwrap_or_default();
+        let mode = self.digi.as_ref().map(|d| d.mode().label().to_string()).unwrap_or_default();
         for d in decodes {
             let call = d
                 .from
@@ -6498,6 +6510,10 @@ impl Engine {
         // hears 2 m and a vertical that hears 40 are not a mode's business, and
         // a receiver left on the wrong socket hears nothing to decode.
         self.follow_band_antenna(band);
+        // …and the gain, for the same reason: the front end's right setting is a
+        // property of the band, not the mode. Opt-in, so this does nothing for
+        // an operator who never asked for it — see `gain_by_band`.
+        self.recall_band_gain(band);
         // The receiving antenna is *asked*, not asserted. The radio recalls it
         // per band on its own, so a band change is exactly the moment it may
         // have moved behind us — and this is the one funnel every band change
@@ -6565,8 +6581,8 @@ impl Engine {
         if self.state.band != Band::M11 || self.digi_config.my_call.trim().is_empty() {
             return;
         }
-        let Some(to) = sdroxide_types::resolve_callsign(&self.digi_config.my_call)
-            .map(|i| i.continent)
+        let Some(to) =
+            sdroxide_types::resolve_callsign(&self.digi_config.my_call).map(|i| i.continent)
         else {
             return;
         };
@@ -9430,6 +9446,20 @@ impl Engine {
                 }
             }
 
+            SetGainByBand(on) => {
+                // Turning it on seeds the current band with the gain in force
+                // now, so the band being listened to is not the one band with no
+                // entry — otherwise the first band change after switching it on
+                // would be the only one with nothing to recall.
+                self.gain_by_band = on;
+                self.state.gain_by_band = on;
+                if on {
+                    let band = self.state.band;
+                    self.band_gains.insert(band, self.want_gains.0.clone());
+                }
+                // Persisted through the session, which the periodic save writes.
+            }
+
             SetQo100Config(cfg) => {
                 self.state.qo100 = cfg;
                 // Held in step with the live setting for symmetry with the
@@ -10072,7 +10102,6 @@ impl Engine {
             // The station's named working setups — dials, VFOs, mode and
             // filters, gains and drive, the digital identity, and the band
             // stacks. The hardware is deliberately not part of it.
-
             ProfileSave(name) => {
                 let name = name.trim().to_string();
                 if name.is_empty() {
@@ -10741,10 +10770,8 @@ impl Engine {
                 // The decoder only decodes its validated 24 000 Hz lane — see
                 // `hfdl_rs` — so resample whatever the DDC produced onto it.
                 self.hfdl_rs = ComplexResampler::new(out_rate, sdroxide_types::HFDL_LANE_RATE_HZ);
-                self.hfdl = Some(HfdlController::new(
-                    sdroxide_types::HFDL_LANE_RATE_HZ,
-                    self.state.hfdl,
-                ));
+                self.hfdl =
+                    Some(HfdlController::new(sdroxide_types::HFDL_LANE_RATE_HZ, self.state.hfdl));
                 self.hfdl_ddc = Some(ddc);
                 self.hfdl_in_rate = self.state.sample_rate;
                 info!(rate = out_rate, "HFDL decoder started");
@@ -10778,10 +10805,8 @@ impl Engine {
             self.hfdl_rs = ComplexResampler::new(out_rate, sdroxide_types::HFDL_LANE_RATE_HZ);
             self.hfdl_ddc = Some(ddc);
             self.hfdl_in_rate = self.state.sample_rate;
-            self.hfdl = Some(HfdlController::new(
-                sdroxide_types::HFDL_LANE_RATE_HZ,
-                self.state.hfdl,
-            ));
+            self.hfdl =
+                Some(HfdlController::new(sdroxide_types::HFDL_LANE_RATE_HZ, self.state.hfdl));
             info!(rate = out_rate, "HFDL window rebuilt");
             return;
         }
@@ -14468,6 +14493,52 @@ impl Engine {
             Some(slot) => slot.1 = db,
             None => want.push((element, db)),
         }
+        // Keep the current band's entry in step while the memory is on, so the
+        // gain the operator is setting now is the one that comes back on a
+        // return to this band.
+        if dir == Direction::Rx && self.gain_by_band {
+            let band = self.state.band;
+            self.band_gains.insert(band, self.want_gains.0.clone());
+        }
+    }
+
+    /// Put the gain remembered for `band` back on the front end, if the
+    /// operator has the per-band memory on and one was ever stored.
+    ///
+    /// Called from [`Engine::poll_band_change`], the one funnel every band
+    /// change passes through. A band with no entry is left exactly as it was:
+    /// the operator's current gain stands, which is what every band did before
+    /// this feature existed, so switching the memory on cannot strand a band
+    /// with no gain at all.
+    fn recall_band_gain(&mut self, band: Band) {
+        if !self.gain_by_band {
+            return;
+        }
+        let Some(want) = self.band_gains.get(&band).cloned() else { return };
+        if want.is_empty() {
+            return;
+        }
+        self.want_gains.0 = want.clone();
+        // Applied with the same range check `restore_gains` uses, so a figure
+        // carried over from another front end lands on the nearest thing this
+        // one can do rather than on nothing.
+        let range = |caps: &DeviceCaps, name: &str| {
+            caps.gains
+                .iter()
+                .find(|g| g.direction == Direction::Rx && g.name == name)
+                .map(|g| (g.min_db, g.max_db))
+        };
+        let mut touched = false;
+        for (name, db) in &want {
+            let Some((min, max)) = range(&self.caps, name) else { continue };
+            if let Err(e) = self.source.set_gain_element(name, db.clamp(min, max)) {
+                warn!("recalling band gain {name}: {e}");
+            }
+            touched = true;
+        }
+        if touched {
+            self.state.gains = self.source.current_gains();
+        }
     }
 
     /// Re-apply the remembered front-end gain stages, for the same reason
@@ -14630,6 +14701,8 @@ impl Engine {
                     (chosen(&self.state.antenna_rx), chosen(&self.state.antenna_tx));
                 a
             }),
+            gain_by_band: self.gain_by_band,
+            band_gains: self.band_gains.clone(),
         }
     }
 
