@@ -279,6 +279,12 @@ pub struct QsoMachine {
     /// what makes one answer to our CQ worth more than another.
     worked_calls: std::collections::HashSet<String>,
     worked_entities: std::collections::HashSet<String>,
+    /// The station we last found ourselves **not** answering while it called
+    /// us, so the transcript says it once rather than once per repeat.
+    ///
+    /// Cleared as soon as the message is one we act on, and by the paths that
+    /// end a contact, so a later call from the same station is news again.
+    unanswered: Option<String>,
     /// When something last counted as progress: a reply, or the operator doing
     /// anything at all. 0 means "not stamped yet" — operator actions have no
     /// clock of their own, so the next tick stamps them.
@@ -326,6 +332,7 @@ impl QsoMachine {
             manual_signoff: None,
             worked_calls: std::collections::HashSet::new(),
             worked_entities: std::collections::HashSet::new(),
+            unanswered: None,
             progress_utc: 0,
             tx_since_progress: 0,
             watchdog: false,
@@ -468,6 +475,7 @@ impl QsoMachine {
     /// Start calling CQ.
     pub fn call_cq(&mut self) {
         self.dx = None;
+        self.unanswered = None;
         self.transcript.clear();
         self.final_msg = None;
         self.resend = false;
@@ -590,6 +598,7 @@ impl QsoMachine {
     pub fn stop(&mut self) {
         self.step = QsoStep::Idle;
         self.dx = None;
+        self.unanswered = None;
         self.manual = None;
         self.manual_signoff = None;
         self.transcript.clear();
@@ -755,6 +764,7 @@ impl QsoMachine {
                     started_utc: now_utc,
                     last_utc: now_utc,
                 });
+                self.unanswered = None; // they are ours now; the notice is stale
                 self.logged = false; // a new contact, whatever the last one did
                 // The reply came in from its own locked tone and the contact
                 // sits there: the caller adapts because the answerer cannot
@@ -919,6 +929,7 @@ impl QsoMachine {
                     started_utc: now_utc,
                     last_utc: now_utc,
                 });
+                self.unanswered = None; // they are ours now; the notice is stale
                 self.logged = false; // a new contact, whatever the last one did
                 // 11 m: the answerer stepped in from its own locked tone and
                 // the exchange moves onto it — WSJT-CB's "the contact sits on
@@ -948,6 +959,52 @@ impl QsoMachine {
                     changed = true;
                 }
                 continue;
+            }
+
+            // **A station is calling us and we are not answering it.** Say so.
+            //
+            // The adopt arm above is the only path that takes an answer to our
+            // own CQ, and it is gated on `step == CallingCq && dx.is_none()`. Any
+            // other state — `Idle` after the CQ run gave up, `WaitCq` holding for
+            // somebody else, a `dx` left over from an earlier contact — falls
+            // through to the "only the station we're working" test below, does
+            // not match, and is discarded by a bare `continue`.
+            //
+            // That is a decode addressed to us, carrying our own callsign in the
+            // addressee field, at a usable signal, and the program said nothing
+            // at all. Observed on 11 m: a station answered a CQ four times over
+            // ninety seconds, from +2 dB to +12 dB, the message reading
+            // `<19DC373> 19AT168` — our callsign resolved in the clear, exactly
+            // the shape every gate above accepts — and the exchange simply never
+            // started, with no indication anywhere that it had been heard.
+            //
+            // Noted **once per station**, not once per decode: an unanswered
+            // station repeats, and four copies of the same sentence would bury
+            // the transcript rather than explain it. Nothing is sent — this is
+            // the sequencer saying what it heard, not acting on it.
+            //
+            // **A note, not a branch.** Nothing is sent and nothing is consumed:
+            // the fall-through below still runs, so a station we *are* working,
+            // a reply that resumes their exchange, and the Hound's own close
+            // are all handled exactly as they were. The sign-off exclusion is
+            // `is_call_to_us`'s own — a bare 73 or RR73 is somebody finishing,
+            // not somebody calling — and a station we already hold is not a
+            // caller either.
+            if to_me
+                && self.dx.as_ref().map(|d| d.call.as_str()) != Some(from)
+                && !matches!(payload, Payload::B73 | Payload::Rrr | Payload::Rr73)
+                && self.unanswered.as_deref() != Some(from)
+            {
+                self.unanswered = Some(from.to_string());
+                self.transcript.push(TranscriptLine::note(format!(
+                    "{from} is calling you and we are not answering \
+                     ({:?}, {}) — press REPLY to take it",
+                    self.step,
+                    self.dx.as_ref().map_or("nobody".to_string(), |d| d.call.clone())
+                )));
+                changed = true;
+            } else if self.dx.as_ref().map(|d| d.call.as_str()) == Some(from) {
+                self.unanswered = None;
             }
 
             // Otherwise only the station we're working advances us.
@@ -1904,7 +1961,18 @@ mod tests {
         // hand must send what they are waiting for, not start from our grid.
         let mut q = QsoMachine::new(Mode::Ft8, cfg());
         q.stop();
-        assert!(!q.on_rx(&[decode("AB1CD W9XYZ -19")], 100));
+        // A station calling us while `Idle` is still **not adopted** — taking it
+        // is the operator's call, not the sequencer's — but it is no longer
+        // discarded in silence either. Asserted on the contact itself rather
+        // than on `on_rx`'s return value, which only ever stood in for it and
+        // cannot now: a transcript line is a change, and that is the point.
+        q.on_rx(&[decode("AB1CD W9XYZ -19")], 100);
+        assert_eq!(q.dx_call(), None, "we are not answering them of our own accord");
+        assert_eq!(q.step(), QsoStep::Idle);
+        assert!(
+            q.status(false).transcript.iter().any(|l| l.text.contains("not answering")),
+            "an addressed station we do not answer is reported rather than dropped"
+        );
         q.start_qso("W9XYZ".into(), None, -10, false, 115);
         assert_eq!(q.step(), QsoStep::TxRReport);
         assert_eq!(q.plan_tx().as_deref(), Some("W9XYZ AB1CD R-10"));
@@ -2888,6 +2956,63 @@ mod tests {
         assert!(q.on_rx(&[cb_decode("25TT304 -07")], 145));
         assert_eq!(q.step(), QsoStep::TxRReport);
         assert_eq!(q.plan_tx().as_deref(), Some("26AT715 R-10"));
+    }
+
+    /// A station answers our CQ, addressed to us by name, and we are in a state
+    /// that cannot adopt it — the exchange never starts and the operator is told
+    /// nothing at all.
+    ///
+    /// The shape is taken from a real 11 m log, not invented: `19AT168` answered
+    /// four times over ninety seconds, +2 dB to +12 dB, the message reading
+    /// `<19DC373> 19AT168` — our callsign resolved in the clear, which is what
+    /// `is_call_to_us` asks for and what the decode list showed — and no
+    /// contact was ever made. Every gate in the adopt path passes for that
+    /// message, so the only thing that can have swallowed it is the *state* the
+    /// machine was in. The adopt arm requires `CallingCq` with no `dx`.
+    ///
+    /// So: after the CQ run has given up, a station calling us by name must
+    /// still leave a trace. Silently discarding it is the defect — the notice is
+    /// what turns "it did nothing" into "here is what it heard and here is why".
+    #[test]
+    fn a_station_calling_us_is_never_discarded_in_silence() {
+        // The station's own callsign and grid, so the decoded messages below are
+        // addressed to *us* exactly as the log had them.
+        let cfg = DigiConfig { my_call: "19DC373".into(), ..cb_cfg() };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg.clone());
+        q.set_cb(true);
+        q.call_cq();
+
+        // We are in `CallingCq` and it *is* adopted — the good case, pinned so a
+        // later change cannot make the notice fire on a contact we did take.
+        assert!(q.on_rx(&[decode("19DC373 19AT168")], 115));
+        assert_eq!(q.step(), QsoStep::TxReport);
+        assert!(!q.transcript.iter().any(|l| l.text.contains("not answering")));
+
+        // Now the case from the log: the contact is over and the machine is
+        // `Idle` when the same station calls again.
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        q.set_cb(true);
+        q.stop();
+        assert_eq!(q.step(), QsoStep::Idle);
+
+        assert!(q.on_rx(&[decode("19DC373 19AT168")], 200));
+        let said = q
+            .transcript
+            .iter()
+            .find(|l| l.text.contains("not answering"))
+            .expect("an addressed station we do not answer must be reported");
+        assert!(said.text.contains("19AT168"), "the notice must name the station");
+
+        // Said **once**, not once per repeat: they will call again, and four
+        // copies of one sentence would bury the transcript it is meant to explain.
+        for slot in [215, 230, 245] {
+            q.on_rx(&[decode("19DC373 19AT168")], slot);
+        }
+        assert_eq!(
+            q.transcript.iter().filter(|l| l.text.contains("not answering")).count(),
+            1,
+            "an unanswered station repeats; the transcript should say so once"
+        );
     }
 
     /// The pair opener while we are *waiting* for a picked station — their

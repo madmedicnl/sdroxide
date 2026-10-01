@@ -2102,6 +2102,55 @@ also arrive as clicks. The branch's `cw_key.rs` is trimmed to `key_down` +
 `error` (the trainer's `take_text`/`contacts`/`marks` belong to #568's pane and
 are not in this PR).
 
+## A station calling us is never discarded in silence (fork-only, 2026-10-01)
+
+An FT8 reply is adopted only through one arm, gated on `step == CallingCq &&
+dx.is_none()` (`qso.rs`). Every other state — `Idle` after the CQ run gave up,
+`WaitCq` holding for somebody else, a `dx` left from an earlier contact — falls
+through to "only the station we're working", does not match, and was discarded by
+a bare `continue`. That was a decode **carrying our own callsign in the
+addressee field**, at a usable signal, and the program said nothing at all.
+
+Seen on 11 m on 2026-10-01: `19AT168` answered a CQ four times over ninety
+seconds, +2 dB to +12 dB, the message reading `<19DC373> 19AT168` — the
+operator's callsign **resolved in the clear**, which is exactly what
+`is_call_to_us` asks for, so every gate passed — and no contact was made. The
+CSV export cannot show which state the machine was in, and that is the whole
+difficulty: the failing state was not recorded anywhere.
+
+Two changes, both pure observation:
+
+- **A transcript note**, once per station, naming it and the state: *"{call} is
+  calling you and we are not answering ({step}, {dx}) — press REPLY to take
+  it."* Rate-limited by `QsoMachine::unanswered` because an unanswered station
+  repeats and four copies of one sentence would bury the transcript it exists to
+  explain. It is a note, **not a branch**: nothing is sent and nothing consumed,
+  so the fall-through still handles a station we *are* working, a reply that
+  resumes their exchange, and the Hound's own close. Bare `73`/`RR73` are
+  excluded, as `is_call_to_us` excludes them — somebody finishing is not
+  somebody calling.
+- **The engine's `QsoStep` on the AUTO chip's hover**, because it is the one fact
+  that decides whether an answer can be adopted. It was invisible, which is what
+  made this undiagnosable from the artefacts.
+
+**`WaitCq` is load-bearing and must not be "fixed".** The obvious suggestion —
+let an addressed answer be adopted in `WaitCq` too — is **wrong**, and the
+operator's own objection is the reason to record it: `WaitCq` *is* the queue.
+Pressing REPLY on a station that is busy holds the machine for **that** station
+until they call CQ. Admitting answers from anyone else in that state would not
+improve adoption, it would **annihilate the queue**, abandoning the station the
+operator queued for to chase whoever spoke last. On an unattended run that means
+keying at people who are not answering it — on a shared band, that is harm to
+third parties, not a bug in this program.
+
+**The bisect result worth keeping:** `qso.rs`, `auto_mode.rs`, `decodes.rs`,
+`digi.rs` and `contest.rs` are all **byte-identical between 1.9.8 and
+1.9.12**, so bisecting those two tags cannot find this and both would fail
+alike. It was nearly missed because the first pass diffed `sdroxide-digi` and
+`sdroxide-types` and skipped the UI, where the auto loop actually lives. When
+one side "works perfectly" and the other does not, diff the **whole** path first
+and believe the result before theorising.
+
 ## The KNOWN window — who your hashes can name (fork-only, 2026-10-01)
 
 An FT8 message carries a **hash** of the callsign it addresses, not the callsign,

@@ -1755,7 +1755,19 @@ impl SdroxideApp {
                 let auto_hover = match auto_block {
                     Some(r) => r.to_string(),
                     None if auto_armed => {
-                        format!("Auto mode is armed. Click to stop.\n\n{}", self.auto_note)
+                        // The engine's own step, because it is the one fact that
+                        // decides whether a station answering our CQ can be
+                        // adopted: the adopt arm requires `CallingCq` with no
+                        // contact in hand, and every other state discards the
+                        // answer. It used to be invisible, which made a missed
+                        // contact impossible to explain after the fact.
+                        let step = status.as_ref().map(|s| s.step);
+                        format!(
+                            "Auto mode is armed. Click to stop.\n\n{}\n\nEngine step: {:?} \
+                             — a station answering a CQ is only taken in CallingCq with \
+                             no contact in hand.",
+                            self.auto_note, step
+                        )
                     }
                     None => "Answer a new station's CQ, or call CQ when none is heard, \
                              unattended. Only callsigns not already in the log are answered. \

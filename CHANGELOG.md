@@ -13,6 +13,18 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A station calling you is no longer discarded in silence.** An FT8 reply is
+  only taken when the sequencer is in the state that expects one; in any other
+  state a message carrying your callsign in the addressee field was thrown away
+  with nothing said. It now writes a line in the QSO transcript naming the
+  station, the state and the contact in hand, and points at **REPLY**. Reported
+  on 11 m: a station answered a CQ four times over ninety seconds, from +2 dB to
+  +12 dB, with the operator's callsign resolved in the clear, and no contact was
+  ever made. Said once per station rather than once per repeat, and never for a
+  bare 73/RR73 — somebody finishing is not somebody calling.
+
 ### Added
 
 - **A KNOWN window lists the callsigns your hashes can currently resolve** — a new
@@ -30,6 +42,9 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ### Changed
 
+- **The AUTO chip's hover now shows the engine's current step.** It is the one
+  fact that decides whether a station answering a CQ can be taken, and it was
+  invisible.
 - **Choosing SSTV now lands on that band's SSTV frequency** — pick the band, pick
   SSTV, and the dial goes where the pictures are, instead of leaving you where the
   last mode left it and sending you to the **⇵ FREQ** chip for a manual pick. On
