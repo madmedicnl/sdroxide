@@ -298,6 +298,13 @@ pub(in crate::app) fn settings_ui_tab(
         }
         ui.end_row();
 
+        // The opt-in stays, deliberately. The shared keyboard is the one thing
+        // in a profile that can hurt another operator, so it is behind an
+        // acknowledgement and off by default — and it is **not** to be removed
+        // as unnecessary: it is asked for. Someone running their own server and
+        // reaching it from several of their own devices wants their keys to
+        // follow them. The answer to a shared station is the acknowledgement
+        // and the default, not taking the feature away.
         ui.label("Carry control bindings").on_hover_text(
             "Also keep your keyboard and mouse bindings with the profile on the \
              server, so they follow the login between browsers and devices — \
