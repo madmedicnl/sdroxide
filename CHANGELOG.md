@@ -13,6 +13,101 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+## [1.9.13.3_brown] - 2026-10-02
+
+**The consolidated notes.** 1.9.11 and 1.9.12 were tagged but never published —
+their builds failed — so this is everything a user of **1.9.10** has been missing,
+in one place. It replaces the per-release entries below for anyone reading it now;
+those are kept for the record.
+
+### Added
+
+- **A KNOWN window lists the callsigns your hashes can currently resolve** — a new
+  **KNOWN** chip in the general decode's filter row opens a window showing every
+  callsign a hashed `<...>` on this receiver can name, newest first and with its
+  country. An FT8 message carries a one-way hash of the station it addresses, so
+  `<...>` cannot be read backwards by any program; the only way to name a station
+  is to have heard it spelled out, and that set was previously invisible. On 11 m
+  the country is the point: `19DC797` reads Netherlands and `4CB04` Argentina.
+- **Grid tracker** — a GRID window drawing worked Maidenhead squares on a flat
+  map, with a HEARD layer for the live decode list and a **COUNTRY** mode that
+  maps worked DXCC entities, so a CB log — which has no locators — has a map too.
+- **Contest logger** — a mode-agnostic session with a live score and a Cabrillo
+  export, auto-filled from the FT8 side.
+- **Morse trainer** — a reference table, a practice player and a Koch drill.
+- **Reto Radio** faceplate for listeners: one big tuning scale and a needle,
+  BAND and MODE chips, VOLUME, SQUELCH, the receive tone shelves, an S-meter,
+  SCAN/SEEK and PRESET buttons.
+- **FSK441 transmit** — the message loops for the length of the over.
+- **Editable message buttons** for the keyboard modes (PSK / RTTY / Olivia / Thor),
+  with **F1–F9** hotkeys on them.
+- **Tune the radio from the 3D pass window's frequency table**, and **remember the
+  3D window's size and place** across a rebuild.
+- **NAVTEX** tracks the tuning error with an AFC loop instead of decoding it, so a
+  dial a couple of hundred hertz off no longer turns a message into asterisks.
+- **LimeSDR Mini** — the lower transmit sample rates that clear its USB underruns.
+- **#600** an honest ALC reading; **#605** per-band gain memory.
+- **A session ignore list** for the FT8/FT4/FT2 decode list, and a **SAVE** chip
+  on every text panel so decoded text can be kept.
+- **Decodes feed the propagation field**, so the 3D globe's BANDS OPEN chart is no
+  longer empty on a band RBN does not carry.
+- WSJT-CB **modifier suffixes** on 11 m calls (`/P`, `/QRP`, `/MM`, `/F1`), with
+  the eleven-character ceiling enforced in the grammar, plus an experimental wider
+  callsign grammar (off by default).
+- **Screen settings follow your profile** when you are a remote client of
+  `--server` — theme, layout, waterfall and spectrum, fonts, Simple UI, Retro
+  Radio, the map layers — so a new browser session no longer starts on defaults.
+  **Saved when you press the button, not on every change**, so one operator's
+  theme cannot become the next one's on a shared station.
+
+### Changed
+
+- **On 11 m, a CQ run is now bounded by the unanswered-call count and not by the
+  transmit watchdog.** The watchdog runs off "time since the operator acted", so
+  during a CQ run — where no reply is the *expected* state — it was a clock
+  cutting a run that was working normally. **11 m only**; a stalled exchange is
+  still cut there deliberately. The "Give up after" hover now says what the count
+  comes to at the mode's own slot length.
+- **Choosing SSTV now lands on that band's SSTV frequency** — on 11 m that is
+  **27.700 MHz**, the community's picture frequency — instead of sending you to the
+  **⇵ FREQ** chip for a manual pick. A dial already on one of the mode's own
+  frequencies is never moved.
+- **11 m's SSTV band buttons now reach 27.700** rather than 27.255 (channel 23).
+- The grid tracker's popup chips read **GRID/HAM** and **COUNTRY/CB**, so a
+  listener who does not know callsign etiquette can see that no CB calls land on
+  the grid and no ham calls land on the country list.
+- The **AUTO chip's hover now shows the engine's current step**, which is the one
+  fact that decides whether a station answering a CQ can be taken.
+
+### Fixed
+
+- **A station calling you is no longer discarded in silence.** An FT8 reply is only
+  taken when the sequencer is in the state that expects one; in any other state a
+  message carrying your callsign was thrown away with nothing said. It now writes a
+  line in the transcript naming the station, the state and the contact in hand,
+  and points at **REPLY** — said once per station, and never for a bare 73/RR73.
+- **The screen settings a remote client stores are no longer behind a hidden
+  gate**, and the row says where the look in force came from and what the last
+  save did.
+- **A hand-picked sign-off is not undone by the DX repeating** theirs.
+- A **multi-byte character in a locator** can no longer panic the grid tally.
+- The **CAT/Audio IQ probe** reads the opened sound card's own stream, so a stereo
+  I/Q input is no longer called mono.
+- The **REC popup's Quick clip row** (30 s, 1 min), and the grey line now shades
+  the continents as well as the sea.
+- A signed alert can be **spoken**, so a new DXCC can be heard and not only rung.
+
+### Known limitations
+
+- **Olivia does not interoperate yet.** The tone counts and bandwidths are named
+  after the real modes and the block coding follows the protocol, but the decoder
+  is not yet bit-compatible: it does not read an Olivia station and one does not
+  read it. MultiPSK or fldigi can copy the same signal. The chip's hover says so.
+- **Control bindings on the server profile** remain an **opt-in, off by default and
+  not recommended**: on a station where the keyboard is shared, a profile carrying
+  keys can rebind another operator's PTT or tuning keys. Kept because it is asked
+  for, behind an explicit acknowledgement.
+
 ## [1.9.13_brown] - 2026-10-01
 
 ### Added
