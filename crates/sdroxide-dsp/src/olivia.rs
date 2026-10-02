@@ -12,11 +12,25 @@
 //! bandwidth/tones and the symbol rate equals the spacing. Common combinations
 //! are 32/1000, 16/500 and 8/250.
 //!
-//! Interop note: the block/Walsh structure, MFSK/Gray mapping and scrambler
-//! follow the Olivia design, but the scrambler constants are not yet bit-matched
-//! to fldigi (tracked for live validation). TX↔RX here is internally consistent
-//! and unit-tested by loopback.
-
+//! **Interop status: the scrambler and the interleaver are now Olivia's, and
+//! the capture still does not decode.** What is correct: the 64-symbol block,
+//! the (64,7) Walsh codeword per character, the Gray tone assignment, tone
+//! spacing = symbol rate, and — as of this change — the `0xE257E6D0291574EC`
+//! scrambling sequence with its 13-bit-per-character rotation and the
+//! `(character + symbol) mod log2(tones)` interleave, all taken from fldigi's
+//! jalocha `pj_mfsk.h`, the reference implementation.
+//!
+//! What is still missing is the **frame around the block**: Olivia brackets
+//! every transmission with sync tones and separates frames with a tail, so the
+//! blocks are not back to back on the air. This decoder assumes they are, and
+//! also has no frequency search — the tone bank is placed from the dial, while
+//! fldigi searches several tone spacings either side of it.
+//!
+//! So the honest state is the one the panel says: **not interoperable yet.** The
+//! loopback tests pass because the modulator and demodulator agree with each
+//! other, which is exactly what they did while the scrambler was a local
+//! invention; the off-air test `an_off_air_capture_decodes` is the one that
+//! tells the truth, and it fails.
 use std::collections::VecDeque;
 
 use crate::mfsk::{ToneGen, fwht, gray, hadamard_bit, tone_bank_mags, ungray};
@@ -27,21 +41,23 @@ const BLOCK: usize = 64;
 /// Timing sub-phases searched per symbol.
 const SUBPHASES: usize = 16;
 
-/// A fixed, deterministic per-position tone offset (0..tones-1), 64 long. Varies
-/// with position so a mis-aligned block descrambles to noise (block sync) and the
-/// on-air spectrum is spread.
-fn make_scramble(tones: usize) -> [u8; BLOCK] {
-    let mask = (tones - 1) as u32;
-    let mut s = [0u8; BLOCK];
-    let mut lfsr: u32 = 0x1D5;
-    for cell in s.iter_mut() {
-        // xorshift step — deterministic, no RNG.
-        lfsr ^= lfsr << 7;
-        lfsr ^= lfsr >> 9;
-        lfsr ^= lfsr << 8;
-        *cell = (lfsr & mask) as u8;
-    }
-    s
+/// Olivia's scrambling sequence. The Walsh function carrying character `c` in a
+/// block is scrambled with this 64-bit pattern, consumed one bit per symbol
+/// starting at bit `13 * c` — that is, the character's codeword has its sign
+/// flipped wherever bit `(13 * c + i) & 63` of this constant is set.
+///
+/// This is the constant the mode is named for, and getting it wrong is the
+/// whole reason this decoder could not read a real Olivia station: the mode's
+/// structure was already Olivia's, but the scrambler was a local invention, so
+/// every block descrambled to noise. Reference: fldigi's jalocha
+/// `MFSK_Encoder::ScramblingCodeOlivia` (GPL-3.0), the same constant the mode's
+/// documentation gives.
+const SCRAMBLE: u64 = 0xE257_E6D0_2915_74EC;
+
+/// The bit of [`SCRAMBLE`] that scrambles position `i` of character `c`'s
+/// Walsh function.
+fn scramble_bit(c: usize, i: usize) -> bool {
+    (SCRAMBLE >> ((13 * c + i) & (BLOCK - 1))) & 1 == 1
 }
 
 /// Resolved Olivia geometry for a (tones, bandwidth) pair at a sample rate.
@@ -85,7 +101,6 @@ fn code_bit(byte: u8, i: usize) -> u32 {
 pub struct OliviaTx {
     rate: f64,
     g: Geom,
-    scramble: [u8; BLOCK],
     tonegen: ToneGen,
     /// Queued characters with their source index (`None` = NUL idle fill).
     q: VecDeque<(u8, Option<usize>)>,
@@ -101,7 +116,6 @@ impl OliviaTx {
         let g = Geom::new(rate, audio_hz, tones, bw);
         OliviaTx {
             rate,
-            scramble: make_scramble(g.tones),
             g,
             tonegen: ToneGen::new(rate),
             q: VecDeque::new(),
@@ -115,7 +129,6 @@ impl OliviaTx {
 
     pub fn set_params(&mut self, audio_hz: f64, tones: usize, bw: f64) {
         self.g = Geom::new(self.rate, audio_hz, tones, bw);
-        self.scramble = make_scramble(self.g.tones);
     }
 
     pub fn push_text(&mut self, text: &str) {
@@ -161,11 +174,18 @@ impl OliviaTx {
         self.cur_pos = 0;
         self.cur_done = done;
         for i in 0..BLOCK {
+            // The Walsh functions are interleaved across the symbols: character
+            // `p`'s function lands on bit `(p + i) % planes` of symbol `i`, so
+            // consecutive characters take consecutive bits of the same symbol.
             let mut v = 0u32;
             for (p, &b) in chars.iter().enumerate().take(self.g.planes) {
-                v |= code_bit(b, i) << p;
+                let mut bit = code_bit(b, i);
+                if scramble_bit(p, i) {
+                    bit ^= 1;
+                }
+                v |= bit << ((p + i) % self.g.planes);
             }
-            let tone = (gray(v) as usize ^ self.scramble[i] as usize) % self.g.tones;
+            let tone = gray(v) as usize % self.g.tones;
             self.tonegen.emit(self.g.tone_hz(tone), self.g.sps, OUT_AMP, &mut self.cur);
         }
     }
@@ -192,7 +212,6 @@ impl OliviaTx {
 pub struct OliviaRx {
     rate: f64,
     g: Geom,
-    scramble: [u8; BLOCK],
     /// Recent audio, indexed by absolute sample count via `buf_start`.
     buf: Vec<f32>,
     buf_start: usize,
@@ -221,7 +240,6 @@ impl OliviaRx {
         let hop = (g.sps / SUBPHASES).max(1);
         OliviaRx {
             rate,
-            scramble: make_scramble(g.tones),
             g,
             buf: Vec::new(),
             buf_start: 0,
@@ -316,18 +334,34 @@ impl OliviaRx {
     fn soft_bits(&self, abs: usize, pos: usize) -> [f32; 6] {
         let mags = &self.sbuf[abs - self.sbuf_base];
         let mut soft = [0.0f32; 6];
-        let scr = self.scramble[pos] as usize;
-        for (k, &m) in mags.iter().enumerate() {
-            let v = ungray((k ^ scr) as u32);
-            for (p, sp) in soft.iter_mut().enumerate().take(self.g.planes) {
-                if (v >> p) & 1 == 1 {
-                    *sp += m;
-                } else {
-                    *sp -= m;
-                }
+        // Every tone votes: a tone whose Gray-decoded value carries this plane's
+        // bit at this position pushes it up, one that does not pushes it down.
+        // Soft, because on a real signal the winning tone is often not clear of
+        // the runners-up, and a hard decision throws that margin away.
+        //
+        // The interleave is undone here — character `p` reads bit
+        // `(p + pos) % planes` — and the scrambler applied after, in the Walsh
+        // domain where Olivia puts it, rather than as a rotation of the tone
+        // number.
+        for (p, sp) in soft.iter_mut().enumerate().take(self.g.planes) {
+            let want = (p + pos) % self.g.planes;
+            let mut acc = 0.0f32;
+            for (k, &m) in mags.iter().enumerate() {
+                acc += if (ungray(k as u32) >> want) & 1 == 1 { m } else { -m };
             }
+            *sp = if scramble_bit(p, pos) { -acc } else { acc };
         }
         soft
+    }
+
+    /// The tone with the most energy at absolute symbol index `abs`.
+    fn peak_tone(&self, abs: usize) -> usize {
+        let mags = &self.sbuf[abs - self.sbuf_base];
+        mags.iter()
+            .enumerate()
+            .max_by(|a, b| a.1.total_cmp(b.1))
+            .map(|(i, _)| i)
+            .unwrap_or(0)
     }
 
     /// Confidence + decoded chars for the 64-symbol block starting at absolute
@@ -447,6 +481,66 @@ mod tests {
             decoded.push_str(&rx.process(chunk));
         }
         decoded
+    }
+
+    /// The real thing: an off-air Olivia recording decodes to readable text.
+    ///
+    /// **This is the only test that can catch an interop bug.** The loopback
+    /// tests above prove the modulator and the demodulator agree with each
+    /// other, which is exactly what they did while the scrambler was a local
+    /// invention and the mode could not read a single Olivia station.
+    ///
+    /// Point `SDROXIDE_OLIVIA_SAMPLE` at a mono 8 kHz WAV of an Olivia signal —
+    /// 8 kHz is the rate the mode's own generator uses, and 500/16 (16 tones,
+    /// 500 Hz bandwidth, so 31.25 Hz spacing) is the common format. The sample
+    /// is off-air material and cannot live in the tree, so the test is
+    /// `#[ignore]`d and skips when the variable is unset. Run it with
+    /// `cargo test -p sdroxide-dsp --release -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn an_off_air_capture_decodes() {
+        let Ok(path) = std::env::var("SDROXIDE_OLIVIA_SAMPLE") else {
+            eprintln!("SDROXIDE_OLIVIA_SAMPLE unset; skipping");
+            return;
+        };
+        let mut reader = hound::WavReader::open(&path).expect("open the sample WAV");
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, 8000, "the sample must be at 8 kHz");
+        assert_eq!(spec.channels, 1, "the sample must be mono");
+        let audio: Vec<f32> = match spec.sample_format {
+            hound::SampleFormat::Float => {
+                reader.samples::<f32>().map(|s| s.expect("sample")).collect()
+            }
+            hound::SampleFormat::Int => {
+                reader.samples::<i16>().map(|s| s.expect("sample") as f32 / 32_768.0).collect()
+            }
+        };
+        // 500/16: the tone bank spans 500 Hz, so the tones sit 31.25 Hz apart
+        // and the symbol rate equals the spacing.
+        // The bank is searched, not assumed: nobody tunes a listener's dial to
+        // the exact centre of an Olivia signal, and fldigi searches several tone
+        // spacings either side for the same reason.
+        let mut best = String::new();
+        let mut hz = 700.0;
+        while hz <= 1300.0 {
+            let mut rx = OliviaRx::new(8000.0, hz, 16, 500.0);
+            let mut got = String::new();
+            for chunk in audio.chunks(512) {
+                got.push_str(&rx.process(chunk));
+            }
+            let score = got.chars().filter(|c| c.is_ascii_graphic() || *c == ' ').count();
+            if score > best.chars().filter(|c| c.is_ascii_graphic() || *c == ' ').count() {
+                best = got;
+            }
+            hz += 5.0;
+        }
+        let decoded = best;
+        eprintln!("decoded {} chars: {decoded:?}", decoded.len());
+        let printable = decoded.chars().filter(|c| c.is_ascii_graphic() || *c == ' ').count();
+        assert!(
+            decoded.len() >= 8 && printable * 10 >= decoded.len() * 9,
+            "an off-air Olivia capture did not decode: {decoded:?}"
+        );
     }
 
     #[test]
