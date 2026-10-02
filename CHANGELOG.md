@@ -35,7 +35,7 @@ those are kept for the record.
 - **Contest logger** — a mode-agnostic session with a live score and a Cabrillo
   export, auto-filled from the FT8 side.
 - **Morse trainer** — a reference table, a practice player and a Koch drill.
-- **Reto Radio** faceplate for listeners: one big tuning scale and a needle,
+- **Retro Radio** faceplate for listeners: one big tuning scale and a needle,
   BAND and MODE chips, VOLUME, SQUELCH, the receive tone shelves, an S-meter,
   SCAN/SEEK and PRESET buttons.
 - **FSK441 transmit** — the message loops for the length of the over.
