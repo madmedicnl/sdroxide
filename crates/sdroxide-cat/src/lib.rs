@@ -1813,7 +1813,6 @@ fn with_family_serial_limits(mut cfg: CatConfig) -> CatConfig {
     cfg
 }
 
-/// Spawn the serial CAT thread from a persisted [`CatConfig`].
 /// Whether this configuration names a link at all — a serial port or a network
 /// address to open. A configuration can carry a CAT family and a CW-keying
 /// choice with no cable behind either.

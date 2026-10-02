@@ -388,17 +388,21 @@ impl SdroxideApp {
                     // countries, a ham wants squares, and a mixed log can look
                     // at either.
                     if ui
-                        .selectable_label(tracker.mode == TrackerMode::Grid, "GRID")
-                        .on_hover_text("Maidenhead squares — what a ham log carries")
+                        .selectable_label(tracker.mode == TrackerMode::Grid, "GRID/HAM")
+                        .on_hover_text(
+                            "Maidenhead squares — what a ham log carries. No CB calls land here: \
+                             an 11 m exchange carries a country, never a locator.",
+                        )
                         .clicked()
                     {
                         tracker.mode = TrackerMode::Grid;
                     }
                     if ui
-                        .selectable_label(tracker.mode == TrackerMode::Country, "COUNTRY")
+                        .selectable_label(tracker.mode == TrackerMode::Country, "COUNTRY/CB")
                         .on_hover_text(
                             "DXCC countries at their nominal centre — what a CB log carries, \
-                             since an 11 m exchange has no locator in it",
+                             since an 11 m exchange has no locator in it. No ham calls land \
+                             here either: this is countries, not squares.",
                         )
                         .clicked()
                     {

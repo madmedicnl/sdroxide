@@ -22,6 +22,17 @@
 //! [`DigiEngine::set_tx_active`] keys and unkeys, and [`DigiEngine::fill_tx_block`]
 //! loops the audio out.
 //!
+//! # Transmitting
+//!
+//! FSK441 has no frame at a fixed offset: an operator keys and **sends the
+//! message over and over** through the period, and a meteor's brief trail
+//! catches whatever part of it happens to be passing. So transmit is not a
+//! one-shot burst — it is the encoded message looping for as long as the
+//! operator holds transmit, exactly as the mode is worked on the air. The
+//! keyboard seam drives it: [`DigiEngine::set_tx_text`] takes the message,
+//! [`DigiEngine::set_tx_active`] keys and unkeys, and [`DigiEngine::fill_tx_block`]
+//! loops the audio out.
+//!
 //! # Why a worker thread
 //!
 //! A whole-slot ping search is a sliding matched filter over thirty seconds of
