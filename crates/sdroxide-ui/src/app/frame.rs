@@ -1471,16 +1471,17 @@ impl SdroxideApp {
                     self.known_calls.accept(reply);
                 }
                 RadioEvent::ClientSettings { profile, settings } => {
-                    // Apply only when this client asked to keep its screen on
-                    // the server. The served set is presentation-only, so it
-                    // lays over the client's own settings without touching
-                    // anything the machine owns — see `presentation_only`.
-                    if self.ui_settings.client_save_scope == sdroxide_types::ClientSaveScope::Server
-                    {
-                        settings.apply_to(&mut self.ui_settings);
-                        // Remember which set we took, for the Settings label.
-                        self.client_settings_from = Some(profile);
-                    }
+                    // Always applied. The served set is presentation-only, so
+                    // it lays over the client's own settings without touching
+                    // anything the machine owns — see `presentation_only` —
+                    // and there is nothing about a look worth gating: a shared
+                    // screen is harmless, a shared keyboard is not. The gate
+                    // that used to stand here made the feature invisible to
+                    // anyone who did not find the picker, which is exactly how
+                    // it reached a tester on three releases.
+                    settings.apply_to(&mut self.ui_settings);
+                    // Remember which set we took, for the Settings label.
+                    self.client_settings_from = Some(profile);
                 }
                 RadioEvent::ClientBindings { profile, bindings } => {
                     // Apply only when this client opted in to carrying its
@@ -1488,9 +1489,7 @@ impl SdroxideApp {
                     // on a shared station the keyboard is shared. Applied and
                     // written out at once, so the restored keys survive a
                     // reload the same way a rebind does.
-                    if self.ui_settings.client_save_scope == sdroxide_types::ClientSaveScope::Server
-                        && self.ui_settings.client_share_bindings
-                    {
+                    if self.ui_settings.client_share_bindings {
                         self.input.cfg = bindings;
                         self.input.cfg.migrate();
                         self.input.persist();
@@ -2233,10 +2232,7 @@ impl SdroxideApp {
     /// server to tell) and when the scope is `Browser`. The profile sent is the
     /// one already in use, so a save lands on the set the client is reading
     /// rather than silently creating another.
-    pub(in crate::app) fn push_client_settings_if_server(&mut self) {
-        if self.ui_settings.client_save_scope != sdroxide_types::ClientSaveScope::Server {
-            return;
-        }
+    pub(in crate::app) fn push_client_settings(&mut self) {
         let profile = self.client_settings_from.clone().flatten();
         self.ctrl.send_client_settings(
             profile.clone(),
@@ -2248,12 +2244,11 @@ impl SdroxideApp {
     }
 
     /// Send this client's control bindings to the server, when the operator has
-    /// opted in *and* asked to keep the screen there. A no-op otherwise, so the
-    /// default-off path can never put a binding on the wire.
+    /// opted in. A no-op otherwise, so the default-off path can never put a
+    /// binding on the wire — the one opt-in left in this area, and the only
+    /// part of a profile that can disturb another operator.
     pub(in crate::app) fn push_client_bindings_if_server(&mut self) {
-        if self.ui_settings.client_save_scope != sdroxide_types::ClientSaveScope::Server
-            || !self.ui_settings.client_share_bindings
-        {
+        if !self.ui_settings.client_share_bindings {
             return;
         }
         let profile = self.client_settings_from.clone().flatten();

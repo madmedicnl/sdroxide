@@ -354,16 +354,6 @@ impl OliviaRx {
         soft
     }
 
-    /// The tone with the most energy at absolute symbol index `abs`.
-    fn peak_tone(&self, abs: usize) -> usize {
-        let mags = &self.sbuf[abs - self.sbuf_base];
-        mags.iter()
-            .enumerate()
-            .max_by(|a, b| a.1.total_cmp(b.1))
-            .map(|(i, _)| i)
-            .unwrap_or(0)
-    }
-
     /// Confidence + decoded chars for the 64-symbol block starting at absolute
     /// index `start`.
     fn decode_block(&self, start: usize) -> (f32, [u8; 6]) {

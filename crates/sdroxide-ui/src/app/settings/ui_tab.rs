@@ -251,34 +251,16 @@ pub(in crate::app) fn settings_ui_tab(
         crate::chrome::checkbox(ui, &mut cfg.retro_radio, "draw the retro faceplate");
         ui.end_row();
 
-        ui.label("Screen settings on").on_hover_text(
-            "Where THIS screen's settings live when you are a remote client of \
-             `sdroxide --server` — the theme, layout, waterfall and spectrum \
-             look, fonts, Simple UI, Retro Radio, the map layers.\n\n\
-             **This browser** keeps them here, private to this browser and \
-             forgotten when its storage is cleared. **On the server** keeps \
-             them with the profile you signed in as, so they follow the login \
-             back from any machine — the fix for a stale screen after every \
-             new session.\n\n\
-             Only the look travels by default. Your control bindings can be \
-             carried too, but that is a separate switch just below and it is \
-             not recommended — read its hover first. Nothing here matters for \
-             a local radio, which always keeps its settings in its own file.",
+        ui.label("Screen follows your profile").on_hover_text(
+            "When you are a remote client of `sdroxide --server`, the look of \
+             this screen — theme, layout, waterfall and spectrum, fonts, Simple \
+             UI, Retro Radio, the map layers — is kept with the profile you \
+             signed in as, so it comes back on any machine instead of \
+             starting from defaults. Nothing to turn on: it is always on, and \
+             it is only ever the *look*. Nothing that belongs to the machine is \
+             touched, and a local radio is unaffected.",
         );
-        ui.horizontal(|ui| {
-            ui.selectable_value(
-                &mut cfg.client_save_scope,
-                sdroxide_types::ClientSaveScope::Browser,
-                "This browser",
-            );
-            ui.selectable_value(
-                &mut cfg.client_save_scope,
-                sdroxide_types::ClientSaveScope::Server,
-                "On the server",
-            );
-        });
-        ui.end_row();
-
+        ui.label(RichText::new("always on the server").weak().small());
         ui.label("Carry control bindings").on_hover_text(
             "Also keep your keyboard and mouse bindings with the profile on the \
              server, so they follow the login between browsers and devices — \
@@ -290,17 +272,16 @@ pub(in crate::app) fn settings_ui_tab(
              other effects that are not obvious now. Turn it on only where the \
              server is yours alone and you reach it from several devices of \
              your own.\n\n\
-             Does nothing unless the screen is also set **On the server** \
-             above. Fork-only: this is not an upstream feature.",
+             Fork-only: this is not an upstream feature. The screen settings \
+             above always travel; this is the only opt-in here.",
         );
         {
-            let server = cfg.client_save_scope == sdroxide_types::ClientSaveScope::Server;
             // The opt-in is not a plain checkbox: turning it ON must be
             // acknowledged, so the click opens a modal and the flag stays off
             // until the operator confirms. Turning it OFF is immediate.
             let confirm_id = egui::Id::new("client-share-bindings-confirm");
             ui.horizontal(|ui| {
-                ui.add_enabled_ui(server, |ui| {
+                ui.scope(|ui| {
                     let was = cfg.client_share_bindings;
                     let mut shown = was;
                     let resp = crate::chrome::checkbox(
@@ -319,17 +300,8 @@ pub(in crate::app) fn settings_ui_tab(
                             cfg.client_share_bindings = shown;
                         }
                     }
+                    resp
                 });
-                // A greyed control that says nothing is the "does nothing and
-                // tells you no reason" bug this fork does not ship: name the
-                // switch that has to move first.
-                if !server {
-                    ui.label(
-                        RichText::new("— set the screen to On the server above")
-                            .weak()
-                            .small(),
-                    );
-                }
             });
             let confirming: bool = ui.data(|d| d.get_temp(confirm_id)).unwrap_or(false);
             if confirming {
