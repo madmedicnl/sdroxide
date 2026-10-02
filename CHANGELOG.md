@@ -13,6 +13,23 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+## [1.9.15_brown] - 2026-10-03
+
+### Fixed
+
+- **A remote client's screen settings are saved **under the profile it signed
+  in as**, not as the station's shared default. On a server **with a password**
+  the settings landed in the `default` bucket and `profiles` stayed empty, so a
+  named profile was never created and the screen came up on defaults every
+  session (fork discussion #4). The cause: on connect the server offered the set
+  for the signed-in profile, `for_profile` fell back to `default` when that
+  profile was empty and reported `profile: None`, and the client therefore saved
+  `None` — straight back into `default`. The server now names the signed-in
+  profile in the offer and the save echo, and the reply carries `has_stored` so a
+  client can learn its profile name without adopting a placeholder look it has
+  not saved yet. Requires a client and server on the same wire version
+  (`PROTO_VERSION` 191).
+
 ## [1.9.14.1_brown] - 2026-10-02
 
 ### Fixed
