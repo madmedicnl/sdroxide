@@ -1321,6 +1321,20 @@ impl SdroxideApp {
     /// logging and reconnecting while another tab is up front. The unbounded
     /// event channel must never be left to back up.
     pub(crate) fn drain_events(&mut self, ctx: &egui::Context, now: f64) {
+        // The settings row's explicit "save to profile" / "back to profile",
+        // for the same reason as the answers below: the dialog is drawn from
+        // `&self`, so what it asks for is left here and done where the app can
+        // be borrowed.
+        if let Some(action) = self.client_settings_pending.take() {
+            match action {
+                crate::app::settings::ui_tab::ProfileAction::Save => {
+                    self.save_screen_to_profile();
+                }
+                crate::app::settings::ui_tab::ProfileAction::Revert => {
+                    self.revert_screen_to_profile();
+                }
+            }
+        }
         // Answers to the settings dialog's device questions. Drained here
         // rather than in the dialog: they come from another machine, so one can
         // land in the frame after it was closed, and an answer left in the
@@ -1480,8 +1494,10 @@ impl SdroxideApp {
                     // anyone who did not find the picker, which is exactly how
                     // it reached a tester on three releases.
                     settings.apply_to(&mut self.ui_settings);
-                    // Remember which set we took, for the Settings label.
+                    // Remember which set we took, for the Settings label, and
+                    // keep it so "back to the profile's look" can put it back.
                     self.client_settings_from = Some(profile);
+                    self.client_settings_stored = Some(settings);
                 }
                 RadioEvent::ClientBindings { profile, bindings } => {
                     // Apply only when this client opted in to carrying its
@@ -2232,15 +2248,38 @@ impl SdroxideApp {
     /// server to tell) and when the scope is `Browser`. The profile sent is the
     /// one already in use, so a save lands on the set the client is reading
     /// rather than silently creating another.
-    pub(in crate::app) fn push_client_settings(&mut self) {
+    /// Save this screen's look against the profile, **on request only**.
+    ///
+    /// Not on every change, which is what it used to do: on a passwordless
+    /// server every client shares the station default, so one operator moving
+    /// the theme would move it for whoever signs in next. An explicit action
+    /// says who decided it, and the row says afterwards what it did.
+    pub(in crate::app) fn save_screen_to_profile(&mut self) {
         let profile = self.client_settings_from.clone().flatten();
-        self.ctrl.send_client_settings(
-            profile.clone(),
-            sdroxide_types::ClientScreen::from_settings(&self.ui_settings),
-        );
-        // Turning the bindings opt-in on is a `UiSettings` change, so enabling
-        // it seeds the server with the bindings now in force.
-        self.push_client_bindings_if_server();
+        let screen = sdroxide_types::ClientScreen::from_settings(&self.ui_settings);
+        self.ctrl.send_client_settings(profile.clone(), screen);
+        self.client_settings_stored = Some(screen);
+        self.client_settings_status = Some(match &profile {
+            Some(name) => format!("saved to the profile {name}"),
+            None => "saved as this station's default (the server has no password,                      so this is what every client gets)"
+                .to_string(),
+        });
+    }
+
+    /// Put the profile's stored look back, discarding local changes to it.
+    pub(in crate::app) fn revert_screen_to_profile(&mut self) {
+        match self.client_settings_stored.clone() {
+            Some(stored) => {
+                stored.apply_to(&mut self.ui_settings);
+                crate::app::persist::persist_ui_settings(&self.ui_settings);
+                self.client_settings_status =
+                    Some("back to the look stored for this profile".into());
+            }
+            None => {
+                self.client_settings_status =
+                    Some("no stored look for this profile yet — save one first".into());
+            }
+        }
     }
 
     /// Send this client's control bindings to the server, when the operator has

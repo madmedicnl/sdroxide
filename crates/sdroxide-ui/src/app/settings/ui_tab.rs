@@ -22,11 +22,22 @@ use crate::app::settings::general::device_combo;
 use crate::app::speech::SpeechStatus;
 use crate::chrome::StyledCombo;
 
+/// What the "Screen follows your profile" row asked the app to do. The row is
+/// drawn by a free function, so the action travels back to the caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileAction {
+    Save,
+    Revert,
+}
+
 pub(in crate::app) fn settings_ui_tab(
     ui: &mut egui::Ui,
     cfg: &mut sdroxide_types::UiSettings,
     radio: Option<&mut sdroxide_types::RadioConfig>,
     cloud_march: Option<&mut bool>,
+    profile_action: &std::cell::Cell<Option<ProfileAction>>,
+    profile_from: Option<&Option<String>>,
+    profile_status: Option<&String>,
 ) {
     use sdroxide_types::{ChromeStyle, FontSize, LayoutMode, UiSettings, UiTheme};
     ui.label(RichText::new("Display").size(14.0).strong().color(crate::theme::CYAN()));
@@ -252,15 +263,41 @@ pub(in crate::app) fn settings_ui_tab(
         ui.end_row();
 
         ui.label("Screen follows your profile").on_hover_text(
-            "When you are a remote client of `sdroxide --server`, the look of \
+            "When you are a remote client of `sdroxide --server`, the *look* of \
              this screen — theme, layout, waterfall and spectrum, fonts, Simple \
-             UI, Retro Radio, the map layers — is kept with the profile you \
-             signed in as, so it comes back on any machine instead of \
-             starting from defaults. Nothing to turn on: it is always on, and \
-             it is only ever the *look*. Nothing that belongs to the machine is \
-             touched, and a local radio is unaffected.",
+             UI, Retro Radio, the map layers — can be kept with the profile you \
+             signed in as, so it comes back on any machine instead of starting \
+             from defaults.\n\n\
+             **Saved when you press the button, not on every change.** On a \
+             server with no password every client is the same profile, so \
+             storing as you go would let one operator's theme become the next \
+             one's. Nothing that belongs to the machine is ever stored, and a \
+             local radio is unaffected.",
         );
-        ui.label(RichText::new("always on the server").weak().small());
+        ui.horizontal(|ui| {
+            if ui.button("Save to profile").clicked() {
+                profile_action.set(Some(ProfileAction::Save));
+            }
+            if ui.button("Back to profile").clicked() {
+                profile_action.set(Some(ProfileAction::Revert));
+            }
+        });
+        // Say where the look in force came from, and what the last save did. A
+        // save that says nothing is a save nobody can trust.
+        ui.label(
+            RichText::new(match profile_from {
+                Some(Some(name)) => format!("in use: the profile {name}"),
+                Some(None) => "in use: this station's default".to_string(),
+                None => "not in use yet — nothing stored for this login".to_string(),
+            })
+            .weak()
+            .small(),
+        );
+        if let Some(status) = profile_status {
+            ui.label(RichText::new(status.clone()).small().color(crate::theme::YELLOW()));
+        }
+        ui.end_row();
+
         ui.label("Carry control bindings").on_hover_text(
             "Also keep your keyboard and mouse bindings with the profile on the \
              server, so they follow the login between browsers and devices — \

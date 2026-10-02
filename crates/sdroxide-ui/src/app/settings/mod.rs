@@ -1732,7 +1732,6 @@ impl SdroxideApp {
             // diff next frame; waterfall speed is read each frame. Persist too.
             self.ui_settings = ui_edit;
             persist_ui_settings(&self.ui_settings);
-            self.push_client_settings();
         }
         if &speech_edit != self.speech.settings() {
             // Live too: rate and volume reach the running worker, and only a
@@ -3067,6 +3066,9 @@ impl SdroxideApp {
                     io.ui_edit,
                     io.radio_edit.as_mut(),
                     io.solar_cloud_march.as_deref_mut(),
+                    &self.client_settings_pending,
+                    self.client_settings_from.as_ref(),
+                    self.client_settings_status.as_ref(),
                 );
                 ui.add_space(10.0);
                 ui.separator();

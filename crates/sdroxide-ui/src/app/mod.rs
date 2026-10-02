@@ -951,6 +951,16 @@ pub struct SdroxideApp {
     /// a profile name, or `None` for the station default. `None` also before
     /// any has arrived, which the Settings label reads as "not using any".
     client_settings_from: Option<Option<String>>,
+    /// The set the server last sent, kept so the settings row can offer "back
+    /// to the profile's look" without another round trip.
+    client_settings_stored: Option<sdroxide_types::ClientScreen>,
+    /// What the last explicit save did, said where the operator pressed it. A
+    /// control that saves silently is a control that cannot be trusted.
+    client_settings_status: Option<String>,
+    /// Set by the settings row, drained by the frame loop. The modal is drawn
+    /// from `&self`, so the action cannot be performed where it is pressed;
+    /// `Cell` rather than plumbing an out-parameter up two calls.
+    client_settings_pending: std::cell::Cell<Option<crate::app::settings::ui_tab::ProfileAction>>,
     /// The KNOWN window's state — see [`known_calls::KnownCallsState`].
     pub(in crate::app) known_calls: known_calls::KnownCallsState,
     /// The Morse trainer window and its persisted progress.
@@ -1791,6 +1801,9 @@ impl SdroxideApp {
             flags: Default::default(),
             show_logbook: false,
             client_settings_from: None,
+            client_settings_stored: None,
+            client_settings_status: None,
+            client_settings_pending: std::cell::Cell::new(None),
             known_calls: known_calls::KnownCallsState::default(),
             morse: morse::MorseState::new(load_morse_progress(storage)),
             signal_id: signal_id::SignalIdState::default(),
