@@ -390,35 +390,72 @@ impl SdroxideApp {
             // timer thread of its own — the USB paddle does (`cw_key.rs`) — so
             // the frame is its only clock.
             ui.ctx().request_repaint();
-            let down = if use_usb {
-                #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
-                {
-                    self.cw_key.as_ref().map(|s| s.key_down()).unwrap_or(false)
+            // Two different things, deliberately (issue #569).
+            //
+            // **Straight** sends the down edge, which is what it always did:
+            // the operator's hand *is* the envelope, and the engine's read-back
+            // measures it. There is nothing for a keyer to add.
+            //
+            // **Iambic** sends the two *contacts* and nothing per frame. The
+            // elements are made on the engine side, next to the transmitter
+            // that has to carry them — a keyer run here would quantise every
+            // element to whatever this frame happened to sample, and could not
+            // reach a rig that keys itself at all.
+            match self.digi_cfg_edit.cw_key_mode {
+                sdroxide_types::CwKeyMode::Straight => {
+                    let down = if use_usb {
+                        #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+                        {
+                            self.cw_key.as_ref().map(|s| s.straight_contact()).unwrap_or(false)
+                        }
+                        #[cfg(not(all(not(target_arch = "wasm32"), target_os = "linux")))]
+                        {
+                            false
+                        }
+                    } else {
+                        // The key is the operator's only when nothing on screen
+                        // holds the keyboard: a caret in some other field is a
+                        // typist, not a keyer.
+                        let free = !ui.memory(|m| m.focused().is_some())
+                            && !ui.ctx().egui_wants_keyboard_input();
+                        free && ui.input(|i| straight_key_held(i, &straight_chords))
+                    };
+                    if down != self.cw_key_down {
+                        self.cw_key_down = down;
+                        cmds.push(Command::CwKey(down));
+                    }
+                    if self.cw_contacts_sent != (false, false) {
+                        self.cw_contacts_sent = (false, false);
+                    }
                 }
-                #[cfg(not(all(not(target_arch = "wasm32"), target_os = "linux")))]
-                {
-                    false
+                _ => {
+                    let (dot, dah) = self.cw_key.as_ref().map(|s| s.contacts()).unwrap_or((false, false));
+                    // Only on a change: a contact is a state, and a poll that
+                    // changed nothing is not a message.
+                    if (dot, dah) != self.cw_contacts_sent {
+                        self.cw_contacts_sent = (dot, dah);
+                        cmds.push(Command::CwContacts { dot, dah });
+                    }
+                    if self.cw_key_down {
+                        self.cw_key_down = false;
+                        cmds.push(Command::CwKey(false));
+                    }
                 }
-            } else {
-                // The key is the operator's only when nothing on screen holds
-                // the keyboard: a caret in some other field is a typist, not a
-                // keyer.
-                let free =
-                    !ui.memory(|m| m.focused().is_some()) && !ui.ctx().egui_wants_keyboard_input();
-                free && ui.input(|i| straight_key_held(i, &straight_chords))
-            };
-            if down != self.cw_key_down {
-                self.cw_key_down = down;
-                cmds.push(Command::CwKey(down));
             }
             // The press itself was taken from everything else before the key
             // bindings ran — see `swallow_straight_key`.
-        } else if self.cw_key_down {
+        } else {
             // The mode went off, the keyboard was taken, or another radio has
             // it now — either way a key let go of the rig mid-character would
-            // hold the frequency.
-            self.cw_key_down = false;
-            cmds.push(Command::CwKey(false));
+            // hold the frequency, and a paddle left closed would keep sending.
+            if self.cw_key_down {
+                self.cw_key_down = false;
+                cmds.push(Command::CwKey(false));
+            }
+            if self.cw_contacts_sent != (false, false) {
+                self.cw_contacts_sent = (false, false);
+                cmds.push(Command::CwContacts { dot: false, dah: false });
+            }
         }
         #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
         if let Some(e) = self.cw_key.as_ref().and_then(|s| s.error()) {
@@ -451,15 +488,26 @@ impl SdroxideApp {
                     RichText::new(if on { " KEY ● " } else { " KEY " }).size(12.0).strong(),
                 )
                 .on_hover_text(if hand_key_ok {
-                    "Hold the key bound to CW straight key — Space by default, and any key \
-                     you like in Settings → Controls — as a straight key: down while \
-                     it is held, up on release, instead of typing text. The transmit box is \
-                     locked while it is on, and the whole keyer is handed to the key: \
-                     whatever text was queued is dropped."
+                    match self.digi_cfg_edit.cw_key_mode {
+                        sdroxide_types::CwKeyMode::Straight => {
+                            "Hold the key bound to CW straight key — Space by default, and any \
+                             key you like in Settings → Controls — as a straight key: down while \
+                             it is held, up on release, instead of typing text. The transmit box \
+                             is locked while it is on, and the whole keyer is handed to the key: \
+                             whatever text was queued is dropped."
+                        }
+                        _ => {
+                            "Arm the keyer and use the USB paddle. The contacts go to the engine, \
+                             which makes the dits and dahs at the transmitted speed — here, not in \
+                             the panel, so the timing is not rounded to a frame. The transmit box \
+                             is locked while this is on and any queued text is dropped. \
+                             A straight key in the same box works too: pick Straight key type."
+                        }
+                    }
                 } else {
                     "This radio sends from its own keyer: the text goes over the control \
                      port and the rig times the elements, so there is nothing between the \
-                     straight key and the air for a hand to drive.\n\n\
+                     hand and the air for a key to drive — a paddle no less than a straight key.\n\n\
                      To hand-key it, set CW keying to \"Sound card (MCW)\" in \
                      Settings → Radio. The rig is then held on a sideband and the \
                      keyer's own sidetone is transmitted as audio, which is the route the \
@@ -621,8 +669,6 @@ impl SdroxideApp {
     /// left in `cw_key_error` for the panel to say.
     #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
     fn ensure_cw_key(&mut self, want: bool) {
-        use sdroxide_dsp::{IambicMode, KeyerMode};
-        use sdroxide_types::CwKeyMode;
         if !want {
             self.cw_key = None;
             return;
@@ -649,16 +695,9 @@ impl SdroxideApp {
             self.cw_key_error = Some("no paddle found — pick one in Settings → CW".into());
             return;
         };
-        let mode = match cfg.cw_key_mode {
-            CwKeyMode::Straight => KeyerMode::Straight,
-            CwKeyMode::IambicA => KeyerMode::Iambic(IambicMode::A),
-            CwKeyMode::IambicB => KeyerMode::Iambic(IambicMode::B),
-        };
         let setup = crate::app::cw_key::KeySetup {
-            wpm: cfg.cw_wpm,
             pitch_hz: cfg.cw_pitch_hz,
             reverse: cfg.cw_key_reverse,
-            mode,
             // The rig path produces the tone (the CW panel's SIDETONE), so the
             // paddle does not add its own.
             monitor: false,

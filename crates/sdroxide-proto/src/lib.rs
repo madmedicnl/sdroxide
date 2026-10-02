@@ -1659,7 +1659,24 @@ use sdroxide_types::{
 /// a **shadow** of mfsk-core's `CallsignHashTable`, which is lookup-only and
 /// cannot be enumerated, kept in step by the two places that feed it. A
 /// downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 189;
+///
+/// v190: the CW **paddle contacts** travel, so the iambic keyer can live on the
+/// engine. New `Command::CwContacts { dot, dah }`, **appended last**.
+///
+/// The unit is deliberate and is the fix: the client has a paddle and the engine
+/// has the transmitter, so what crosses the wire is *which contacts are closed*,
+/// once per change — not the edges a client would make of them. A client-side
+/// keyer quantises every element to whatever the UI thread sampled (a 20 wpm dit
+/// is 60 ms, inside one 50 ms transmit block), and cannot reach a rig that keys
+/// itself at all, since on that route the sidetone is never transmitted. With
+/// the keyer here it keys through every route, and the operator's only remaining
+/// choice is where the tone goes.
+///
+/// Straight keying does **not** come through this: `Command::CwKey` already
+/// carries the down edge and the engine reads it directly, so a keyer on this
+/// side for straight keying would be a second implementation of the same path.
+/// A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 190;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -2309,6 +2326,15 @@ mod tests {
         // keeps no table, rather than an empty band.
         let no_table = ServerMsg::KnownCalls(None);
         assert_eq!(decode::<ServerMsg>(&encode(&no_table).unwrap()).unwrap(), no_table);
+
+        // The CW paddle contacts, and both closed at once — the case that
+        // matters, since it is the one where two contacts share an element.
+        // Appended last, so a discriminant slip shows here rather than as a
+        // client's paddle arriving as a straight key.
+        for (dot, dah) in [(false, false), (true, false), (false, true), (true, true)] {
+            let contacts = Command::CwContacts { dot, dah };
+            assert_eq!(decode::<Command>(&encode(&contacts).unwrap()).unwrap(), contacts);
+        }
 
         // The station-roster edits, and the announcement that answers them.
         // Appended variants, so this is also where a discriminant slip in the

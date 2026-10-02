@@ -688,9 +688,14 @@ pub struct SdroxideApp {
     /// #322). Screen state: the keyer's engagement lives in the controller,
     /// and this is the toggle's face and where the key is read.
     cw_straight: bool,
-    /// Whether the Space bar was down the last frame, so a key press or
-    /// release is told to the keyer once — never per frame.
+    /// Whether the straight key was down the last frame, so a press or release
+    /// is told once — never per frame. Straight keying only: iambic has no
+    /// "down" to report, it has contacts.
     cw_key_down: bool,
+    /// The two paddle contacts as last sent to the engine (issue #569), so a
+    /// poll that changed nothing sends nothing. A paddle's state is what goes
+    /// up the wire; the elements are the engine's to make.
+    cw_contacts_sent: (bool, bool),
     /// The USB paddle, when one is the CW key and the panel has armed it.
     #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
     cw_key: Option<cw_key::CwKeySource>,
@@ -1765,6 +1770,7 @@ impl SdroxideApp {
             text_macro_edit: false,
             cw_straight: false,
             cw_key_down: false,
+            cw_contacts_sent: (false, false),
             #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
             cw_key: None,
             #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]

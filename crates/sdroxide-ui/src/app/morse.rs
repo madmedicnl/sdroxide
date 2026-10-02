@@ -93,6 +93,12 @@ pub(in crate::app) struct MorseState {
     /// (correct, target, sent) for the last character keyed.
     send_feedback: Option<(bool, char, char)>,
     send_last: String,
+    /// Reads back what the operator's paddle actually sent, off the monitor
+    /// tone (#569). Reused from the transmit path rather than written a second
+    /// time: there was a client-side keyer here once, and removing it took its
+    /// decode with it — the tone is the same signal either way.
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+    send_rx: sdroxide_dsp::CwSelfRx,
 }
 
 impl MorseState {
@@ -128,6 +134,8 @@ impl MorseState {
             send_target: None,
             send_feedback: None,
             send_last: String::new(),
+            #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+            send_rx: sdroxide_dsp::CwSelfRx::new(48_000.0, 20.0),
         }
     }
 
@@ -219,7 +227,6 @@ impl MorseState {
             return;
         };
         let setup = KeySetup {
-            wpm: self.wpm,
             pitch_hz: self.pitch_hz,
             reverse: self.key_reverse,
             ..KeySetup::default()
@@ -230,6 +237,7 @@ impl MorseState {
                 self.key_source = Some(s);
                 self.send_last.clear();
                 self.send_feedback = None;
+                self.send_rx.reset(self.wpm);
             }
             Err(e) => self.key_error = Some(e),
         }
@@ -461,16 +469,19 @@ impl super::SdroxideApp {
         }
         #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
         {
-            let (text, err) = match self.morse.key_source.as_ref() {
-                Some(s) => (s.take_text(), s.error()),
-                None => (String::new(), None),
+            let (tone, err) = match self.morse.key_source.as_ref() {
+                Some(s) => (s.take_tone(), s.error()),
+                None => (Vec::new(), None),
             };
             if let Some(e) = err {
                 self.morse.key_source = None;
                 self.morse.key_error = Some(e);
             }
-            if !text.is_empty() {
-                self.morse.on_sent(text);
+            if !tone.is_empty() {
+                let text = self.morse.send_rx.process(&tone);
+                if !text.is_empty() {
+                    self.morse.on_sent(text);
+                }
             }
         }
         match self.morse.tab {
@@ -554,7 +565,10 @@ impl super::SdroxideApp {
                 );
                 ui.label(RichText::new("dit").color(dc).size(10.5));
                 ui.label(RichText::new("dah").color(ac).size(10.5));
-                ui.label(RichText::new(format!("{} elements", src.marks())).size(10.0).weak());
+                // No element count: it came from the client-side keyer, and
+                // there is no keyer here to count. What the operator sent is
+                // read back off the tone instead, and shown below.
+                ui.label(RichText::new(&self.morse.send_last).size(11.0));
             }
         });
         if let Some(e) = &self.morse.key_error {

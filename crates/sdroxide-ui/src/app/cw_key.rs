@@ -4,8 +4,17 @@
 //! contacts and nothing else, often as the buttons of an otherwise useless
 //! "mouse". This opens one interface's input devices, takes them exclusively
 //! (`EVIOCGRAB`, so the contacts cannot also land as mouse clicks in whatever
-//! window has focus), runs [`sdroxide_dsp::CwKeyer`] on the contacts, and plays
-//! the sidetone locally. It never keys a radio.
+//! window has focus), and publishes **the two contacts** for whoever is
+//! transmitting.
+//!
+//! **It publishes contacts, not edges, and runs no keyer of its own** (issue
+//! #569). A keyer on this side of the wire would make every element from
+//! whatever this thread happened to sample — at 20 wpm a dit is 60 ms, inside
+//! one 50 ms transmit block — and could not reach a rig that keys itself at
+//! all, because on that route the sidetone is never transmitted. The iambic
+//! timing belongs next to the transmitter, so the contacts go up the wire and
+//! [`sdroxide_dsp::CwKeyer`] runs on the engine side. What is left here is the
+//! device, and a monitor tone so the operator can hear their own paddle.
 //!
 //! A composite HID keyer often registers two nodes for the one physical
 //! interface — a keyboard node and a mouse node — and which of them carries the
@@ -21,13 +30,12 @@ use std::fs::File;
 use std::io::Read;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use sdroxide_audio::start_output;
-use sdroxide_dsp::{CwKeyer, IambicMode, KeyerMode};
 
 /// `_IOW('E', 0x90, int)` — take the device exclusively.
 const EVIOCGRAB: libc::c_ulong = 0x4004_4590;
@@ -101,13 +109,17 @@ fn siblings(path: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// How the two contacts map onto dit and dah, and how they are keyed.
+/// How the two contacts map onto dit and dah, and what the monitor tone is.
+///
+/// **No keyer mode here, deliberately** (#569). Straight and iambic differ in
+/// who decides the envelope, and this half no longer decides anything: it reads
+/// the contacts, maps them onto dit and dah, and publishes them. The straight
+/// jack is still reported, because a straight key plugged into a paddle box is
+/// the middle contact and it is the one contact there is.
 #[derive(Clone, Copy)]
 pub struct KeySetup {
-    pub wpm: f32,
     pub pitch_hz: f32,
     pub reverse: bool,
-    pub mode: KeyerMode,
     /// Play the sidetone here. Off when the caller already hears its own tone
     /// (the CW panel's sidetone while the transmitter is keyed), so the two do
     /// not double.
@@ -116,26 +128,31 @@ pub struct KeySetup {
 
 impl Default for KeySetup {
     fn default() -> Self {
-        KeySetup {
-            wpm: 20.0,
-            pitch_hz: 700.0,
-            reverse: false,
-            mode: KeyerMode::Iambic(IambicMode::B),
-            monitor: true,
-        }
+        KeySetup { pitch_hz: 700.0, reverse: false, monitor: true }
     }
 }
 
 struct Shared {
-    text: Mutex<String>,
-    key_down: AtomicBool,
-    dit: AtomicBool,
-    dah: AtomicBool,
-    marks: AtomicU64,
+    /// The mapped contacts. `AtomicU8` bit 0 is dit, bit 1 is dah, bit 2 the
+    /// straight (middle) contact, so a caller reads one word and does not have
+    /// to reconcile three loads taken a moment apart.
+    contacts: AtomicU8,
+    /// The monitor tone as it was played, for a caller that wants to decode
+    /// what the operator sent. Bounded: it is a read-back tap, not a recorder,
+    /// and a caller that stops draining it loses old audio rather than memory.
+    tone: Mutex<Vec<f32>>,
     error: Mutex<Option<String>>,
 }
 
-/// A running paddle source: a keyer thread, a shared decode, and the tone.
+const CONTACT_DIT: u8 = 1;
+const CONTACT_DAH: u8 = 2;
+const CONTACT_MIDDLE: u8 = 4;
+
+/// Ceiling on the undrained monitor tap, in samples — about eight seconds at
+/// 48 kHz. Past it the oldest audio is dropped rather than the buffer grown.
+const TONE_TAP_MAX: usize = 48_000 * 8;
+
+/// A running paddle source: a reader thread, the contacts it saw, and a tone.
 pub struct CwKeySource {
     shared: Arc<Shared>,
     stop: Arc<AtomicBool>,
@@ -145,11 +162,8 @@ pub struct CwKeySource {
 impl CwKeySource {
     pub fn start(path: &Path, setup: KeySetup) -> Result<Self, String> {
         let shared = Arc::new(Shared {
-            text: Mutex::new(String::new()),
-            key_down: AtomicBool::new(false),
-            dit: AtomicBool::new(false),
-            dah: AtomicBool::new(false),
-            marks: AtomicU64::new(0),
+            contacts: AtomicU8::new(0),
+            tone: Mutex::new(Vec::new()),
             error: Mutex::new(None),
         });
         let stop = Arc::new(AtomicBool::new(false));
@@ -162,23 +176,36 @@ impl CwKeySource {
         Ok(CwKeySource { shared, stop, thread: Some(thread) })
     }
 
-    /// Characters decoded since the last call, in order.
-    pub fn take_text(&self) -> String {
-        std::mem::take(&mut *self.shared.text.lock().unwrap())
-    }
-
-    /// Whether the key is down at this instant, for the caller to turn into
-    /// `Command::CwKey` edges.
-    pub fn key_down(&self) -> bool {
-        self.shared.key_down.load(Ordering::Relaxed)
-    }
-
+    /// The two **paddle contacts** as of this instant, already mapped through
+    /// the reverse switch. This is the whole output of the thread: the caller
+    /// sends them as `Command::CwContacts` and the engine makes the elements.
     pub fn contacts(&self) -> (bool, bool) {
-        (self.shared.dit.load(Ordering::Relaxed), self.shared.dah.load(Ordering::Relaxed))
+        let c = self.shared.contacts.load(Ordering::Relaxed);
+        (c & CONTACT_DIT != 0, c & CONTACT_DAH != 0)
     }
 
-    pub fn marks(&self) -> u64 {
-        self.shared.marks.load(Ordering::Relaxed)
+    /// The contact a **straight key** uses in this box: the middle jack if the
+    /// box has one, else the dit contact.
+    ///
+    /// Both, deliberately, and it is not a guess: a paddle box with a straight
+    /// key in it reports the key on whichever single contact it wired it to —
+    /// the middle one where there is a middle one, and the dit contact where
+    /// there is not. Reading only the middle would leave every straight key in a
+    /// plain two-contact box dead, silently, which is the failure this whole
+    /// change is about not having. Whether that contact is a straight key or a
+    /// paddle is the caller's decision, which is why this is reported and not
+    /// interpreted.
+    pub fn straight_contact(&self) -> bool {
+        let c = self.shared.contacts.load(Ordering::Relaxed);
+        c & (CONTACT_MIDDLE | CONTACT_DIT) != 0
+    }
+
+    /// The monitor tone since the last call, at 48 kHz, for a caller that wants
+    /// to decode what the operator sent. Empty when the monitor is off — which
+    /// is the CW panel's own arrangement, since it hears the engine's sidetone
+    /// instead and reads that back through `CwSelfRx`.
+    pub fn take_tone(&self) -> Vec<f32> {
+        std::mem::take(&mut *self.shared.tone.lock().unwrap())
     }
 
     /// A failure the thread hit after starting (device open, audio), said in the
@@ -257,14 +284,15 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
     let capacity = rate as usize * 2;
     let inc = std::f64::consts::TAU * setup.pitch_hz as f64 / rate;
 
-    let mut keyer = CwKeyer::new(setup.wpm);
-    keyer.set_mode(setup.mode);
     let (mut dit, mut dah, mut middle) = (false, false, false);
     let mut phase = 0.0f64;
     let start = Instant::now();
     let mut generated: u64 = 0;
     let mut buf = [0u8; 24 * 256];
     let ev_size = std::mem::size_of::<libc::input_event>();
+    // Staged outside the lock, drained each pass: the tap must never be held
+    // across the sleep below, or the caller's read-back stalls with it.
+    let mut tap: Vec<f32> = Vec::new();
 
     while !stop.load(Ordering::Relaxed) {
         for (_, file) in &mut files {
@@ -295,27 +323,27 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
         }
 
         let now = start.elapsed().as_secs_f64();
-        let (d, a) = match setup.mode {
-            // A straight key is one contact — the straight jack if the box has
-            // one, else the dit contact.
-            KeyerMode::Straight => ((middle || dit), false),
-            KeyerMode::Iambic(_) => {
-                if setup.reverse {
-                    (dah, dit)
-                } else {
-                    (dit, dah)
-                }
-            }
-        };
-        let down = keyer.poll(now, d, a);
-        shared.key_down.store(down, Ordering::Relaxed);
-        shared.dit.store(dit, Ordering::Relaxed);
-        shared.dah.store(dah, Ordering::Relaxed);
-        shared.marks.store(keyer.marks(), Ordering::Relaxed);
-        let text = keyer.take_text();
-        if !text.is_empty() {
-            shared.text.lock().unwrap().push_str(&text);
+        // The one thing this thread decides: which physical contact is dit and
+        // which is dah. Nothing more — the elements are the engine's to make,
+        // because they have to be made next to the transmitter that carries
+        // them. The middle contact is published alongside, since a straight key
+        // in a paddle box is the middle one.
+        let (d, a) = if setup.reverse { (dah, dit) } else { (dit, dah) };
+        let mut word = 0u8;
+        if d {
+            word |= CONTACT_DIT;
         }
+        if a {
+            word |= CONTACT_DAH;
+        }
+        if middle {
+            word |= CONTACT_MIDDLE;
+        }
+        // Only on a change: the caller sends contacts, and a poll that changed
+        // nothing is not a message.
+        let prev = shared.contacts.swap(word, Ordering::Relaxed);
+        let changed = prev != word;
+        let down = d || a || middle;
 
         // Fill the device one millisecond at a time, from the wall clock so it
         // cannot drift; a full ring is skipped rather than blocked on.
@@ -334,6 +362,9 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
             if ring.slots() + 2 > capacity {
                 break;
             }
+            // The monitor follows the *contact*, not a keyer: what the operator
+            // hears is their own hand, and the iambic timing they are listening
+            // for is the engine's, arriving on the engine's own sidetone.
             let s = if down { (phase.sin() * 0.3) as f32 } else { 0.0 };
             phase += inc;
             if phase > std::f64::consts::TAU {
@@ -341,10 +372,24 @@ fn run(paths: Vec<PathBuf>, setup: KeySetup, shared: &Shared, stop: &AtomicBool)
             }
             let _ = ring.push(s);
             let _ = ring.push(s);
+            // The same tone, for a caller that decodes what was sent. Bounded,
+            // and dropped rather than allowed to grow: a caller that stops
+            // draining should lose old audio, not memory.
+            if changed {
+                tap.push(s);
+                tap.push(s);
+            }
             to_gen -= 1;
             generated += 1;
         }
         let _ = &out;
+        if !tap.is_empty() {
+            let mut guard = shared.tone.lock().unwrap();
+            if guard.len() < TONE_TAP_MAX {
+                guard.append(&mut tap);
+            }
+            tap.clear();
+        }
 
         std::thread::sleep(Duration::from_millis(1));
     }
