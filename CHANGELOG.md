@@ -13,6 +13,37 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+### Changed
+
+- **CW keying timing now comes from the engine, so a USB paddle sends clean
+  dits and dahs instead of frame-quantised ones.** The iambic keyer used to run
+  in the interface, over the paddle's contacts, and publish a key-down flag; the
+  CW panel turned that into `CwKey(down)` once a frame and the engine applied it
+  once per transmit block. At 15 wpm a dit is 120 ms, so each element landed on
+  whatever block boundary it happened to cross — audible raggedness, and a held
+  paddle that behaved like a straight key instead of repeating. The contacts now
+  go to the engine and the elements are made next to the transmitter, one sample
+  at a time.
+  A **straight key wired into a paddle box** now keys from the middle contact
+  *or* the dit contact, whichever the box reports — a paddle box wires a single
+  key to one contact, and reading only the middle left every straight key in a
+  plain two-contact box dead and silent.
+  On a **radio that keys itself from text** (a working CAT link, CW keying set to
+  "CAT") hand-keying is still refused, by design: the text goes over the control
+  port and the rig times the elements itself, so there is nothing between the
+  hand and the air for a key to drive — a paddle no less than a straight key. The
+  KEY chip now says so and names the way out instead of the refusal being
+  silent. Set **Settings → Radio → CW keying = Sound card (MCW)**: the rig is
+  held on a sideband and the keyer's own sidetone is transmitted as audio, which
+  is the route a paddle and a straight key both drive. That route is unchanged by
+  this — it was already the confirmed working one.
+  Requires a client and server on the same wire version (`PROTO_VERSION` 190).
+
+- **The Morse trainer's SEND pane reads back what you sent from the monitor
+  tone**, through the same decoder the transmit path uses, instead of a separate
+  decode that existed only for the trainer. Its "n elements" counter is now the
+  characters actually decoded.
+
 ### Fixed
 
 - **A client's screen settings are stored under the profile it signed in as, not
@@ -29,6 +60,14 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
   profile's settings by naming it. It was invisible without a password, because
   there the station default is the correct bucket. No wire change.
   (Report and diagnosis by Roy / F6KIM in discussion #4.)
+
+- **MCW needs the radio on a sideband, not in CW.** Where CW is transmitted as
+  keyed audio through the sound card (the Sound card (MCW) route), a radio put in
+  CW ignores that sound card entirely: its own keyer is selected and the audio
+  input is out of the path, so nothing is modulated and nothing goes out while
+  everything on screen looks correct — the tone sounds, the send is decoded, and
+  the only missing thing is reaching the air. Leave the radio on **USB**, as for
+  FT8. This has bitten before on another rig (#119).
 
 ## [1.9.13.3_brown] - 2026-10-02
 
