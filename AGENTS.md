@@ -94,19 +94,36 @@ upstream as [#621](https://github.com/dividebysandwich/sdroxide/issues/621)** �
 an issue, not a PR, per the standing rule that only a genuine upstream bug goes
 up and then as an issue.
 
-**Parked, and this is the blocker:** the exact Hadamard ordering convention
-(natural vs sequency), the bit order inside each 64-bit vector, and the rotation
-direction. The operator's capture is **`~/Downloads/capture500-16.wav`** — 8 kHz
-mono, 61.7 s — and the analysis harness is in `/tmp/opencode/olivia_*.py`.
-Measured off it: 16 tones, **31.25 Hz spacing, 256 samples/symbol** (matching
-the reference's "256 samples in time, 512-long window"), comb centre ~978 Hz,
-~1927 symbols ≈ 30 blocks of 64. A Walsh decode with the real scrambler returns
-**76–80 % "printable" — which is what random bytes score**, so a convention is
-still wrong. Guessing it would ship a second non-interoperable decoder, which is
-the exact failure being fixed, so it waits for the reference tables. Every
-fldigi mirror was unreachable (GitHub 404, GitLab Cloudflare, SourceForge HTML);
-the next attempt should start from WB8ROL's own specification or a working
-mirror of `src/modes/olivia.cpp`.
+**Partly done (`7135e19b`), and the reference is found.** The authoritative
+implementation is **`src/include/jalocha/pj_mfsk.h` in `w1hkj/fldigi`** (the
+author's own mirror), reachable raw — GitLab is Cloudflare-blocked and
+SourceForge serves HTML, but `raw.githubusercontent.com/w1hkj/fldigi/master/...`
+works, and Debian ships the whole tarball at
+`deb.debian.org/debian/pool/main/f/fldigi/`. It settles every convention:
+
+- `SymbolsPerBlock = 2^(BitsPerCharacter-1)` = **64**, carrying `log2(tones)`
+  characters. Ours was already right.
+- `EncodeCharacter`: a **delta** at `Char mod 64`, sign from bit 6, then the
+  **inverse** Walsh transform. Ours (`hadamard_bit(byte & 63, i)`) already matched.
+- `ScrambleFHT(c * 13)`: flip the **sign** where bit `(13·c + i) & 63` of
+  `0xE257E6D0291574EC` is set — a Walsh-domain sign flip, **not** a tone rotation.
+- Interleave: character `c` occupies bit `(c + i) mod log2(tones)` of symbol `i`.
+- Receiver: forward `FHT`, peak position, `+64` when the peak is negative.
+
+Both wrong pieces are now right. **The capture still does not decode**, and the
+new `#[ignore]`d test `an_off_air_capture_decodes` says so rather than the
+loopback tests pretending otherwise. The remaining gap is the **frame around
+the block**: Olivia brackets every transmission with sync tones and separates
+frames with a tail, so blocks are not back to back on the air and this decoder
+assumes they are; it also has no frequency search, where fldigi searches ±8
+tone spacings.
+
+Measured off the operator's capture **`~/Downloads/capture500-16.wav`** for
+whoever continues: 8 kHz mono, 61.7 s, **500/16** — 16 tones, 31.25 Hz spacing,
+**256 samples per symbol**, tone bank centred **~978 Hz**, 1927 symbols
+(≈30 blocks of 64). Harnesses are in `/tmp/opencode/olivia_*.py`. Note the comb
+centre is ~22 Hz off a nominal 1000 Hz, which is more than half a tone step and
+is why a fixed-frequency bank fails to lock.
 
 ### 4. An 11 m CQ run had no bound at all
 
