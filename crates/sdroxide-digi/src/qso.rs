@@ -1562,16 +1562,38 @@ impl QsoMachine {
             }
         }
         // Calling one station that never comes back: give up rather than call
-        // into the void all afternoon. (Repeating a CQ is exempt — that *is*
-        // the operation; the watchdog above bounds it instead.)
+        // into the void all afternoon.
+        //
+        // **A CQ run counts too, on 11 m only.** Repeating a CQ is exempt
+        // elsewhere — that *is* the operation, and the watchdog above bounds it
+        // instead. On 11 m the watchdog is skipped for a CQ run (it measures
+        // only "time since the operator pressed CQ", and during a run where no
+        // reply is the expected state it cuts a run that is working), so this
+        // count is the *only* bound there — and it used to exempt `CallingCq`
+        // as well. Both halves of one bound were gone at once, and an unattended
+        // 11 m station called CQ every slot forever, which is the harm the
+        // watchdog exists to prevent on a band shared with people who never
+        // asked to be keyed at.
         let repeats = self.cfg.max_tx_repeats;
-        if repeats > 0
-            && self.tx_since_progress >= repeats
-            && matches!(self.step, QsoStep::TxGrid | QsoStep::TxReport | QsoStep::TxRReport)
-        {
-            let call = self.dx.as_ref().map(|d| d.call.clone()).unwrap_or_default();
-            self.transcript
-                .push(TranscriptLine::note(format!("no reply from {call} after {repeats} calls")));
+        let calling_cq = self.step == QsoStep::CallingCq && self.cb;
+        let calling_dx = matches!(self.step, QsoStep::TxGrid | QsoStep::TxReport | QsoStep::TxRReport);
+        if repeats > 0 && self.tx_since_progress >= repeats && (calling_dx || calling_cq) {
+            if calling_cq {
+                self.transcript.push(TranscriptLine::note(format!(
+                    "no answer after {repeats} CQ calls"
+                )));
+                // As after the watchdog: a station calling from here is not
+                // picked up on its own, so say what to do rather than leave the
+                // operator watching a decode go by.
+                self.transcript.push(TranscriptLine::note(
+                    "a station answering after this point is not picked up — press REPLY, or \
+                     call CQ to start a new run",
+                ));
+            } else {
+                let call = self.dx.as_ref().map(|d| d.call.clone()).unwrap_or_default();
+                self.transcript
+                    .push(TranscriptLine::note(format!("no reply from {call} after {repeats} calls")));
+            }
             self.step = QsoStep::Idle;
             return;
         }
@@ -2599,7 +2621,8 @@ mod tests {
 
     #[test]
     fn repeating_a_cq_is_not_an_unanswered_call() {
-        // A CQ run repeats by design; only the watchdog bounds it.
+        // Off 11 m a CQ run repeats by design and only the watchdog bounds it —
+        // which is still true there, and this is what pins it.
         let cfg = DigiConfig { max_tx_repeats: 3, ..cfg() };
         let mut q = QsoMachine::new(Mode::Ft8, cfg);
         q.call_cq();
@@ -2608,6 +2631,30 @@ mod tests {
         }
         assert_eq!(q.step(), QsoStep::CallingCq);
         assert!(q.wants_tx());
+    }
+
+    /// On 11 m the watchdog is skipped for a CQ run, so the unanswered-call
+    /// count is the only thing that ends one. When it exempted `CallingCq` as
+    /// well, an unattended station called CQ every slot forever — the harm the
+    /// watchdog exists to prevent, on a band shared with people who never asked
+    /// to be keyed at.
+    #[test]
+    fn on_eleven_metres_a_cq_run_ends_on_the_call_count() {
+        let cfg = DigiConfig { max_tx_repeats: 3, ..cfg() };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        q.set_cb(true);
+        q.call_cq();
+        q.note_tx_sent(100);
+        q.note_tx_sent(100);
+        assert_eq!(q.step(), QsoStep::CallingCq, "two calls in, still calling");
+        q.note_tx_sent(100);
+        assert_eq!(q.step(), QsoStep::Idle, "the third call is the last one");
+        assert!(!q.wants_tx(), "and nothing is keyed after it");
+        let transcript = q.status(true).transcript;
+        assert!(
+            transcript.iter().any(|l| l.text.contains("no answer after 3 CQ calls")),
+            "the notice says the run ended on the count: {transcript:?}"
+        );
     }
 
     #[test]
