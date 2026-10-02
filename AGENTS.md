@@ -13,6 +13,10 @@
 > is the original design, kept for the seams it records. **ALE (issue #262) is otherwise
 > mid-flight — read [`ALE-HANDOVER.md`](ALE-HANDOVER.md)
 > first if you are continuing it.** It has the state, the exact capture/decode
+> **FST4W is planned, not built — read [`FST4W-HANDOVER.md`](FST4W-HANDOVER.md)
+> before starting it**: the mode-inventory against the WSJT suite (we also lack
+> **JT4** and **Echo**), why FST4W is the one that fits, and every integration
+> arm a new `Mode` needs.
 > commands, the fixed RSP1 settings, and the next steps. Everything below is
 > the rest of the fork. Upstream ask is open: draft PR
 > [dividebysandwich/sdroxide#598](https://github.com/dividebysandwich/sdroxide/pull/598)
