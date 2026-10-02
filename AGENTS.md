@@ -1,11 +1,15 @@
 # Agent notes — SDR Oxide, the CB and SWL fork
 
-> **The CW keyer (#569) is BUILT (`353d136f`) and wants one bench test.** All
-> six pieces landed together, `PROTO_VERSION` is 190, and the tree is green.
-> What is left is an operator on the air: the CH55x `1209:c550` paddle through
-> the SS9900v over MCW/VOX, iambic A and B. Read §10 before starting anything
-> here — it says which half of it is settled and which claim in the original
-> handover was **wrong**, and that one matters. [`CW-HANDOVER.md`](CW-HANDOVER.md)
+> **The CW keyer is BUILT (`353d136f`) and BENCHED — it works on the air.**
+> The CH55x `1209:c550` paddle keys the SS9900v over MCW/VOX, iambic, through
+> `origin/main`; the operator's verdict was `all works!`. Read §10 before
+> starting anything here — it says which half of it is settled, which claim in
+> the original handover was **wrong**, and **the one setting the rig must be
+> put in**, which is not the one you would assume. The user-facing half has
+> gone upstream as **#569** (keyer, draft) and **#626** (engine side +
+> `CwContacts`, draft); the USB source, settings tab and panel split stay here
+> and #573 is **superseded** — do not rebase it.
+> [`CW-HANDOVER.md`](CW-HANDOVER.md)
 > is the original design, kept for the seams it records. **ALE (issue #262) is otherwise
 > mid-flight — read [`ALE-HANDOVER.md`](ALE-HANDOVER.md)
 > first if you are continuing it.** It has the state, the exact capture/decode
@@ -211,10 +215,13 @@ mode in `CwKeyer` is a second implementation of that, so it goes. Reply posted.
 For the trainer's contact-to-text decode we take his first option: reuse
 `CwSelfRx` on the sidetone rather than write a second decoder.
 
-**Still to do:** move the keyer engine-side (a `Command` carrying contacts plus a
-`PROTO_VERSION` bump), drop `CwKeyer`'s straight mode, and rebase #573 onto it.
-Open question we asked him: whether the contacts arrive as a new
-`Command::CwContacts { dot, dash }`.
+**Done — see §10.** Both answers were followed as he asked: the keyer is
+engine-side in `CwController`, and `CwKeyer` is iambic-only. The open question
+(how the contacts travel) is **#626**: a new `Command::CwContacts { dot, dah }`
+on a per-sample-timed keyer, with the `PROTO_VERSION` 172 → 173 that the
+appended `DigiConfig` field and the new command need. The three-way split that
+replaces the #573 plan: **#569** the keyer, **#626** the engine side, and the
+**user-facing package stays on the fork** rather than going up as a third PR.
 
 ### 8. The bench has no Olivia on it right now (checked 2026-10-02)
 
@@ -276,8 +283,7 @@ identified and the code is right; "it works" is still a claim to be tested.
 
 **Built in `353d136f`, all six pieces at once, `PROTO_VERSION` 190.** It is
 committed, pushed, compiles silent across the workspace and passes its tests.
-**Not tested on air** — the bench leg is an operator's, and it is the only
-thing left.
+**And it is benched** — see the bench paragraph at the end of this section.
 
 **The bug it fixes, in one sentence.** A paddle could not key a rig that keys
 itself, and on every other route the timing was quantised to whatever the UI
@@ -359,15 +365,27 @@ path, so the two distinguish each other rather than both passing on anything.
 22 CW tests + 3. `skim_window` flakes under a parallel run and passes alone, as
 it has before.
 
-**The bench, unchanged.** CH55x `1209:c550` "-Yuan-3key" (raw contacts, no
-iambic of its own, which is why the keyer is in software) → **radio 1, the CRT
-SS9900v** on **27.265**, CW keying = **Sound card (MCW)**, VOX. Arm **KEY**,
-then iambic A and iambic B: single dits, a dah, a squeeze, and a held paddle
-(which must repeat, since that is the iambic behaviour and the straight path's
-hold cap no longer applies to it). Listen for clean dit/dah and watch the
-**sent_text** read-back follow. **Keep transmissions short.** What would mean it
-is wrong: elements rounded to a 50 ms grid, a held paddle sending once instead
-of repeating, or nothing on the air at all.
+**The bench: PASSED (2026-10-02), and the setting is not the one to assume.**
+CH55x `1209:c550` "-Yuan-3key" (raw contacts, no iambic of its own, which is why
+the keyer is in software) → **radio 1, the CRT SS9900v** on **27.265**, CW keying =
+**Sound card (MCW)**, VOX, and **the rig's mode set to USB**. Arm **KEY**, then
+iambic A and iambic B: single dits, a dah, a squeeze, and a held paddle. Listen
+for clean dit/dah and watch the **sent_text** read-back follow. The operator's
+verdict was **`all works!`**, iambic both ways.
+
+**The setting that decides it, and why it is counterintuitive.** The rig was in
+**CW**, and the run failed there — which is the §10 refusal talking, and it is
+correct behaviour, not the keyer misbehaving. A rig set to CW ignores the
+sound card entirely: it makes its own tone from whatever text it is sent, so
+**there is no audio for a keyer to key**. Change the rig to **USB** (or any
+sideband) and MCW holds it on that sideband and transmits the program's own tone,
+which is the only route on which a generated tone means anything. **Set the rig
+to USB first, then arm KEY.** Three CW sections of the manual now say so
+(`02989ae5`).
+
+**Not benched in the upstream shape.** #626 carries the engine half *without*
+the panel, because that is what the maintainer asked for, and nobody has run the
+keyer against a rig in that split form.
 
 ### 11. An `--oob-tx` switch: fork-only, and never upstream
 
@@ -446,10 +464,14 @@ notes; their fork copies are reconciled in `8c398189`.
 - **#611** NAVTEX AFC tracking (issue #608).
 - The rest of the queue: **#604** FT8 decode depth · **#603** contest logger ·
   **#598** 2G ALE (draft) · **#597** JTTY · **#596** digi message buttons ·
-  **#586** FT8 signal subtraction · **#573** CW key · **#572** CW key as audio ·
-  **#569** CW keyer (draft) · **#568** Morse trainer · **#561** FSK441 TX ·
+  **#586** FT8 signal subtraction · **#572** CW key as audio ·
+  **#569** CW keyer (draft) · **#626** CW engine side (draft) ·
+  **#568** Morse trainer · **#561** FSK441 TX ·
   **#559** band-menu captions · **#557** recording silence split · **#554**
   UVPacket (draft) · **#545** (tr)uSDX nG (draft) · **#537** band openings.
+
+**#573 is off this queue: superseded**, and do not rebase it — the panel and
+settings half it carried now stays on the fork (§10).
 
 **Upstream issues to read** are only those we have a PR for: #608→#611,
 #609→#612, #585→#613. Older mappings are in "Keeping up with upstream". We are
@@ -2502,23 +2524,30 @@ The portable half is offered upstream as draft **#569** (branch
 key-down output should also drive the transmit path. That seam is **confirmed
 working on air**: a USB paddle keyed a CRT SS9900v (11 m CB) over MCW/VOX
 through `Command::CwStraight`/`CwKey`, iambic and straight, so the body now
-answers the question with that evidence. Straight mode is in the same draft.
-The other upstream piece is the no-control-link fallback as draft **#572**
-(branch `upstream-pr/cw-keying-no-link`): a stored `cw_keying = Cat` with no
+answers the question with that evidence. **The maintainer answered, and the
+answer was "engine-side, iambic-only"** — so the draft has been rebased
+(`aa44dc06`, one commit, `CwKeyer` straight mode dropped) and the question it
+asked is now **#626** (see §10). The other upstream piece is the
+no-control-link fallback as draft **#572** (branch
+`upstream-pr/cw-keying-no-link`): a stored `cw_keying = Cat` with no
 serial path or network address made the source report `cw_text_keying() =
 Some`, so `rig_keys_itself` went true, the panel's KEY was disabled and a hand
 key sent nothing — the bug that made the paddle look broken on a VOX rig.
 `effective_cw_keying` falls back to `Audio` for the chunk size and `cw_mcw`,
 while the commanded mode keeps the stored setting.
 
-The user-facing package (Settings → CW, the appended `DigiConfig` fields, the
-evdev source and the panel transmit wiring) is draft **#573** (branch
-`upstream-pr/cw-key`). It carries #569's keyer commits **as well as** the new
-work, because a pull request's base can only be a branch in the upstream repo,
-so a fork cannot stack a PR on another fork PR's branch. The body says so
-plainly and asks the maintainer to review #569 first, then the delta. **When
-#569 lands, rebase #573 onto `main`** so the keyer commits drop out; do not let
-the duplicate lineage stand. The evdev source is **Linux-only raw evdev**, and
+**#573 is superseded — do not rebase it.** The user-facing package (Settings →
+CW, the evdev source, the panel transmit wiring) stays on the **fork**: the
+maintainer's answer asked for the engine half alone, and offering the panel half
+as a third PR would mean reviewing the same split in two places. Its branch
+(`upstream-pr/cw-key`) is left stale and carries a comment saying so, with the
+offer stated plainly: **he is free to open a PR against the fork** if he wants
+the user-facing half, which is the cheap way to get it rather than re-reviewing
+it upstream. The original rationale is kept here because it is still the reason
+the split exists — it carried #569's keyer commits **as well as** the new work,
+because a pull request's base can only be a branch in the upstream repo, so a
+fork cannot stack a PR on another fork PR's branch. The evdev source is
+**Linux-only raw evdev**, and
 that is a design question raised in the body, not assumed: `hidapi` is
 cross-platform but cannot take the device exclusively, so the contacts would
 also arrive as clicks. The branch's `cw_key.rs` is trimmed to `key_down` +
