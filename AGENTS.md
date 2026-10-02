@@ -209,6 +209,26 @@ For the trainer's contact-to-text decode we take his first option: reuse
 Open question we asked him: whether the contacts arrive as a new
 `Command::CwContacts { dot, dash }`.
 
+### 8. The bench has no Olivia on it right now (checked 2026-10-02)
+
+`tools/rsp1-capture/` is the throwaway RSP1 capture tool the bench section kept
+promising and did not have — CF32 interleaved to a file, built against
+`vendor/soapysdr`. Two things it cost: `stream.activate(None)` is **required**
+after `rx_stream` (without it `read` fails with a `Timeout` that looks like a
+radio fault), and `rx_stream` takes its sample type as a parameter.
+
+Used to look for a live Olivia to decode, on the three primary calling
+frequencies from WB8ROL's own band plan — 20 m **14073.5**, 40 m **7036.5**,
+80 m **3583.25** kHz. **Nothing.** The strong narrowband signal at 14073.625 kHz
+(29x the noise in a 500 Hz window) is **not** Olivia: one spectral line, no
+16-tone comb, and per-frame energy flat at 0.031 across every 64-symbol frame.
+No comb on 40 m or 80 m either.
+
+So the capture buys nothing today, and Olivia still needs either a live
+transmission when the band has activity (20 m "high, daytime", 40 m late
+evening, 80 m evenings) or a reference recording whose text is known. The frame
+geometry work below is unchanged by any of this.
+
 ### House note: do not monitor CI continuously
 
 The operator's instruction, after a session lost a lot of time to 90-second poll
