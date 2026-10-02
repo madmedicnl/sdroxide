@@ -1,6 +1,10 @@
 # Agent notes — SDR Oxide, the CB and SWL fork
 
-> **ALE (issue #262) is mid-flight — read [`ALE-HANDOVER.md`](ALE-HANDOVER.md)
+> **The CW keyer (#569) is next and is designed but not built — read
+> [`CW-HANDOVER.md`](CW-HANDOVER.md) first.** It has the six pieces, the wire
+> change (`PROTO_VERSION` 189 → 190), the pitfalls of the first attempt, and a
+> paddle on the bench to test it with. **ALE (issue #262) is otherwise
+> mid-flight — read [`ALE-HANDOVER.md`](ALE-HANDOVER.md)
 > first if you are continuing it.** It has the state, the exact capture/decode
 > commands, the fixed RSP1 settings, and the next steps. Everything below is
 > the rest of the fork. Upstream ask is open: draft PR
