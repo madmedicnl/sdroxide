@@ -265,7 +265,85 @@ the feature — do not delete it as cruft.
 **Not verified**: no server-and-browser round trip has been run. The cause is
 identified and the code is right; "it works" is still a claim to be tested.
 
+### 10. #569, decomposed — this is the whole job, in six pieces
+
+The maintainer's two answers, both posted and both to act on: put the keyer in
+**`CwController` on the engine side** — *"Don't have the client generate edges and
+send them as `CwKey(down)`"* — and keep **`CwKeyer` iambic-only**, because
+straight keying already goes through `CwKey` and is already read back by
+`CwSelfRx` into `sent_text` (`cw_controller.rs:234`, `:592`, `:504`). The
+trainer's contact-to-text decode reuses `CwSelfRx` on the sidetone rather than
+writing a second decoder.
+
+**The seams.** These took an hour to find and are written down nowhere else, so
+do not re-derive them:
+
+1. `cw.rs:1693-1755` — `CwKeyer` today is *both* shapes: `KeyerMode::{Iambic,
+   Straight}`, with straight-only state (`contact`, `mark_start`, `dit_est`) and
+   `poll_straight`. Removing straight deletes `poll_straight`, those three fields,
+   the enum variant and two tests (`a_straight_key_sends_two_characters`,
+   `a_straight_key_follows_a_slower_operator`). Verified to compile with only the
+   UI callers left to fix, and the 22 CW tests pass.
+2. `cw.rs:1573` — `CwTx::next_manual_block` reads `self.held` **inside** its
+   per-sample loop, so a keyer driving it from outside would quantise every
+   element to the block. It needs a variant that takes a per-sample key timeline
+   (a `&[bool]` built by polling the keyer), with the present method delegating to
+   it at a constant state.
+3. `cw_controller.rs:685 fill_tx_block` — the hand-key branch already renders at
+   the **output rate** rather than in 50 ms `TX_CHUNK` pieces, for exactly this
+   reason (issue #322). The iambic path belongs in that same branch: poll the
+   keyer per sample with a monotonic `keyer_t`, render the timeline, and keep
+   feeding `feed_sent_decode` so the read-back still shows what went out.
+4. `cw_controller.rs:923/944` — `set_straight(on)` engages the manual path and
+   `key_down(down)` is the per-instant state. `set_straight` refuses when
+   `self.cat.is_some()`, which is why a rig that keys itself cannot be hand-keyed;
+   an engine-side keyer fixes that properly rather than by refusal.
+5. `cw_key.rs` — today a **UI thread** runs `CwKeyer` over the evdev contacts and
+   publishes `key_down` in an atomic for the panel to read. That is the client
+   generating edges, which is the thing to remove: the thread should publish
+   **contacts** (dit / dah / middle) and nothing else. `KeySetup.mode` and the
+   `take_text` call go with it — the trainer's read-back comes off the sidetone
+   through `CwSelfRx`.
+6. `panels/cw.rs:652` — the panel maps `CwKeyMode` to a `KeyerMode` today. It
+   splits: **straight** keeps sending `Command::CwKey(down)` from the single
+   contact (that route already exists and the maintainer accepts it), **iambic**
+   sends one new `Command::CwContacts { dot, dah }` and nothing per frame.
+
+**The wire.** `CwContacts` appended last, `PROTO_VERSION` 189 → **190**, with a
+register entry and a postcard round-trip test. The restart trick is *not*
+available here (unlike the oob-tx switch below), because the keyer has to be
+armed while a contact is already down.
+
+**Do not start this piecemeal.** Piece 1 alone breaks the build in
+`panels/cw.rs` and `cw_key.rs`, and a half-wired keyer is a transmitter that
+keys wrongly. It was attempted, reverted to a clean tree, and the tree is
+currently green — leave it that way until the six pieces land together.
+
+### 11. An `--oob-tx` switch: fork-only, and never upstream
+
+Asked whether `--oob-tx` could become a Settings → General switch with a warning
+popup and a restart. It can, and the flag is the right candidate: it already
+loosens the lockout for a launch (`src/main.rs:264`,
+`settings.tx_ham_only && !self.oob_tx`), and a restart carries it into the new
+process with **no wire change**, because the flag is read at startup exactly as a
+typed launch reads it.
+
+The shape, if it is built: toggle opens a **modal** rather than flipping the flag
+(the bindings-acknowledgement pattern); on confirm, persist and re-exec
+`current_exe` with the same argv plus or minus `--oob-tx`. And the existing
+startup window stays — `frame.rs:2016` shows "TRANSMIT LOCKOUT DISABLED"
+whenever the engine reports `oob_tx`, driven off the *engine's* state so a remote
+client is warned too. That window is what preserves the deliberate-act-at-launch
+property the flag's own doc insists on (*"a deliberate act at launch, not a
+setting to be toggled by accident"*): every start is still acknowledged by hand,
+which is the friction the CLI imposes today, minus remembering the flag.
+
+**Fork-only, and not to be offered upstream.** It is 11 m / CB operator territory
+(`cb_tx_allowed()` is the fork's own), and a switch that loosens a transmit
+lockout is the last thing a maintainer should have to review from a stranger.
+
 ### House note: do not monitor CI continuously
+
 
 The operator's instruction, after a session lost a lot of time to 90-second poll
 loops: **check a run once per finished task, not in a loop.** A tag push is
