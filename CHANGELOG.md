@@ -13,6 +13,19 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+## [1.9.14.1_brown] - 2026-10-02
+
+### Fixed
+
+- **The browser (webAssembly) build compiles again.** The engine-side CW keyer
+  left one read of the local paddle in the CW panel ungated, and that field
+  exists only on native Linux — so `1.9.14_brown`'s `web client (wasm)` job
+  failed and nothing was published. The read is now gated exactly as the
+  straight-key read beside it, so the browser reports both contacts open and the
+  (portable) engine side simply sends nothing. `cargo check --target
+  wasm32-unknown-unknown -p sdroxide-ui` is the check that would have caught it;
+  run it for any UI change. Same release otherwise.
+
 ## [1.9.14_brown] - 2026-10-02
 
 ### Changed

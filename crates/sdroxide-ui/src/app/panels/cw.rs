@@ -429,7 +429,16 @@ impl SdroxideApp {
                     }
                 }
                 _ => {
-                    let (dot, dah) = self.cw_key.as_ref().map(|s| s.contacts()).unwrap_or((false, false));
+                    // The contacts come from the local paddle device, and that
+                    // is raw evdev — native and Linux only, gated exactly as the
+                    // straight-key read above is. The browser has no such
+                    // device, so it reports both contacts open and the engine
+                    // side (which is portable) simply sends nothing.
+                    #[cfg(all(not(target_arch = "wasm32"), target_os = "linux"))]
+                    let (dot, dah) =
+                        self.cw_key.as_ref().map(|s| s.contacts()).unwrap_or((false, false));
+                    #[cfg(not(all(not(target_arch = "wasm32"), target_os = "linux")))]
+                    let (dot, dah) = (false, false);
                     // Only on a change: a contact is a state, and a poll that
                     // changed nothing is not a message.
                     if (dot, dah) != self.cw_contacts_sent {
