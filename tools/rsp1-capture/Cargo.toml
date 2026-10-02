@@ -1,0 +1,11 @@
+[package]
+name = "rspcap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+soapysdr = { path = "/home/druid/sdroxide/vendor/soapysdr" }
+num-complex = "0.4"
+
+[profile.release]
+opt-level = 2
