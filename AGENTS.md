@@ -3124,42 +3124,63 @@ Two things worth keeping:
   GHSA ids go in its ignore list with that note, or the same reasoning goes
   upstream where the dependency is shared.
 
-## The screen-settings store: the cause is found (2026-10-02, last)
+## The screen-settings store: the cause is found, and it is FIXED (2026-10-02, last)
 
-**It is a race, and it only shows on a server with a password.** Kevin
+**It is one thing, and it only shows on a server with a password.** Kevin
 (discussion #4, Roy / F6KIM) compared the two files and found the tell:
-`clientsettings.json` has a **`default`** block with his values, and
-**`profiles: {}` is empty** — no named profile is ever written. Replied with
-the mechanism; the diagnosis below is confirmed from both ends.
+`clientsettings.json` had a populated **`default`** block with his values and
+**`profiles: {}` completely empty** — no named profile was ever written.
 
-1. **At connect** the server decides the profile with
-   `(!login.is_empty()).then_some(login)` (`session.rs:262`) — but the handshake
-   is already sending, so **`Auth` has not been processed and `login` is still
-   empty**. The client is therefore offered the station `default` and correctly
-   records "I am on `default`".
-2. **On save** the client sends back the only profile it knows
-   (`frame.rs:2257`) — `None` — and the server stores against *that*
-   (`store.set(profile.as_deref(), …)`, `session.rs:513`).
-3. **Next session** the same race runs, so the server offers `default` again.
+**I first diagnosed this as a race and was wrong.** The claim was that the
+server decided the profile at connect before `Auth` had been processed, so
+`login` was empty and `default` was offered. `handshake` completes
+`auth::challenge` — which captures the username — *before* `run_session` starts
+(`session.rs:62`→`:73`), and with credentials the order is hello →
+`AuthRequired` → `Auth` → `HelloAck`, so the session and every offer start with
+`login` already known. **Do not repeat the race story.** It was posted to Kevin
+and retracted there.
 
-The consequence is worse than a mislabelled bucket: **on a password server the
-operator's screen is stored as the station's shared default**, so one person
-moving the theme moves it for the next person who signs in. On a passwordless
-server `default` *is* the right bucket, which is why this was invisible until
-someone had a login.
+**The actual cause.** `ClientSettingsStore::for_profile`
+(`sdroxide-config/src/lib.rs:1789`) *falls back* to the station `default` when
+the named profile is empty, **and reports the fallback** — `(None, settings)`:
 
-**The fix has two halves and both are needed** (do not ship one):
+1. Connect as `1-sebastien`: `for_profile(Some("1-sebastien"))` finds nothing,
+   falls back to `default`, and tells the client `profile: None` — *"you are on
+   `default`"*.
+2. Save: the client sends back the only profile it knows (`frame.rs:2257`) —
+   `None` — and `store.set(None, …)` writes the **shared default**.
 
-- **Key the write on the authenticated identity, not on a client-supplied
-  name.** As written a client can write *another* profile's settings by naming
-  it — a small hardening as well as the bug.
-- **Offer after the sign-in**, so the client is told it is on its own profile.
+**That loop cannot terminate**: a profile is only created by a save, and a save
+can only ever reach `default`. Hence `profiles` stayed empty. The severity is
+that on a password server the operator's screen was stored as the **station's
+shared** look, so the next client to sign in inherited it. Invisible without a
+password, because there `default` is the right bucket.
+
+**The fix, on both the screen and the bindings write.** The server keys the
+store on the **authenticated identity** and ignores the profile in the message
+(`profile: _`): `let key = (!login.is_empty()).then(|| login.to_string())`. One
+line each in `session.rs`. This also closes the hardening point — a client could
+previously write *another* profile's settings by naming it. **No wire change**:
+the variant is untouched and the reply already reported the login-derived
+profile, so the client now learns its own name from the save's echo.
+
+**Pinned by `a_signed_in_clients_screen_lands_in_its_own_profile`**
+(`sdroxide-server/tests/session.rs`), which **fails on the old code** with
+`left: None, right: Some("f6kim")` and passes after. It drives a real WebSocket
+with real credentials, deliberately sends the `None` a real client sends, and
+asserts the settings come back under the signed-in name. Two traps in writing
+it: `spawn_server(port, Some(credentials))` is what makes `login` non-empty (no
+credentials ⇒ no profile is ever in play), and a read loop must be **bounded** —
+the server streams state continuously, so `loop { … _ => continue }` never
+reaches `recv_msg`'s own 15 s timeout and hangs instead of failing.
+
+**Not verified by a human.** Server-side and test-proven, but no browser was
+driven. Asked Kevin to save, restart both ends, and confirm `profiles` now holds
+his name.
 
 Also acknowledged, and **not** part of this fix: an existing profile cannot be
 **edited** — you must create a new one to save a change. Kevin is right that it
-is wrong; do not bundle it silently.
-
-Still open: profile **creation** naming, and whether the client's
-`client_settings_from` should be updated from the reply's `from` so a save lands
-on the set it is reading.
+is wrong; do not bundle it silently. Also open: whether the client should adopt
+`client_settings_from` from the reply's `from` (harmless now the server is
+authoritative, but the client still believes it is on `default`).
 

@@ -242,3 +242,101 @@ async fn a_server_with_credentials_signs_clients_in() {
         other => panic!("expected Busy for the second signed-in client, got {other:?}"),
     }
 }
+
+/// A signed-in client's screen settings land in **its own profile**, not the
+/// station's shared default.
+///
+/// The bug this pins was reported on a server **with** a password (discussion
+/// #4): `clientsettings.json` had a populated `default` block and an empty
+/// `profiles` map, so the write worked but always landed in the shared bucket.
+/// The cause is that a client only knows the profile it was *offered*, and
+/// `for_profile` falls back to `default` — reporting `profile: None` — whenever
+/// that profile is still empty. Saving under what you were offered therefore
+/// wrote the default forever and never created a profile.
+///
+/// It is invisible without a password, because there `default` is the right
+/// bucket. Hence credentials here, and a client that deliberately sends the
+/// `None` it really would have sent.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_signed_in_clients_screen_lands_in_its_own_profile() {
+    // Its own config directory: this writes `clientsettings.json`, and a test
+    // has no business touching the operator's real profile.
+    let dir = std::env::temp_dir().join("sdroxide-test-clientsettings");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("config dir");
+    // SAFETY: set before any other test in this binary reads it; no other test
+    // here touches the config store.
+    unsafe { std::env::set_var("SDROXIDE_CONFIG_DIR", &dir) };
+
+    const PORT: u16 = 39474;
+    let user = "f6kim";
+    spawn_server(
+        PORT,
+        Some(Box::new(|| RemoteAccess { username: user.into(), password: "hunter2".into() })),
+    )
+    .await;
+    let url = format!("ws://127.0.0.1:{PORT}/ws");
+
+    let mut screen = sdroxide_types::ClientScreen::from_settings(&Default::default());
+    screen.theme = sdroxide_types::UiTheme::Rainbow;
+
+    /// Read until the wanted variant. Bounded, because the server streams state
+    /// continuously and an unbounded loop never reaches `recv_msg`'s timeout.
+    async fn wait_for<T>(
+        ws: &mut (impl StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin),
+        mut f: impl FnMut(&ServerMsg) -> Option<T>,
+    ) -> T {
+        for _ in 0..500 {
+            if let Some(v) = f(&recv_msg(ws).await) {
+                return v;
+            }
+        }
+        panic!("the server never sent the expected message");
+    }
+
+    // First session: save, sending the `None` a real client sends.
+    {
+        let (mut ws, _) = tokio_tungstenite::connect_async(&url).await.expect("connect");
+        send(&mut ws, &hello()).await;
+        assert_eq!(recv_msg(&mut ws).await, ServerMsg::AuthRequired);
+        send(&mut ws, &ClientMsg::Auth { username: user.into(), password: "hunter2".into() }).await;
+        assert!(matches!(recv_msg(&mut ws).await, ServerMsg::HelloAck { .. }), "signed in");
+
+        send(&mut ws, &ClientMsg::SetClientSettings { profile: None, settings: screen }).await;
+        let reply = wait_for(&mut ws, |m| match m {
+            ServerMsg::ClientSettings(r) => Some(r.clone()),
+            _ => None,
+        })
+        .await;
+        // **The assertion that fails before the fix**: it came back as `None`,
+        // because the screen had been written into the shared default.
+        assert_eq!(
+            reply.profile.as_deref(),
+            Some(user),
+            "the screen is stored against the profile it signed in as"
+        );
+        assert_eq!(reply.settings.theme, screen.theme);
+    }
+
+    // On disk, under the profile and not only the default.
+    let saved = std::fs::read_to_string(dir.join("clientsettings.json")).expect("clientsettings.json written");
+    assert!(saved.contains(user), "the profile is in the store: {saved}");
+
+    // A new session is offered that profile's own set, unasked.
+    {
+        let (mut ws, _) = tokio_tungstenite::connect_async(&url).await.expect("reconnect");
+        send(&mut ws, &hello()).await;
+        assert_eq!(recv_msg(&mut ws).await, ServerMsg::AuthRequired);
+        send(&mut ws, &ClientMsg::Auth { username: user.into(), password: "hunter2".into() }).await;
+        assert!(matches!(recv_msg(&mut ws).await, ServerMsg::HelloAck { .. }), "signed in");
+        let got = wait_for(&mut ws, |m| match m {
+            ServerMsg::ClientSettings(r) => Some(r.clone()),
+            _ => None,
+        })
+        .await;
+        assert_eq!(got.profile.as_deref(), Some(user));
+        assert_eq!(got.settings.theme, screen.theme, "and it is the set that was saved");
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

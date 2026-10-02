@@ -504,13 +504,25 @@ async fn run_session(
                     report(shared, done, "switching a radio");
                 }
                 // This client's screen settings, kept on the server against the
-                // profile it signed in as (`UiSettings::client_save_scope`).
-                // Blocking — it reads and writes a JSON — and only the
-                // presentation half is stored, the rest dropped by the store.
-                Ok(ClientMsg::SetClientSettings { profile, settings }) => {
+                // profile it signed in as. Blocking — it reads and writes a
+                // JSON — and only the presentation half is stored, the rest
+                // dropped by the store.
+                //
+                // Keyed on the **authenticated identity**, and the profile the
+                // message names is deliberately ignored. A client only ever
+                // knows the profile it was *offered*, which is `default`
+                // whenever its own profile holds nothing yet (`for_profile`
+                // falls back and reports the fallback), so saving under that
+                // wrote every operator's screen into the station's shared
+                // default and never created a named profile at all — which is
+                // what a listener on a server with a password saw. Keying here
+                // also means a client cannot write another profile's settings
+                // by naming it.
+                Ok(ClientMsg::SetClientSettings { profile: _, settings }) => {
+                    let key = (!login.is_empty()).then(|| login.to_string());
                     let done = tokio::task::spawn_blocking(move || {
                         let mut store = config::load_client_settings();
-                        store.set(profile.as_deref(), settings);
+                        store.set(key.as_deref(), settings);
                         config::save_client_settings(&store).map_err(|e| e.to_string())
                     })
                     .await;
@@ -536,10 +548,16 @@ async fn run_session(
                 // the sending client can answer, and it is the *applying* client
                 // that re-checks its own opt-in. So a binding cannot reach an
                 // operator who did not ask for one.
-                Ok(ClientMsg::SetClientBindings { profile, bindings }) => {
+                // Keyed on the authenticated identity for the same reason as
+                // the screen above, and for the same reason the named profile
+                // is ignored: on a server with a password the profile a client
+                // was offered is the shared default until its own exists, so
+                // bindings saved from it would land there instead.
+                Ok(ClientMsg::SetClientBindings { profile: _, bindings }) => {
+                    let key = (!login.is_empty()).then(|| login.to_string());
                     let done = tokio::task::spawn_blocking(move || {
                         let mut store = config::load_client_settings();
-                        store.set_bindings(profile.as_deref(), bindings);
+                        store.set_bindings(key.as_deref(), bindings);
                         config::save_client_settings(&store).map_err(|e| e.to_string())
                     })
                     .await;
