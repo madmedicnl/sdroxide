@@ -294,7 +294,29 @@ async fn a_signed_in_clients_screen_lands_in_its_own_profile() {
         panic!("the server never sent the expected message");
     }
 
-    // First session: save, sending the `None` a real client sends.
+    // First session: a fresh store, so nothing is saved yet. The client must
+    // still be told its own profile name (`has_stored: false`, no look to
+    // adopt) so that its save targets the profile and not the shared default.
+    {
+        let (mut ws, _) = tokio_tungstenite::connect_async(&url).await.expect("connect");
+        send(&mut ws, &hello()).await;
+        assert_eq!(recv_msg(&mut ws).await, ServerMsg::AuthRequired);
+        send(&mut ws, &ClientMsg::Auth { username: user.into(), password: "hunter2".into() }).await;
+        assert!(matches!(recv_msg(&mut ws).await, ServerMsg::HelloAck { .. }), "signed in");
+        let offer = wait_for(&mut ws, |m| match m {
+            ServerMsg::ClientSettings(r) => Some(r.clone()),
+            _ => None,
+        })
+        .await;
+        assert_eq!(
+            offer.profile.as_deref(),
+            Some(user),
+            "a signed-in client is told its own profile even before it has saved"
+        );
+        assert!(!offer.has_stored, "and knows the look is not its own yet");
+    }
+
+    // Save, sending the `None` a real client sends.
     {
         let (mut ws, _) = tokio_tungstenite::connect_async(&url).await.expect("connect");
         send(&mut ws, &hello()).await;
@@ -303,8 +325,10 @@ async fn a_signed_in_clients_screen_lands_in_its_own_profile() {
         assert!(matches!(recv_msg(&mut ws).await, ServerMsg::HelloAck { .. }), "signed in");
 
         send(&mut ws, &ClientMsg::SetClientSettings { profile: None, settings: screen }).await;
+        // Wait for the *stored* echo, not the name-only offer the connect sent
+        // just before — the offer has `has_stored: false`.
         let reply = wait_for(&mut ws, |m| match m {
-            ServerMsg::ClientSettings(r) => Some(r.clone()),
+            ServerMsg::ClientSettings(r) if r.has_stored => Some(r.clone()),
             _ => None,
         })
         .await;

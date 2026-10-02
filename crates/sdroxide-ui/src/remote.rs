@@ -348,9 +348,11 @@ impl RemoteController {
             ServerMsg::MemoryFolders(f) => self.pending.push_back(RadioEvent::MemoryFolders(f)),
             ServerMsg::Scanner(c) => self.pending.push_back(RadioEvent::Scanner(c)),
             ServerMsg::Profiles(p) => self.pending.push_back(RadioEvent::Profiles(p)),
-            ServerMsg::ClientSettings(r) => self
-                .pending
-                .push_back(RadioEvent::ClientSettings { profile: r.profile, settings: r.settings }),
+            ServerMsg::ClientSettings(r) => self.pending.push_back(RadioEvent::ClientSettings {
+                profile: r.profile,
+                settings: r.settings,
+                has_stored: r.has_stored,
+            }),
             ServerMsg::ClientBindings(r) => self
                 .pending
                 .push_back(RadioEvent::ClientBindings { profile: r.profile, bindings: r.bindings }),

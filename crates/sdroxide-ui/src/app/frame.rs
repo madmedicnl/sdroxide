@@ -1484,20 +1484,29 @@ impl SdroxideApp {
                     // the client is borrowing.
                     self.known_calls.accept(reply);
                 }
-                RadioEvent::ClientSettings { profile, settings } => {
-                    // Always applied. The served set is presentation-only, so
-                    // it lays over the client's own settings without touching
-                    // anything the machine owns — see `presentation_only` —
-                    // and there is nothing about a look worth gating: a shared
-                    // screen is harmless, a shared keyboard is not. The gate
-                    // that used to stand here made the feature invisible to
-                    // anyone who did not find the picker, which is exactly how
-                    // it reached a tester on three releases.
-                    settings.apply_to(&mut self.ui_settings);
-                    // Remember which set we took, for the Settings label, and
-                    // keep it so "back to the profile's look" can put it back.
+                RadioEvent::ClientSettings { profile, settings, has_stored } => {
+                    // Remember which profile we are on whatever happens: it is
+                    // what "Save to profile" is keyed on, and a signed-in client
+                    // is told its name even before it has saved anything
+                    // (discussion #4). Losing it here was why a save kept going
+                    // to the station default and a profile was never created.
                     self.client_settings_from = Some(profile);
-                    self.client_settings_stored = Some(settings);
+                    if has_stored {
+                        // A real stored set: apply it. It is presentation-only,
+                        // so it lays over the client's own settings without
+                        // touching anything the machine owns — see
+                        // `presentation_only` — and there is nothing about a
+                        // look worth gating: a shared screen is harmless, a
+                        // shared keyboard is not. The gate that used to stand
+                        // here made the feature invisible to anyone who did not
+                        // find the picker, which is exactly how it reached a
+                        // tester on three releases.
+                        settings.apply_to(&mut self.ui_settings);
+                        self.client_settings_stored = Some(settings);
+                    }
+                    // `has_stored == false` is a name-only offer: the profile
+                    // has nothing saved yet, so we keep our own look and simply
+                    // know now which profile to save it to.
                 }
                 RadioEvent::ClientBindings { profile, bindings } => {
                     // Apply only when this client opted in to carrying its

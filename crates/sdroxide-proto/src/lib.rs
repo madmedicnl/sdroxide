@@ -1676,7 +1676,17 @@ use sdroxide_types::{
 /// carries the down edge and the engine reads it directly, so a keyer on this
 /// side for straight keying would be a second implementation of the same path.
 /// A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 190;
+///
+/// v191: a signed-in client can be told **which profile it is on** before it has
+/// saved a screen to the server. [`ClientSettingsReply`] gains `has_stored`
+/// (appended last), following discussion #4: `for_profile` falls back to the
+/// station default and reported `None`, so a client on a password server was
+/// told it was on `default` and every save wrote the shared bucket — the client
+/// could never create its own profile. The reply now names the signed-in
+/// profile always, and `has_stored` distinguishes a real stored set from a
+/// name-only offer (which the client records without adopting). The struct
+/// rides `ServerMsg::ClientSettings` whole. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 191;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -2199,8 +2209,20 @@ pub enum ServerMsg {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClientSettingsReply {
     /// The profile these came from, or `None` when this is the station default.
+    ///
+    /// This is the profile the client **signed in as**, even when the settings
+    /// below came from the station-default fallback (discussion #4). It is what
+    /// the client's next Save is keyed on, so it must name the login rather than
+    /// the bucket the store answered from.
     pub profile: Option<String>,
     pub settings: sdroxide_types::ClientScreen,
+    /// Whether `settings` is really this profile's stored set, or a placeholder
+    /// sent only so a signed-in client knows its profile name before it has
+    /// saved anything. `false` means "adopt none of this; it is not yours yet".
+    ///
+    /// Appended last, so the wire stays append-only.
+    #[serde(default)]
+    pub has_stored: bool,
 }
 
 /// What [`ServerMsg::ClientBindings`] carries.
@@ -2296,6 +2318,7 @@ mod tests {
         let answered = ServerMsg::ClientSettings(ClientSettingsReply {
             profile: Some("Contest".into()),
             settings,
+            has_stored: true,
         });
         assert_eq!(decode::<ServerMsg>(&encode(&answered).unwrap()).unwrap(), answered);
 

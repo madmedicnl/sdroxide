@@ -412,6 +412,11 @@ pub enum RadioEvent {
     ClientSettings {
         profile: Option<String>,
         settings: crate::ClientScreen,
+        /// Whether `settings` is this profile's stored set. `false` is a
+        /// name-only offer on a signed-in profile that has not saved yet — the
+        /// client records the profile so its next Save targets it, but keeps its
+        /// own look rather than adopting the placeholder.
+        has_stored: bool,
     },
     /// A remote client's **control bindings**, sent by the server when it has
     /// any stored for this client's profile. Applied only when the operator has

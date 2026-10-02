@@ -260,18 +260,46 @@ async fn run_session(
     {
         let store = config::load_client_settings();
         let profile = (!login.is_empty()).then_some(login);
-        if let Some((from, settings)) = store.for_profile(profile) {
-            let _ = socket
-                .send(msg(&ServerMsg::ClientSettings(ClientSettingsReply {
-                    profile: from,
-                    settings,
-                })))
-                .await;
+        // Name the profile the client *signed in as*, not the one the store
+        // happened to answer from. `for_profile` falls back to the station
+        // default when the named profile is still empty, and reports `None` for
+        // it — so a client on a password server was told it was on `default`,
+        // and its Save then wrote `default` forever, leaving `profiles` empty
+        // (discussion #4). Naming the login here is what lets its next Save
+        // create that profile; the settings offered are still the fallback's
+        // until it does.
+        //
+        // When the store holds *nothing* for the login (a fresh server, no
+        // default saved yet) there is no set to send, but the client still has
+        // to be told which profile it is on — otherwise "Save to profile" sends
+        // the `None` it would send on a passwordless server. So a signed-in
+        // client is always told its name; the settings are its own until the
+        // first save, and it discards them if it has a local look of its own.
+        match store.for_profile(profile) {
+            Some((_, settings)) => {
+                let _ = socket
+                    .send(msg(&ServerMsg::ClientSettings(ClientSettingsReply {
+                        profile: profile.map(str::to_string),
+                        settings,
+                        has_stored: true,
+                    })))
+                    .await;
+            }
+            None if profile.is_some() => {
+                let _ = socket
+                    .send(msg(&ServerMsg::ClientSettings(ClientSettingsReply {
+                        profile: profile.map(str::to_string),
+                        settings: sdroxide_types::ClientScreen::default(),
+                        has_stored: false,
+                    })))
+                    .await;
+            }
+            None => {}
         }
-        if let Some((from, bindings)) = store.bindings_for_profile(profile) {
+        if let Some((_, bindings)) = store.bindings_for_profile(profile) {
             let _ = socket
                 .send(msg(&ServerMsg::ClientBindings(ClientBindingsReply {
-                    profile: from,
+                    profile: profile.map(str::to_string),
                     bindings,
                 })))
                 .await;
@@ -533,11 +561,20 @@ async fn run_session(
                     if ok {
                         let store = config::load_client_settings();
                         let profile = (!login.is_empty()).then_some(login);
-                        if let Some((from, stored)) = store.for_profile(profile)
+                        // Echo the *signed-in* name, not the fallback's `None`:
+                        // the write above just landed under this login, so
+                        // reporting `None` here would tell the client its save
+                        // went to the shared default — the same loop the offer
+                        // had (discussion #4).
+                        if let Some((_, stored)) = store.for_profile(profile)
                             && let Some(s) = shared.session.lock().unwrap().as_ref()
                         {
                             let _ = s.reliable.try_send(ServerMsg::ClientSettings(
-                                ClientSettingsReply { profile: from, settings: stored },
+                                ClientSettingsReply {
+                                    profile: profile.map(str::to_string),
+                                    settings: stored,
+                                    has_stored: true,
+                                },
                             ));
                         }
                     }
@@ -566,11 +603,14 @@ async fn run_session(
                     if ok {
                         let store = config::load_client_settings();
                         let profile = (!login.is_empty()).then_some(login);
-                        if let Some((from, stored)) = store.bindings_for_profile(profile)
+                        if let Some((_, stored)) = store.bindings_for_profile(profile)
                             && let Some(s) = shared.session.lock().unwrap().as_ref()
                         {
                             let _ = s.reliable.try_send(ServerMsg::ClientBindings(
-                                ClientBindingsReply { profile: from, bindings: stored },
+                                ClientBindingsReply {
+                                    profile: profile.map(str::to_string),
+                                    bindings: stored,
+                                },
                             ));
                         }
                     }
