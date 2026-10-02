@@ -1,9 +1,12 @@
 # Agent notes — SDR Oxide, the CB and SWL fork
 
-> **The CW keyer (#569) is next and is designed but not built — read
-> [`CW-HANDOVER.md`](CW-HANDOVER.md) first.** It has the six pieces, the wire
-> change (`PROTO_VERSION` 189 → 190), the pitfalls of the first attempt, and a
-> paddle on the bench to test it with. **ALE (issue #262) is otherwise
+> **The CW keyer (#569) is BUILT (`353d136f`) and wants one bench test.** All
+> six pieces landed together, `PROTO_VERSION` is 190, and the tree is green.
+> What is left is an operator on the air: the CH55x `1209:c550` paddle through
+> the SS9900v over MCW/VOX, iambic A and B. Read §10 before starting anything
+> here — it says which half of it is settled and which claim in the original
+> handover was **wrong**, and that one matters. [`CW-HANDOVER.md`](CW-HANDOVER.md)
+> is the original design, kept for the seams it records. **ALE (issue #262) is otherwise
 > mid-flight — read [`ALE-HANDOVER.md`](ALE-HANDOVER.md)
 > first if you are continuing it.** It has the state, the exact capture/decode
 > commands, the fixed RSP1 settings, and the next steps. Everything below is
@@ -269,59 +272,102 @@ the feature — do not delete it as cruft.
 **Not verified**: no server-and-browser round trip has been run. The cause is
 identified and the code is right; "it works" is still a claim to be tested.
 
-### 10. #569, decomposed — this is the whole job, in six pieces
+### 10. #569: BUILT — the engine-side keyer, and the one claim that was wrong
 
-The maintainer's two answers, both posted and both to act on: put the keyer in
-**`CwController` on the engine side** — *"Don't have the client generate edges and
-send them as `CwKey(down)`"* — and keep **`CwKeyer` iambic-only**, because
-straight keying already goes through `CwKey` and is already read back by
-`CwSelfRx` into `sent_text` (`cw_controller.rs:234`, `:592`, `:504`). The
-trainer's contact-to-text decode reuses `CwSelfRx` on the sidetone rather than
-writing a second decoder.
+**Built in `353d136f`, all six pieces at once, `PROTO_VERSION` 190.** It is
+committed, pushed, compiles silent across the workspace and passes its tests.
+**Not tested on air** — the bench leg is an operator's, and it is the only
+thing left.
 
-**The seams.** These took an hour to find and are written down nowhere else, so
-do not re-derive them:
+**The bug it fixes, in one sentence.** A paddle could not key a rig that keys
+itself, and on every other route the timing was quantised to whatever the UI
+thread sampled — both because the keyer was in the wrong place.
 
-1. `cw.rs:1693-1755` — `CwKeyer` today is *both* shapes: `KeyerMode::{Iambic,
-   Straight}`, with straight-only state (`contact`, `mark_start`, `dit_est`) and
-   `poll_straight`. Removing straight deletes `poll_straight`, those three fields,
-   the enum variant and two tests (`a_straight_key_sends_two_characters`,
-   `a_straight_key_follows_a_slower_operator`). Verified to compile with only the
-   UI callers left to fix, and the 22 CW tests pass.
-2. `cw.rs:1573` — `CwTx::next_manual_block` reads `self.held` **inside** its
-   per-sample loop, so a keyer driving it from outside would quantise every
-   element to the block. It needs a variant that takes a per-sample key timeline
-   (a `&[bool]` built by polling the keyer), with the present method delegating to
-   it at a constant state.
-3. `cw_controller.rs:685 fill_tx_block` — the hand-key branch already renders at
-   the **output rate** rather than in 50 ms `TX_CHUNK` pieces, for exactly this
-   reason (issue #322). The iambic path belongs in that same branch: poll the
-   keyer per sample with a monotonic `keyer_t`, render the timeline, and keep
-   feeding `feed_sent_decode` so the read-back still shows what went out.
-4. `cw_controller.rs:923/944` — `set_straight(on)` engages the manual path and
-   `key_down(down)` is the per-instant state. `set_straight` refuses when
-   `self.cat.is_some()`, which is why a rig that keys itself cannot be hand-keyed;
-   an engine-side keyer fixes that properly rather than by refusal.
-5. `cw_key.rs` — today a **UI thread** runs `CwKeyer` over the evdev contacts and
-   publishes `key_down` in an atomic for the panel to read. That is the client
-   generating edges, which is the thing to remove: the thread should publish
-   **contacts** (dit / dah / middle) and nothing else. `KeySetup.mode` and the
-   `take_text` call go with it — the trainer's read-back comes off the sidetone
-   through `CwSelfRx`.
-6. `panels/cw.rs:652` — the panel maps `CwKeyMode` to a `KeyerMode` today. It
-   splits: **straight** keeps sending `Command::CwKey(down)` from the single
-   contact (that route already exists and the maintainer accepts it), **iambic**
-   sends one new `Command::CwContacts { dot, dah }` and nothing per frame.
+**The one claim in the handover that was wrong, and do not repeat it.** The
+handover said an engine-side keyer *"fixes that properly rather than by
+refusal"*, and that the keyer would key *"through every route — CAT, MCW/audio,
+VOX"*. **It does not, and it cannot.** A rig that keys itself from text sends
+the text over the control port and times the elements itself, so on that route
+the sidetone is **never transmitted**. The keyer generates a tone; the tone is
+not what that radio sends. `set_straight` therefore **still refuses** when
+`self.cat.is_some()`, and that refusal is load-bearing — deleting it would
+re-open #495 and give the operator a KEY chip that lights and sends nothing.
 
-**The wire.** `CwContacts` appended last, `PROTO_VERSION` 189 → **190**, with a
-register entry and a postcard round-trip test. The restart trick is *not*
-available here (unlike the oob-tx switch below), because the keyer has to be
-armed while a contact is already down.
+So the fork's answer is the house rule rather than a refactor: **the refusal
+stays and the way out is named.** CW keying = **Sound card (MCW)** holds the
+rig on a sideband and transmits the program's own tone, and then the keyer keys
+through it — the confirmed bench route. The KEY chip's hover says which mode it
+arms, and on a self-keying rig it says that *neither a paddle nor a straight
+key* can reach it and which setting does. **Where a control cannot do the thing,
+it must say so; it must not silently do nothing.** That was the actual defect,
+not the refusal.
 
-**Do not start this piecemeal.** Piece 1 alone breaks the build in
-`panels/cw.rs` and `cw_key.rs`, and a half-wired keyer is a transmitter that
-keys wrongly. It was attempted, reverted to a clean tree, and the tree is
-currently green — leave it that way until the six pieces land together.
+What "every route" *is* true for: any route where the program's own audio
+reaches the transmitter — MCW, VOX, and a rig whose keyer can be put in
+semi-break-in or whose sidetone path we can feed. That is most rigs, and it is
+the whole 11 m bench. It was never true for a CAT keyer.
+
+**The six pieces, as landed.**
+
+1. `CwKeyer` is **iambic-only** — `KeyerMode`, the straight state (`contact`,
+   `mark_start`, `dit_est`), `poll_straight` and the two straight tests are
+   gone; `set_iambic(IambicMode)` replaces `set_mode`. Straight keying keeps
+   `CwKey` and is read back by `CwSelfRx` as before.
+2. `CwTx::next_manual_block_timed(out, rate, keys)` takes a **per-sample key
+   timeline**; `next_manual_block` delegates with a constant state and restores
+   `held` afterwards, because the caller owns that flag. A `keys` slice shorter
+   than `out` **holds its last value**.
+3. `CwController` owns the keyer and polls it **per output sample** in the
+   hand-key branch of `fill_tx_block`, on a monotonic `keyer_t`, feeding
+   `feed_sent_decode` as before. The lost-key-up cap applies to the **straight**
+   path only — a keyer's elements are bounded, and holding a paddle *should*
+   send indefinitely, exactly as a real keyer does.
+4. The refusal is now a **named** one, as above.
+5. `cw_key.rs` keeps only the device: contacts, the reverse switch, the
+   exclusive grab, a monitor tone. No keyer, no client-side decode.
+6. The panel splits: **straight** sends `CwKey(down)` as it always did;
+   **iambic** sends `Command::CwContacts { dot, dah }` on a change and nothing
+   per frame.
+
+**The wire.** `CwContacts { dot, dah }` appended last, `PROTO_VERSION` 189 →
+**190**, with the register entry and a postcard round-trip over all four
+contact pairs. `cw_contacts_sent` on the app is what makes it once-per-change.
+
+**Two things the split forced into the open, both worth keeping.**
+
+- **A straight key's contact is middle-*or*-dit.** A paddle box with a straight
+  key in it reports the key on whichever single contact it wired it to: the
+  middle jack where there is one, the dit contact where there is not. Reading
+  only the middle would leave every straight key in a plain two-contact box dead
+  **and silent**. `straight_contact()` is middle-or-dit for that reason, and the
+  doc says why rather than leaving it to look arbitrary.
+- **The trainer's read-back moved to the tone.** The Morse SEND pane read back
+  through the keyer's own text decode, which went with the keyer, so it now
+  decodes the **monitor tone** through `CwSelfRx` — the maintainer's first
+  option, and the decoder the transmit path already uses. Its "n elements"
+  readout went with the counter and is now the characters actually decoded.
+
+**Tests.** Three new in `cw.rs`'s `manual_timeline_tests`, written against the
+**envelope**, not the samples: the tone is a shaped sine with a 5 ms
+raised-cosine ramp and a zero crossing every half period, so a per-sample
+threshold asserts nothing (the first draft of these failed on the *old* correct
+code for exactly that reason). `the_key_timeline_is_followed_per_sample` puts a
+key down and up **inside one 50 ms block** and pins *where* the silence starts —
+the property a per-block read cannot have. Its pair
+`the_plain_manual_block_still_keys_for_its_whole_length` pins the straight
+path, so the two distinguish each other rather than both passing on anything.
+22 CW tests + 3. `skim_window` flakes under a parallel run and passes alone, as
+it has before.
+
+**The bench, unchanged.** CH55x `1209:c550` "-Yuan-3key" (raw contacts, no
+iambic of its own, which is why the keyer is in software) → **radio 1, the CRT
+SS9900v** on **27.265**, CW keying = **Sound card (MCW)**, VOX. Arm **KEY**,
+then iambic A and iambic B: single dits, a dah, a squeeze, and a held paddle
+(which must repeat, since that is the iambic behaviour and the straight path's
+hold cap no longer applies to it). Listen for clean dit/dah and watch the
+**sent_text** read-back follow. **Keep transmissions short.** What would mean it
+is wrong: elements rounded to a 50 ms grid, a held paddle sending once instead
+of repeating, or nothing on the air at all.
 
 ### 11. An `--oob-tx` switch: fork-only, and never upstream
 
@@ -366,8 +412,8 @@ missing capability wearing a safety's clothes. With the keyer in `CwController`
 the program owns the timing, so the paddle keys through **every** route: CAT,
 MCW/audio, VOX. The operator's only remaining choice is where the tone goes.
 
-So the six pieces above are the work, in order, and they are not to be left half
-landed. The maintainer's answers agree with the direction — engine-side,
+So the six pieces above are the work, and they landed together in `353d136f` —
+see §10, which is the record and which also says which claim here was wrong. The maintainer's answers agree with the direction — engine-side,
 `CwKeyer` iambic-only — and are followed where they do not conflict with it, but
 they are not the constraint. If a PR upstream ever follows from it, it is
 offered afterwards, as a courtesy.
