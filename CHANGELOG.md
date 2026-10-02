@@ -13,6 +13,8 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+## [1.9.14_brown] - 2026-10-02
+
 ### Changed
 
 - **CW keying timing now comes from the engine, so a USB paddle sends clean
@@ -69,7 +71,18 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
   the only missing thing is reaching the air. Leave the radio on **USB**, as for
   FT8. This has bitten before on another rig (#119).
 
-## [1.9.13.3_brown] - 2026-10-02
+- **The SSTV panel no longer says "waiting for a signal…" while one is
+  present.** The LIVE pane's placeholder, shown until a picture appears, read the
+  same whether there was no audio at all or a strong signal whose header had not
+  locked — so the one state an operator is in when a transmission is up and no
+  picture shows was the one it denied. It now says **"audio present · no SSTV
+  header yet"** when the level meter is above the floor and **"no / low audio"**
+  below it. No wire change, and no change to the decoder: a live scan of the 20 m,
+  40 m and 80 m SSTV dials and a controlled test of the receiver found it healthy
+  (a full picture to ±125 Hz carrier offset, good to ~8 dB SNR, level-independent),
+  so what was missing was the panel telling the operator which case they are in.
+
+## [1.9.14_brown] - 2026-10-02
 
 **The consolidated notes.** 1.9.11 and 1.9.12 were tagged but never published —
 their builds failed — so this is everything a user of **1.9.10** has been missing,
