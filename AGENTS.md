@@ -3124,37 +3124,42 @@ Two things worth keeping:
   GHSA ids go in its ignore list with that note, or the same reasoning goes
   upstream where the dependency is shared.
 
-## The screen-settings store: two leads, neither closed (2026-10-02, later)
+## The screen-settings store: the cause is found (2026-10-02, last)
 
-The client-side fix (the gate) is in, but **the claim is still untested** and a
-server-side test written this session **failed to pass**, so read this before
-trying again. The tree is green; the test was reverted, not committed.
+**It is a race, and it only shows on a server with a password.** Kevin
+(discussion #4, Roy / F6KIM) compared the two files and found the tell:
+`clientsettings.json` has a **`default`** block with his values, and
+**`profiles: {}` is empty** — no named profile is ever written. Replied with
+the mechanism; the diagnosis below is confirmed from both ends.
 
-The harness is right there: `crates/sdroxide-server/tests/session.rs` has
-`spawn_server(port, None)`, `hello()`, `send()` and `recv_msg()` against a real
-engine and a real WebSocket, so the round trip needs no new machinery. Two things
-about writing that test, both of which cost a run:
+1. **At connect** the server decides the profile with
+   `(!login.is_empty()).then_some(login)` (`session.rs:262`) — but the handshake
+   is already sending, so **`Auth` has not been processed and `login` is still
+   empty**. The client is therefore offered the station `default` and correctly
+   records "I am on `default`".
+2. **On save** the client sends back the only profile it knows
+   (`frame.rs:2257`) — `None` — and the server stores against *that*
+   (`store.set(profile.as_deref(), …)`, `session.rs:513`).
+3. **Next session** the same race runs, so the server offers `default` again.
 
-1. **An unbounded read loop is a hang, not a failure.** `recv_msg` times out after
-   15 s on its own, but `loop { match recv_msg(..) { want => break, _ => continue } }`
-   never reaches that, because the server streams state continuously and always
-   has another message. Bound the loop. (Same shape as the recording-gate lesson:
-   a state that is never consulted looks identical to one that is wrong.)
-2. **The profile is keyed twice, and that is where to look.**
-   `sdroxide-server/src/session.rs:510-524` stores against the profile *named in
-   the message* (`store.set(profile.as_deref(), settings)`) but derives the
-   `profile` it echoes — and, on a later connect, the profile it *offers* — from
-   the **signed-in name** (`(!login.is_empty()).then_some(login)`). So a client
-   that never sends `Auth` stores under "kevin" and is then offered the station
-   default. Sending `ClientMsg::Auth { username, password: "" }` after `hello()`
-   did **not** get a `ClientSettings` back on a passwordless server (12 other
-   messages arrived first, none of them it), so either the sign-in needs to be
-   acknowledged and awaited, or the store is gated on something else entirely.
+The consequence is worse than a mislabelled bucket: **on a password server the
+operator's screen is stored as the station's shared default**, so one person
+moving the theme moves it for the next person who signs in. On a passwordless
+server `default` *is* the right bucket, which is why this was invisible until
+someone had a login.
 
-That second point is also **the live candidate for the real bug**: a passwordless
-server where the browser's stored name and the signed-in name disagree would
-save under one key and be offered another, which is precisely "the settings are
-not saved when starting a new session". It is a hypothesis from reading the code,
-not a diagnosis — the browser was not driven this session, so nothing about
-kevin's actual client is confirmed. Settle it by driving the real client against
-a real server, and check what `login` is at the moment the store is offered.
+**The fix has two halves and both are needed** (do not ship one):
+
+- **Key the write on the authenticated identity, not on a client-supplied
+  name.** As written a client can write *another* profile's settings by naming
+  it — a small hardening as well as the bug.
+- **Offer after the sign-in**, so the client is told it is on its own profile.
+
+Also acknowledged, and **not** part of this fix: an existing profile cannot be
+**edited** — you must create a new one to save a change. Kevin is right that it
+is wrong; do not bundle it silently.
+
+Still open: profile **creation** naming, and whether the client's
+`client_settings_from` should be updated from the reply's `from` so a save lands
+on the set it is reading.
+
