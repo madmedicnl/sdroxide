@@ -972,6 +972,19 @@ jobs:
     if: github.ref_type == 'tag' || startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     steps:
+      # The curated release notes are read out of `CHANGELOG.md` **at the tag**,
+      # and this job had no checkout at all: it only downloaded artifacts, so
+      # the awk that reads the changelog died with "cannot open file" and the
+      # release was never created — after all fourteen build jobs had succeeded
+      # and their assets were sitting on the run page. Latent since the notes
+      # were switched to the changelog, which was after v1.9.11; 1.9.11 and
+      # 1.9.12 never reached this job at all.
+      #
+      # No submodules: the changelog is the only thing read out of the tree, and
+      # the artifacts carry the program.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
       - uses: actions/download-artifact@v8
         with:
           pattern: pkg-*
