@@ -3123,3 +3123,38 @@ Two things worth keeping:
   There is no `cargo-audit`/`cargo-deny` config; if one is added, those two
   GHSA ids go in its ignore list with that note, or the same reasoning goes
   upstream where the dependency is shared.
+
+## The screen-settings store: two leads, neither closed (2026-10-02, later)
+
+The client-side fix (the gate) is in, but **the claim is still untested** and a
+server-side test written this session **failed to pass**, so read this before
+trying again. The tree is green; the test was reverted, not committed.
+
+The harness is right there: `crates/sdroxide-server/tests/session.rs` has
+`spawn_server(port, None)`, `hello()`, `send()` and `recv_msg()` against a real
+engine and a real WebSocket, so the round trip needs no new machinery. Two things
+about writing that test, both of which cost a run:
+
+1. **An unbounded read loop is a hang, not a failure.** `recv_msg` times out after
+   15 s on its own, but `loop { match recv_msg(..) { want => break, _ => continue } }`
+   never reaches that, because the server streams state continuously and always
+   has another message. Bound the loop. (Same shape as the recording-gate lesson:
+   a state that is never consulted looks identical to one that is wrong.)
+2. **The profile is keyed twice, and that is where to look.**
+   `sdroxide-server/src/session.rs:510-524` stores against the profile *named in
+   the message* (`store.set(profile.as_deref(), settings)`) but derives the
+   `profile` it echoes — and, on a later connect, the profile it *offers* — from
+   the **signed-in name** (`(!login.is_empty()).then_some(login)`). So a client
+   that never sends `Auth` stores under "kevin" and is then offered the station
+   default. Sending `ClientMsg::Auth { username, password: "" }` after `hello()`
+   did **not** get a `ClientSettings` back on a passwordless server (12 other
+   messages arrived first, none of them it), so either the sign-in needs to be
+   acknowledged and awaited, or the store is gated on something else entirely.
+
+That second point is also **the live candidate for the real bug**: a passwordless
+server where the browser's stored name and the signed-in name disagree would
+save under one key and be offered another, which is precisely "the settings are
+not saved when starting a new session". It is a hypothesis from reading the code,
+not a diagnosis — the browser was not driven this session, so nothing about
+kevin's actual client is confirmed. Settle it by driving the real client against
+a real server, and check what `login` is at the moment the store is offered.
