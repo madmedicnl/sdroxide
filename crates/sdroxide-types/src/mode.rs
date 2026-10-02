@@ -28,6 +28,15 @@ pub enum Mode {
     /// 160/80/40 m and USB above (see [`Mode::is_lower_sideband_at`]).
     Sstv,
     /// Olivia MFSK keyboard mode — USB underneath, tones/bandwidth chosen in setup.
+    ///
+    /// **Not interoperable yet.** The tone and bandwidth settings are named after
+    /// the real Olivia's modes, and the modem's block/Walsh structure follows it,
+    /// but the scrambler and interleaver are this build's own. So it does not
+    /// decode an Olivia station and an Olivia station does not decode it, while
+    /// MultiPSK, fldigi and MultiPSK-compatible receivers copy the same signal
+    /// without trouble. Reported on 11 m-adjacent HF on 2026-10-02, and it is
+    /// the reason: a mode that cannot be received by anybody is worse than no
+    /// mode, so the panel says so rather than letting it look ready.
     Olivia,
     /// THOR (DominoEX-family MFSK+FEC) keyboard mode — submode chosen in setup.
     Thor,

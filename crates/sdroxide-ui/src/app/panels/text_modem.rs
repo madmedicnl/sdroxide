@@ -720,6 +720,26 @@ impl SdroxideApp {
                             changed = true;
                         }
                     }
+                    // Said here, beside the two settings it is about, because
+                    // the tone and bandwidth names are the real Olivia's and
+                    // look like they should interoperate. They do not: the
+                    // modem's scrambler, interleaver and frame layout are its
+                    // own, so it neither decodes an Olivia station nor is
+                    // decoded by one. A user who does not know that would
+                    // otherwise sit on an Olivia frequency waiting for text
+                    // that cannot arrive — which is exactly the report a
+                    // listener brought, after MultiPSK copied the station
+                    // beside them.
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(
+                            "Not interoperable yet — this decoder cannot read an Olivia \
+                             station, and an Olivia station cannot read it. MultiPSK, fldigi \
+                             and MultiPSK-compatible receivers can.",
+                        )
+                        .size(10.0)
+                        .color(crate::theme::YELLOW()),
+                    );
                 }
                 Mode::Thor => {
                     cap(ui, "Mode");
