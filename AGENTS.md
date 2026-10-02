@@ -229,6 +229,42 @@ transmission when the band has activity (20 m "high, daytime", 40 m late
 evening, 80 m evenings) or a reference recording whose text is known. The frame
 geometry work below is unchanged by any of this.
 
+### 9. The screen settings a remote client stores: ungated, then explicit
+
+Discussion #4: kevin2008-01, "This doesn't work, and the settings aren't saved
+when starting a new session. Tested on versions 1.9.9, 19.10, and 1.9.3.3".
+
+The path was written end to end — the client pushed on every settings change,
+the server stored it per profile, the server pushed it back on sign-in. So it was
+not a missing feature; **the gate was the problem.** Both halves only ran when
+"Screen settings on" was set to **On the server**, and that picker is easy to
+miss, so the feature was invisible either way — which is how it reached a tester
+on three releases.
+
+Two decisions, both the operator's, and they pull in opposite directions on
+purpose:
+
+- **The screen is not gated.** It is presentation-only and never touches anything
+  the machine owns, so sharing it is harmless; a *shared keyboard* is not. So it
+  always travels, and `UiSettings::client_save_scope` is **gone** rather than
+  left as a key nothing reads. The settings row states where the look lives
+  instead of offering a choice.
+- **It is saved on request, not on every change.** Ungating alone was wrong: on a
+  passwordless server every client is the same profile, so one operator moving
+  the theme would move it for whoever signed in next. **Save to profile** and
+  **Back to profile** buttons, and the row says where the look in force came
+  from and what the last save did. Still no wire change — `ClientScreen` is
+  untouched.
+
+**The bindings opt-in stays, and the reason is written next to the control**
+(`ui_tab.rs`, "Carry control bindings"): it is asked for, by someone running
+their own server and reaching it from several of their own devices. The answer
+to a shared station is the acknowledgement and the default-off, **not** removing
+the feature — do not delete it as cruft.
+
+**Not verified**: no server-and-browser round trip has been run. The cause is
+identified and the code is right; "it works" is still a claim to be tested.
+
 ### House note: do not monitor CI continuously
 
 The operator's instruction, after a session lost a lot of time to 90-second poll
