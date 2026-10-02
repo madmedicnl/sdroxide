@@ -161,7 +161,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
-      - uses: dtolnay/rust-toolchain@stable
+      # The toolchain is pinned, not `@stable`. Rust 1.99.0 became stable on
+      # 2026-10-01 and its aarch64 backend has a codegen pathology on
+      # mfsk-core (the FT8/FT4 decoder): one rustc invocation pegs a single
+      # core for hours with flat memory, no swap and a clean kernel log, so the
+      # six aarch64 release jobs never finish and — because `create release`
+      # needs every job — nothing ships at all. Measured on an
+      # ubuntu-24.04-arm runner: 35 minutes and still going, versus the same
+      # crate in seconds on x86_64. 1.98.1 is the last release that built the
+      # ARM artifacts (v1.9.10, 2026-09-30). A release that reproduces the
+      # compiler it was tested with is the right default anyway; bump this
+      # deliberately, and re-run an aarch64 build when you do.
+      - uses: dtolnay/rust-toolchain@1.98.1
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
@@ -327,7 +338,18 @@ jobs:
         if: runner.os == 'macOS' && matrix.variant == 'soapy'
         run: brew install pkg-config soapysdr
 
-      - uses: dtolnay/rust-toolchain@stable
+      # The toolchain is pinned, not `@stable`. Rust 1.99.0 became stable on
+      # 2026-10-01 and its aarch64 backend has a codegen pathology on
+      # mfsk-core (the FT8/FT4 decoder): one rustc invocation pegs a single
+      # core for hours with flat memory, no swap and a clean kernel log, so the
+      # six aarch64 release jobs never finish and — because `create release`
+      # needs every job — nothing ships at all. Measured on an
+      # ubuntu-24.04-arm runner: 35 minutes and still going, versus the same
+      # crate in seconds on x86_64. 1.98.1 is the last release that built the
+      # ARM artifacts (v1.9.10, 2026-09-30). A release that reproduces the
+      # compiler it was tested with is the right default anyway; bump this
+      # deliberately, and re-run an aarch64 build when you do.
+      - uses: dtolnay/rust-toolchain@1.98.1
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.label }}-${{ matrix.variant }}
