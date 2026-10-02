@@ -13,6 +13,23 @@ and the [README](https://github.com/madmedicnl/sdroxide-brown#readme).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A client's screen settings are stored under the profile it signed in as, not
+  as the station's shared default.** On a server **with a password** the settings
+  were written into the `default` bucket, so a named profile was never created —
+  `profiles` stayed empty — and the next person to sign in inherited the previous
+  operator's theme, layout and waterfall. The web client appeared to revert to
+  "the default configuration saved for everyone".
+  The cause was that a client only knows the profile it was *offered*, and a
+  profile that is still empty falls back to the station default *and reports that
+  fallback* — so a save could only ever reach `default`, which is why no profile
+  is ever created and the loop could not terminate. The server now keys the store
+  on the authenticated identity; this also stops a client writing another
+  profile's settings by naming it. It was invisible without a password, because
+  there the station default is the correct bucket. No wire change.
+  (Report and diagnosis by Roy / F6KIM in discussion #4.)
+
 ## [1.9.13.3_brown] - 2026-10-02
 
 **The consolidated notes.** 1.9.11 and 1.9.12 were tagged but never published —
