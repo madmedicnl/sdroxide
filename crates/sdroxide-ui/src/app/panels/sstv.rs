@@ -953,7 +953,18 @@ impl SdroxideApp {
                                         // raster; anything else appears whole.
                                         "waiting for a picture…"
                                     } else if signal > 0.0008 {
-                                        "waiting for a signal…"
+                                        // There *is* signal here — the meter is
+                                        // above the same threshold that says so
+                                        // two lines below, so this used to read
+                                        // "waiting for a signal…" exactly when
+                                        // one was present. That is the state an
+                                        // operator is actually in when a
+                                        // transmission is up and no picture has
+                                        // appeared, and the old wording denied it
+                                        // was the case: no audio at all, wrong
+                                        // level, or a signal we cannot read all
+                                        // look identical from in here.
+                                        "audio present · no SSTV header yet"
                                     } else {
                                         "no / low audio"
                                     };
