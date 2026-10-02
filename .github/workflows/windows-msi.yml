@@ -137,6 +137,16 @@ jobs:
       # compiler it was tested with is the right default anyway; bump this
       # deliberately, and re-run an aarch64 build when you do.
       - uses: dtolnay/rust-toolchain@1.98.1
+      # The Windows build cross-compiles under MSYS2/MinGW, so it needs the
+      # *gnu* target, not the runner's host (msvc) one. This was never asked for
+      # and never needed: `@stable` carried the target on the runner image, and
+      # pinning the toolchain took it away — the build then failed at the first
+      # crate with "can't find crate for `core`". Said out loud, it stops
+      # depending on what a toolchain happens to ship.
+      - name: Add the MinGW target (Windows)
+        if: runner.os == 'Windows'
+        run: rustup target add x86_64-pc-windows-gnu
+
       - uses: Swatinem/rust-cache@v2
         with:
           key: windows-x86_64-cat
