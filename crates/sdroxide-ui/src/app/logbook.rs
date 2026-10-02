@@ -392,6 +392,7 @@ impl SdroxideApp {
         self.awards_cache = None;
         self.awards_heat = None;
         self.grid_countries = None;
+        self.grid_squares = None;
         self.worked_entities_cache = None;
         self.log_index_cache = None;
     }

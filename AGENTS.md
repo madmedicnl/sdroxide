@@ -9,13 +9,204 @@
 > ALE-mode build; the experimental-release recipe below is still the one to use
 > when a build needs to name it (the older pre-release tag has been removed).
 
+## Session 2026-10-02: three releases, one rustc regression, and Olivia
+
+**Read this first on any release day.** Three releases in a row failed for
+reasons that had nothing to do with each other, and each took a full diagnosis.
+
+### 1. Rust 1.99.0 cannot compile `mfsk-core` for aarch64 (the big one)
+
+`v1.9.11`, `v1.9.12` and `v1.9.13` all died the same way: every aarch64 job
+compiled the tree in ~9 minutes and then wrote **nothing at all** until it was
+killed — so, since `create release` has `needs: [web, build]`, nothing shipped
+and `/releases/latest` stayed on **v1.9.10**. 1.9.11 and 1.9.12 therefore have
+tags but **no GitHub Release**, ever.
+
+The cause was not where anyone thought. The earlier note here said the aarch64
+jobs "stalled silently at the final binary link"; they did not. A probe
+(step-level deadline on the build, a memory sampler beside it, and a diagnostics
+step that survives the deadline — GitHub will not serve a running job's log, so
+a stall is otherwise only visible as *silence*) found:
+
+```
+PID 21787  ELAPSED 2073s  RSS 416MB  STAT Sl  %CPU 100  rustc
+cmdline: rustc --crate-name mfsk_core --edition=2024 …
+Threads: 6   wchan: futex_do_wait   VmSwap: 0
+mem_used=1606MB avail=14340MB swap_used=0
+```
+
+One rustc invocation, one thread pegged, **flat** memory, no OOM, clean `dmesg`,
+14 GB free. An LLVM codegen pathology on the **FT8/FT4 decoder**, not the
+linker, not our binary, not memory. And the toolchain was unpinned: rustup moved
+to 1.99.0 on **2026-10-01**, the day 1.9.11 was tagged, and `v1.9.10` (the last
+release with ARM artifacts) built the same crate in seconds on 1.98.1.
+
+**Fixed by pinning** `dtolnay/rust-toolchain@1.98.1` in all four CI steps
+(`release.yml` twice, `windows-msi.yml` twice) — verified: both aarch64 jobs then
+built in **9 min 42 s**. x86_64 was never affected, which is why eight jobs
+succeeded while six hung and nobody could see a pattern.
+
+**Two consequences to remember.**
+- Pinning **exposed a second latent bug**: the Windows job sets
+  `CARGO_BUILD_TARGET=x86_64-pc-windows-gnu` and never installed that target —
+  it inherited it from `@stable`. With the pin it failed at the first crate
+  (`can't find crate for core`). Now an explicit `rustup target add` step, in
+  both workflows.
+- Pinning also **duplicated #572's helpers**: `cat/src/lib.rs` auto-merged and
+  took `link_configured` and `effective_cw_keying` twice. Auto-merging cleanly is
+  not evidence of correctness — check the committed tree compiles.
+
+### 2. The release job never checked the repository out
+
+`create release` downloaded artifacts and nothing else, so the `awk` that reads
+the curated `CHANGELOG.md` entry died with `cannot open file CHANGELOG.md` and
+the job exited 2 — **after** all fourteen builds succeeded and their assets were
+uploaded. Latent since the notes were switched to the changelog (after v1.9.11);
+v1.9.13 was the first release to run that line at all. Fixed with a checkout of
+`${{ github.ref }}`.
+
+**`gh run rerun --failed` cannot recover a workflow bug**: a re-run executes the
+workflow *as it stood at the tag*, so a fix has to ship under a new tag.
+
+### 3. Olivia is not the Olivia protocol (parked, with a capture in hand)
+
+Discussion #5: a user cannot decode Olivia; MultiPSK copies the same signal on
+the same dial. It is not sensitivity and not tuning — `sdroxide-dsp/src/olivia.rs`
+is upstream's own (`4ab061fe`), and its module doc has said so since it was
+written: *"the scrambler constants are not yet bit-matched to fldigi"*.
+
+Against the ARRL description of the mode, the gaps are:
+
+| | Olivia | `olivia.rs` |
+|---|---|---|
+| Scrambler | Walsh vectors scrambled with `0xE257E6D0291574EC`, each character rotated right 13×n bits | a per-position **tone** rotation from an xorshift seeded `0x1D5` |
+| Bit interleaving | 1st bit of 1st symbol, 2nd bit of 2nd symbol, … | none |
+| Sync tones | every transmission is bracketed by them | no concept of them |
+
+The 64-symbol block, the (64,7) Walsh mapping, the Gray tone assignment and the
+spacing = symbol-rate rule are all **correct**, so the work is bounded to the
+scrambler, the interleaver and the sync tones. Its loopback tests pass because
+they test it against itself — which is how it shipped looking ready.
+
+**Shipped:** the panel now says so in the settings row next to Tones/BW, and
+`Mode::Olivia`'s doc says it (the manual takes its text from there). **Raised
+upstream as [#621](https://github.com/dividebysandwich/sdroxide/issues/621)** —
+an issue, not a PR, per the standing rule that only a genuine upstream bug goes
+up and then as an issue.
+
+**Parked, and this is the blocker:** the exact Hadamard ordering convention
+(natural vs sequency), the bit order inside each 64-bit vector, and the rotation
+direction. The operator's capture is **`~/Downloads/capture500-16.wav`** — 8 kHz
+mono, 61.7 s — and the analysis harness is in `/tmp/opencode/olivia_*.py`.
+Measured off it: 16 tones, **31.25 Hz spacing, 256 samples/symbol** (matching
+the reference's "256 samples in time, 512-long window"), comb centre ~978 Hz,
+~1927 symbols ≈ 30 blocks of 64. A Walsh decode with the real scrambler returns
+**76–80 % "printable" — which is what random bytes score**, so a convention is
+still wrong. Guessing it would ship a second non-interoperable decoder, which is
+the exact failure being fixed, so it waits for the reference tables. Every
+fldigi mirror was unreachable (GitHub 404, GitLab Cloudflare, SourceForge HTML);
+the next attempt should start from WB8ROL's own specification or a working
+mirror of `src/modes/olivia.cpp`.
+
+### 4. An 11 m CQ run had no bound at all
+
+`23cd78be` skipped the transmit watchdog for a CQ run on 11 m, stating that
+"the run is bounded instead by `max_tx_repeats`". But `max_tx_repeats` never
+counted CQ calls — that check has always read `TxGrid | TxReport | TxRReport`,
+with a comment saying a CQ repeat is exempt because "the watchdog above bounds it
+instead". Both halves of one bound were gone at once, so an unattended 11 m
+station keyed CQ every slot, indefinitely. Found from the operator's own log
+("CQ ran more than 10 times"), fixed in `82eb8fcc`: on 11 m the count includes
+`CallingCq`, and the notice says `no answer after 10 CQ calls` plus the
+watchdog's "press REPLY, or call CQ to start a new run". Off 11 m nothing
+changed — `repeating_a_cq_is_not_an_unanswered_call` still pins that.
+
+**The general lesson**: a comment claiming a bound exists is not evidence that
+it does. When one commit removes an instrument, check what the *other* half of
+the pair actually tests.
+
+### 5. The QSO is logged when our 73/RR73 is on the air — verified, do not "fix" it
+
+The operator's etiquette point: the log entry must fall with the step-5 message
+transmitted, sooner is fine, later is not, "otherwise people may stop being
+polite and just rush QSOs". It already does, from two different hooks:
+`record_tx` pushes the `»` line as the burst is **keyed** (`controller.rs:1035`)
+and `on_burst_done → note_tx_sent → log_qso` pushes the `✓` **after the over
+finishes**, only for `Tx73 | TxRr73` (`qso.rs:1603`). So the `✓` always follows
+the `»` in the transcript. The one deliberate exception is a **Hound**
+(`qso.rs:844`, `qso.rs:1136`): the Fox's RR73 closes the contact and the Hound
+does not answer, because a 73 would take a slot from the pile-up.
+
+### 6. Upstream merge (22 commits, five PRs) and what each one cost the fork
+
+Merged as `8c398189`. **The wire did not move**: upstream is at
+`PROTO_VERSION` 172, the fork at 189, and upstream's two new entries (v171
+FSK441 TX's `tx_refused`, v172 `text_macros`) are already the fork's v178 and
+v182. `Mode`'s discriminants are untouched — the one hunk that would have
+reordered `Acars`/`HdRadio` to match upstream was resolved in the fork's favour,
+so `Cquam` stays at 39 and everything from `Acars` up keeps its number.
+
+Five files took **upstream's** whole form (strict improvements):
+`morse_trainer.rs` (`serde(default)`), `geo.rs` (a `get`-based `grid4` that
+cannot panic on a mistyped multi-byte locator), `fsk441.rs` (transmit wording).
+Four took the **fork's** (upstream's side is a subset): `mode.rs`, `digi.rs`,
+`modulator.rs`, `proto/lib.rs`. Eleven UI/doc files took the **fork's**, and
+five of those are **not droppable**:
+
+- `grid_tracker.rs` — the CB **country mode**, which upstream has no use for.
+- `morse.rs` — the **SEND** pane (USB-paddle sending drill; raw evdev, Linux-only).
+- `panels/macros.rs` — **F1–F9** hotkeys on the message buttons.
+- `panels/cw.rs` — the straight-key and USB-paddle transmit path, beside #572.
+- `persist.rs` — the **SWL reception log**.
+
+**Owed and not taken:** upstream's post-merge refinements to those same features —
+the grid tracker's panic-safe `grid4` and per-band tally (partly folded in, see
+below), the Morse trainer's wasm dead-code fix, and the manual sections for all
+five. They are the maintainer's own answers to review points on our own PRs, so
+they should come across: a focused pass over five files, not a rebase.
+
+The grid tracker's band-filter fix **is** in: the fork read `awards_cache`,
+which follows the AWARDS window's band filter, so squares outside that band
+vanished with nothing on screen to say why (upstream's `3348b389`). It now uses
+its own unfiltered cache, `grid_squares`, for both the squares and the
+countries' confirmation column.
+
+The popup's mode chips now read **GRID/HAM** and **COUNTRY/CB** (the main
+window's `GRID` chip is unchanged). The operator's reason, worth keeping: not
+every SWL listener knows callsign etiquette, and the label should not require
+them to.
+
+### 7. #569: both questions answered, and both change the fork's plan
+
+The maintainer: put the keyer in **`CwController` on the engine side** — "Don't
+have the client generate edges and send them as `CwKey(down)`" — and keep
+**`CwKeyer` iambic-only**, because straight keying already goes through
+`CwKey(down/up)` and what went out is already decoded by `CwSelfRx` into
+`sent_text` (`cw_controller.rs:234`, `:592`, `:504`; `engine.rs:9292`). Straight
+mode in `CwKeyer` is a second implementation of that, so it goes. Reply posted.
+For the trainer's contact-to-text decode we take his first option: reuse
+`CwSelfRx` on the sidetone rather than write a second decoder.
+
+**Still to do:** move the keyer engine-side (a `Command` carrying contacts plus a
+`PROTO_VERSION` bump), drop `CwKeyer`'s straight mode, and rebase #573 onto it.
+Open question we asked him: whether the contacts arrive as a new
+`Command::CwContacts { dot, dash }`.
+
+### House note: do not monitor CI continuously
+
+The operator's instruction, after a session lost a lot of time to 90-second poll
+loops: **check a run once per finished task, not in a loop.** A tag push is
+followed by other work; the run is checked when the next thing finishes.
+
 ## The standing queue and how to check it (updated 2026-10-01)
 
 **Our open upstream PRs are the whole queue.** Track only these. Everything
 else on the upstream tracker belongs to the maintainer — do not triage or reply
 to new upstream issues we have no PR for.
 
-Nineteen open at this writing, all `CLEAN` and mergeable:
+Nineteen open at this writing, all `CLEAN` and mergeable. **Five have since
+merged upstream (#613, #596, #572, #568, #561)** — see the 2026-10-02 session
+notes; their fork copies are reconciled in `8c398189`.
 
 - **#613** grid tracker — worked Maidenhead squares on a map. Upstream gets the
   grid tracker only; the CB country mode stays on the fork.

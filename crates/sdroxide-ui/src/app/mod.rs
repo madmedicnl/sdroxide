@@ -1094,6 +1094,12 @@ pub struct SdroxideApp {
     /// log length: `(lat, lon, confirmed, name)`. Resolved from the log's calls
     /// so CB countries place correctly.
     grid_countries: Option<(usize, Vec<(f64, f64, bool, &'static str)>)>,
+    /// The worked squares on the tracker map, keyed by log length like
+    /// `grid_countries` and deliberately **not** read from `awards_cache`: that
+    /// one follows the AWARDS window's band filter, and the map has no band
+    /// picker of its own, so it would hide squares with nothing on screen to say
+    /// why (upstream's fix, in 3348b389).
+    grid_squares: Option<(usize, Vec<(String, bool)>)>,
     /// The same tally placed on the globe for the 3D view's award layer, keyed
     /// the same way. Shared rather than copied: it is three hundred entities
     /// and the window republishes it every frame.
@@ -1842,6 +1848,7 @@ impl SdroxideApp {
             awards_band: String::new(),
             awards_cache: None,
             grid_countries: None,
+            grid_squares: None,
             awards_heat: None,
             worked_entities_cache: None,
             log_index_cache: None,

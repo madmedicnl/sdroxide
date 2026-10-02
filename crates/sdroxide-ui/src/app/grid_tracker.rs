@@ -267,6 +267,25 @@ fn cell_rect(
 }
 
 impl SdroxideApp {
+    /// The worked squares on the map, cached by log length.
+    ///
+    /// Computed with **no band filter**, unlike `ensure_awards`. The AWARDS
+    /// window has a band picker and this map has none, so reading the filtered
+    /// tally would silently hide every square outside the band the operator
+    /// happened to leave selected there — with nothing on this window to say
+    /// why. Upstream fixed the same thing on its side of #613 (3348b389); this
+    /// is the fork's copy of that fix, on a cache of its own because the
+    /// countries below need the same unfiltered confirmation column.
+    fn ensure_grid_squares(&mut self) {
+        let len = self.qso_log.len();
+        if self.grid_squares.as_ref().map(|(l, _)| *l) == Some(len) {
+            return;
+        }
+        let awards = sdroxide_types::compute_awards(&self.qso_log, None, None);
+        let squares = awards.grids.iter().map(|(g, s)| (g.clone(), s.confirmed)).collect();
+        self.grid_squares = Some((len, squares));
+    }
+
     /// The worked countries placed on the map, cached by log length.
     ///
     /// Resolved from the log's calls rather than from the awards tally's names,
@@ -278,12 +297,12 @@ impl SdroxideApp {
         if self.grid_countries.as_ref().map(|(l, _)| *l) == Some(len) {
             return;
         }
-        self.ensure_awards();
-        let conf: std::collections::HashMap<&str, bool> = self
-            .awards_cache
-            .as_ref()
-            .map(|(_, _, a)| a.dxcc.iter().map(|(n, s)| (n.as_str(), s.confirmed)).collect())
-            .unwrap_or_default();
+        // The confirmation column comes from an **unfiltered** tally, for the same
+        // reason the squares do: a mark that follows the AWARDS window's band
+        // filter would disagree with the squares drawn beside it.
+        let awards = sdroxide_types::compute_awards(&self.qso_log, None, None);
+        let conf: std::collections::HashMap<&str, bool> =
+            awards.dxcc.iter().map(|(n, s)| (n.as_str(), s.confirmed)).collect();
         let mut seen = HashSet::new();
         let mut pts = Vec::new();
         for q in &self.qso_log {
@@ -309,12 +328,10 @@ impl SdroxideApp {
             return;
         }
         self.ensure_grid_countries();
+        self.ensure_grid_squares();
 
-        let worked_grids: Vec<(String, bool)> = self
-            .awards_cache
-            .as_ref()
-            .map(|(_, _, a)| a.grids.iter().map(|(g, s)| (g.clone(), s.confirmed)).collect())
-            .unwrap_or_default();
+        let worked_grids: Vec<(String, bool)> =
+            self.grid_squares.as_ref().map(|(_, w)| w.clone()).unwrap_or_default();
         let worked_countries: Vec<(f64, f64, bool, &'static str)> =
             self.grid_countries.as_ref().map(|(_, v)| v.clone()).unwrap_or_default();
 
