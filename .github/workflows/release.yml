@@ -8,6 +8,24 @@ on:
   # the same way tag pushes would) to publish the platform builds and create
   # the GitHub Release too.
   workflow_dispatch:
+    inputs:
+      # Build only these platform labels, as a JSON list — e.g.
+      # `["linux-aarch64"]`. Empty builds all of them, which is what a tag push
+      # and the nightly do. Narrowing a run is how the aarch64 link probe is
+      # afforded without paying for fourteen builds.
+      wanted:
+        description: 'Platform labels to build (JSON list; empty = all)'
+        required: false
+        default: ''
+        type: string
+      # Instrument the aarch64 final link: a step-level deadline on the build, a
+      # memory sampler running beside it, and the runner's own view of the
+      # stalled process if it does stall. Inert unless asked for.
+      diagnose:
+        description: 'Instrument the aarch64 build (sampler, timings, diagnostics)'
+        required: false
+        default: false
+        type: boolean
   # Nightly build, 03:17 UTC. Same deal as a manual run — `release` is gated on
   # a tag, so nothing is published — but it builds the four platforms listed in
   # `targets` rather than all fourteen, and the result is downloaded from the
@@ -49,6 +67,7 @@ jobs:
     outputs:
       combos: ${{ steps.pick.outputs.combos }}
       stamp: ${{ steps.pick.outputs.stamp }}
+      diagnose: ${{ inputs.diagnose }}
     steps:
       - id: pick
         run: |
@@ -80,6 +99,16 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
             wanted='["linux-x86_64-compat", "linux-aarch64-compat", "windows-x86_64", "macos-aarch64"]'
             variants='["cat"]'
+          elif [[ -n "${{ inputs.wanted }}" ]]; then
+            # A manual dispatch may narrow the run to named platforms, which is
+            # how the aarch64 link probe runs without fourteen builds. The list
+            # is validated here rather than trusted: a typo in a dispatch input
+            # would otherwise produce an empty matrix and a green run that built
+            # nothing at all.
+            wanted='${{ inputs.wanted }}'
+            variants='["soapy", "cat"]'
+            jq -e 'type == "array" and length > 0' <<<"$wanted" > /dev/null \
+              || { echo "::error::wanted must be a non-empty JSON list of platform labels"; exit 1; }
           else
             wanted='null'
             variants='["soapy", "cat"]'
@@ -310,18 +339,89 @@ jobs:
           name: web-dist
           path: crates/sdroxide-web/dist
 
+      # The probe. A sampler runs beside the build so the memory curve survives
+      # even when the job is killed: GitHub does not serve a running job's log,
+      # so a stall is otherwise only visible as *silence*, which is the whole
+      # reason three releases failed to tell a slow link from a stuck one.
+      - name: Start the link sampler
+        if: needs.targets.outputs.diagnose == 'true' && contains(matrix.label, 'linux-aarch64')
+        run: |
+          echo "sampling to $RUNNER_TEMP/link-sampler.log"
+          (
+            while true; do
+              printf '%s ' "$(date -u +%H:%M:%S)"
+              free -m | awk '/^Mem:/ {printf "mem_used=%-7s avail=%-7s ", $3, $7} /^Swap:/ {printf "swap_used=%-7s ", $3}'
+              ps -eo rss=,comm= | awk '$2=="rustc"||$2=="cc1plus"||$2=="ld"||$2=="lld" {if ($1>m) m=$1} END {printf "linker_rss_mb=%-6d", m/1024}'
+              ps -eo nlwp=,comm= | awk '$2=="rustc" {if ($1>n) n=$1} END {printf "rustc_threads=%-4d", n+0}'
+              df -h --output=pcent,avail / | tail -1 | tr -s ' ' | cut -d' ' -f2-3 | sed 's/^/disk=/'
+              echo
+              sleep 20
+            done
+          ) >> "$RUNNER_TEMP/link-sampler.log" 2>&1 &
+          echo "sampler pid $!"
+
       - name: Build
+        # Under the probe the link gets a **step**-level deadline rather than
+        # only the job's: a step timeout lets the job carry on into the
+        # diagnostics below, where a job timeout would cancel them and take the
+        # evidence with it.
+        timeout-minutes: ${{ needs.targets.outputs.diagnose == 'true' && contains(matrix.label, 'linux-aarch64') && 40 || 90 }}
         run: |
           # `cat` drops the default `soapy` feature. `rtl433` is a default too,
           # but this build asks for it back: the embedded rtl_433 is statically
           # linked C, so it costs the SoapySDR-free artifact nothing at run time
           # and the release notes' "everything above" stays true. Both embed the
           # web client.
+          #
+          # `--timings` writes target/cargo-timings/, which says which crate the
+          # build was in and for how long — the probe's own account of where the
+          # time went. The ordinary build does not ask for it.
+          timings=""
+          if [[ "${{ needs.targets.outputs.diagnose }}" == "true" ]]; then timings="--timings"; fi
           if [[ "${{ matrix.variant }}" == "cat" ]]; then
-            cargo build --release --locked -p sdroxide --no-default-features --features embed-web,rtl433
+            cargo build --release --locked $timings -p sdroxide --no-default-features --features embed-web,rtl433
           else
-            cargo build --release --locked -p sdroxide --features embed-web
+            cargo build --release --locked $timings -p sdroxide --features embed-web
           fi
+
+      # What the stalled link was doing, from the runner's own side: how much
+      # memory was left, how big the linker process had grown, what the kernel
+      # has to say (the OOM killer writes here, and would explain a long silent
+      # grind better than anything else), and where cargo thought it was.
+      - name: Diagnose the link
+        if: always() && needs.targets.outputs.diagnose == 'true' && contains(matrix.label, 'linux-aarch64')
+        run: |
+          set +e
+          echo "== the machine =="
+          nproc; uname -a; free -m; df -h / /github/workspace 2>/dev/null
+          echo "== memory curve (every 20s) =="
+          tail -60 "$RUNNER_TEMP/link-sampler.log"
+          echo "== processes by rss =="
+          ps -eo pid,ppid,etimes,rss,vsz,stat,pcpu,comm --sort=-rss | head -15
+          echo "== the compiler itself =="
+          for p in $(pgrep -x rustc) $(pgrep -x cc1plus); do
+            echo "--- pid $p ---"
+            grep -E '^(Name|State|VmPeak|VmSize|VmRSS|VmSwap|Threads)' "/proc/$p/status"
+            echo "wchan: $(cat "/proc/$p/wchan" 2>/dev/null)"
+            echo "io: $(tr '\n' ' ' < "/proc/$p/io" 2>/dev/null | cut -c1-200)"
+            tr '\0' ' ' < "/proc/$p/cmdline" | cut -c1-160; echo
+          done
+          echo "== kernel ring buffer (the OOM killer writes here) =="
+          sudo dmesg -T 2>/dev/null | tail -40 || dmesg -T 2>/dev/null | tail -40
+          echo "== cargo's own timings =="
+          ls -la target/cargo-timings/ 2>/dev/null
+          echo "== what the link got as far as =="
+          ls -la target/release/deps/ 2>/dev/null | grep -E 'sdroxide|deepcw' | tail -8
+
+      - name: Upload the link probe
+        if: always() && needs.targets.outputs.diagnose == 'true' && contains(matrix.label, 'linux-aarch64')
+        uses: actions/upload-artifact@v7
+        with:
+          name: link-probe-${{ matrix.label }}-${{ matrix.variant }}
+          path: |
+            ${{ runner.temp }}/link-sampler.log
+            target/cargo-timings/
+          if-no-files-found: warn
 
       # MinGW links libstdc++/libgcc/libwinpthread as DLLs by default, and
       # those exist only on a machine with MSYS2 or PothosSDR installed — a
