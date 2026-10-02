@@ -7283,6 +7283,20 @@ impl BandFilter {
 /// A mode chip that greys out when the mode does not apply on `band`, and says
 /// why. The rule is [`Band::accepts_mode`]; the engine refuses the same pair at
 /// the command boundary, so this is the explanation rather than the only gate.
+/// The hover on an **Olivia** chip, in both the OPERATE and the LISTEN tab.
+///
+/// Said on the chip rather than only in the settings row, because the LISTEN
+/// tab is where a listener goes to try a decoder, and a mode name in a list is
+/// read as a promise. The tone counts and bandwidths are named after the real
+/// modes and the block coding follows the protocol, so it looks like one — and
+/// until the frame geometry matches, a station on an Olivia frequency is
+/// silence here.
+const OLIVIA_UNCONFIRMED: &str = "OLIVIA — unconfirmed. The tone counts and bandwidths are \
+     named after the real modes and the block coding follows it, but the decoder \
+     is not yet bit-compatible: it does not read an Olivia station, and one does \
+     not read it. MultiPSK or fldigi can copy the same signal. Reported \
+     2026-10-02; being reworked.";
+
 fn mode_band_chip(
     ui: &mut egui::Ui,
     cur: Mode,
@@ -7310,6 +7324,11 @@ fn mode_band_chip(
                 format!("{} is not used on {} — pick a band it belongs to", m.label(), band.label())
             }
         })
+    } else {
+        resp
+    };
+    let resp = if m == Mode::Olivia {
+        resp.on_hover_text(OLIVIA_UNCONFIRMED)
     } else {
         resp
     };
@@ -7344,6 +7363,7 @@ fn mode_listen_chip(
     );
     let resp = match station_why {
         Some(why) => resp.on_disabled_hover_text(why),
+        None if m == Mode::Olivia => resp.on_hover_text(OLIVIA_UNCONFIRMED),
         None => resp,
     };
     if resp.clicked() {
