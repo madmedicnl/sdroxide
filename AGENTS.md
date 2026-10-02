@@ -342,6 +342,37 @@ which is the friction the CLI imposes today, minus remembering the flag.
 (`cb_tx_allowed()` is the fork's own), and a switch that loosens a transmit
 lockout is the last thing a maintainer should have to review from a stranger.
 
+### 12. The standing direction: CW keying is the goal, this fork first
+
+The operator's order, 2026-10-02, and it outranks everything above about
+upstream: **this fork first and foremost. Anything offered upstream is a bonus
+for the maintainer and pure goodwill — it is never the reason for a decision.**
+
+The goal is plain: **people must be able to key CW, period.** Where that needs
+the operator to make a choice, make it and *inform them what the choice means*:
+on the path where the program generates the tone and keys the rig by audio, a key
+wired straight to the radio's key jack is not part of that path and will not key
+through us — so say so rather than letting them discover it on the air.
+
+**What that means for #569.** The engine-side keyer is not a refactor for its own
+sake; it is what removes the one real reason CW cannot be keyed today. A paddle
+cannot key a rig that keys itself, because `cw_controller.rs:923` refuses
+(`set_straight` returns early when `self.cat.is_some()`) — and that refusal is a
+missing capability wearing a safety's clothes. With the keyer in `CwController`
+the program owns the timing, so the paddle keys through **every** route: CAT,
+MCW/audio, VOX. The operator's only remaining choice is where the tone goes.
+
+So the six pieces above are the work, in order, and they are not to be left half
+landed. The maintainer's answers agree with the direction — engine-side,
+`CwKeyer` iambic-only — and are followed where they do not conflict with it, but
+they are not the constraint. If a PR upstream ever follows from it, it is
+offered afterwards, as a courtesy.
+
+**One thing that must not be lost in the doing:** the fork's own house rule that
+a control must never silently do nothing. A paddle that cannot key a CAT rig, an
+oob-tx switch that changes the lockout, a screen setting that does not travel —
+each of those is the same bug wearing different clothes, and each is now either
+fixed or labelled.
 ### House note: do not monitor CI continuously
 
 
