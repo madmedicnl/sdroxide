@@ -24,3 +24,9 @@ received/
 
 # Release notes drafted for the GitHub release page, not part of the tree.
 /RELEASE_NOTES*.md
+
+# The running session handover, written for whoever picks this up next. Kept on
+# disk and out of the tree: `git add -A` put it back once already (61684f6d,
+# undoing ec129ebe). The topic handovers beside it — ALE-, CW-, DAB-HANDOVER.md
+# — are part of the tree and stay tracked, because AGENTS.md points at them.
+/HANDOVER.md
