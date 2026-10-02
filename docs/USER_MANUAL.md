@@ -2151,6 +2151,21 @@ hand-keying by design — set Settings → Radio → **CW keying** to **Sound ca
 drives only the trainer's SEND drill and never keys anything. A **USB paddle**
 pane is desktop Linux only.
 
+Two settings on the **radio** then decide whether any of it reaches the air, and
+neither is on this page:
+
+- **The radio must be on a sideband — USB — not in CW.** See above: a radio in
+  CW ignores its own sound card, so MCW is silent on the air while the tone, the
+  decoded send and the transmit indicators all look correct. This is the one to
+  check first if a paddle keys and transmits nothing.
+- **VOX on, and the rig's mic gain set** so the audio arriving from the computer
+  does not overdrive it.
+
+A **straight key plugged into a paddle box** works without any of the above
+changing: a box with a straight key in it reports that key on a single contact —
+the middle one where the box has a middle jack, the dit contact where it does not
+— and sdroxide reads whichever it reports.
+
 **Learning Morse (the trainer).** The **TRAINER** chip in the CW panel opens a
 learning tool, not a sending one: it plays Morse through
 this computer's speakers only and **never keys the radio**, so it works on a
@@ -8615,7 +8630,14 @@ not modulate what arrives at its sound card, so a keyer's sidetone sent there
 reaches nothing at all. `Rig keyer (CAT)` — the default — therefore hands the CW
 panel's text to the radio and lets the radio's own keyer send it, which is the
 only route that puts CW on the air from a rig that is *in* CW. There is no PTT
-around it: the rig switches to transmit for the length of the message itself.
+ around it: the rig switches to transmit for the length of the message itself.
+
+On `Sound card (MCW)` the same rig is held on a sideband and the tone is
+modulated like any other audio, so it needs the rig's own mode to be a sideband
+too — and on a radio sdroxide cannot command the mode of, that is a setting on
+the radio itself ([6.2.21](#6221-usb-audio-radio-sound-card-only)). The failure
+is worth recognising, because nothing reports it: the tone sounds, the send
+decodes back into text, the transmit indicators behave, and the air is silent.
 
 What that needs on the radio:
 
@@ -12039,7 +12061,21 @@ digital modes decode from it as they do on a CAT rig's demod audio.
 **Transmit is audio into the mic socket, and VOX does the keying.** Turn VOX on
 at the radio, and set its mic gain so the audio arriving from the computer
 does not overdrive it. Speech, digital-mode tones and CW (sent as keyed audio
-tones, MCW) all go out the same way. Two consequences of a radio that keys on
+tones, MCW) all go out the same way.
+
+> **Leave the radio on a sideband — USB, the mode FT8 rides — and not in CW.**
+> Nothing is commanded on this interface: sdroxide cannot read or move the
+> radio's mode, so this one is set by hand and it is the setting that makes CW
+> send do nothing while everything on screen says otherwise. MCW *is* audio,
+> and a radio switched to CW does not modulate what arrives at its sound card
+> — in CW it selects its own keyer instead. So with the radio in CW the tone
+> still sounds locally, the send is still decoded straight back into text, and
+> the transmitter is never touched: no power, no signal, nothing on the air,
+> and no error anywhere. If CW sends and only you can hear it, this is why. Set
+> the radio back to USB. (A CAT rig held on a sideband by sdroxide is the same
+> requirement, [6.2.2](#622-cat-radios-serial-control--usb-audio).)
+
+Two consequences of a radio that keys on
 whatever it hears:
 
 - **Anything else played to the transmit card keys the radio too** — a system
