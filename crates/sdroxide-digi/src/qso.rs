@@ -1440,10 +1440,21 @@ impl QsoMachine {
     /// sitting in the middle of a contest and still wants to read what is going
     /// on around it.
     pub(crate) fn contest_selected(&self) -> bool {
-        matches!(self.cfg.contest, ContestMode::EuVhf | ContestMode::RttyRoundup)
+        matches!(self.contest(), ContestMode::EuVhf | ContestMode::RttyRoundup)
     }
 
     pub(crate) fn contest(&self) -> ContestMode {
+        // 11 m carries no amateur contest layout, whatever
+        // `DigiConfig::contest` happens to hold. The RTTY Roundup's calling
+        // message is literally `CQ RU <call>`, which on the citizens' band is
+        // both longer than a Type-4 call can carry (it is capped at eleven
+        // characters, the whole identifier) and an exchange nobody there
+        // sends. A layout left set — by the contest window, or persisted from
+        // a session on another band — must not reach the air once the dial is
+        // on 11 m.
+        if self.cb {
+            return ContestMode::None;
+        }
         match self.cfg.contest {
             ContestMode::EuVhf
                 if matches!(self.mode, Mode::Ft8 | Mode::Ft4 | Mode::Ft2)
@@ -3007,6 +3018,42 @@ mod tests {
         let rec = q.take_completed().expect("logged");
         assert_eq!(rec.call, "26AT715");
         assert_eq!(rec.grid, None);
+    }
+
+    /// An amateur FT8 contest layout must not reach 11 m, however it got set.
+    ///
+    /// The RTTY Roundup's calling message is `CQ RU <call>`, and on the
+    /// citizens' band that is both longer than a Type-4 call can carry — the
+    /// whole identifier is capped at eleven characters — and an exchange nobody
+    /// there sends. The layout can be left set by the contest window on its way
+    /// in, or persisted from a session on another band, so the engine refuses
+    /// it on 11 m rather than trusting a caller to have cleared it first.
+    #[test]
+    fn an_amateur_contest_layout_never_reaches_the_citizens_band() {
+        let cfg = DigiConfig { contest: ContestMode::RttyRoundup, ..cb_cfg() };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        q.set_cb(true);
+        assert_eq!(q.contest(), ContestMode::None, "11 m carries no amateur layout");
+        assert!(!q.contest_selected());
+        q.call_cq();
+        let msg = q.plan_tx().expect("a CQ goes out");
+        assert_eq!(msg, "CQ 25TT304", "a CB CQ calls plainly");
+        assert!(!msg.contains("RU"), "no RTTY Roundup calling text on 11 m: {msg}");
+
+        // The EU VHF layout is refused the same way: its CQ carries a locator
+        // the band has no use for.
+        let cfg = DigiConfig { contest: ContestMode::EuVhf, ..cb_cfg() };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        q.set_cb(true);
+        assert_eq!(q.contest(), ContestMode::None);
+
+        // Off 11 m the very same setting is honoured, so this is a band rule
+        // and not a blanket refusal of contests.
+        let cfg = DigiConfig { contest: ContestMode::RttyRoundup, ..cb_cfg() };
+        let mut q = QsoMachine::new(Mode::Ft8, cfg);
+        assert_eq!(q.contest(), ContestMode::RttyRoundup);
+        q.call_cq();
+        assert_eq!(q.plan_tx().as_deref(), Some("CQ RU 25TT304"));
     }
 
     /// WSJT-CB sends its report and sign-off as one-call free text naming the

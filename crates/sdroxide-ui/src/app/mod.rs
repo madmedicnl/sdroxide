@@ -203,6 +203,15 @@ pub struct SdroxideApp {
     contest_pick: sdroxide_types::ContestId,
     contest_my_exchange: String,
     contest_entry: crate::app::contest::ContestEntry,
+    /// The FT8 contest layout the digi engine held **before** this session
+    /// applied its own, put back on STOP.
+    ///
+    /// A session that sets a layout must not leave it set: otherwise the CQ
+    /// keeps the contest's calling message after the operator has stopped, and
+    /// looking at the digi panel shows a layout they did not choose and cannot
+    /// remember choosing. `Some` only while a session has changed it, so a
+    /// session with no FT8 layout leaves the engine exactly as it found it.
+    contest_prev_digi: Option<sdroxide_types::ContestMode>,
     sent_cfg: Option<SpectrumConfig>,
     desired_cfg: Option<SpectrumConfig>,
     desired_at: f64,
@@ -1545,6 +1554,7 @@ impl SdroxideApp {
             contest_pick: sdroxide_types::ContestId::CqWpx,
             contest_my_exchange: String::new(),
             contest_entry: Default::default(),
+            contest_prev_digi: None,
             sent_cfg: None,
             desired_cfg: None,
             desired_at: 0.0,

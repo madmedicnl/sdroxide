@@ -108,16 +108,24 @@ impl SdroxideApp {
             self.contest_entry = Default::default();
             self.reset_entry_reports();
             // Tell the digi engine which FT8 contest layout to send, when this
-            // contest has one. A hand-typed CW/SSB contest sets `None` — there
-            // is no message layout to choose — and the logger works regardless.
+            // contest has one **and the band carries it**. A hand-typed CW/SSB
+            // contest sets nothing, and neither does any contest on 11 m — see
+            // `digi_contest_for`. We remember what the engine held so STOP can
+            // put it back rather than leaving the contest's calling message in
+            // force after the session ends.
             //
             // Narrowly, on purpose: this panel is not the digi panel and its
             // `digi_cfg_edit` copy is not authoritative. Pushing a whole
             // `DigiConfig` from here would roll back whatever the engine holds
             // that this copy is stale on, and would clear an FT8 contest layout
-            // the operator had already set — since `digi_contest_for` yields
-            // `None` for every contest but EU VHF.
-            cmds.push(sdroxide_types::Command::SetDigiContest(digi_contest_for(picked)));
+            // the operator had already set.
+            match digi_contest_for(picked, self.state.band) {
+                Some(mode) => {
+                    self.contest_prev_digi = Some(self.digi_cfg_edit.contest);
+                    cmds.push(sdroxide_types::Command::SetDigiContest(mode));
+                }
+                None => self.contest_prev_digi = None,
+            }
         }
     }
 
@@ -145,6 +153,7 @@ impl SdroxideApp {
         let r10 = sdroxide_types::rate(&mine, now, 600);
         let r60 = sdroxide_types::rate(&mine, now, 3600);
 
+        let mut stop = false;
         ui.horizontal_wrapped(|ui| {
             ui.label(egui::RichText::new(contest.label()).strong());
             ui.label(format!(
@@ -154,10 +163,21 @@ impl SdroxideApp {
             ui.label(format!("{r10} in 10 min · {r60}/hr"));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if crate::chrome::chip(ui, false, " STOP ").clicked() {
-                    self.contest = None;
+                    stop = true;
                 }
             });
         });
+        if stop {
+            self.contest = None;
+            // Put the digi engine back the way the session found it. Without
+            // this the contest's layout stays in force after the session has
+            // ended — the CQ keeps calling in the contest's format and the digi
+            // panel shows a setting the operator never chose.
+            if let Some(prev) = self.contest_prev_digi.take() {
+                cmds.push(sdroxide_types::Command::SetDigiContest(prev));
+            }
+            return;
+        }
         if spec.multiplier != sdroxide_types::Multiplier::None {
             ui.label(
                 egui::RichText::new("score is an estimate — the sponsor adjudicates")
@@ -352,15 +372,32 @@ fn exchange_hint(fields: &[Exchange]) -> String {
     fields.iter().map(|f| f.label()).collect::<Vec<_>>().join(" + ")
 }
 
-/// The FT8 message layout a contest logger session should put the digi engine
-/// into: EU VHF for an EU VHF contest, the serial layout for CQ WPX and the
-/// generic serial one, and `None` for a contest with no FT8 layout — a CQ WW
-/// zone exchange, or the CB activity, are typed by hand.
-fn digi_contest_for(c: ContestId) -> sdroxide_types::ContestMode {
+/// The FT8 message layout a contest session should put the digi engine into,
+/// or `None` when it should leave it alone.
+///
+/// **11 m is never given an amateur layout.** The RTTY Roundup's calling
+/// message is literally `CQ RU <call>`, which on the citizens' band is longer
+/// than a Type-4 call can carry — the whole identifier is capped at eleven
+/// characters — and is an exchange nobody on the band sends. The CB activity
+/// is the 11 m contest format and it is typed by hand, so on 11 m every contest
+/// leaves the engine as it found it. (The engine refuses the layout on 11 m as
+/// well, so a setting persisted from another band cannot reach the air either;
+/// this is the half that stops it being written in the first place.)
+///
+/// `None` and `ContestMode::None` are deliberately different answers: the first
+/// is "change nothing", the second is "clear it". Starting a hand-typed CW/SSB
+/// contest must not clear an FT8 layout the operator set from the digi panel.
+fn digi_contest_for(
+    c: ContestId,
+    band: sdroxide_types::Band,
+) -> Option<sdroxide_types::ContestMode> {
+    if band == sdroxide_types::Band::M11 {
+        return None;
+    }
     match c {
-        ContestId::EuVhf => sdroxide_types::ContestMode::EuVhf,
-        ContestId::CqWpx | ContestId::Generic => sdroxide_types::ContestMode::RttyRoundup,
-        _ => sdroxide_types::ContestMode::None,
+        ContestId::EuVhf => Some(sdroxide_types::ContestMode::EuVhf),
+        ContestId::CqWpx | ContestId::Generic => Some(sdroxide_types::ContestMode::RttyRoundup),
+        _ => None,
     }
 }
 
@@ -376,4 +413,43 @@ fn parse_rst(s: &str) -> Option<i16> {
 /// not a claim the operator made.
 fn default_report(mode: &str) -> i16 {
     if sdroxide_types::cabrillo_mode(mode) == "CW" { 599 } else { 59 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sdroxide_types::Band;
+
+    /// 11 m is never handed an amateur FT8 contest layout.
+    ///
+    /// The RTTY Roundup's calling message is `CQ RU <call>`, which cannot fit
+    /// a Type-4 CB call (the whole identifier is capped at eleven characters),
+    /// so on 11 m the window must leave the digi engine exactly as it found it.
+    /// `None` here means "send nothing", which is what keeps the operator's own
+    /// digi setting intact — as opposed to `ContestMode::None`, which would
+    /// clear it.
+    #[test]
+    fn eleven_metres_is_never_given_an_amateur_ft8_layout() {
+        for c in ContestId::CHOICES {
+            assert_eq!(digi_contest_for(c, Band::M11), None, "{c:?} must not put a layout on 11 m");
+        }
+    }
+
+    /// Off 11 m the layouts are still chosen, so the rule is the band's and not
+    /// a blanket refusal.
+    #[test]
+    fn amateur_bands_still_get_their_ft8_layouts() {
+        assert_eq!(
+            digi_contest_for(ContestId::CqWpx, Band::M20),
+            Some(sdroxide_types::ContestMode::RttyRoundup)
+        );
+        assert_eq!(
+            digi_contest_for(ContestId::EuVhf, Band::M20),
+            Some(sdroxide_types::ContestMode::EuVhf)
+        );
+        // A contest with no FT8 layout leaves the engine alone rather than
+        // clearing whatever the operator set.
+        assert_eq!(digi_contest_for(ContestId::CqWw, Band::M20), None);
+        assert_eq!(digi_contest_for(ContestId::CbActivity, Band::M20), None);
+    }
 }
