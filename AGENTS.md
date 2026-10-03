@@ -83,12 +83,19 @@ v1.9.13 was the first release to run that line at all. Fixed with a checkout of
 **`gh run rerun --failed` cannot recover a workflow bug**: a re-run executes the
 workflow *as it stood at the tag*, so a fix has to ship under a new tag.
 
-### 3. Olivia is not the Olivia protocol (parked, with a capture in hand)
+### 3. Olivia: FIXED, both directions, on `main` (2026-10-03) — one check left
+
+**Read this before touching Olivia.** It was "not the Olivia protocol" and is
+now the real thing in both directions. `sdroxide-dsp/src/olivia.rs` is still
+upstream's file (`4ab061fe`), but the fork has since rewritten the transform,
+the scrambler, the interleave **and the transmitter**. `5464e7a9` on `main`
+(merged from the now-deleted `fork/olivia`) is the transmit half; `cd668ab5` is
+the receive half. Background, because the diagnosis is the useful part:
 
 Discussion #5: a user cannot decode Olivia; MultiPSK copies the same signal on
-the same dial. It is not sensitivity and not tuning — `sdroxide-dsp/src/olivia.rs`
-is upstream's own (`4ab061fe`), and its module doc has said so since it was
-written: *"the scrambler constants are not yet bit-matched to fldigi"*.
+the same dial. It was not sensitivity and not tuning — upstream's own module
+doc had said so since it was written: *"the scrambler constants are not yet
+bit-matched to fldigi"*.
 
 Against the ARRL description of the mode, the gaps are:
 
@@ -99,15 +106,15 @@ Against the ARRL description of the mode, the gaps are:
 | Sync tones | every transmission is bracketed by them | no concept of them |
 
 The 64-symbol block, the (64,7) Walsh mapping, the Gray tone assignment and the
-spacing = symbol-rate rule are all **correct**, so the work is bounded to the
-scrambler, the interleaver and the sync tones. Its loopback tests pass because
-they test it against itself — which is how it shipped looking ready.
-
-**Shipped:** the panel now says so in the settings row next to Tones/BW, and
-`Mode::Olivia`'s doc says it (the manual takes its text from there). **Raised
-upstream as [#621](https://github.com/dividebysandwich/sdroxide/issues/621)** —
-an issue, not a PR, per the standing rule that only a genuine upstream bug goes
-up and then as an issue.
+spacing = symbol-rate rule were always correct, so the work was bounded to the
+scrambler, the interleaver, the transform and the sync tones. Its loopback tests
+passed because they tested it against itself — which is how it shipped looking
+ready, and they stayed ignored for exactly that reason until the transmit half
+was rewritten. **Raised upstream as
+[#621](https://github.com/dividebysandwich/sdroxide/issues/621)** — an issue,
+not a PR, per the standing rule that only a genuine upstream bug goes up and then
+as an issue. **Do not re-open that reasoning**: the last line of this entry is
+wrong in a way worth keeping.
 
 **Partly done (`7135e19b`), and the reference is found.** The authoritative
 implementation is **`src/include/jalocha/pj_mfsk.h` in `w1hkj/fldigi`** (the
@@ -125,20 +132,65 @@ works, and Debian ships the whole tarball at
 - Interleave: character `c` occupies bit `(c + i) mod log2(tones)` of symbol `i`.
 - Receiver: forward `FHT`, peak position, `+64` when the peak is negative.
 
-Both wrong pieces are now right. **The capture still does not decode**, and the
-new `#[ignore]`d test `an_off_air_capture_decodes` says so rather than the
-loopback tests pretending otherwise. The remaining gap is the **frame around
-the block**: Olivia brackets every transmission with sync tones and separates
-frames with a tail, so blocks are not back to back on the air and this decoder
-assumes they are; it also has no frequency search, where fldigi searches ±8
-tone spacings.
+All of those conventions were adopted, and then a fourth bug turned up that
+nobody had looked for: **the transform's butterfly.** Upstream's `fwht` used the
+textbook `(b1+b2, b1-b2)`, fldigi uses `(b2+b1, b2-b1)`. They differ by a
+**per-row sign**, and in Olivia **a sign is bit 6 of the character** — so every
+lowercase letter and the idle character decoded as its bit-6-cleared twin
+(`u`(117)→`5`(53), `h`(104)→`(`(40)), while uppercase and space were fine.
+That is why the old output showed fragments like `CQ`, `ET`, `LEE` and never the
+whole message. `olivia::fht`/`ifht` now sit in `olivia.rs` and `mfsk::hadamard_bit`
+is gone.
 
-Measured off the operator's capture **`~/Downloads/capture500-16.wav`** for
-whoever continues: 8 kHz mono, 61.7 s, **500/16** — 16 tones, 31.25 Hz spacing,
-**256 samples per symbol**, tone bank centred **~978 Hz**, 1927 symbols
-(≈30 blocks of 64). Harnesses are in `/tmp/opencode/olivia_*.py`. Note the comb
-centre is ~22 Hz off a nominal 1000 Hz, which is more than half a tone step and
-is why a fixed-frequency bank fails to lock.
+**The one thing to carry forward: the polarity is deliberately the negative of
+fldigi's source, and it is settled by a recording, not by the source.**
+
+- fldigi's `EncodeBlock` sets the symbol bit where its codeword is **negative**,
+  and fldigi's `SoftDecode` votes **negative** for a set bit. Those two are an
+  exact pair, and a standalone copy of its loops round-trips under them.
+- **Our receiver votes positive, and it is the one that reads a real Avalon SW
+  Net recording to its known text**: `CQ SouthWest NET … de G7LEE G7LEE G7LEE`.
+
+The conventions are exact negatives, so they cannot both be the air. A C++ dumper
+of fldigi's own code confirmed `f < 0` is **byte-for-byte** its `OutputBlock` and
+`f > 0` is the exact complement. `loopback_32_1000`, `loopback_8_250` and
+`every_character_reads_back_unchanged` all fail on the first and pass on the
+second, and the off-air decode is identical either way — the recording decides,
+and the receiver already agrees with it. **A previous entry here blamed the
+scramble order or the bit placement. That was wrong, and reading the reference
+harder would never have found it: the answer was in the one artifact only an
+air recording could supply.**
+
+**Still not done, and the next thing to do: nothing has ever been transmitted to
+another station.** The open items, in the order they will bite:
+
+1. **No sync tones and no tail.** We emit bare back-to-back 64-symbol blocks.
+   Real Olivia brackets every transmission with sync tones, and that is how fldigi
+   finds a frame at all. Our receiver does not need them because its block-grid
+   lock free-runs — which is precisely why the loopbacks pass while a real
+   decoder may never lock. **This is the most likely reason a real fldigi decoder
+   copies nothing, and it has nothing to do with polarity.**
+2. **No on-air proof of the polarity.** The decisive cheap test is not an over on
+   the air: capture a real fldigi/MultiPSK transmission on the RSP1 and compare
+   its per-symbol tone stream against ours for known text. That settles polarity
+   *and* shows the sync-tone frame we would have to add, and it needs nobody to
+   answer us.
+3. No frequency search, where fldigi searches ±8 tone spacings.
+
+**On-air material, keep it.** `/tmp/opencode/cq_swnet.wav` is the one that
+decodes: 8 kHz mono, 50.9 s, Olivia 16/500, comb 1243.75 + k·31.25 Hz, 256
+samples/symbol, from the Avalon SW Net article's own `<source>` tags and tested
+there in fldigi. Run it with
+`SDROXIDE_OLIVIA_SAMPLE=/tmp/opencode/cq_swnet.wav cargo test -p sdroxide-dsp
+--release --lib -- --ignored --nocapture an_off_air_capture_decodes` (313 s, and
+it asserts the *content*). `/tmp/opencode/mx0ioa.wav` is too short to be a gate.
+Do **not** use `~/Downloads/kiwi-farnham_…wav`: weak, ~2.4 kHz off, and it does
+not decode in fldigi either. The operator's own capture
+`~/Downloads/capture500-16.wav` is 8 kHz mono, 61.7 s, 500/16, comb centred
+~978 Hz — ~22 Hz off a nominal 1000 Hz, more than half a tone step, which is why
+a fixed-frequency bank fails to lock on it. Harnesses and the fldigi tree are in
+`/tmp/opencode` (`ref_dump.cpp`, `ref_probe.cpp`, `olivia_polarity.py`,
+`fl/fldigi-master/`). `OLIVIA-HANDOVER.md` has the same detail as a status note.
 
 ### 4. An 11 m CQ run had no bound at all
 

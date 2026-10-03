@@ -4374,6 +4374,12 @@ not to have sent the mistake. Each mode's submode is chosen on its setup page
   coding. Choose the **tone count** (2, 4, 8, 16, 32, 64) and **bandwidth**
   (125–2000 Hz). The symbol rate is bandwidth ÷ tones; **32/1000** and **16/500**
   are the common combinations. Both stations must use the same tones/bandwidth.
+  **Both directions work**: other stations' Olivia decodes (confirmed against a
+  real recording), and our own transmission is decoded by our own receiver at
+  every tone count. What has **not** been proven is another program copying us
+  — no fldigi or MultiPSK has been on the receiving end of an over from this
+  build — and we send no sync tones yet, which is how fldigi finds a frame. So
+  **send one short over and ask for a report rather than expecting an answer.**
 - **THOR** — a DominoEX-family 18-tone mode using incremental frequency keying
   (IFK+) with convolutional forward error correction. Choose a submode
   (**THOR4 … THOR32**); THOR16 is the usual default. The tone bank edges are drawn

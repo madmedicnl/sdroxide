@@ -1,161 +1,94 @@
-# Olivia handover — 2026-10-03: receive and transmit both work; only an on-air interop check is left
+# Olivia — status: both directions work; the one check left is on the air
 
-For a fresh session. **Read top to bottom.** The receive bug is solved and
-committed, the transmit half is now written and round-trips through our own
-receiver, and the one thing neither can settle from this desk is whether
-fldigi/MultiPSK copies us. That is the whole of what remains.
+**This is a status note, not a handover.** The work is on `main`
+(`cd668ab5` receive, `5464e7a9` transmit); there is no branch and no WIP. Kept
+because the polarity finding is not re-derivable from the code, and because the
+remaining gap is the kind that looks finished.
 
-## Where it is
+## What is done
 
-- Branch **`fork/olivia`**. Receive fix **`cd668ab5`** ("olivia: fldigi's Walsh
-  transform — receive now decodes on air"); transmit rewrite on top of it.
-  **Not pushed, not merged to `main`.**
-- `main` = `c2900d52` (the 1.9.15_brown release) and has **neither** fix.
-
-## What was wrong on receive (DONE, committed `cd668ab5`)
-
-The bug was **the Walsh transform's butterfly**.
-
-- Our `fwht` (`crates/sdroxide-dsp/src/mfsk.rs`) used the textbook
-  `(b1+b2, b1-b2)`.
-- fldigi uses `(b2+b1, b2-b1)` (`src/include/jalocha/pj_fht.h`).
-- These differ by a **per-row sign**, and in Olivia **a sign is bit 6 of the
-  character**. So every lowercase letter and the idle character decoded as its
-  bit-6-cleared twin: `u`(117) → `5`(53), `h`(104) → `(`(40). Uppercase and
-  space were unaffected, which is exactly why the old output showed fragments
-  like `CQ`, `ET`, `LEE` but never the full message.
-
-The fix: `crates/sdroxide-dsp/src/olivia.rs` defines a local `fht` with fldigi's
-butterfly and uses it in `decode_block`. Nothing else changed on the receive
-path — the scrambler, interleave, Gray map, tone spacing and block phase were
-already right.
-
-## The transmit half (DONE — and the sign is the whole story)
-
-`OliviaTx::encode_block` now builds each codeword the way fldigi's `EncodeBlock`
-does: a delta at `char & 63`, negated for bit 6, through `ifht`; then the
-scrambler as a **sign flip** at bit `(13 * p + i) & 63` of `0xE257E6D0291574EC`;
-then character `p`'s function onto bit `(p + i) % planes` of symbol `i`. The old
-`code_bit` / `mfsk::hadamard_bit` are gone — a Hadamard row is the textbook
-convention and was the bug.
-
-**The sign convention is the one thing to carry forward, because fldigi's source
-and the air disagree and only one of them can be right.**
-
-- fldigi's `EncodeBlock` sets the symbol bit where its codeword is **negative**
-  (`if (FHT_Buffer[TimeBit] < 0)`), and fldigi's `SoftDecode` hands its decoder a
-  **negative** value for a set bit (`acc += (bit) ? -m : m`). Those two are an
-  exact pair, and jalocha's own encode→decode round-trips under them.
-- **Our receiver votes positive** for a set bit (`soft_bits`: `acc += bit ? m :
-  -m`), and it is the one that reads a real Avalon SW Net recording correctly.
-
-The two conventions are exact negatives of each other, so they cannot both
-describe the air. `encode_block` therefore sets the bit where the codeword is
-**positive** — the air's sign, not the source file's. Verified by
-`/tmp/opencode/ref_dump.cpp` (a standalone copy of fldigi's loops): with
-`f < 0.0` our output was **byte-for-byte fldigi's `OutputBlock`**, and with
-`f > 0.0` it is its exact complement. Both loopbacks and the whole-alphabet test
-fail on the first and pass on the second, and the off-air decode is unchanged
-either way — which is the point: the recording decides, and it is the receiver
-that already reads it.
-
-**What was *not* tested: anything fldigi or MultiPSK has heard us send.** The
-previous handover's guess — "the mismatch is in the scramble order or the bit
-placement, not the transform" — was **wrong**; it was this sign, and no amount
-of reading the reference would have found it. Nothing in the source says the
-two halves are allowed to disagree, and the real signal has now chosen.
-
-### Tests
-
-- `loopback_32_1000` (`"CQ DE AB1CD"`) and `loopback_8_250` (`"TEST OLIVIA"`) —
-  un-`#[ignore]`d, both pass.
-- `every_character_reads_back_unchanged` — new. Every byte 0..=127 in every plane
-  at 32/1000 and 8/250, through `soft_bits` + `fht` with no audio, so it says
-  something about the transform and the polarity alone. It **fails** on `f < 0`
-  with exactly the `@@@@@` the loopbacks print.
-- `the_inverse_and_forward_transforms_are_a_pair` — unchanged; pins
-  `ifht`→`fht` over all 128 byte values (peak on row `byte & 63`, sign preserved,
-  magnitude 64). Do not re-derive the transform.
-
-## The samples (this is what made it solvable — keep them)
-
-Downloaded from the article's own `<source>` tags (they are *clean*, tested to
-decode in fldigi at 7.6 dB):
-
-- **`/tmp/opencode/cq_swnet.wav`** — 8 kHz mono, 50.9 s. Known text:
-  `CQ SouthWest NET CQ SouthWest NET CQ SouthWest NET de G7LEE G7LEE G7LEE`.
-  **This is the one that decodes now**, in 313 s:
+- **Receive** is confirmed **off the air** against a real recording, and asserts
+  the *content* rather than "something printable came out":
   ```
   SDROXIDE_OLIVIA_SAMPLE=/tmp/opencode/cq_swnet.wav \
     cargo test -p sdroxide-dsp --release --lib -- --ignored --nocapture \
     an_off_air_capture_decodes
+  → "CQ  SouthWest NET  CQ SouthWest NET  CQ SouthWest NET
+     de  G7LEE  G7LEE  G7LEE"
   ```
-- `/tmp/opencode/mx0ioa.wav` — 8 kHz mono, 11.6 s. Known text: `MX0IOA`. Short
-  (just the callsign, no preamble) — marginal; not a good gate.
-- Geometry: **Olivia 16/500**, tone comb 1243.75 + k·31.25 Hz (centre ≈1478 Hz),
-  256 samples/symbol at 8 kHz. Source page:
+  313 s. That content assertion is what caught the Walsh bug; the old version
+  passed on garbage, which is how it shipped looking ready.
+- **Transmit** round-trips through our own receiver. `loopback_32_1000`,
+  `loopback_8_250` and `every_character_reads_back_unchanged` all pass, and all
+  three fail on the previous polarity with the same `@@@@@`.
+- The scrambler, the interleave, the (64,7) Walsh codeword, the Gray tone
+  assignment, tone spacing = symbol rate and the 64-symbol block are all
+  **fldigi's**, taken from `src/include/jalocha/pj_mfsk.h` in `w1hkj/fldigi`.
+
+## The polarity, and why it looks like a bug
+
+fldigi's `EncodeBlock` sets the symbol bit where its codeword is **negative**
+(`if (FHT_Buffer[TimeBit] < 0)`), and its `SoftDecode` votes **negative** for a
+set bit. Those two are an exact pair, and a standalone copy of its loops
+round-trips under them.
+
+**Our receiver votes positive** — and it is the one that reads the recording
+above correctly. The conventions are exact negatives, so they cannot both be the
+air.
+
+A C++ dumper of fldigi's own code settled which is which:
+`/tmp/opencode/ref_dump.cpp` prints every scrambled codeword plane and the
+`OutputBlock`. With `f < 0` our output was **byte-for-byte fldigi's
+`OutputBlock`**; with `f > 0` it is its exact complement. The first fails every
+round-trip test, the second passes them all, and the off-air decode is identical
+either way — the receiver is untouched by the choice.
+
+So `encode_block` sets the bit where the codeword is **positive**, and says so
+where the bit is decided. **Do not "fix" that back to `< 0.0`.** An earlier
+version of the handover blamed the scramble order or the bit placement for the
+same symptom; it was this sign, and no amount of reading the reference harder
+would have found it — the answer was in the one artifact only an air recording
+could supply.
+
+## What is NOT done
+
+**Nothing has ever been transmitted to another station.** In the order it will
+bite:
+
+1. **No sync tones and no tail.** We emit bare back-to-back 64-symbol blocks.
+   Real Olivia brackets every transmission with sync tones, and that is how
+   fldigi finds a frame at all. Our receiver does not need them because its
+   block-grid lock free-runs — which is exactly why the loopbacks pass while a
+   real decoder may never lock. **This is the most likely reason a real fldigi
+   decoder copies nothing, and it has nothing to do with polarity.**
+2. **No on-air proof of the polarity.** The decisive cheap test is not an over on
+   the air: capture a real fldigi/MultiPSK transmission on the RSP1 and compare
+   its per-symbol tone stream against ours for known text. That settles polarity
+   *and* shows the sync-tone frame we would have to add, and it needs nobody to
+   answer us.
+3. No frequency search, where fldigi searches ±8 tone spacings.
+
+The mode's doc, the Olivia settings row and the mode-chip hover all say this in
+the operator's words rather than promising an answer that may not come.
+
+## The samples and the harnesses
+
+- **`/tmp/opencode/cq_swnet.wav`** — the one that decodes. 8 kHz mono, 50.9 s,
+  Olivia 16/500, comb 1243.75 + k·31.25 Hz, 256 samples/symbol, from the Avalon
+  SW Net article's own `<source>` tags and **tested there in fldigi**.
   https://www.avalonarc.org.uk/2020/12-14-sw-data-net.html
+- `/tmp/opencode/mx0ioa.wav` — 11.6 s, known text `MX0IOA`. Too short to be a gate.
+- `/tmp/opencode/ref_dump.cpp` — fldigi's `EncodeBlock` + `ScramblingCode` as a
+  standalone dumper, every scrambled plane and the `OutputBlock`, byte for byte.
+- `/tmp/opencode/ref_probe.cpp` — the same loops plus `SoftDecode`: proves
+  fldigi round-trips its own air under "set bit → negative", and that
+  `FHT(IFHT(δ)) = nδ` is positive identity.
+- `/tmp/opencode/olivia_polarity.py` — Python twin of the whole chain (transform,
+  scrambler, interleave, Gray), for checking a convention in seconds.
+- `/tmp/opencode/fl/fldigi-master/` — the whole tree, for `pj_mfsk.h` and
+  `pj_gray.h`. GitLab is Cloudflare-blocked and SourceForge serves HTML;
+  `raw.githubusercontent.com/w1hkj/fldigi/master/...` works and Debian ships the
+  tarball at `deb.debian.org/debian/pool/main/f/fldigi/`.
 
-(Do **not** use `~/Downloads/kiwi-farnham_…_3584.90_…wav` — it is the *weak*
-−4…−10 dB capture AND mis-tuned: the KiwiSDR was on 3584.90 but the signal's
-dial is 3582.5 USB, ~2.4 kHz off. It also does not decode in fldigi.)
-
-## What is left, and how to settle it
-
-One thing, and it needs another station, not a desk: **put an over on an Olivia
-frequency and have fldigi or MultiPSK report what it heard.** Either our sign is
-the air's and the reference source is out of date, or fldigi transmits the
-complement of what its own decoder expects. The Avalon SW Net station is the
-obvious partner — G7LEE runs a scheduled net, and its recorder can be asked.
-
-If fldigi does not copy us, the fix is **not** to flip the test back: our
-receiver is the one proven against the air, so a polarity that satisfies fldigi's
-decoder *and* ours does not exist unless one of the two decoders also flips. That
-is a fact about fldigi's chain, and the way to find it is to feed a capture of
-**our** over into **their** decoder and look at which symbols come out
-inverted — the same measurement `an_off_air_capture_decodes` makes here.
-
-Also still absent, and unchanged by either fix: no explicit sync-tone/tail
-framing and no frequency search beyond the caller's tone bank centre. Real
-recordings decode without them because the block-grid lock finds the alignment.
-
-## Harnesses and references left in /tmp/opencode
-
-- `ref_dump.cpp` — standalone C++ copy of fldigi's `EncodeBlock` + `ScramblingCode`
-  that dumps every scrambled codeword plane and the `OutputBlock`, byte for byte.
-  This is what proved the byte-for-byte match and the complement.
-- `ref_probe.cpp` — the same loops plus `SoftDecode`, proving fldigi round-trips
-  its own air under "set bit → negative" and that `FHT(IFHT(δ)) = nδ` is positive
-  identity.
-- `olivia_polarity.py` — Python twin of the whole chain (transform, scrambler,
-  interleave, Gray), for checking a convention in seconds rather than minutes.
-- `fl/fldigi-master/` — the whole fldigi tree, for `pj_mfsk.h` (encoder, modulator,
-  soft decoder, decoder) and `pj_gray.h`. GitLab is Cloudflare-blocked and
-  SourceForge serves HTML; `raw.githubusercontent.com` and the Debian tarball both
-  work.
-- `olivia_fht.patch` — the earlier stash diff. The RX half is committed; its
-  **`soft_bits` sign flip is still NOT to be applied** (it broke the real signal —
-  the receiver's current `soft_bits` sign is correct).
-- `olivia_main.rs` / `olivia_rxonly.rs` / `olivia_work.rs` — snapshots from while
-  the receive side was being worked out.
-- `olivia_validate.py`, `olivia_clean.py`, `olivia_search2.py` — tone/grid probes
-  (useful for measuring a sample's geometry).
-
-`git stash list` still holds one stash ("olivia WIP: reference polarity + fldigi
-FHT"); its useful content is `olivia_fht.patch` and it can be dropped.
-
-## Also live from earlier in the same long session
-
-- **FST4W** — mfsk-core half complete and validated (bit-identical codeword and
-  tone sequence to WSJT-X); fork wiring WIP on branch **`fork/fst4w-wiring`**.
-  See `FST4W-HANDOVER.md`.
-- `local/agents-notes` — the rewritten AGENTS.md and the rsp1-capture tool fix
-  (not on `main`).
-
-## Session-health note (for the operator / bug context)
-
-That session restarted many times and, at the end, the assistant fell into a
-degenerate output loop (repeatedly emitting the same markup instead of a tool
-call). It happened most acutely on a long, much-restarted context. If filing it,
-the useful detail is: **long session + repeated restarts → generation loop on a
-tool-call turn.** Starting fresh (as this handover enables) avoids it.
+Do **not** use `~/Downloads/kiwi-farnham_…wav`: weak, ~2.4 kHz off, and it does
+not decode in fldigi either.
