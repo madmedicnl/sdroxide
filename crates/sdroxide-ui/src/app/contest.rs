@@ -17,10 +17,16 @@ use super::SdroxideApp;
 #[derive(Default)]
 pub(in crate::app) struct ContestEntry {
     pub call: String,
-    /// The report they gave us (we default ours to 59).
+    /// The report we send. Defaults from the mode — `599` on CW, `59` on phone
+    /// — and stays editable, because the operator may have sent something else.
+    pub rst_sent: String,
+    /// The report they gave us.
     pub rst_rcvd: String,
-    /// Their exchange — the serial, zone, state, grid or CB text.
-    pub exchange: String,
+    /// **One box per received exchange element** beyond the report — the serial
+    /// and the locator for EU VHF, the zone for CQ WW, the text for a CB
+    /// activity. A single box kept whichever element was typed last and threw
+    /// the others away.
+    pub fields: Vec<String>,
 }
 
 impl SdroxideApp {
@@ -90,9 +96,17 @@ impl SdroxideApp {
         ui.add_space(8.0);
         if crate::chrome::chip(ui, true, " START ").clicked() {
             let now = crate::time::now_unix_f64() as i64;
-            self.contest =
-                Some(ContestSession::new(picked, self.contest_my_exchange.trim().into(), now));
+            // Seeded from the log, so a session stopped and restarted — or the
+            // program itself restarted — carries on from the last serial
+            // instead of sending 001 again.
+            self.contest = Some(ContestSession::seeded(
+                picked,
+                self.contest_my_exchange.trim().into(),
+                now,
+                &self.qso_log,
+            ));
             self.contest_entry = Default::default();
+            self.reset_entry_reports();
             // Tell the digi engine which FT8 contest layout to send, when this
             // contest has one. A hand-typed CW/SSB contest sets `None` — there
             // is no message layout to choose — and the logger works regardless.
@@ -105,6 +119,20 @@ impl SdroxideApp {
             // `None` for every contest but EU VHF.
             cmds.push(sdroxide_types::Command::SetDigiContest(digi_contest_for(picked)));
         }
+    }
+
+    /// Fill the report boxes from the mode in force, and size the exchange
+    /// boxes to the contest's exchange.
+    ///
+    /// Called when a session starts so the boxes match it, and when a QSO is
+    /// logged so the next one starts fresh without losing the report default.
+    fn reset_entry_reports(&mut self) {
+        let mode = self.state.rx[0].mode.label();
+        let rst = default_report(mode).to_string();
+        self.contest_entry.rst_sent = rst.clone();
+        self.contest_entry.rst_rcvd = rst;
+        let n = self.contest.as_ref().map(|s| s.contest.received_fields().len()).unwrap_or(0);
+        self.contest_entry.fields = vec![String::new(); n];
     }
 
     /// The running session: entry, dupes, score and the session's log.
@@ -140,44 +168,58 @@ impl SdroxideApp {
         ui.separator();
 
         // ── The entry form ────────────────────────────────────────────────
+        // The dupe check looks at the **session's** QSOs, not the whole
+        // logbook. Running it over everything made any pre-contest QSO with
+        // the station — one from last month, on the same band — light up as a
+        // dupe before the contest had even started.
         let dupe = {
             let call = self.contest_entry.call.trim();
             !call.is_empty()
-                && sdroxide_types::worked_before(
-                    &self.qso_log,
-                    call,
-                    self.state.band.label(),
-                    "",
-                    0,
-                )
+                && sdroxide_types::worked_before(&mine, call, self.state.band.label(), "", 0)
         };
-        ui.horizontal(|ui| {
+        if self.contest_entry.fields.len() != contest.received_fields().len() {
+            self.contest_entry.fields = vec![String::new(); contest.received_fields().len()];
+        }
+        ui.horizontal_wrapped(|ui| {
             ui.label("CALL");
             crate::chrome::field(
                 ui,
-                egui::TextEdit::singleline(&mut self.contest_entry.call).desired_width(120.0),
+                egui::TextEdit::singleline(&mut self.contest_entry.call).desired_width(100.0),
             );
             if dupe {
                 ui.label(egui::RichText::new("DUPE").strong().color(crate::theme::ALERT()));
             }
-            ui.label("RST");
+            ui.label("SENT");
+            crate::chrome::field(
+                ui,
+                egui::TextEdit::singleline(&mut self.contest_entry.rst_sent).desired_width(46.0),
+            );
+            ui.label("RCVD");
             crate::chrome::field(
                 ui,
                 egui::TextEdit::singleline(&mut self.contest_entry.rst_rcvd).desired_width(46.0),
             );
-            ui.label(spec.rcvd.last().map_or("EXCH", |e| e.label()));
-            crate::chrome::field(
-                ui,
-                egui::TextEdit::singleline(&mut self.contest_entry.exchange).desired_width(80.0),
-            );
+            // One box per received element, labelled from the contest's own
+            // exchange — so EU VHF asks for its serial *and* its locator.
+            for (i, ex) in contest.received_fields().iter().enumerate() {
+                ui.label(ex.label());
+                crate::chrome::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.contest_entry.fields[i])
+                        .desired_width(80.0),
+                );
+            }
         });
         ui.add_space(4.0);
         let serial = self.contest.as_ref().map(|s| s.next_serial).unwrap_or(1);
         ui.horizontal(|ui| {
-            if spec.sent.contains(&Exchange::Serial) {
-                ui.label(format!("sending 599 {serial}"));
-            } else if !self.contest_my_exchange.trim().is_empty() {
-                ui.label(format!("sending 599 {}", self.contest_my_exchange.trim()));
+            let stx = contest.sends_serial().then_some(serial);
+            let ours = self.contest.as_ref().map(|s| s.sent_exchange(stx)).unwrap_or_default();
+            let rst = self.contest_entry.rst_sent.trim();
+            if ours.is_empty() {
+                ui.label(format!("sending {rst}"));
+            } else {
+                ui.label(format!("sending {rst} {ours}"));
             }
             ui.label(format!("· {} {}", self.state.band.label(), self.state.rx[0].mode.label()));
             if crate::chrome::chip(ui, true, " LOG ").clicked() {
@@ -189,6 +231,7 @@ impl SdroxideApp {
                     &self.my_call(),
                     &self.contest_my_exchange,
                     &mine,
+                    &format!("sdroxide {}", sdroxide_version::VERSION),
                 );
                 crate::download::save("sdroxide.cab", cab.as_bytes());
             }
@@ -219,7 +262,7 @@ impl SdroxideApp {
     /// logged since the session started.
     fn session_qsos(&self) -> Vec<QsoRecord> {
         let Some(s) = self.contest.as_ref() else { return Vec::new() };
-        let id = s.contest.label();
+        let id = s.contest.log_id();
         self.qso_log
             .iter()
             .filter(|q| q.contest_id == id && q.start_utc >= s.started_utc)
@@ -234,33 +277,70 @@ impl SdroxideApp {
         if call.is_empty() {
             return;
         }
-        let spec = session.contest.spec();
-        let serial = spec.sent.contains(&Exchange::Serial).then_some(session.next_serial);
+        let contest = session.contest;
+        let serial = contest.sends_serial().then_some(session.next_serial);
+        // Our side: the serial and our own exchange on one line. The report is
+        // what the operator typed, or the mode's default if they cleared it.
+        let stx_string = session.sent_exchange(serial);
+        let my_exchange = session.my_exchange.clone();
         let now = crate::time::now_unix_f64() as i64;
+
+        // Their side: each received element has its own box, so nothing is
+        // overwritten by the element next to it.
+        let values: Vec<String> =
+            self.contest_entry.fields.iter().map(|s| s.trim().to_string()).collect();
+        let mut srx = None;
+        let mut cq_zone = None;
+        let mut grid = None;
+        let mut state = String::new();
+        for (ex, v) in contest.received_fields().iter().zip(values.iter()) {
+            match ex {
+                Exchange::Serial => srx = v.parse().ok(),
+                Exchange::CqZone => cq_zone = v.parse().ok(),
+                Exchange::Grid => {
+                    if !v.is_empty() {
+                        grid = Some(v.to_ascii_uppercase());
+                    }
+                }
+                Exchange::State => state = v.to_ascii_uppercase(),
+                _ => {}
+            }
+        }
+        let mode = self.state.rx[0].mode.label().to_string();
         let rec = QsoRecord {
             call,
-            rst_sent: parse_rst(&self.contest_entry.rst_rcvd).or(Some(59)),
-            rst_rcvd: parse_rst(&self.contest_entry.rst_rcvd).or(Some(59)),
+            grid,
+            rst_sent: parse_rst(&self.contest_entry.rst_sent)
+                .or_else(|| Some(default_report(&mode))),
+            rst_rcvd: parse_rst(&self.contest_entry.rst_rcvd)
+                .or_else(|| Some(default_report(&mode))),
+            cq_zone,
+            state,
             freq_hz: self.on_air_freq_hz(),
-            mode: self.state.rx[0].mode.label().to_string(),
+            mode,
             band: self.state.band.label().to_string(),
             start_utc: now,
             end_utc: now,
             my_call: self.my_call(),
-            contest_id: session.contest.label().to_string(),
+            // The sponsor's id, not the UI label — an ADIF `CONTEST_ID` read by
+            // anyone else's logger has to say what the sponsor calls it.
+            contest_id: contest.log_id().to_string(),
             stx: serial,
-            srx: parse_serial(&self.contest_entry.exchange),
-            stx_string: session.my_exchange.clone(),
-            srx_string: self.contest_entry.exchange.trim().to_string(),
+            srx,
+            stx_string: if stx_string.is_empty() { my_exchange } else { stx_string },
+            srx_string: values.join(" "),
             ..Default::default()
         };
         cmds.push(Command::LogQso(Box::new(rec)));
-        if let Some(s) = self.contest.as_mut() {
-            if s.contest.sends_serial() {
-                s.next_serial = sdroxide_types::next_contest_serial(s.next_serial);
-            }
+        if let Some(s) = self.contest.as_mut()
+            && s.contest.sends_serial()
+        {
+            s.next_serial = sdroxide_types::next_contest_serial(s.next_serial);
         }
         self.contest_entry = Default::default();
+        // Start the next entry with the report default and the right number of
+        // exchange boxes, rather than blank ones.
+        self.reset_entry_reports();
     }
 }
 
@@ -284,10 +364,16 @@ fn digi_contest_for(c: ContestId) -> sdroxide_types::ContestMode {
     }
 }
 
-fn parse_serial(s: &str) -> Option<u32> {
+fn parse_rst(s: &str) -> Option<i16> {
     s.trim().parse().ok()
 }
 
-fn parse_rst(s: &str) -> Option<i16> {
-    s.trim().parse().ok()
+/// The report we send when the operator has not typed one: `599` on CW, and
+/// `59` on everything else.
+///
+/// Copying the *received* report into the sent one — as the original did — told
+/// the other station we heard them exactly as well as they heard us, which is
+/// not a claim the operator made.
+fn default_report(mode: &str) -> i16 {
+    if sdroxide_types::cabrillo_mode(mode) == "CW" { 599 } else { 59 }
 }

@@ -1708,14 +1708,17 @@ impl SdroxideApp {
                     // from the digi exchange when the mode is in a contest
                     // (`DigiConfig::contest`), and is left blank otherwise.
                     if let Some(session) = self.contest.as_mut() {
-                        r.contest_id = session.contest.label().to_string();
+                        r.contest_id = session.contest.log_id().to_string();
                         if session.contest.sends_serial() && r.stx.is_none() {
                             r.stx = Some(session.next_serial);
                             session.next_serial =
                                 sdroxide_types::next_contest_serial(session.next_serial);
                         }
                         if r.stx_string.is_empty() {
-                            r.stx_string = session.my_exchange.clone();
+                            // Serial and our own exchange on the same line: the
+                            // serial alone loses the locator an EU VHF contact
+                            // needs, and the locator alone loses the serial.
+                            r.stx_string = session.sent_exchange(r.stx);
                         }
                     }
                     let call = r.call.clone();
