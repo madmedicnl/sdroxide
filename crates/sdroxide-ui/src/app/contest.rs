@@ -291,7 +291,7 @@ impl SdroxideApp {
     }
 
     /// Log the typed entry and advance the serial.
-    fn log_contest_qso(&mut self, cmds: &mut Vec<Command>) {
+    pub(in crate::app) fn log_contest_qso(&mut self, cmds: &mut Vec<Command>) {
         let Some(session) = self.contest.as_ref() else { return };
         let call = self.contest_entry.call.trim().to_ascii_uppercase();
         if call.is_empty() {
@@ -327,7 +327,7 @@ impl SdroxideApp {
             }
         }
         let mode = self.state.rx[0].mode.label().to_string();
-        let rec = QsoRecord {
+        let mut rec = QsoRecord {
             call,
             grid,
             rst_sent: parse_rst(&self.contest_entry.rst_sent)
@@ -351,7 +351,25 @@ impl SdroxideApp {
             srx_string: values.join(" "),
             ..Default::default()
         };
-        cmds.push(Command::LogQso(Box::new(rec)));
+        // The engine's `LogQso` only fans the contact out to WSJT-X and N1MM;
+        // it does not own the logbook. The UI does, so a hand-typed contest
+        // contact has to be written here as well, or it reaches nobody — not
+        // the session's own list, not the score, not the Cabrillo export, not
+        // the logbook. This is the same pairing the LOGBOOK window's own entry
+        // uses, for the same reason (issue #341).
+        rec.id = self.next_log_id();
+        cmds.push(Command::LogQso(Box::new(rec.clone())));
+        if let Some((qso_id, adif, targets)) =
+            crate::app::net::auto_upload_adif(&self.net_cfg_edit, &rec)
+        {
+            self.pending_uploads.push((qso_id, adif, targets));
+        }
+        let call = rec.call.clone();
+        self.last_logged_qso_id = Some(rec.id);
+        self.qso_log.push(rec);
+        self.session_qsos += 1;
+        crate::app::persist::persist_qso_log(&self.qso_log);
+        self.queue_lookup(call);
         if let Some(s) = self.contest.as_mut()
             && s.contest.sends_serial()
         {

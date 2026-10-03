@@ -2485,6 +2485,7 @@ impl SdroxideApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sdroxide_types::{Command, RadioEvent};
 
     /// Press a chip drawn inside a `Ui` that is enabled or not, and report
     /// whether the press reached it. Two passes: the first tells egui where the
@@ -2524,5 +2525,68 @@ mod tests {
     fn a_control_in_a_disabled_ui_cannot_be_clicked() {
         assert!(press_chip(true), "the same press has to work when the radio can transmit");
         assert!(!press_chip(false), "a greyed transmit control took a click");
+    }
+
+    /// A hand-typed contest contact must land in the logbook, not only in the
+    /// UDP fan-out.
+    ///
+    /// `Command::LogQso` is fire-and-forget: the engine uses it to send WSJT-X
+    /// and N1MM their datagrams and does not keep a logbook, because the UI
+    /// owns that. So a panel that only pushes the command reaches nobody — and
+    /// that is exactly what the contest window did. A contact typed by hand was
+    /// therefore absent from the local log, the session's list, the score and
+    /// the Cabrillo export, while the UI happily showed an empty session. It is
+    /// the same pairing the LOGBOOK window's own entry uses for the same reason
+    /// (issue #341).
+    #[test]
+    fn a_manually_logged_contest_contact_reaches_the_logbook() {
+        // An empty config directory, or the app loads the operator's real
+        // logbook and the assertion below counts their 291 contacts.
+        let dir = std::env::temp_dir()
+            .join(format!("sdroxide-contest-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        unsafe { std::env::set_var("SDROXIDE_CONFIG_DIR", &dir) };
+
+        let controller: Box<dyn RadioController> = Box::new(RecordingController::default());
+        let ctx = egui::Context::default();
+        let mut app = SdroxideApp::new_tab(&ctx, None, None, controller, 0, true);
+        // A session with a serial, so the contact is also what the next serial
+        // is seeded from.
+        app.contest = Some(sdroxide_types::ContestSession::new(
+            sdroxide_types::ContestId::Generic,
+            String::new(),
+            0,
+        ));
+        app.contest_entry.call = "19DC373".into();
+        app.contest_entry.fields = vec!["12".into()];
+
+        let mut cmds: Vec<Command> = Vec::new();
+        app.log_contest_qso(&mut cmds);
+
+        assert_eq!(app.qso_log.len(), 1, "the contact reached the logbook");
+        let q = &app.qso_log[0];
+        assert_eq!(q.call, "19DC373");
+        assert_eq!(q.contest_id, "GENERIC", "tagged with the sponsor id");
+        assert_eq!(q.srx, Some(12), "the typed exchange is read");
+        // And it is still announced to the UDP loggers, on the same command.
+        assert!(
+            cmds.iter().any(|c| matches!(c, Command::LogQso(_))),
+            "the WSJT-X/N1MM fan-out still happens"
+        );
+    }
+
+    /// A controller that records nothing and answers nothing — enough to build
+    /// an app over, since the test drives the logbook directly.
+    #[derive(Default)]
+    struct RecordingController {
+        events: std::collections::VecDeque<RadioEvent>,
+    }
+
+    impl RadioController for RecordingController {
+        fn send(&mut self, _cmd: Command) {}
+        fn poll_event(&mut self) -> Option<RadioEvent> {
+            self.events.pop_front()
+        }
     }
 }
