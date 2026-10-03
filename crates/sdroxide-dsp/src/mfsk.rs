@@ -153,26 +153,12 @@ pub fn tone_bank_mags(
 }
 
 /// In-place fast Walsh–Hadamard transform (natural order). `data.len()` must be a
-/// power of two. Olivia's (64,7) biorthogonal code decodes by taking the FWHT of
-/// the 64 soft bits and reading off the largest-magnitude coefficient.
-pub fn fwht(data: &mut [f32]) {
-    let n = data.len();
-    debug_assert!(n.is_power_of_two());
-    let mut len = 1;
-    while len < n {
-        let mut i = 0;
-        while i < n {
-            for j in i..i + len {
-                let a = data[j];
-                let b = data[j + len];
-                data[j] = a + b;
-                data[j + len] = a - b;
-            }
-            i += len << 1;
-        }
-        len <<= 1;
-    }
-}
+/// power of two.
+///
+/// Note there is deliberately no textbook `(a+b, a-b)` Walsh transform in this
+/// crate any more. Olivia's (64,7) code is decoded by fldigi's variant, whose
+/// butterfly is `(b2+b1, b2-b1)`; because a sign is bit 6 of an Olivia
+/// character, the two forms disagree by exactly a bit flip. Use `olivia::fht`.
 
 /// One row of the natural-order 64×64 Hadamard matrix as ±1, i.e. the codeword
 /// for Walsh index `row`. `bit(k)` = parity of the AND of `row` and `k`.

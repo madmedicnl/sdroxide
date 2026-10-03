@@ -39,7 +39,7 @@
 //! decoded without them because the block-grid lock below finds the alignment.
 use std::collections::VecDeque;
 
-use crate::mfsk::{ToneGen, fwht, gray, hadamard_bit, tone_bank_mags, ungray};
+use crate::mfsk::{ToneGen, gray, hadamard_bit, tone_bank_mags, ungray};
 
 const OUT_AMP: f32 = 0.5;
 /// Symbols per Olivia block (fixed by the 64-length Walsh code).
@@ -92,8 +92,17 @@ impl Geom {
     }
 }
 
-/// The 0/1 code bit for character `byte` at symbol `i`: the natural-order
-/// Hadamard row `byte&63`, complemented when bit 6 (`byte&64`) is set.
+/// fldigi's fast Walsh–Hadamard transform, verbatim from `pj_fht.h`: the
+/// butterfly is `(b2+b1, b2-b1)`, **not** the textbook `(b1+b2, b1-b2)`. The two
+/// differ by a per-row sign, and in Olivia a sign *is* bit 6 of the character,
+/// so the textbook form decodes every lowercase letter as its bit-6-cleared
+/// twin (`u`→`5`, `h`→`(`) while leaving space and uppercase intact.
+///
+/// This is the whole reason Olivia used to half-decode: the mixer's tone
+/// magnitudes were always right, and only the character sign was wrong.
+///
+/// `ifht` is the matching inverse, and the pair is pinned by
+/// `the_inverse_and_forward_transforms_are_a_pair`.
 fn fht(a: &mut [f32]) {
     let n = a.len();
     let mut step = 1;
@@ -107,32 +116,18 @@ fn fht(a: &mut [f32]) {
                 a[q + step] = b2 - b1;
                 q += 1;
             }
-
-fn ifht(a: &mut [f32]) {
-    let n = a.len();
-    let mut step = n / 2;
-    while step > 0 {
-        let mut p = 0;
-        while p < n {
-            let mut q = p;
-            while q < p + step {
-                let (b1, b2) = (a[q], a[q + step]);
-                a[q] = b1 - b2;
-                a[q + step] = b1 + b2;
-                q += 1;
-            }
-            p += 2 * step;
-        }
-        step /= 2;
-    }
-}
-
             p += 2 * step;
         }
         step *= 2;
     }
 }
 
+/// fldigi's `IFHT`, the inverse of [`fht`] and therefore what the transmitter
+/// must apply to a code bit vector to get the tone bank another station's
+/// receiver will transform back into it. It stays here ahead of that rewrite so
+/// the pair is pinned by a test now; the allow is scoped to non-test builds,
+/// where nothing calls it yet.
+#[cfg_attr(not(test), allow(dead_code))]
 fn ifht(a: &mut [f32]) {
     let n = a.len();
     let mut step = n / 2;
@@ -506,6 +501,31 @@ impl OliviaRx {
 mod tests {
     use super::*;
 
+    /// The transforms must be an exact pair, on every one of the 64 characters
+    /// including the idle `0`. This is the invariant the transmit half is
+    /// written against, and the textbook-butterfly bug could not be caught by
+    /// the loopback alone: it stays self-consistent, so only real audio shows it.
+    ///
+    /// A Walsh transform is unnormalised, so a single code bit comes back as 64.
+    #[test]
+    fn the_inverse_and_forward_transforms_are_a_pair() {
+        for byte in 0u8..=127 {
+            let mut v = [0f32; BLOCK];
+            v[(byte & 63) as usize] = if byte & 64 != 0 { -1.0 } else { 1.0 };
+            ifht(&mut v);
+            fht(&mut v);
+            let sign = if byte & 64 != 0 { -1.0 } else { 1.0 };
+            assert!(
+                (v[(byte & 63) as usize] - 64.0 * sign).abs() < 1e-3,
+                "byte {byte:#04x} must keep its sign through the pair"
+            );
+            // Every other row is zero, so the peak is the code bit's own row.
+            let (peak, _) =
+                v.iter().enumerate().max_by(|a, b| a.1.abs().total_cmp(&b.1.abs())).unwrap();
+            assert_eq!(peak, (byte & 63) as usize, "byte {byte:#04x}");
+        }
+    }
+
     fn run(tones: usize, bw: f64, msg: &str) -> String {
         let rate = 8000.0;
         let audio = 1500.0;
@@ -586,9 +606,7 @@ mod tests {
                 got.push_str(&rx.process(chunk));
             }
             let score = got.matches("SouthWest").count() * 100 + got.matches("G7LEE").count();
-            if score > best.matches("SouthWest").count() * 100
-                + best.matches("G7LEE").count()
-            {
+            if score > best.matches("SouthWest").count() * 100 + best.matches("G7LEE").count() {
                 best = got;
             }
             hz += 5.0;
@@ -627,5 +645,3 @@ mod tests {
         assert!(got.contains(msg), "decoded {got:?} did not contain {msg:?}");
     }
 }
-
-
