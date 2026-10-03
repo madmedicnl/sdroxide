@@ -15294,10 +15294,22 @@ entry form. A CQ WPX or EU VHF run over FT8 therefore needs no typing at all.
 The other contests (CQ WW's zone, the CB activity) have no FT8 layout and are
 typed by hand, as are all CW and SSB contacts.
 
+**11 m is the exception, deliberately.** None of those layouts is used on the
+citizens' band — the band's own format is the CB activity, typed by hand — so a
+contest started on 11 m leaves the digital-mode exchange exactly as it was and
+your CQ stays a plain `CQ <call>`. This matters for a reason worth knowing: the
+serial layout's calling message is `CQ RU <call>`, and a Type-4 CB callsign is
+capped at eleven characters for the whole identifier, so `CQ RU` followed by
+even a short 11 m call will not resolve. The engine refuses the amateur layouts
+on 11 m even if one is left set from a session on another band, so it cannot
+reach the air either way.
+
 **Stopping.** **STOP** ends the session; the contacts stay in the logbook, tagged
-with the contest, and are what the next session's serial is seeded from. Only
-the session's own state — which contest, the serial, your exchange — is
-forgotten.
+with the contest, and are what the next session's serial is seeded from. The
+digital-mode contest exchange the session set is **put back to whatever it was
+before the session started**, so the CQ returns to normal and the digi panel
+shows your setting, not the contest's. Only the session's own state — which
+contest, the serial, your exchange — is forgotten.
 
 ---
 
