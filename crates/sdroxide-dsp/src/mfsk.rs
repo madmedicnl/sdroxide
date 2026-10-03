@@ -152,19 +152,12 @@ pub fn tone_bank_mags(
     (0..n_tones).map(|k| dft_bin(samples, base_hz + k as f64 * spacing_hz, rate).norm()).collect()
 }
 
-/// In-place fast Walsh–Hadamard transform (natural order). `data.len()` must be a
-/// power of two.
-///
-/// Note there is deliberately no textbook `(a+b, a-b)` Walsh transform in this
-/// crate any more. Olivia's (64,7) code is decoded by fldigi's variant, whose
-/// butterfly is `(b2+b1, b2-b1)`; because a sign is bit 6 of an Olivia
-/// character, the two forms disagree by exactly a bit flip. Use `olivia::fht`.
-
-/// One row of the natural-order 64×64 Hadamard matrix as ±1, i.e. the codeword
-/// for Walsh index `row`. `bit(k)` = parity of the AND of `row` and `k`.
-pub fn hadamard_bit(row: usize, k: usize) -> i8 {
-    if (row & k).count_ones() & 1 == 0 { 1 } else { -1 }
-}
+/// Note there is deliberately no Walsh transform in this module any more.
+/// Olivia's (64,7) code needs fldigi's variant, whose butterfly is
+/// `(b2+b1, b2-b1)`; because a sign is bit 6 of an Olivia character, the
+/// textbook form disagrees with it by exactly a bit flip, and building a
+/// codeword from a Hadamard row is what the transmitter used to do. Both
+/// halves live together in `olivia` as `fht`/`ifht`.
 
 /// Binary-reflected Gray code and its inverse (used to map MFSK tone indices so
 /// adjacent tones differ in one bit).

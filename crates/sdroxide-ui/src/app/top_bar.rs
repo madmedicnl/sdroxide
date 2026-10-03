@@ -7288,13 +7288,18 @@ impl BandFilter {
 /// Said on the chip rather than only in the settings row, because the LISTEN
 /// tab is where a listener goes to try a decoder, and a mode name in a list is
 /// read as a promise. The tone counts and bandwidths are named after the real
-/// modes and the block coding follows the protocol, so it looks like one — and
-/// until the frame geometry matches, a station on an Olivia frequency is
-/// silence here.
-const OLIVIA_UNCONFIRMED: &str = "OLIVIA — receive works, transmit pending. This \
-     decoder now reads other stations (confirmed off the air), so you can copy an \
-     Olivia QSO. Transmitting is not yet bit-compatible with fldigi/MultiPSK, so \
-     another station will not copy what this sends until that half is finished.";
+/// modes and the block coding follows the protocol, so it looks like one.
+///
+/// The transmit half is now implemented and round-trips through our own
+/// receiver, which is what the loopbacks pin — but it has **never been copied by
+/// fldigi or MultiPSK**, and one sign convention differs from fldigi's source, so
+/// the hover says "check the first over" rather than promising an answer. A
+/// control that cannot do the thing must say so; see the house rules.
+const OLIVIA_UNCONFIRMED: &str = "OLIVIA — receive works, transmit untested against other \
+     programs. This decoder reads other stations (confirmed off the air), so you can copy an \
+     Olivia QSO. Our own transmission now round-trips through our own receiver, but it has not \
+     been copied by fldigi or MultiPSK and one sign convention differs from fldigi's source — \
+     so check the first over rather than expecting an answer.";
 
 fn mode_band_chip(
     ui: &mut egui::Ui,

@@ -12,34 +12,39 @@
 //! bandwidth/tones and the symbol rate equals the spacing. Common combinations
 //! are 32/1000, 16/500 and 8/250.
 //!
-//! **Interop status: receive works and is confirmed off the air.** The last
-//! piece was the Walsh transform: our `fwht` used the textbook
-//! `(b1+b2, b1-b2)` butterfly, where fldigi uses `(b2+b1, b2-b1)`
-//! (`pj_fht.h`). The two differ by a per-row sign, and in Olivia a sign is
-//! *bit 6 of the character* — so every lowercase letter (and the idle
-//! character) decoded as its bit-6-cleared twin (`u` 117 → `5` 53, `h` 104 →
-//! `(` 40). The receiver now uses fldigi's `fht`, and the Avalon SW Net
-//! recording (`CQ SouthWest NET … de G7LEE G7LEE G7LEE`) decodes cleanly — see
-//! the `an_off_air_capture_decodes` test. Everything else was already right:
-//! the 64-symbol block, the (64,7) Walsh codeword per character, the Gray tone
-//! assignment, tone spacing = symbol rate, and the `0xE257E6D0291574EC`
-//! scrambler with its 13-bit-per-character rotation and the
-//! `(character + symbol) mod log2(tones)` interleave.
+//! **Interop status: receive works and is confirmed off the air, and transmit
+//! now round-trips through our own receiver.** The last piece on receive was
+//! the Walsh transform: our `fwht` used the textbook `(b1+b2, b1-b2)` butterfly,
+//! where fldigi uses `(b2+b1, b2-b1)` (`pj_fht.h`). The two differ by a
+//! per-row sign, and in Olivia a sign is *bit 6 of the character* — so every
+//! lowercase letter (and the idle character) decoded as its bit-6-cleared twin
+//! (`u` 117 → `5` 53, `h` 104 → `(` 40). The receiver now uses fldigi's `fht`,
+//! and the Avalon SW Net recording (`CQ SouthWest NET … de G7LEE G7LEE G7LEE`)
+//! decodes cleanly — see the `an_off_air_capture_decodes` test.
 //!
-//! **Transmit is not yet matched to the receiver.** Our transmitter still
-//! builds its codewords with the old textbook convention, so our own
-//! transmission will not be received by our own receiver (nor by fldigi) until
-//! the transmit side is rewritten to use the inverse of `fht` (`ifht`) the way
-//! fldigi's `EncodeBlock` does. The loopback tests are `#[ignore]`d to say so.
-//! An Olivia **listener** — the case this fork exists for — is fully served:
-//! receiving every other station is what was broken and is now fixed.
+//! The transmitter builds each codeword with `ifht`, the matching inverse, which
+//! is what fldigi's `EncodeBlock` does; before that it used the textbook
+//! convention, so our own transmission was not received by our own receiver.
+//! Both loopbacks (`loopback_32_1000`, `loopback_8_250`) now pass.
+//!
+//! One convention difference from fldigi's source is deliberate and measured:
+//! fldigi sets the symbol bit where its codeword is **negative** and hands its
+//! own decoder a **negative** value for a set bit, while this receiver votes
+//! **positive**. The two are exact negatives of each other, so they cannot both
+//! describe the air; the recording decides, and it is the receiver that already
+//! reads it correctly. `encode_block` says so where the bit is set.
+//!
+//! Everything else was already right: the 64-symbol block, the (64,7) Walsh
+//! codeword per character, the Gray tone assignment, tone spacing = symbol rate,
+//! and the `0xE257E6D0291574EC` scrambler with its 13-bit-per-character
+//! rotation and the `(character + symbol) mod log2(tones)` interleave.
 //!
 //! Still absent, and not a regression: no explicit sync-tone/tail framing and no
 //! frequency search beyond the caller's tone bank centre — real recordings have
 //! decoded without them because the block-grid lock below finds the alignment.
 use std::collections::VecDeque;
 
-use crate::mfsk::{ToneGen, gray, hadamard_bit, tone_bank_mags, ungray};
+use crate::mfsk::{ToneGen, gray, tone_bank_mags, ungray};
 
 const OUT_AMP: f32 = 0.5;
 /// Symbols per Olivia block (fixed by the 64-length Walsh code).
@@ -123,11 +128,9 @@ fn fht(a: &mut [f32]) {
 }
 
 /// fldigi's `IFHT`, the inverse of [`fht`] and therefore what the transmitter
-/// must apply to a code bit vector to get the tone bank another station's
-/// receiver will transform back into it. It stays here ahead of that rewrite so
-/// the pair is pinned by a test now; the allow is scoped to non-test builds,
-/// where nothing calls it yet.
-#[cfg_attr(not(test), allow(dead_code))]
+/// applies to a code bit vector to get the tone bank a receiver transforms back
+/// into it. The pair is pinned by
+/// `the_inverse_and_forward_transforms_are_a_pair`.
 fn ifht(a: &mut [f32]) {
     let n = a.len();
     let mut step = n / 2;
@@ -145,14 +148,6 @@ fn ifht(a: &mut [f32]) {
         }
         step /= 2;
     }
-}
-
-fn code_bit(byte: u8, i: usize) -> u32 {
-    let mut hb = hadamard_bit((byte & 63) as usize, i);
-    if byte & 64 != 0 {
-        hb = -hb;
-    }
-    (hb > 0) as u32
 }
 
 // ─────────────────────────────── transmit ───────────────────────────────
@@ -218,6 +213,26 @@ impl OliviaTx {
     }
 
     fn build_block(&mut self) {
+        let (out, done) = self.encode_block();
+        self.cur.clear();
+        self.cur_pos = 0;
+        self.cur_done = done;
+        for i in 0..BLOCK {
+            let tone = gray(out[i]) as usize % self.g.tones;
+            self.tonegen.emit(self.g.tone_hz(tone), self.g.sps, OUT_AMP, &mut self.cur);
+        }
+    }
+
+    /// Assemble one block: the per-symbol bit vector (before the Gray map) and
+    /// the source index of the last character that went into it.
+    ///
+    /// One character per bit-plane, spread over the 64 symbols by the (64,7)
+    /// Walsh code, then interleaved: character `p`'s function lands on bit
+    /// `(p + i) % planes` of symbol `i`, so consecutive characters take
+    /// consecutive bits of the same symbol. The scrambler flips the **sign** of
+    /// a codeword — a Walsh-domain sign flip, not a rotation of the tone number —
+    /// at bit `13 * p + i` of [`SCRAMBLE`].
+    fn encode_block(&mut self) -> ([u32; BLOCK], Option<usize>) {
         // Take up to `planes` characters; pad with NUL idle fill.
         let mut chars = [0u8; 6];
         let mut done: Option<usize> = None;
@@ -229,24 +244,47 @@ impl OliviaTx {
                 }
             }
         }
-        self.cur.clear();
-        self.cur_pos = 0;
-        self.cur_done = done;
-        for i in 0..BLOCK {
-            // The Walsh functions are interleaved across the symbols: character
-            // `p`'s function lands on bit `(p + i) % planes` of symbol `i`, so
-            // consecutive characters take consecutive bits of the same symbol.
-            let mut v = 0u32;
-            for (p, &b) in chars.iter().enumerate().take(self.g.planes) {
-                let mut bit = code_bit(b, i);
+        let mut out = [0u32; BLOCK];
+        for (p, &b) in chars.iter().enumerate().take(self.g.planes) {
+            // One code bit at `b & 63`, negated when bit 6 of the character is
+            // set, put through the *inverse* of the transform the receiver
+            // applies — which is what the receiver's `fht` turns back into this
+            // code bit, at that row, with that sign.
+            let mut f = [0.0f32; BLOCK];
+            f[(b & 63) as usize] = if b & 64 != 0 { -1.0 } else { 1.0 };
+            ifht(&mut f);
+            for i in 0..BLOCK {
                 if scramble_bit(p, i) {
-                    bit ^= 1;
+                    f[i] = -f[i];
                 }
-                v |= bit << ((p + i) % self.g.planes);
+                // Set the bit where the codeword is **positive**.
+                //
+                // fldigi's `EncodeBlock` sets it where the codeword is negative
+                // (`if (FHT_Buffer[TimeBit] < 0)`), and its `SoftDecode` hands
+                // the decoder a *negative* value for a set bit as well — those
+                // two are an exact pair, and `jalocha`'s own encode/decode
+                // round-trips under them. They are the negative of each other
+                // relative to this receiver: `soft_bits` votes **+** for a
+                // carrier whose bit is set. One of the two conventions is the
+                // air's, and the recording settles it: this receiver, which
+                // reads `CQ SouthWest NET … de G7LEE G7LEE G7LEE` off an
+                // Avalon SW Net station with every character in the right case
+                // (`an_off_air_capture_decodes`), needs the negative of
+                // fldigi's soft sign. Emitting fldigi's literal `OutputBlock`
+                // therefore makes our own receiver decode every character as its
+                // bit-6-set twin, and the loopback tests below fail with
+                // `@@@@@` where the text should be.
+                //
+                // So the transmitter follows the air and not the source file.
+                // Negating the delta instead of this test is the same signal;
+                // testing the sign where the bit is decided keeps the one
+                // measured fact visible.
+                if f[i] > 0.0 {
+                    out[i] |= 1 << ((p + i) % self.g.planes);
+                }
             }
-            let tone = gray(v) as usize % self.g.tones;
-            self.tonegen.emit(self.g.tone_hz(tone), self.g.sps, OUT_AMP, &mut self.cur);
         }
+        (out, done)
     }
 
     pub fn next_block(&mut self, out: &mut [f32]) -> usize {
@@ -526,6 +564,51 @@ mod tests {
         }
     }
 
+    /// Every character, at both tone counts, through the transmitter and the
+    /// receiver's own `soft_bits` + `fht` — no audio, no timing, so it says
+    /// something about the transform and the polarity alone.
+    ///
+    /// This is the assertion the polarity deserves. The two tone-magnitude
+    /// conventions that disagree are exact negatives of one another, so a single
+    /// flipped sign reads back *every* character as its bit-6 twin: `C` as `#`,
+    /// space as `` ` ``, and the NUL idle fill as `@` — which is what the
+    /// loopbacks printed while the transmit side still matched fldigi's
+    /// `EncodeBlock` literally. A loopback only covers the text it happens to
+    /// spell; this covers the alphabet, both cases of it.
+    #[test]
+    fn every_character_reads_back_unchanged() {
+        for (tones, bw) in [(32usize, 1000.0), (8, 250.0)] {
+            let (rate, audio) = (8000.0, 1500.0);
+            let mut tx = OliviaTx::new(rate, audio, tones, bw);
+            let mut rx = OliviaRx::new(rate, audio, tones, bw);
+            for byte in 0u8..=127 {
+                // Every plane carries the character, so every plane has to read
+                // it back; the interleave puts it on a different bit of each
+                // symbol as `p` advances.
+                for _ in 0..tx.g.planes {
+                    tx.q.push_back((byte, None));
+                }
+                let (out, _) = tx.encode_block();
+                // The receiver's tone bank, filled with the tones the
+                // transmitter chose — what the audio path would deliver.
+                rx.sbuf.clear();
+                for i in 0..BLOCK {
+                    let mut mags = vec![0.0f32; tones];
+                    mags[gray(out[i]) as usize % tones] = 1.0;
+                    rx.sbuf.push_back(mags);
+                }
+                let (_, got) = rx.decode_block(0);
+                for p in 0..tx.g.planes {
+                    assert_eq!(
+                        got[p], byte,
+                        "byte {byte:#04x} plane {p} at {tones}/{bw} read back as {:#04x}",
+                        got[p]
+                    );
+                }
+            }
+        }
+    }
+
     fn run(tones: usize, bw: f64, msg: &str) -> String {
         let rate = 8000.0;
         let audio = 1500.0;
@@ -623,14 +706,11 @@ mod tests {
         );
     }
 
-    // The loopback tests are `#[ignore]`d: our **transmit** path still uses the
-    // pre-fldigi Walsh convention while the receiver now uses fldigi's `fht`,
-    // so a transmission cannot be received by our own receiver until the
-    // transmit side is rewritten to match (see the module doc and the FST4W/Olivia
-    // handover notes). Receiving — what an Olivia listener needs — is confirmed
-    // on air by `an_off_air_capture_decodes`. Re-enable these once TX matches.
+    // The transmitter builds each codeword with `ifht`, the inverse of the
+    // `fht` the receiver applies, so our own transmission is now received by our
+    // own receiver at both tone counts. These were `#[ignore]`d for as long as
+    // the transmit side used the pre-fldigi Walsh convention.
     #[test]
-    #[ignore = "our TX Walsh convention does not yet match the fixed RX; see module doc"]
     fn loopback_32_1000() {
         let msg = "CQ DE AB1CD";
         let got = run(32, 1000.0, msg);
@@ -638,7 +718,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "our TX Walsh convention does not yet match the fixed RX; see module doc"]
     fn loopback_8_250() {
         let msg = "TEST OLIVIA";
         let got = run(8, 250.0, msg);

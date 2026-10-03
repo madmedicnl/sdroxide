@@ -721,17 +721,19 @@ impl SdroxideApp {
                         }
                     }
                     // Said here, beside the two settings it is about: the
-                    // tone/bandwidth names are the real Olivia's, and receiving
-                    // now is too (confirmed off the air), but transmitting is
-                    // not yet bit-compatible — a user who sent expecting to be
-                    // copied would otherwise wait for an answer that cannot
-                    // arrive.
+                    // tone/bandwidth names are the real Olivia's, receiving is
+                    // confirmed off the air, and transmitting round-trips
+                    // through our own receiver. What is *not* proven is another
+                    // program copying us — one sign convention differs from
+                    // fldigi's source — so this says to check the first over
+                    // rather than waiting for an answer that may not come.
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new(
-                            "Receiving works — other stations' Olivia decodes. Transmitting \
-                             is not yet bit-compatible with fldigi/MultiPSK, so other stations \
-                             cannot copy what this sends.",
+                            "Receiving works — other stations' Olivia decodes (confirmed off the \
+                             air). Transmitting round-trips through our own receiver, but it has \
+                             not been copied by fldigi or MultiPSK, so check the first over \
+                             rather than expecting an answer.",
                         )
                         .size(10.0)
                         .color(crate::theme::YELLOW()),
