@@ -96,11 +96,14 @@ impl SdroxideApp {
             // Tell the digi engine which FT8 contest layout to send, when this
             // contest has one. A hand-typed CW/SSB contest sets `None` — there
             // is no message layout to choose — and the logger works regardless.
-            cmds.push(sdroxide_types::Command::SetDigiConfig({
-                let mut cfg = self.digi_cfg_edit.clone();
-                cfg.contest = digi_contest_for(picked);
-                cfg
-            }));
+            //
+            // Narrowly, on purpose: this panel is not the digi panel and its
+            // `digi_cfg_edit` copy is not authoritative. Pushing a whole
+            // `DigiConfig` from here would roll back whatever the engine holds
+            // that this copy is stale on, and would clear an FT8 contest layout
+            // the operator had already set — since `digi_contest_for` yields
+            // `None` for every contest but EU VHF.
+            cmds.push(sdroxide_types::Command::SetDigiContest(digi_contest_for(picked)));
         }
     }
 

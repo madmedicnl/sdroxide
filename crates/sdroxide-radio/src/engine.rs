@@ -9183,6 +9183,27 @@ impl Engine {
                     }
                 }
             }
+            SetDigiContest(contest) => {
+                // Only this field. The contest logger opens from its own panel,
+                // and a whole `DigiConfig` from there would make its copy
+                // authoritative over the engine's — clearing an FT8 contest
+                // layout the operator had set, and rolling back every field a
+                // build adds that the panel does not know about.
+                if self.digi_config.contest != contest {
+                    self.digi_config.contest = contest;
+                    // The controller keeps its own copy and `DigiStatus.config`
+                    // is built from it, so without this the echo carries a
+                    // stale value and every client seeds from the old one.
+                    if let Some(d) = self.digi.as_mut() {
+                        d.set_config(self.digi_config.clone());
+                    }
+                    self.digi_dirty = true;
+                    if let Err(e) = sdroxide_config::save_digi_config(&self.digi_config) {
+                        warn!("saving digi config: {e}");
+                    }
+                    self.emit_digi_status();
+                }
+            }
             SetDigiTxLevel { mode, level } => {
                 // Keyed on the mode the command carries, not on the dial: the
                 // rail is dragged while transmitting, and a mode change landing

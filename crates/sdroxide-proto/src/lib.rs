@@ -1686,7 +1686,17 @@ use sdroxide_types::{
 /// profile always, and `has_stored` distinguishes a real stored set from a
 /// name-only offer (which the client records without adopting). The struct
 /// rides `ServerMsg::ClientSettings` whole. A downstream (fork) addition.
-pub const PROTO_VERSION: u16 = 191;
+/// v192: the contest logger can set the FT8 contest layout without rewriting
+/// the digi configuration. [`sdroxide_types::Command`] gains `SetDigiContest`,
+/// appended last so no surviving discriminant moves, and it carries only the
+/// one `ContestMode`. This exists instead of a `SetDigiConfig` from the
+/// contest panel: the whole struct rides positionally and in kilobytes, so
+/// writing it from a panel whose copy is stale rolls back every field a build
+/// adds — including the FT8 contest layout the operator had already set, since
+/// every contest but EU VHF maps to `ContestMode::None`. A v191 peer reads the
+/// added variant as the start of the next command and misreads the rest of the
+/// stream. A downstream (fork) addition.
+pub const PROTO_VERSION: u16 = 192;
 const VERSION_BYTE: u8 = 0x12;
 
 #[derive(Debug, thiserror::Error)]
@@ -2947,6 +2957,35 @@ mod tests {
                 ClientMsg::Command(Command::SetRadioConfig { cfg: Box::new(cfg.clone()), reopen });
             assert_eq!(decode::<ClientMsg>(&encode(&c).unwrap()).unwrap(), c);
         }
+    }
+
+    /// The contest logger's single-field command, over the wire.
+    ///
+    /// `SetDigiContest` carries a `ContestMode` and nothing else, which is the
+    /// property the engine arm depends on: it cannot roll back a field it does
+    /// not carry. Pinned here so the shape stays one enum, not a
+    /// `DigiConfig` in disguise.
+    #[test]
+    fn roundtrip_the_contest_mode_command() {
+        use sdroxide_types::ContestMode;
+
+        for c in [ContestMode::None, ContestMode::EuVhf] {
+            let m = ClientMsg::Command(Command::SetDigiContest(c));
+            assert_eq!(decode::<ClientMsg>(&encode(&m).unwrap()).unwrap(), m);
+        }
+
+        // The configuration it does not carry still crosses whole, so the two
+        // routes stay distinguishable on the wire — a peer reading a
+        // `SetDigiContest` must not mistake it for a `SetDigiConfig`.
+        let cfg = sdroxide_types::DigiConfig {
+            my_call: "OE1XYZ".into(),
+            contest: ContestMode::EuVhf,
+            ..sdroxide_types::DigiConfig::default()
+        };
+        let whole = ClientMsg::Command(Command::SetDigiConfig(cfg));
+        let field = ClientMsg::Command(Command::SetDigiContest(ContestMode::EuVhf));
+        assert_ne!(encode(&whole).unwrap(), encode(&field).unwrap());
+        assert_eq!(decode::<ClientMsg>(&encode(&whole).unwrap()).unwrap(), whole);
     }
 
     /// The per-mode transmit-audio level, over the wire in both directions

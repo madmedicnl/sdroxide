@@ -1219,6 +1219,30 @@ pub enum Command {
     ///
     /// Appended for the usual reason — postcard numbers variants by position.
     CwContacts { dot: bool, dah: bool },
+
+    /// Set only [`DigiConfig::contest`](crate::DigiConfig::contest) — which
+    /// message layout the FT8 side sends a contest exchange in — leaving every
+    /// other field of the configuration as the engine already holds it.
+    ///
+    /// Its own command rather than a whole [`DigiConfig`](crate::DigiConfig)
+    /// through [`Command::SetDigiConfig`] because the contest logger opens a
+    /// session from a panel that is not the digi panel, and the only thing
+    /// starting a session needs to say is which layout to send. Sending the
+    /// whole struct to say one field makes the panel's copy authoritative over
+    /// the engine's, which is how a contest layout the operator had already set
+    /// got cleared: every contest except EU VHF has no FT8 layout, so the
+    /// logger's mapping yields `ContestMode::None` and writing that over the
+    /// live configuration silently turned the feature off.
+    ///
+    /// That failure is the general shape of the bug rather than a detail of it.
+    /// `DigiConfig` is kilobytes, it is positional on the wire, and every field
+    /// a build adds to it is another field a whole-struct write from a stale
+    /// panel copy can roll back — including fields this panel has never heard
+    /// of. A field that only needs setting belongs on a command of its own, so
+    /// the blast radius of writing it is the field.
+    ///
+    /// Appended for the usual reason — postcard numbers variants by position.
+    SetDigiContest(crate::ContestMode),
 }
 
 /// What a [`Command::GetKnownCalls`] was answered with.
