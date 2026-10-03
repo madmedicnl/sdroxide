@@ -15250,17 +15250,34 @@ loop and every other tool work on it unchanged.
 | CQ World Wide | RST + CQ zone | RST + CQ zone |
 | CQ WPX | RST + serial | RST + serial |
 | ARRL DX | RST + state (or their power) | RST + state (or power) |
-| EU VHF | RST + serial | RST + serial + 6-character locator |
+| EU VHF | RST + serial + 6-character locator | RST + serial + 6-character locator |
 | CB / 11 m activity | RST + free text | RST + free text |
 | Serial (generic) | RST + serial | RST + serial |
 
-**The entry form.** Type the call and their exchange, press **LOG**. Your own
-serial number increases by itself as each contact is logged and is remembered
-between sessions. A call already worked on the band lights **DUPE** — the same
-check the logbook uses — so you can decide whether to log it again for the
-points. **CABRILLO** writes the whole session out as a Cabrillo v3 file
-(`sdroxide.cab`), which is what contests want back; the `CONTEST:` line and the
-CW/SSB/RTTY category are chosen from the modes in your log.
+**The entry form.** Type the call, then the two reports and one box per part of
+their exchange. **SENT** is the report you give — `599` on CW, `59` otherwise,
+from the mode in force, and editable if you sent something else — and **RCVD**
+is what they gave you; they are separate fields, so one is never echoed as the
+other. The exchange boxes come from the contest, so EU VHF asks for their serial
+*and* their locator instead of a single box that keeps only whichever you typed
+last. Press **LOG**, and the row is written with your serial and your own
+exchange on the same line.
+
+**Serials and dupes.** Your serial rises with each contact logged, and a new
+session for a contest you have worked before starts **one past the highest
+serial already in the log for that contest** — stopping for lunch, or restarting
+the program, does not send `001` again. A call already worked **in this session**
+lights **DUPE** on the same band; the check is deliberately over the session's
+own contacts rather than the whole logbook, so a station you worked last month
+does not read as a dupe before the contest has started.
+
+**CABRILLO** writes the session out as a Cabrillo v3 file (`sdroxide.cab`),
+which is what contests want back. The `CONTEST:` line and `CATEGORY-MODE` are
+chosen from the modes actually logged — an all-CW session exports as `CW`, not
+`MIXED` — and `CREATED-BY` names the program and its version. A contact logged
+with no frequency cannot be placed on a band and is left out of the `QSO:`
+lines; the export counts them in a comment at the end, so nothing disappears
+without a word.
 
 **Score and rate.** The strip across the top counts QSOs, points, multipliers
 and the score, with the number of contacts in the last ten minutes and the
@@ -15269,7 +15286,7 @@ one per QSO, because the sponsors' own band and continent weighting is theirs to
 adjudicate and a wrong guess is worse than an honest baseline. The multiplier
 count is real. The sponsor's adjudication is the one that counts.
 
-**On FT8 it logs itself.** For the contests with an FT8 message layout — EU VHF
+**On FT8 it logs itself.** For the contests with an FT8 message layout — EU VHF,
 CQ WPX and the generic serial one — **START** also sets the digital-mode contest
 exchange, and every FT8 QSO that completes is written into the session with its
 sent serial, its received exchange and both calls, without you touching the
@@ -15277,9 +15294,10 @@ entry form. A CQ WPX or EU VHF run over FT8 therefore needs no typing at all.
 The other contests (CQ WW's zone, the CB activity) have no FT8 layout and are
 typed by hand, as are all CW and SSB contacts.
 
-**Stopping.** **STOP** ends the session; the contacts stay in the logbook. Only
+**Stopping.** **STOP** ends the session; the contacts stay in the logbook, tagged
+with the contest, and are what the next session's serial is seeded from. Only
 the session's own state — which contest, the serial, your exchange — is
-forgotten, so a new session starts clean.
+forgotten.
 
 ---
 
