@@ -78,10 +78,17 @@ impl Fst4Period {
         }
     }
 
-    /// Delay from the slot boundary to the first symbol, in seconds. FST4 keys
-    /// half a second in, as FT4 does — not at the boundary as FT8 does.
+    /// Delay from the slot boundary to the first symbol, in seconds. **FST4-15
+    /// alone** keys half a second in, as FT4 does; every longer period waits a
+    /// full second, not at the boundary as FT8 does. Read flat, the four slow
+    /// periods key half a second early — which is a real half-second error on
+    /// the air, and one that grows with the burst rather than with the slot, so
+    /// the far end hears a truncated frame.
     pub fn start_delay_s(self) -> f64 {
-        0.5
+        match self {
+            Fst4Period::P15 => 0.5,
+            Fst4Period::P30 | Fst4Period::P60 | Fst4Period::P120 | Fst4Period::P300 => 1.0,
+        }
     }
 
     /// On-air duration of one transmission: 160 symbols at this period's

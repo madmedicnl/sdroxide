@@ -3622,6 +3622,11 @@ Click **SETUP** in the QSO area to open the **FT8 / FT4 / FT2 Setup** window:
   opposite the one they were last heard transmitting in, whichever that is; the
   readout beside your transmit offset says which period is actually in use.
 - **Auto-sequence** — advance the QSO automatically (recommended on).
+- **Decode depth** (FT8) — how hard the decoder digs for weak signals hidden
+  under stronger ones. The quick single pass is always shown first, so a reply
+  is never held up; **Normal** and **Deep** then add a signal-subtraction pass
+  whose extra decodes arrive up to a second or so later. **Fast** skips it,
+  **Deep** (the default) finds the most.
 - **TX watchdog / Give up after** — how long unattended transmitting may
   continue with no progress, and how many unanswered calls to one station are
   worth making. Both 0 to disable.
@@ -5739,7 +5744,8 @@ your nearest coast station broadcasts in) and **4209.5 kHz** (tropical). What
 they tune is 1.7 kHz *below* the channel, because the quoted frequency is the
 assigned one — the centre of the two tones — and a receiver in upper sideband
 has to sit below it to put them at 1615 and 1785 Hz. That arithmetic is done
-for you, and the readout still says where the signal is.
+for you, and the readout still says where the signal is. A dial a few hundred
+hertz off is fine too: the decoder follows the tones up to ±350 Hz away.
 
 **A dial that is a little off still decodes.** The receiver tracks the tones
 itself, so a readout a few hundred hertz out — a rig that will not set exactly,
@@ -11472,10 +11478,9 @@ where the library is absent.
   is on. Takes effect on **Apply**: a LimeSuite stream is bound to its channel
   when it is created.
 - **Sample rate** — 1 to 40 Msps. The board's real limits are read from it when
-  it opens; this list is the useful subset. A **LimeSDR Mini** is offered its own
-  lower list, down to 100 ksps, because its USB link cannot sustain 1 Msps on
-  *transmit* — it underruns, and the lower rates are what clear it. Receive is
-  unaffected at any rate.
+  it opens; this list is the useful subset. A **LimeSDR Mini** also offers 100,
+  250, 500 and 750 ksps: its USB link underruns on transmit at 1 Msps, so pick
+  one of those if your transmissions break up.
 - **Receive gain** — one combined figure, 0–73 dB, which LimeSuite distributes
   across the LNA, the TIA and the PGA itself. It takes whole decibels, so a
   slider left between two of them is a radio at the lower one, and the panel

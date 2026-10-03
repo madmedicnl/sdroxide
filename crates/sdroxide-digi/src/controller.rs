@@ -252,7 +252,8 @@ pub struct DigiController {
     /// are kept: two stations on one frequency is exactly the situation worth
     /// avoiding.
     recent_activity: Vec<(i64, f32)>,
-    // Decode worker.
+    // Decode worker. FT8 sends two result batches per slot — the quick pass,
+    // then the SIC extras — and `final` on the second marks the slot finished.
     job_tx: Sender<DecodeJob>,
     /// Worker results: `(slot_idx, decodes, final)`. FT8 sends two batches per
     /// slot — the quick single-pass result, then the SIC extras — and only the

@@ -236,6 +236,10 @@ impl Ft8Modem {
         self.ft8_depth = depth;
     }
 
+    pub fn ft8_depth(&self) -> sdroxide_types::Ft8Depth {
+        self.ft8_depth
+    }
+
     /// Register callsigns we already know (ours, and the station we're
     /// working), so the first hashed message naming them resolves instead of
     /// showing `<...>`.
@@ -663,7 +667,7 @@ pub fn decode_msk144_slot(audio_12k: &[i16], slot_utc: i64) -> Vec<Decode> {
     decode_slot(audio_12k, fc, ntol, Depth::Deep)
         .into_iter()
         .map(|r| {
-            let p = parse_message(&r.message, MsgKind::Standard);
+            let p = parse_text_decode(&r.message);
             Decode {
                 slot_utc,
                 snr_db: r.snr_db as i16,
@@ -699,7 +703,7 @@ pub fn decode_fsk441_slot(audio: &[f32], slot_utc: i64) -> Vec<Decode> {
     sdroxide_dsp::fsk441_find_pings(audio)
         .into_iter()
         .map(|p| {
-            let parsed = parse_message(&p.text, MsgKind::Standard);
+            let parsed = parse_text_decode(&p.text);
             Decode {
                 slot_utc,
                 snr_db: p.snr_db.round() as i16,
@@ -744,7 +748,7 @@ pub fn decode_q65_slot(
                 .decode()
                 .into_iter()
                 .map(|r| {
-                    let p = parse_message(&r.message, MsgKind::Standard);
+                    let p = parse_text_decode(&r.message);
                     Decode {
                         slot_utc,
                         snr_db: r.snr_db.round() as i16,
@@ -1605,6 +1609,26 @@ fn parse_message(text: &str, kind: MsgKind) -> Parsed {
         .filter(|t| is_grid(t))
         .map(|s| s.to_string()),
         ..Default::default()
+    }
+}
+
+/// Addressing for a decode that arrives as text alone.
+///
+/// MSK144 and Q65 come back from mfsk-core already unpacked, and FSK441 is
+/// plain text by design, so there are no message-type bits to say whether a
+/// row is a standard `<to> <from> <grid|report>` or free text. It is read as a
+/// standard message and kept as one only when the calls it names look like
+/// callsigns; anything else is free text and names nobody. Without that,
+/// `TNX 73 GL` reads as a message from "73", which goes on the map and to PSK
+/// Reporter as a station heard.
+fn parse_text_decode(text: &str) -> Parsed {
+    let p = parse_message(text, MsgKind::Standard);
+    // An unresolved hashed call (`<...>`) is already `None` here.
+    let names_a_station = |c: &Option<String>| c.as_deref().is_none_or(is_callish);
+    if names_a_station(&p.to) && names_a_station(&p.from) {
+        p
+    } else {
+        Parsed { free_text: true, ..Default::default() }
     }
 }
 
@@ -3226,4 +3250,125 @@ mod tests {
         rx.remember_call("r7kjg/qrp");
         assert_eq!(rx.known_calls(), vec!["R7KJG/QRP"]);
     }
+
+    /// A text-only decode (MSK144, Q65, FSK441) is addressed only when its
+    /// calls look like callsigns: free text names nobody, so it never reaches
+    /// the map or PSK Reporter as a station heard.
+    #[test]
+    fn free_text_names_no_station() {
+        for text in ["TNX 73 GL", "PSE QSL", "RRR", "73", "K1ABC TNX"] {
+            let p = parse_text_decode(text);
+            assert!(p.free_text && p.from.is_none() && p.to.is_none(), "{text}: {p:?}");
+        }
+        let p = parse_text_decode("K1ABC W9XYZ EN37");
+        assert!(!p.free_text);
+        assert_eq!((p.to.as_deref(), p.from.as_deref()), (Some("K1ABC"), Some("W9XYZ")));
+        let p = parse_text_decode("CQ K1ABC FN42");
+        assert!(p.is_cq && !p.free_text);
+        assert_eq!(p.from.as_deref(), Some("K1ABC"));
+        // An unresolved hashed call is not a reason to call the row free text.
+        let p = parse_text_decode("<...> W9XYZ R-05");
+        assert!(!p.free_text);
+        assert_eq!(p.from.as_deref(), Some("W9XYZ"));
+    }
+
+    /// Noise alone must not decode, now that the wide-band pass subtracts:
+    /// mfsk-core runs the second round at three quarters of the sync floor
+    /// even when the first found nothing, so a slot of plain noise is searched
+    /// deeper than it used to be and CRC-14 is all that stands between that
+    /// search and an invented callsign. Several deterministic seeds, so a
+    /// marginal floor shows up here rather than on the air.
+    #[test]
+    fn ft4_noise_alone_decodes_nothing() {
+        let n = (7.5 * 12_000.0) as usize;
+        for seed in 1..=8u32 {
+            let mut rng = seed.wrapping_mul(0x9e37_79b9);
+            let buf: Vec<i16> = (0..n)
+                .map(|_| {
+                    rng ^= rng << 13;
+                    rng ^= rng >> 17;
+                    rng ^= rng << 5;
+                    ((rng as i32 as f32 / i32::MAX as f32) * 6_000.0) as i16
+                })
+                .collect();
+            let mut rx = Ft8Modem::new(Mode::Ft4);
+            let got = rx.decode_slot(&buf, 0, &ApHints::default(), 1500.0);
+            let messages: Vec<&str> = got.iter().map(|d| d.message.as_str()).collect();
+            assert!(messages.is_empty(), "seed {seed}: noise decoded as {messages:?}");
+        }
+    }
+
+    /// Noise alone decodes to nothing in either JT mode. The 72-bit message
+    /// has no CRC, so this is the decoder's own gates being tested — several
+    /// deterministic seeds, so a marginal gate shows up here rather than as an
+    /// invented callsign on an empty band.
+    #[test]
+    fn jt_noise_alone_decodes_nothing() {
+        for mode in [Mode::Jt65, Mode::Jt9] {
+            for seed in 1..=3u32 {
+                let mut rng = seed.wrapping_mul(0x9e37_79b9);
+                let noise: Vec<i16> = (0..60 * 12_000)
+                    .map(|_| {
+                        rng ^= rng << 13;
+                        rng ^= rng >> 17;
+                        rng ^= rng << 5;
+                        ((rng as i32 as f32 / i32::MAX as f32) * 6_000.0) as i16
+                    })
+                    .collect();
+                let decodes = decode_jt_slot(&noise, mode, 0);
+                assert!(decodes.is_empty(), "{mode:?} seed {seed}: noise decoded as {decodes:?}");
+            }
+        }
+    }
+
+    /// `Fst4Period` states FST4's geometry in `sdroxide-types`, which cannot
+    /// depend on mfsk-core; this is where the two are held to agree — the slot,
+    /// the symbol length and the transmit offset every decode's DT is measured
+    /// from. FST4-15 alone keys half a second in.
+    #[test]
+    fn fst4_periods_match_mfsk_cores_geometry() {
+        use mfsk_core::engine::{FrameLayout, ModulationParams};
+        use sdroxide_types::Fst4Period;
+        fn check<P: FrameLayout + ModulationParams>(p: Fst4Period) {
+            assert_eq!(p.nsps(), P::NSPS as usize, "FST4-{} NSPS", p.label());
+            assert_eq!(p.slot_s(), f64::from(P::T_SLOT_S), "FST4-{} slot", p.label());
+            assert_eq!(
+                p.start_delay_s(),
+                f64::from(P::TX_START_OFFSET_S),
+                "FST4-{} transmit offset",
+                p.label()
+            );
+        }
+        check::<mfsk_core::fst4::Fst4s15>(Fst4Period::P15);
+        check::<mfsk_core::fst4::Fst4s30>(Fst4Period::P30);
+        check::<mfsk_core::fst4::Fst4s60>(Fst4Period::P60);
+        check::<mfsk_core::fst4::Fst4s120>(Fst4Period::P120);
+        check::<mfsk_core::fst4::Fst4s300>(Fst4Period::P300);
+    }
+
+    /// `Q65Mode` states each sub-mode's geometry in `sdroxide-types`, which
+    /// cannot depend on mfsk-core; this holds the two together — the slot and
+    /// the symbol length that decide the burst, and so which protocol type a
+    /// sub-mode is decoded as. (The transmit offset is WSJT-X's rather than
+    /// mfsk-core's, which says one second for all of them.)
+    #[test]
+    fn q65_sub_modes_match_mfsk_cores_geometry() {
+        use mfsk_core::engine::{FrameLayout, ModulationParams};
+        use sdroxide_types::Q65Mode;
+        fn check<P: FrameLayout + ModulationParams>(m: Q65Mode) {
+            assert_eq!(m.nsps(), P::NSPS as usize, "Q65-{} NSPS", m.label());
+            assert_eq!(m.slot_s(), f64::from(P::T_SLOT_S), "Q65-{} slot", m.label());
+        }
+        check::<mfsk_core::q65::Q65a15>(Q65Mode::A15);
+        check::<mfsk_core::q65::Q65a30>(Q65Mode::A30);
+        check::<mfsk_core::q65::Q65a60>(Q65Mode::A60);
+        check::<mfsk_core::q65::Q65b60>(Q65Mode::B60);
+        check::<mfsk_core::q65::Q65c60>(Q65Mode::C60);
+        check::<mfsk_core::q65::Q65d60>(Q65Mode::D60);
+        check::<mfsk_core::q65::Q65e60>(Q65Mode::E60);
+        check::<mfsk_core::q65::Q65d120>(Q65Mode::D120);
+        check::<mfsk_core::q65::Q65e120>(Q65Mode::E120);
+        check::<mfsk_core::q65::Q65a300>(Q65Mode::A300);
+    }
+
 }
