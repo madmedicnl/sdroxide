@@ -7291,11 +7291,10 @@ impl BandFilter {
 /// modes and the block coding follows the protocol, so it looks like one — and
 /// until the frame geometry matches, a station on an Olivia frequency is
 /// silence here.
-const OLIVIA_UNCONFIRMED: &str = "OLIVIA — unconfirmed. The tone counts and bandwidths are \
-     named after the real modes and the block coding follows it, but the decoder \
-     is not yet bit-compatible: it does not read an Olivia station, and one does \
-     not read it. MultiPSK or fldigi can copy the same signal. Reported \
-     2026-10-02; being reworked.";
+const OLIVIA_UNCONFIRMED: &str = "OLIVIA — receive works, transmit pending. This \
+     decoder now reads other stations (confirmed off the air), so you can copy an \
+     Olivia QSO. Transmitting is not yet bit-compatible with fldigi/MultiPSK, so \
+     another station will not copy what this sends until that half is finished.";
 
 fn mode_band_chip(
     ui: &mut egui::Ui,
